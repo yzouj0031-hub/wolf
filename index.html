@@ -4471,7 +4471,8 @@ function getFallbacks() {
 /* ================================================================
  *  § 存档 / 读档
  * ================================================================ */
-function saveGame() {
+function saveGame(options = {}) {
+  const silent = !!(options && options.silent);
   // ★ v7修复:存档自动降级——超quota时逐级压缩memory,避免完全丢失存档
   const buildSnap = (memLimit) => ({
     _v: 2,
@@ -4515,23 +4516,26 @@ function saveGame() {
       localStorage.setItem('wg_savegame', json);
       const sizeKB = Math.round(json.length / 1024);
       const t = new Date(snap._time).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-      if (limit < 40) {
-        Render.log('system', `💾 进度已保存（${t}，第${S.round}回·${S.phase}）⚠️ 记忆已压缩到最近${limit}条/玩家 [${sizeKB}KB]`);
-      } else {
-        Render.log('system', `💾 进度已保存（${t}，第${S.round}回·${S.phase}）[${sizeKB}KB]`);
+      if (!silent) {
+        if (limit < 40) {
+          Render.log('system', `💾 进度已保存（${t}，第${S.round}回·${S.phase}）⚠️ 记忆已压缩到最近${limit}条/玩家 [${sizeKB}KB]`);
+        } else {
+          Render.log('system', `💾 进度已保存（${t}，第${S.round}回·${S.phase}）[${sizeKB}KB]`);
+        }
       }
-      return;
+      return true;
     } catch(e) {
       lastErr = e;
       // 配额超限继续降级,其他错误直接报
       if (!String(e.message).includes('quota') && !String(e.message).includes('Quota')) {
         Render.log('system', '⚠️ 存档失败:' + e.message);
-        return;
+        return false;
       }
     }
   }
   // 全部降级都失败
   Render.log('system', '⚠️ 存档完全失败（localStorage已满）:建议手动导出后清空浏览器存储。错误:' + (lastErr ? lastErr.message : '未知'));
+  return false;
 }
 
 function loadGame() {
@@ -4624,6 +4628,55 @@ function loadGame() {
     console.error(e);
   }
 }
+
+/* ================================================================
+ *  § 自动存档：阶段变化 / 后台切换 / 每60秒
+ * ================================================================ */
+const AutoSave = (() => {
+  const INTERVAL_MS = 60 * 1000;
+  const PHASE_CHECK_MS = 1500;
+  let lastSignature = '';
+  let lastSavedAt = 0;
+
+  function canSave() {
+    return !!(S && Array.isArray(S.players) && S.players.length && S.phase && S.phase !== 'waiting');
+  }
+
+  function signature() {
+    if (!canSave()) return '';
+    const alive = S.players.filter(p => p.alive).map(p => p.id).join(',');
+    return [S.gameId, S.round, S.phase, S.gameOver ? 1 : 0, alive].join('|');
+  }
+
+  function save(reason, force = false) {
+    if (!canSave()) return false;
+    const now = Date.now();
+    if (!force && now - lastSavedAt < 1500) return false;
+    const ok = saveGame({silent:true, reason});
+    if (ok) {
+      lastSavedAt = now;
+      lastSignature = signature();
+      console.debug('[自动存档]', reason, new Date(now).toLocaleTimeString());
+    }
+    return ok;
+  }
+
+  setInterval(() => {
+    const next = signature();
+    if (!next) { lastSignature = ''; return; }
+    if (!lastSignature) { lastSignature = next; return; }
+    if (next !== lastSignature) save('阶段变化');
+  }, PHASE_CHECK_MS);
+
+  setInterval(() => save('定时保存'), INTERVAL_MS);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') save('切到后台', true);
+  });
+  window.addEventListener('pagehide', () => save('页面关闭', true));
+
+  return {save};
+})();
 
 function saveCfg() {
   try { localStorage.setItem('wg_gufeng', JSON.stringify({
