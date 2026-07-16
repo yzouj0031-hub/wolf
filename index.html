@@ -2424,6 +2424,7 @@ body.has-wp::after {
 
 <div class="epop" id="savepop"><div class="ebox"><h3>── 存档管理 ──</h3>
   <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">存档保存在设备数据库中，容量远大于旧版的5MB上限，AI记忆不再被压缩。「导出」可存为文件，在浏览器与APK之间互传。</div>
+  <button id="btn-open-timeline" style="width:100%;margin-bottom:8px;padding:8px;background:rgba(200,168,76,0.12);color:var(--gold);border:1px solid var(--gold);border-radius:var(--r);cursor:pointer;font-size:.85em">⏪ 对局回溯（自动时间线）</button>
   <div id="save-slot-list" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto"></div>
   <div class="btns" style="margin-top:10px">
     <label style="flex:1;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:.85em;text-align:center">📁 从文件导入<input type="file" accept=".json,application/json" id="save-import-file" style="display:none"></label>
@@ -2446,6 +2447,15 @@ body.has-wp::after {
     <button id="btn-tts-test" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">🔈 测试</button>
     <button id="btn-tts-save2" style="background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold)">保存</button>
     <button id="btn-tts-close" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button>
+  </div>
+</div></div>
+
+<div class="epop" id="tlpop"><div class="ebox"><h3>── 对局回溯 ──</h3>
+  <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">每次阶段变化自动记录检查点（最多40个，仅保留本局）。回到过去后AI会重新思考，剧情可能走向不同分支。</div>
+  <div id="tl-list" style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto"></div>
+  <div class="btns" style="margin-top:10px">
+    <button id="btn-tl-clear" style="background:rgba(180,80,80,0.12);color:#c88880;border:1px solid rgba(180,80,80,0.4)">🗑 清空</button>
+    <button id="btn-tl-close" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button>
   </div>
 </div></div>
 
@@ -4905,6 +4915,105 @@ const TTS = (() => {
 })();
 
 /* ================================================================
+ *  § Timeline：对局回溯（自动时间线）
+ *  每次阶段变化自动留一个检查点，可回溯到本局任意历史节点。
+ *  回溯后AI会重新决策，剧情可能走出不同分支。
+ * ================================================================ */
+const Timeline = (() => {
+  const MAX = 40, IDX = 'tl_index';
+  const PHASE_NAME = {waiting:'等待中', sheriff:'警长竞选', night:'夜晚', day:'白天', duel:'决斗', vote:'投票'};
+  let index = null;
+
+  function loadIndex() {
+    if (index) return index;
+    try { index = JSON.parse(SaveStore.get(IDX) || '[]'); } catch (_) { index = []; }
+    if (!Array.isArray(index)) index = [];
+    return index;
+  }
+
+  function record(json, meta) {
+    try {
+      let idx = loadIndex();
+      // 新的一局开始：清掉上一局的时间线
+      if (idx.length && idx[idx.length - 1].gameId !== meta.gameId) {
+        idx.forEach(e => SaveStore.remove(e.k));
+        index = idx = [];
+      }
+      // 同回合同阶段且存活数没变 → 覆盖最后一条，避免检查点刷屏
+      const last = idx[idx.length - 1];
+      if (last && last.round === meta.round && last.phase === meta.phase && last.alive === meta.alive) {
+        SaveStore.remove(last.k);
+        idx.pop();
+      }
+      const k = 'tl_' + Date.now();
+      idx.push({k, t: Date.now(), round: meta.round, phase: meta.phase,
+                alive: meta.alive, total: meta.total, sizeKB: Math.round(json.length / 1024),
+                gameId: meta.gameId});
+      while (idx.length > MAX) SaveStore.remove(idx.shift().k);
+      SaveStore.set(k, json);
+      SaveStore.set(IDX, JSON.stringify(idx));
+    } catch (e) { console.error('[回溯] 记录检查点失败', e); }
+  }
+
+  function list() { return loadIndex().slice().reverse(); }  // 新的在前
+  function phaseName(ph) { return PHASE_NAME[ph] || ph; }
+
+  function restore(k) {
+    const raw = SaveStore.get(k);
+    if (!raw) { alert('该回溯点数据缺失'); return; }
+    SaveStore.set('rewind', raw);
+    loadGame('rewind');
+  }
+
+  function clearAll() {
+    loadIndex().forEach(e => SaveStore.remove(e.k));
+    index = [];
+    SaveStore.set(IDX, '[]');
+  }
+
+  return {record, list, restore, clearAll, phaseName};
+})();
+
+const TimelineUI = (() => {
+  function render() {
+    const box = document.getElementById('tl-list');
+    if (!box) return;
+    box.innerHTML = '';
+    const items = Timeline.list();
+    if (!items.length) {
+      box.innerHTML = '<div style="font-size:.78em;color:#5a5348;text-align:center;padding:14px 0">还没有检查点。开局后每次阶段变化会自动记录。</div>';
+      return;
+    }
+    items.forEach(it => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;border:1px solid rgba(200,180,140,0.18);border-radius:var(--r);padding:7px 10px;background:rgba(255,255,255,0.03)';
+      const t = new Date(it.t).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;font-size:.78em;line-height:1.45';
+      info.innerHTML = '<b style="color:var(--gold)">第' + it.round + '回 · ' + Timeline.phaseName(it.phase) + '</b>' +
+        '<br><span style="color:#8a7e6a">' + t + ' · 存活' + it.alive + '/' + it.total + ' · ' + it.sizeKB + 'KB</span>';
+      const btn = document.createElement('button');
+      btn.textContent = '⏪ 回到这里';
+      btn.style.cssText = 'padding:6px 10px;font-size:.75em;border-radius:var(--r);cursor:pointer;background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold);white-space:nowrap';
+      btn.addEventListener('click', () => { close(); Timeline.restore(it.k); });
+      row.appendChild(info); row.appendChild(btn);
+      box.appendChild(row);
+    });
+  }
+  function open() {
+    render();
+    SaveStore.ready.then(render);
+    const pop = document.getElementById('tlpop');
+    if (pop) pop.classList.add('show');
+  }
+  function close() {
+    const pop = document.getElementById('tlpop');
+    if (pop) pop.classList.remove('show');
+  }
+  return {open, close, render};
+})();
+
+/* ================================================================
  *  § 存档 / 读档
  * ================================================================ */
 function saveGame(options = {}) {
@@ -4951,6 +5060,10 @@ function saveGame(options = {}) {
       const snap = buildSnap(limit);
       const json = JSON.stringify(snap);
       SaveStore.set(options.slot || 'auto', json);
+      if (options.reason === '阶段变化') {
+        Timeline.record(json, {round: S.round, phase: S.phase,
+          alive: S.players.filter(p => p.alive).length, total: S.players.length, gameId: S.gameId});
+      }
       if (window.CloudSave && typeof window.CloudSave.schedule === 'function') {
         window.CloudSave.schedule(json, options.reason || (silent ? '自动保存' : '手动保存'));
       }
@@ -17143,6 +17256,13 @@ function bindEvents() {
     $('btn-tts-close').addEventListener('click', () => $('ttspop').classList.remove('show'));
   }
   if ($('btn-close-savepop')) $('btn-close-savepop').addEventListener('click', SaveUI.close);
+  if ($('btn-open-timeline')) $('btn-open-timeline').addEventListener('click', () => { SaveUI.close(); TimelineUI.open(); });
+  if ($('btn-tl-close')) $('btn-tl-close').addEventListener('click', TimelineUI.close);
+  if ($('btn-tl-clear')) $('btn-tl-clear').addEventListener('click', () => {
+    if (!confirm('清空本局所有回溯检查点？')) return;
+    Timeline.clearAll();
+    TimelineUI.render();
+  });
   if ($('save-import-file')) $('save-import-file').addEventListener('change', (e) => {
     const f = e.target.files && e.target.files[0];
     if (f) SaveUI.importFile(f);
