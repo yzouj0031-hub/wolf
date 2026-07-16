@@ -15,7 +15,7 @@
     const link = document.createElement('link');
     link.id = 'tablet-layout-css';
     link.rel = 'stylesheet';
-    link.href = './tablet.css?v=1';
+    link.href = './tablet.css?v=2';
     document.head.appendChild(link);
   };
   if (document.readyState === 'loading') {
@@ -25,6 +25,7 @@
   }
 
   if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
+  document.documentElement.classList.add('capacitor-native');
 
   const browserFetch = window.fetch.bind(window);
   const nativeHttp = window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
