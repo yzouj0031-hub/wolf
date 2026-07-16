@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -36,3 +36,11 @@ jobs:
           name: wolf-android-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Publish test APK
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk AI-Werewolf-Android-v1.0.apk
+          gh release view android-v1.0 >/dev/null 2>&1 || gh release create android-v1.0 --prerelease --title "Android test v1.0" --notes "Android test build of AI狼人杀. This APK opens the hosted PWA and requires internet access."
+          gh release upload android-v1.0 AI-Werewolf-Android-v1.0.apk --clobber
