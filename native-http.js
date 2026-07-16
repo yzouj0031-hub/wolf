@@ -10,6 +10,20 @@
     };
   }
 
+  const loadTabletLayout = () => {
+    if (document.getElementById('tablet-layout-css')) return;
+    const link = document.createElement('link');
+    link.id = 'tablet-layout-css';
+    link.rel = 'stylesheet';
+    link.href = './tablet.css?v=1';
+    document.head.appendChild(link);
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadTabletLayout, { once: true });
+  } else {
+    loadTabletLayout();
+  }
+
   if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
 
   const browserFetch = window.fetch.bind(window);
