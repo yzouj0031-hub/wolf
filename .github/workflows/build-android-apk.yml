@@ -33,7 +33,7 @@ jobs:
         run: ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: wolf-android-apk
+          name: wolf-android-apk-native-http-v1.1
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
       - name: Publish test APK
@@ -41,6 +41,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk AI-Werewolf-Android-v1.0.apk
-          gh release view android-v1.0 >/dev/null 2>&1 || gh release create android-v1.0 --prerelease --title "Android test v1.0" --notes "Android test build of AI狼人杀. This APK opens the hosted PWA and requires internet access."
-          gh release upload android-v1.0 AI-Werewolf-Android-v1.0.apk --clobber
+          cp android/app/build/outputs/apk/debug/app-debug.apk AI-Werewolf-Android-v1.1-NativeHTTP.apk
+          gh release view android-v1.1 >/dev/null 2>&1 || gh release create android-v1.1 --prerelease --title "Android test v1.1 — Native HTTP" --notes "Android test build of AI狼人杀 with Capacitor native HTTP enabled to avoid browser CORS restrictions. Requires internet access. HTTPS API endpoints are recommended."
+          gh release upload android-v1.1 AI-Werewolf-Android-v1.1-NativeHTTP.apk --clobber
