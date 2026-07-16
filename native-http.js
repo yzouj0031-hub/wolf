@@ -10,6 +10,64 @@
     };
   }
 
+
+  const wireTabletControls = () => {
+    if (window.__wolfTabletControlsWired) return;
+    const controls = document.querySelector('.ctrls');
+    if (!controls) return;
+
+    const media = window.matchMedia('(min-width: 601px) and (max-width: 1100px)');
+    const originalButtons = Array.from(controls.children);
+    const get = (id) => document.getElementById(id);
+    let more = null;
+
+    const restore = () => {
+      if (!more) return;
+      originalButtons.forEach((button) => controls.appendChild(button));
+      more.remove();
+      more = null;
+      controls.classList.remove('tablet-controls-ready');
+    };
+
+    const apply = () => {
+      if (!media.matches) {
+        restore();
+        return;
+      }
+      if (more) return;
+
+      more = document.createElement('details');
+      more.id = 'tablet-control-more';
+      more.className = 'tablet-control-more';
+      const summary = document.createElement('summary');
+      summary.textContent = '⋯ 更多';
+      const grid = document.createElement('div');
+      grid.className = 'tablet-control-more-grid';
+      more.append(summary, grid);
+
+      ['btn-mvp', 'btn-export', 'btn-rules', 'btn-tts-cfg', 'btn-reset'].forEach((id) => {
+        const button = get(id);
+        if (button) grid.appendChild(button);
+      });
+
+      ['bne', 'bau', 'btn-ask', 'btn-tts', 'bst', 'btn-save-game', 'btn-load-game'].forEach((id) => {
+        const button = get(id);
+        if (button) controls.appendChild(button);
+      });
+      controls.appendChild(more);
+      controls.classList.add('tablet-controls-ready');
+
+      document.addEventListener('pointerdown', (event) => {
+        if (more && more.open && !more.contains(event.target)) more.open = false;
+      }, { passive: true });
+    };
+
+    apply();
+    if (typeof media.addEventListener === 'function') media.addEventListener('change', apply);
+    else media.addListener(apply);
+    window.__wolfTabletControlsWired = true;
+  };
+
   const wireStreamingTts = () => {
     if (window.__wolfStreamingTtsWired || typeof streamSpeak !== 'function') return;
     const originalStreamSpeak = streamSpeak;
@@ -35,15 +93,17 @@
     const link = document.createElement('link');
     link.id = 'tablet-layout-css';
     link.rel = 'stylesheet';
-    link.href = './tablet.css?v=5';
+    link.href = './tablet.css?v=6';
     document.head.appendChild(link);
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadTabletLayout, { once: true });
     document.addEventListener('DOMContentLoaded', wireStreamingTts, { once: true });
+    document.addEventListener('DOMContentLoaded', wireTabletControls, { once: true });
   } else {
     loadTabletLayout();
     wireStreamingTts();
+    wireTabletControls();
   }
 
   if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
