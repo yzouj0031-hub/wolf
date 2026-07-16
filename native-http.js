@@ -1,0 +1,62 @@
+(function () {
+  'use strict';
+
+  if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
+
+  const browserFetch = window.fetch.bind(window);
+  const nativeHttp = window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
+  if (!nativeHttp || typeof nativeHttp.request !== 'function') return;
+
+  const shouldUseBrowser = (url) => {
+    const host = url.hostname.toLowerCase();
+    return url.origin === location.origin ||
+      host.endsWith('.supabase.co') ||
+      host === 'api.github.com' ||
+      host === 'github.com' ||
+      host.endsWith('.githubusercontent.com') ||
+      host === 'cdn.jsdelivr.net' ||
+      host === 'fonts.googleapis.com' ||
+      host === 'fonts.gstatic.com';
+  };
+
+  window.fetch = async function selectiveNativeFetch(input, init) {
+    const options = init || {};
+    const rawUrl = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
+    const url = new URL(rawUrl, location.href);
+
+    if (shouldUseBrowser(url)) return browserFetch(input, options);
+
+    const sourceHeaders = options.headers || (typeof input === 'object' && input.headers) || {};
+    const headers = {};
+    new Headers(sourceHeaders).forEach((value, key) => { headers[key] = value; });
+
+    let data = options.body;
+    const contentType = String(headers['content-type'] || headers['Content-Type'] || '').toLowerCase();
+    if (typeof data === 'string' && contentType.includes('application/json')) {
+      try { data = JSON.parse(data); } catch (_) {}
+    }
+
+    try {
+      const result = await nativeHttp.request({
+        url: url.href,
+        method: String(options.method || (typeof input === 'object' && input.method) || 'GET').toUpperCase(),
+        headers,
+        data,
+        responseType: 'text',
+        connectTimeout: 30000,
+        readTimeout: 180000
+      });
+
+      const body = typeof result.data === 'string' ? result.data : JSON.stringify(result.data == null ? '' : result.data);
+      return new Response(body, {
+        status: result.status || 200,
+        headers: result.headers || {}
+      });
+    } catch (error) {
+      console.error('[Native HTTP]', url.host, error);
+      throw error;
+    }
+  };
+
+  console.info('[Native HTTP] AI API direct mode enabled; Supabase remains on browser fetch.');
+})();
