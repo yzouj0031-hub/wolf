@@ -1,6 +1,15 @@
 (function () {
   'use strict';
 
+  const wrongSupabaseUrl = 'https://hnlsmcucmbicygzjmfut.supabase.co';
+  const correctSupabaseUrl = 'https://hnlsmcucmbicygzjfmuf.supabase.co';
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    const createClient = window.supabase.createClient.bind(window.supabase);
+    window.supabase.createClient = function (url, key, options) {
+      return createClient(url === wrongSupabaseUrl ? correctSupabaseUrl : url, key, options);
+    };
+  }
+
   if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
 
   const browserFetch = window.fetch.bind(window);
