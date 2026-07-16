@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/build-android-apk
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
