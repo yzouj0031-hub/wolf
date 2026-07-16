@@ -2154,6 +2154,7 @@ body.has-wp::after {
       <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
       <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
       <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
+      <button class="be" id="btn-tts" title="用系统语音朗读AI发言（免费，无需API）">🔇 朗读</button>
       <button class="br" id="btn-reset">🔁 重置</button>
     </div>
   </div>
@@ -4721,6 +4722,102 @@ const SaveUI = (() => {
 })();
 
 /* ================================================================
+ *  § TTS：AI发言朗读（浏览器/系统自带语音合成，免费、无需API key）
+ *  按玩家ID固定分配音色/音调/语速，不同AI听感不同。
+ * ================================================================ */
+const TTS = (() => {
+  const synth = ('speechSynthesis' in window) ? window.speechSynthesis : null;
+  let on = false;
+  try { on = localStorage.getItem('wg_tts_on') === '1'; } catch (_) {}
+  let zhVoices = [];
+
+  function loadVoices() {
+    if (!synth) return;
+    const all = synth.getVoices() || [];
+    zhVoices = all.filter(v => /^zh[-_]/i.test(v.lang || ''));
+    if (!zhVoices.length) zhVoices = all.filter(v => /zh|chinese|cmn/i.test((v.lang || '') + (v.name || '')));
+  }
+  if (synth) {
+    loadVoices();
+    if (typeof synth.onvoiceschanged !== 'undefined') synth.onvoiceschanged = loadVoices;
+  }
+
+  function profile(p) {
+    const seed = (p && typeof p.id === 'number') ? p.id : 0;
+    return {
+      voice: zhVoices.length ? zhVoices[seed % zhVoices.length] : null,
+      pitch: 0.75 + ((seed * 7) % 10) * 0.06,  // 0.75 ~ 1.29
+      rate:  0.95 + ((seed * 3) % 5) * 0.05    // 0.95 ~ 1.15
+    };
+  }
+
+  function clean(text) {
+    return String(text)
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  function chunks(text) {  // 长文本切段，避免部分浏览器长语音中途卡死
+    const parts = []; let buf = '';
+    for (const ch of text) {
+      buf += ch;
+      if (buf.length > 60 && /[。！？!?；;\n]/.test(ch)) { parts.push(buf); buf = ''; }
+      else if (buf.length >= 140) { parts.push(buf); buf = ''; }
+    }
+    if (buf.trim()) parts.push(buf);
+    return parts;
+  }
+
+  let pump = null;
+  function startPump() {  // Chrome桌面版长语音会莫名暂停，定时resume兜底
+    if (pump || !synth) return;
+    pump = setInterval(() => {
+      if (synth.speaking) { try { synth.resume(); } catch (_) {} }
+      else { clearInterval(pump); pump = null; }
+    }, 5000);
+  }
+
+  function speak(p, text) {
+    if (!on || !synth) return;
+    const t = clean(text);
+    if (!t) return;
+    const prof = profile(p);
+    const name = clean((p && p.name) || '');
+    const list = chunks(t);
+    if (name) list.unshift(name + '说：');
+    list.forEach(part => {
+      const u = new SpeechSynthesisUtterance(part);
+      u.lang = 'zh-CN';
+      if (prof.voice) u.voice = prof.voice;
+      u.pitch = prof.pitch;
+      u.rate = prof.rate;
+      synth.speak(u);
+    });
+    startPump();
+  }
+
+  function setOn(v) {
+    on = !!v;
+    try { localStorage.setItem('wg_tts_on', on ? '1' : '0'); } catch (_) {}
+    if (!on && synth) synth.cancel();
+    const btn = document.getElementById('btn-tts');
+    if (btn) btn.textContent = on ? '🔊 朗读' : '🔇 朗读';
+  }
+
+  function toggle() {
+    if (!synth) { alert('当前浏览器不支持语音合成，无法开启朗读'); return; }
+    setOn(!on);
+    if (on) {  // 需要用户手势后才允许发声，顺便给个即时反馈
+      const u = new SpeechSynthesisUtterance('朗读已开启');
+      u.lang = 'zh-CN';
+      synth.speak(u);
+    }
+  }
+
+  return {speak, toggle, setOn, isOn: () => on, stop: () => { if (synth) synth.cancel(); }};
+})();
+
+/* ================================================================
  *  § 存档 / 读档
  * ================================================================ */
 function saveGame(options = {}) {
@@ -4806,6 +4903,7 @@ function loadGame(slotArg) {
     if (!confirm(`读取存档？\n保存于：${t}\n第${snap.S.round}回·${snap.S.phase}\n存活：${snap.S.players.filter(p=>p.alive).length}人`)) return;
 
     // 中止当前游戏
+    TTS.stop();
     if (S.abortCtrl) S.abortCtrl.abort();
     S = freshState(S);
     S.abortCtrl = new AbortController();
@@ -5207,6 +5305,8 @@ const Render = {
     $('gl').appendChild(d);
     scrollGL();
     pruneGL();
+    // 🔊 朗读AI公开发言(狼聊和玩家自己的发言不读)
+    if (g && !isWolfChat && !(p && p.isPlayer)) TTS.speak(p, publicGame);
     // ★ fix: 狼聊不能写入 S.history，否则会通过 buildSystemPrompt 泄露给好人 AI
     if (g && !isWolfChat) S.history.push({phase:S.phase, round:S.round, name:p.name, text:publicGame});
   },
@@ -16924,6 +17024,10 @@ function bindEvents() {
   });
   $('btn-save-game').addEventListener('click', () => SaveUI.open());
   $('btn-load-game').addEventListener('click', () => SaveUI.open());
+  if ($('btn-tts')) {
+    $('btn-tts').addEventListener('click', () => TTS.toggle());
+    if (TTS.isOn()) $('btn-tts').textContent = '🔊 朗读';
+  }
   if ($('btn-close-savepop')) $('btn-close-savepop').addEventListener('click', SaveUI.close);
   if ($('save-import-file')) $('save-import-file').addEventListener('change', (e) => {
     const f = e.target.files && e.target.files[0];
