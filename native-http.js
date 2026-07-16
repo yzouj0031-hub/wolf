@@ -15,7 +15,7 @@
     const link = document.createElement('link');
     link.id = 'tablet-layout-css';
     link.rel = 'stylesheet';
-    link.href = './tablet.css?v=2';
+    link.href = './tablet.css?v=3';
     document.head.appendChild(link);
   };
   if (document.readyState === 'loading') {
