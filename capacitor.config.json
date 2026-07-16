@@ -1,0 +1,13 @@
+{
+  "appId": "io.github.yzouj0031hub.wolf",
+  "appName": "AI狼人杀",
+  "webDir": "www",
+  "server": {
+    "url": "https://yzouj0031-hub.github.io/wolf/",
+    "cleartext": false,
+    "allowNavigation": ["yzouj0031-hub.github.io"]
+  },
+  "android": {
+    "backgroundColor": "#0a0a14"
+  }
+}
