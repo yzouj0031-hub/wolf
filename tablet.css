@@ -1,7 +1,33 @@
 /*
- * Tablet layout overrides.
- * Keeps phone (<=600px) and desktop (>1100px) layouts unchanged.
+ * Tablet layout and native-app safe-area overrides.
+ * Keeps phone and desktop layouts unchanged unless explicitly scoped.
  */
+
+/* Android APK: keep tappable UI below the system status bar and above
+   gesture/navigation controls. */
+html.capacitor-native .gc.active {
+  box-sizing: border-box;
+  padding-top: max(env(safe-area-inset-top), 28px);
+  padding-bottom: max(env(safe-area-inset-bottom), 6px);
+}
+html.capacitor-native .mm {
+  box-sizing: border-box;
+  padding-top: max(env(safe-area-inset-top), 28px);
+  padding-bottom: max(env(safe-area-inset-bottom), 10px);
+}
+html.capacitor-native .gchat-view {
+  box-sizing: border-box;
+  padding-top: max(env(safe-area-inset-top), 28px);
+}
+html.capacitor-native .overlay,
+html.capacitor-native .pcpop,
+html.capacitor-native .cpop,
+html.capacitor-native .epop,
+html.capacitor-native .model-list-overlay,
+html.capacitor-native .apivault-overlay {
+  padding-top: max(env(safe-area-inset-top), 28px);
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
 
 /* Tablet portrait: restore a roomy three-column game instead of the old
    601-900px "large phone" stack. */
@@ -30,37 +56,18 @@
   .side.right {
     border-left: 1px solid rgba(245,160,184,.08) !important;
   }
-  .side-title {
-    display: block;
-  }
-  .side .pc {
-    width: 100%;
-    min-width: 0;
-    padding: 5px 6px;
-  }
-  .side .ch {
-    flex-direction: row;
-    gap: 5px;
-    text-align: left;
-  }
-  .side .av {
-    width: 23px;
-    height: 23px;
-    font-size: .68em;
-  }
+  .side-title { display: block; }
+  .side .pc { width: 100%; min-width: 0; padding: 5px 6px; }
+  .side .ch { flex-direction: row; gap: 5px; text-align: left; }
+  .side .av { width: 23px; height: 23px; font-size: .68em; }
   .side .pn { font-size: .68em; }
   .side .rt { font-size: .52em; }
   .side .ptag, .side .mbtitag { font-size: .46em; }
 
-  .cen {
-    flex: 1;
-    min-width: 0;
-    padding: 7px;
-  }
+  .cen { flex: 1; min-width: 0; padding: 7px; }
   .hbar { padding: 7px 10px; }
   .gl { min-width: 0; }
 
-  /* Main menu: use the tablet width instead of a narrow vertical phone list. */
   .mc {
     width: min(100%, 760px);
     flex-direction: row;
@@ -81,11 +88,7 @@
 
 /* Larger tablet landscape: keep the relaxed desktop structure. */
 @media (min-width: 601px) and (max-width: 1100px) and (orientation: landscape) and (min-height: 601px) {
-  .gc.active {
-    flex-direction: row;
-    height: 100dvh;
-    overflow: hidden;
-  }
+  .gc.active { flex-direction: row; height: 100dvh; overflow: hidden; }
   .side {
     width: clamp(145px, 16vw, 175px);
     max-height: none;
