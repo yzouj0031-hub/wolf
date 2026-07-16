@@ -1,0 +1,7 @@
+Character models: Kenney Mini Characters, version 1.0
+Source: https://kenney.nl/assets/mini-characters
+License: Creative Commons CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Game code, original hero designs, map composition, combat systems and UI:
+Created for the 诸界争锋 prototype.
