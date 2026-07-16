@@ -1,0 +1,44 @@
+name: Apply cloud saves
+
+on:
+  push:
+    branches:
+      - agent/add-cloud-saves
+    paths:
+      - scripts/cloudsave.patch.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/add-cloud-saves
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - id: patch
+        name: Load patch
+        run: echo "content=$(tr -d '\n' < scripts/cloudsave.patch.b64)" >> "$GITHUB_OUTPUT"
+      - name: Apply cloud-save patch
+        env:
+          CLOUDSAVE_PATCH: ${{ steps.patch.outputs.content }}
+        run: node scripts/apply-cloudsave.mjs
+      - name: Validate inline JavaScript
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync('index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]).filter(Boolean);
+          scripts.forEach(script => new Function(script));
+          NODE
+      - name: Commit generated page changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet || git commit -m "Add login and cloud saves"
+          git push
