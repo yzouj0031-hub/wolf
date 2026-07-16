@@ -10,6 +10,26 @@
     };
   }
 
+  const wireStreamingTts = () => {
+    if (window.__wolfStreamingTtsWired || typeof streamSpeak !== 'function') return;
+    const originalStreamSpeak = streamSpeak;
+    streamSpeak = async function (player, label, result, isWolfChat, noUndo) {
+      const output = await originalStreamSpeak.apply(this, arguments);
+      try {
+        const text = result && result.game;
+        const failed = typeof isAISilentFailure === 'function' && isAISilentFailure(text);
+        if (text && !isWolfChat && !failed && !(player && player.isPlayer) && typeof TTS !== 'undefined') {
+          TTS.speak(player, text);
+        }
+      } catch (error) {
+        console.warn('[朗读] AI发言自动朗读失败', error);
+      }
+      return output;
+    };
+    window.__wolfStreamingTtsWired = true;
+    console.info('[朗读] AI流式发言已接入自动朗读。');
+  };
+
   const loadTabletLayout = () => {
     if (document.getElementById('tablet-layout-css')) return;
     const link = document.createElement('link');
@@ -20,8 +40,10 @@
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadTabletLayout, { once: true });
+    document.addEventListener('DOMContentLoaded', wireStreamingTts, { once: true });
   } else {
     loadTabletLayout();
+    wireStreamingTts();
   }
 
   if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
