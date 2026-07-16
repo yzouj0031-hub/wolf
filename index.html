@@ -16565,9 +16565,15 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
           appendNightAction();
         } else if (r.role === roleId || isMechOwn) {
           if (r.role === 'witch') {
-            // ★ 女巫在游戏里能看到当晚的刀口（有救药时），导出时应该一并显示
+            // ★ 只有当夜仍持有救药时，女巫才能看到刀口。
+            // 救药使用当夜仍可见；从下一夜起必须隐藏，避免导出记录泄露上帝视角。
+            const saveWasUsedEarlier = (gameRecord || []).some(x =>
+              x.type === 'night_action' && x.role === 'witch' && x.saved && x.round < r.round
+            );
             const wolfRec = (gameRecord || []).find(x => x.type === 'night_action' && x.role === 'wolf' && x.round === r.round);
-            const killTxt = wolfRec && wolfRec.target && wolfRec.target !== '无' ? '今晚刀口=' + wolfRec.target + ' · ' : '';
+            const killTxt = saveWasUsedEarlier
+              ? '今晚刀口=未知（无救药） · '
+              : (wolfRec && wolfRec.target && wolfRec.target !== '无' ? '今晚刀口=' + wolfRec.target + ' · ' : '');
             txt += '\n🧪 女巫：' + killTxt + '救=' + (r.saved||'无') + ' 毒=' + (r.poisoned||'无') + '\n';
           } else {
             appendNightAction();
