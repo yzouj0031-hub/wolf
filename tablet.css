@@ -136,3 +136,17 @@ html.capacitor-native .apivault-overlay {
     overscroll-behavior: auto;
   }
 }
+
+
+/* Tablet landscape balance: settings take roughly one third of the
+   settings+dialogue area; the live dialogue keeps the remaining space. */
+@media (min-width: 601px) and (max-width: 1100px) and (orientation: landscape) {
+  .cfg[open] {
+    flex: 0 1 auto;
+    max-height: min(30dvh, 300px);
+  }
+  .gl {
+    flex: 1 1 0;
+    min-height: 180px;
+  }
+}
