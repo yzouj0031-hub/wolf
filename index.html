@@ -2155,6 +2155,7 @@ body.has-wp::after {
       <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
       <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
       <button class="be" id="btn-tts" title="用系统语音朗读AI发言（免费，无需API）">🔇 朗读</button>
+      <button class="be" id="btn-tts-cfg" title="朗读设置：切换系统语音/自定义TTS接口">🎚️</button>
       <button class="br" id="btn-reset">🔁 重置</button>
     </div>
   </div>
@@ -2427,6 +2428,24 @@ body.has-wp::after {
   <div class="btns" style="margin-top:10px">
     <label style="flex:1;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:.85em;text-align:center">📁 从文件导入<input type="file" accept=".json,application/json" id="save-import-file" style="display:none"></label>
     <button id="btn-close-savepop" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button>
+  </div>
+</div></div>
+
+<div class="epop" id="ttspop"><div class="ebox"><h3>── 朗读设置 ──</h3>
+  <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">系统语音免费开箱即用。若你有自己的TTS服务（OpenAI格式 /v1/audio/speech，如OpenAI、硅基流动等），可切换成自定义API，声音更自然。接口需支持浏览器跨域（CORS），与配置AI接口同理。</div>
+  <label style="display:flex;gap:6px;align-items:center;font-size:.85em;margin-bottom:6px;cursor:pointer"><input type="radio" name="tts-engine" value="system" style="width:auto;min-width:auto">系统语音（免费）</label>
+  <label style="display:flex;gap:6px;align-items:center;font-size:.85em;margin-bottom:8px;cursor:pointer"><input type="radio" name="tts-engine" value="api" style="width:auto;min-width:auto">自定义API（OpenAI格式）</label>
+  <div id="tts-api-fields" style="display:none;flex-direction:column;gap:6px">
+    <input id="tts-url" placeholder="接口地址，如 https://api.openai.com/v1/audio/speech">
+    <input id="tts-key" type="password" placeholder="API Key（只存在本机，不会上传）">
+    <input id="tts-model" placeholder="模型，默认 tts-1">
+    <input id="tts-voices" placeholder="音色列表（逗号分隔，自动分配给各AI），默认 alloy,echo,fable,onyx,nova,shimmer">
+    <input id="tts-speed" type="number" step="0.05" min="0.5" max="2" placeholder="语速，默认 1.0">
+  </div>
+  <div class="btns" style="margin-top:10px">
+    <button id="btn-tts-test" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">🔈 测试</button>
+    <button id="btn-tts-save2" style="background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold)">保存</button>
+    <button id="btn-tts-close" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button>
   </div>
 </div></div>
 
@@ -4731,6 +4750,17 @@ const TTS = (() => {
   try { on = localStorage.getItem('wg_tts_on') === '1'; } catch (_) {}
   let zhVoices = [];
 
+  // —— 配置：engine = 'system'(系统语音,免费) | 'api'(自定义OpenAI格式TTS) ——
+  const DEFAULT_VOICES = 'alloy,echo,fable,onyx,nova,shimmer';
+  let cfg = {engine: 'system', url: '', key: '', model: '', voices: '', speed: 1};
+  try { Object.assign(cfg, JSON.parse(localStorage.getItem('wg_tts_cfg') || '{}')); } catch (_) {}
+  function getCfg() { return Object.assign({}, cfg); }
+  function setCfg(next) {
+    Object.assign(cfg, next || {});
+    try { localStorage.setItem('wg_tts_cfg', JSON.stringify(cfg)); } catch (_) {}
+  }
+  function useApi() { return cfg.engine === 'api' && cfg.url && cfg.key; }
+
   function loadVoices() {
     if (!synth) return;
     const all = synth.getVoices() || [];
@@ -4744,8 +4774,10 @@ const TTS = (() => {
 
   function profile(p) {
     const seed = (p && typeof p.id === 'number') ? p.id : 0;
+    const apiVoices = String(cfg.voices || DEFAULT_VOICES).split(',').map(x => x.trim()).filter(Boolean);
     return {
       voice: zhVoices.length ? zhVoices[seed % zhVoices.length] : null,
+      apiVoice: apiVoices.length ? apiVoices[seed % apiVoices.length] : 'alloy',
       pitch: 0.75 + ((seed * 7) % 10) * 0.06,  // 0.75 ~ 1.29
       rate:  0.95 + ((seed * 3) % 5) * 0.05    // 0.95 ~ 1.15
     };
@@ -4777,12 +4809,58 @@ const TTS = (() => {
     }, 5000);
   }
 
+  // —— 自定义API引擎：顺序播放队列 ——
+  let audioQueue = [], playing = false, currentAudio = null, apiErrorShown = false;
+  async function playLoop() {
+    if (playing) return;
+    playing = true;
+    while (audioQueue.length) {
+      const item = audioQueue.shift();
+      try {
+        const res = await fetch(cfg.url, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key},
+          body: JSON.stringify({
+            model: cfg.model || 'tts-1',
+            input: item.text.slice(0, 4000),
+            voice: item.voice,
+            speed: Number(cfg.speed) || 1
+          })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const blobUrl = URL.createObjectURL(await res.blob());
+        await new Promise((resolve) => {
+          const a = new Audio(blobUrl);
+          currentAudio = a;
+          a.onended = () => { URL.revokeObjectURL(blobUrl); resolve(); };
+          a.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(); };
+          a.play().catch(() => { URL.revokeObjectURL(blobUrl); resolve(); });
+        });
+        currentAudio = null;
+        apiErrorShown = false;
+      } catch (e) {
+        console.error('[朗读] 自定义API失败', e);
+        if (!apiErrorShown) {
+          apiErrorShown = true;
+          try { Render.log('system', '⚠️ 朗读API请求失败（' + e.message + '），请检查🎚️朗读设置里的地址/Key，或该接口是否支持浏览器跨域。本条已跳过。'); } catch (_) {}
+        }
+      }
+    }
+    playing = false;
+  }
+
   function speak(p, text) {
-    if (!on || !synth) return;
+    if (!on) return;
     const t = clean(text);
     if (!t) return;
     const prof = profile(p);
     const name = clean((p && p.name) || '');
+    if (useApi()) {
+      audioQueue.push({text: (name ? name + '说：' : '') + t, voice: prof.apiVoice});
+      playLoop();
+      return;
+    }
+    if (!synth) return;
     const list = chunks(t);
     if (name) list.unshift(name + '说：');
     list.forEach(part => {
@@ -4796,25 +4874,34 @@ const TTS = (() => {
     startPump();
   }
 
+  function stop() {
+    audioQueue.length = 0;
+    if (currentAudio) { try { currentAudio.pause(); } catch (_) {} currentAudio = null; }
+    if (synth) synth.cancel();
+  }
+
   function setOn(v) {
     on = !!v;
     try { localStorage.setItem('wg_tts_on', on ? '1' : '0'); } catch (_) {}
-    if (!on && synth) synth.cancel();
+    if (!on) stop();
     const btn = document.getElementById('btn-tts');
     if (btn) btn.textContent = on ? '🔊 朗读' : '🔇 朗读';
   }
 
   function toggle() {
-    if (!synth) { alert('当前浏览器不支持语音合成，无法开启朗读'); return; }
+    if (!synth && !useApi()) { alert('当前浏览器不支持语音合成。可在🎚️朗读设置里配置自定义TTS接口。'); return; }
     setOn(!on);
-    if (on) {  // 需要用户手势后才允许发声，顺便给个即时反馈
-      const u = new SpeechSynthesisUtterance('朗读已开启');
-      u.lang = 'zh-CN';
-      synth.speak(u);
-    }
+    if (on) test('朗读已开启');
   }
 
-  return {speak, toggle, setOn, isOn: () => on, stop: () => { if (synth) synth.cancel(); }};
+  function test(text) {  // 测试播放，不改变开关状态
+    const wasOn = on;
+    on = true;
+    speak({id: 0, name: ''}, text || '这是朗读测试，你好呀。');
+    on = wasOn;
+  }
+
+  return {speak, toggle, setOn, isOn: () => on, stop, getCfg, setCfg, test};
 })();
 
 /* ================================================================
@@ -17027,6 +17114,33 @@ function bindEvents() {
   if ($('btn-tts')) {
     $('btn-tts').addEventListener('click', () => TTS.toggle());
     if (TTS.isOn()) $('btn-tts').textContent = '🔊 朗读';
+  }
+  if ($('btn-tts-cfg')) {
+    const fillTtsPop = () => {
+      const c = TTS.getCfg();
+      document.querySelectorAll('input[name="tts-engine"]').forEach(r => { r.checked = (r.value === c.engine); });
+      $('tts-url').value = c.url || '';
+      $('tts-key').value = c.key || '';
+      $('tts-model').value = c.model || '';
+      $('tts-voices').value = c.voices || '';
+      $('tts-speed').value = c.speed || '';
+      $('tts-api-fields').style.display = (c.engine === 'api') ? 'flex' : 'none';
+    };
+    const readTtsPop = () => ({
+      engine: (document.querySelector('input[name="tts-engine"]:checked') || {}).value || 'system',
+      url: $('tts-url').value.trim(),
+      key: $('tts-key').value.trim(),
+      model: $('tts-model').value.trim(),
+      voices: $('tts-voices').value.trim(),
+      speed: parseFloat($('tts-speed').value) || 1
+    });
+    $('btn-tts-cfg').addEventListener('click', () => { fillTtsPop(); $('ttspop').classList.add('show'); });
+    document.querySelectorAll('input[name="tts-engine"]').forEach(r => r.addEventListener('change', () => {
+      $('tts-api-fields').style.display = (r.value === 'api' && r.checked) ? 'flex' : 'none';
+    }));
+    $('btn-tts-save2').addEventListener('click', () => { TTS.setCfg(readTtsPop()); $('ttspop').classList.remove('show'); });
+    $('btn-tts-test').addEventListener('click', () => { TTS.setCfg(readTtsPop()); TTS.test(); });
+    $('btn-tts-close').addEventListener('click', () => $('ttspop').classList.remove('show'));
   }
   if ($('btn-close-savepop')) $('btn-close-savepop').addEventListener('click', SaveUI.close);
   if ($('save-import-file')) $('save-import-file').addEventListener('change', (e) => {
