@@ -112,3 +112,27 @@ html.capacitor-native .apivault-overlay {
   .mc { flex-direction: row; align-items: stretch; }
   .mcd { width: 170px; max-width: 200px; }
 }
+
+
+/* Tablet settings drawer: let the browser own the gesture so nested form
+   controls do not make vertical scrolling feel stuck. */
+@media (min-width: 601px) and (max-width: 1100px) {
+  .cfg[open] {
+    max-height: min(64dvh, 640px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: auto;
+    overscroll-behavior-y: auto;
+    scrollbar-gutter: auto;
+    will-change: scroll-position;
+    transform: translateZ(0);
+  }
+  .cfg[open] > summary {
+    touch-action: manipulation;
+  }
+  .cfg[open] .batch-grid,
+  .cfg[open] .conc-grid {
+    overscroll-behavior: auto;
+  }
+}
