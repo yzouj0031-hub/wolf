@@ -3,6 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0a14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI狼人杀">
+<meta name="application-name" content="AI狼人杀">
+<meta name="description" content="可安装到 Android 和 iPhone 的 AI 狼人杀游戏">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <title>🐺 AI狼人杀 · 盲名Cosplay·时序修复版</title>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -19848,6 +19858,15 @@ function openMurderMystery(){ MurderMystery.open(); }
     _reportGlobalErr('[未处理的Promise异常]', (r && (r.stack || r.message)) || String(r));
   });
 })();
+
+// 安装 PWA 并缓存应用外壳；外部 AI/API 请求不会进入离线缓存。
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => {
+      console.warn('Service Worker 注册失败：', err);
+    });
+  });
+}
 
 </script>
 </body>
