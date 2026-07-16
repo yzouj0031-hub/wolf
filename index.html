@@ -15,6 +15,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <title>🐺 AI狼人杀 · 盲名Cosplay·时序修复版</title>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js"></script>
 <style>
 /* ══════════════════════════════════════
    § 视觉小说 · 色彩系统
@@ -140,6 +141,26 @@ select { min-width: 60px; }
   margin-bottom: 30px; letter-spacing: 0.15em;
   opacity: 0.7;
 }
+
+.cloud-card {
+  width: min(440px, calc(100% - 24px));
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: -14px auto 22px; padding: 10px 12px;
+  background: rgba(104,184,232,.06); border: 1px solid rgba(104,184,232,.2);
+  border-radius: var(--r-lg); color: #a8b8d0; font-size: .78em;
+}
+.cloud-card strong { color: var(--jade); font-weight: 700; }
+.cloud-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.cloud-btn {
+  padding: 6px 10px; border-radius: var(--r); color: #b9d9ee;
+  background: rgba(104,184,232,.1); border: 1px solid rgba(104,184,232,.25);
+  font-size: .78em;
+}
+.cloud-btn:hover { background: rgba(104,184,232,.18); }
+.cloud-btn.danger { color:#e8a8b5; border-color:rgba(220,90,110,.25); background:rgba(220,90,110,.08); }
+.cloud-form { display:grid; gap:10px; margin-top:14px; }
+.cloud-form input { width:100%; padding:10px 12px; font-size:.9em; }
+.cloud-note { color:#807995; font-size:.72em; line-height:1.6; margin-top:10px; }
 
 /* 模式卡 */
 .mc { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-bottom: 30px; }
@@ -1530,6 +1551,15 @@ body.has-wp::after {
 <div class="mm" id="mm">
   <h1 class="mm-title">🐺 人狼ゲーム</h1>
   <p class="mm-sub">── 月夜の嘘と真実 ──</p>
+  <div class="cloud-card" id="cloud-card">
+    <div><strong>☁️ 云存档</strong><div id="cloud-status">未登录 · 当前仅保存到本机</div></div>
+    <div class="cloud-actions">
+      <button class="cloud-btn" id="cloud-account-open">登录 / 注册</button>
+      <button class="cloud-btn" id="cloud-save-now" style="display:none">上传</button>
+      <button class="cloud-btn" id="cloud-load" style="display:none">恢复</button>
+      <button class="cloud-btn danger" id="cloud-logout" style="display:none">退出</button>
+    </div>
+  </div>
   <div class="mc" id="mode-cards">
     <div class="mcd" data-mode="standard"><h3>十人局</h3><div class="pl">🎮</div><div class="desc">经典局<br>3狼(含狼王)+预女猎守+魔术+2民</div></div>
     <div class="mcd" data-mode="super"><h3>十二人局</h3><div class="pl">⚔️</div><div class="desc">经典局<br>3狼(含狼美)+预女猎守骑魔+3民</div></div>
@@ -1567,6 +1597,23 @@ body.has-wp::after {
   <button id="btn-wallpaper">🖼️ 壁纸</button>
   <button id="btn-namepool" style="margin-top:6px;padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(245,160,184,0.12),rgba(192,80,120,0.08));border:1px solid rgba(245,160,184,0.25);border-radius:var(--r-lg);color:var(--gold);cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">👤 名字库</button>
   <button id="btn-personapool" style="margin-top:6px;padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(208,160,240,0.12),rgba(136,88,200,0.08));border:1px solid rgba(208,160,240,0.25);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">🎭 人设库</button>
+</div>
+
+<!-- ══════ 云存档账号 ══════ -->
+<div class="cpop" id="cloud-pop">
+  <div class="cbox" style="max-width:420px">
+    <h3>── ☁️ 云存档账号 ──</h3>
+    <div class="cloud-form">
+      <input type="email" id="cloud-email" autocomplete="email" placeholder="邮箱地址">
+      <input type="password" id="cloud-password" autocomplete="current-password" minlength="6" placeholder="密码（至少6位）">
+      <div style="display:flex;gap:8px">
+        <button class="cloud-btn" id="cloud-signin" style="flex:1;padding:10px">登录</button>
+        <button class="cloud-btn" id="cloud-signup" style="flex:1;padding:10px">注册</button>
+      </div>
+      <button class="cloud-btn danger" id="cloud-close" style="padding:9px">关闭</button>
+    </div>
+    <div class="cloud-note">注册后可能需要在邮箱中点击确认链接。密码只发送给 Supabase，不会写入游戏存档或 GitHub。</div>
+  </div>
 </div>
 
 <!-- ══════ 壁纸弹窗 ══════ -->
@@ -4514,6 +4561,9 @@ function saveGame(options = {}) {
       const snap = buildSnap(limit);
       const json = JSON.stringify(snap);
       localStorage.setItem('wg_savegame', json);
+      if (window.CloudSave && typeof window.CloudSave.schedule === 'function') {
+        window.CloudSave.schedule(json, options.reason || (silent ? '自动保存' : '手动保存'));
+      }
       const sizeKB = Math.round(json.length / 1024);
       const t = new Date(snap._time).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
       if (!silent) {
@@ -4677,6 +4727,147 @@ const AutoSave = (() => {
 
   return {save};
 })();
+
+/* ================================================================
+ *  § Supabase 登录与云存档
+ * ================================================================ */
+const CloudSave = (() => {
+  const SUPABASE_URL = 'https://hnlsmcucmbicygzjmfut.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_pz6eS_bYsKjinBPtLgLYxQ_CvUXIEUf';
+  const client = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+  let user = null;
+  let uploadTimer = null;
+  let pendingRaw = null;
+
+  function el(id) { return document.getElementById(id); }
+  function setStatus(text) { const node = el('cloud-status'); if (node) node.textContent = text; }
+  function showMessage(message) { alert(message); }
+  function setBusy(busy) {
+    ['cloud-signin','cloud-signup','cloud-save-now','cloud-load'].forEach(id => {
+      const node = el(id); if (node) node.disabled = busy;
+    });
+  }
+
+  function render() {
+    const loggedIn = !!user;
+    if (el('cloud-account-open')) el('cloud-account-open').style.display = loggedIn ? 'none' : '';
+    ['cloud-save-now','cloud-load','cloud-logout'].forEach(id => {
+      if (el(id)) el(id).style.display = loggedIn ? '' : 'none';
+    });
+    setStatus(loggedIn ? `已登录：${user.email || '用户'} · 自动同步已开启` : '未登录 · 当前仅保存到本机');
+  }
+
+  async function upload(raw = pendingRaw, reason = '同步') {
+    if (!client || !user || !raw) return false;
+    let snapshot;
+    try { snapshot = JSON.parse(raw); } catch (_) { return false; }
+    setStatus(`${reason}中…`);
+    const now = new Date().toISOString();
+    const {error} = await client.from('game_saves').upsert({
+      user_id: user.id,
+      slot: 'main',
+      snapshot,
+      client_updated_at: now
+    }, {onConflict:'user_id,slot'});
+    if (error) {
+      console.error('[云存档] 上传失败', error);
+      setStatus(`同步失败：${error.message}`);
+      return false;
+    }
+    pendingRaw = null;
+    setStatus(`已同步 · ${new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})}`);
+    return true;
+  }
+
+  function schedule(raw, reason = '自动同步') {
+    if (!user || !raw) return;
+    pendingRaw = raw;
+    clearTimeout(uploadTimer);
+    uploadTimer = setTimeout(() => upload(pendingRaw, reason), 1200);
+  }
+
+  async function uploadNow() {
+    const raw = localStorage.getItem('wg_savegame');
+    if (!raw) return showMessage('本机还没有游戏存档，请先开始游戏或点击“存档”。');
+    setBusy(true);
+    const ok = await upload(raw, '上传');
+    setBusy(false);
+    if (ok) showMessage('✅ 云存档上传成功');
+  }
+
+  async function download() {
+    if (!client || !user) return;
+    setBusy(true); setStatus('正在读取云存档…');
+    const {data, error} = await client.from('game_saves')
+      .select('snapshot,updated_at').eq('user_id', user.id).eq('slot','main').maybeSingle();
+    setBusy(false);
+    if (error) { setStatus(`读取失败：${error.message}`); return showMessage('读取云存档失败：' + error.message); }
+    if (!data || !data.snapshot) { render(); return showMessage('云端还没有存档。'); }
+    const when = data.updated_at ? new Date(data.updated_at).toLocaleString('zh-CN') : '未知时间';
+    if (!confirm(`用云存档覆盖当前本机存档？\n云端更新时间：${when}`)) { render(); return; }
+    localStorage.setItem('wg_savegame', JSON.stringify(data.snapshot));
+    setStatus(`云存档已下载 · ${when}`);
+    loadGame();
+  }
+
+  function credentials() {
+    const email = (el('cloud-email')?.value || '').trim();
+    const password = el('cloud-password')?.value || '';
+    if (!email || !email.includes('@')) throw new Error('请输入正确的邮箱地址');
+    if (password.length < 6) throw new Error('密码至少需要6位');
+    return {email, password};
+  }
+
+  async function signIn() {
+    try {
+      const {email,password} = credentials(); setBusy(true);
+      const {error} = await client.auth.signInWithPassword({email,password});
+      setBusy(false);
+      if (error) throw error;
+      el('cloud-pop')?.classList.remove('show');
+      showMessage('✅ 登录成功，后续存档会自动同步');
+    } catch (error) { setBusy(false); showMessage('登录失败：' + error.message); }
+  }
+
+  async function signUp() {
+    try {
+      const {email,password} = credentials(); setBusy(true);
+      const {data,error} = await client.auth.signUp({email,password,options:{emailRedirectTo:'https://yzouj0031-hub.github.io/wolf/'}});
+      setBusy(false);
+      if (error) throw error;
+      if (data.session) {
+        el('cloud-pop')?.classList.remove('show');
+        showMessage('✅ 注册并登录成功');
+      } else {
+        showMessage('注册成功，请打开邮箱中的确认邮件，然后返回登录。');
+      }
+    } catch (error) { setBusy(false); showMessage('注册失败：' + error.message); }
+  }
+
+  async function signOut() {
+    clearTimeout(uploadTimer); pendingRaw = null;
+    await client.auth.signOut();
+  }
+
+  async function init() {
+    if (!client) { setStatus('云存档组件加载失败，请检查网络'); return; }
+    el('cloud-account-open')?.addEventListener('click', () => el('cloud-pop')?.classList.add('show'));
+    el('cloud-close')?.addEventListener('click', () => el('cloud-pop')?.classList.remove('show'));
+    el('cloud-signin')?.addEventListener('click', signIn);
+    el('cloud-signup')?.addEventListener('click', signUp);
+    el('cloud-logout')?.addEventListener('click', signOut);
+    el('cloud-save-now')?.addEventListener('click', uploadNow);
+    el('cloud-load')?.addEventListener('click', download);
+    client.auth.onAuthStateChange((_event, session) => { user = session?.user || null; render(); });
+    const {data} = await client.auth.getSession();
+    user = data.session?.user || null;
+    render();
+  }
+
+  return {init, schedule, uploadNow, download};
+})();
+window.CloudSave = CloudSave;
+CloudSave.init();
 
 function saveCfg() {
   try { localStorage.setItem('wg_gufeng', JSON.stringify({
