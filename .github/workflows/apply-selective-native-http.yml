@@ -3,7 +3,7 @@ name: Apply selective native HTTP
 on:
   push:
     branches:
-      - agent/selective-native-http
+      - main
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/selective-native-http
+          ref: main
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
