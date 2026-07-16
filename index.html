@@ -2420,6 +2420,15 @@ body.has-wp::after {
 
 <div class="epop" id="rulepop"><div class="ebox"><h3>── 本局规则（可复制给外部AI）──</h3><div style="font-size:.72em;color:#8a7e6a;margin-bottom:6px">把下面内容整段复制，贴给你在用的网页端 AI，让它按本局规则来玩。胜负规则会随「屠边/屠城」开关自动切换。</div><textarea id="ruletxt" readonly></textarea><div class="btns"><button id="btn-copyrule" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 复制</button><button id="btn-dlrule" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 下载</button><button id="btn-closerule" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button></div></div></div>
 
+<div class="epop" id="savepop"><div class="ebox"><h3>── 存档管理 ──</h3>
+  <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">存档保存在设备数据库中，容量远大于旧版的5MB上限，AI记忆不再被压缩。「导出」可存为文件，在浏览器与APK之间互传。</div>
+  <div id="save-slot-list" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto"></div>
+  <div class="btns" style="margin-top:10px">
+    <label style="flex:1;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:.85em;text-align:center">📁 从文件导入<input type="file" accept=".json,application/json" id="save-import-file" style="display:none"></label>
+    <button id="btn-close-savepop" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button>
+  </div>
+</div></div>
+
 <!-- ══════ 模型列表弹窗 ══════ -->
 <div class="model-list-overlay" id="modelListOverlay">
   <div class="model-list-box">
@@ -4517,9 +4526,205 @@ function getFallbacks() {
 }
 
 /* ================================================================
+ *  § SaveStore：IndexedDB 存档库
+ *  容量几百MB起（远超localStorage的5MB），支持多槽位。
+ *  同步读写走内存缓存，落盘异步写IndexedDB；auto槽镜像一份到
+ *  localStorage 以兼容旧版本与云存档。
+ * ================================================================ */
+const SaveStore = (() => {
+  const DB_NAME = 'wolf_saves', STORE = 'saves', LEGACY_KEY = 'wg_savegame';
+  const cache = {};  // slot -> json字符串（同步读取用）
+  let db = null, available = ('indexedDB' in window);
+
+  function open() {
+    return new Promise((resolve) => {
+      if (!available) return resolve(null);
+      try {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => { req.result.createObjectStore(STORE); };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => { available = false; resolve(null); };
+      } catch (_) { available = false; resolve(null); }
+    });
+  }
+
+  const ready = (async () => {
+    db = await open();
+    if (db) {
+      await new Promise((resolve) => {
+        try {
+          const st = db.transaction(STORE, 'readonly').objectStore(STORE);
+          const keysReq = st.getAllKeys(), valsReq = st.getAll();
+          valsReq.onsuccess = () => {
+            const ks = keysReq.result || [], vs = valsReq.result || [];
+            ks.forEach((k, i) => { if (typeof vs[i] === 'string') cache[k] = vs[i]; });
+            resolve();
+          };
+          valsReq.onerror = () => resolve();
+        } catch (_) { resolve(); }
+      });
+    }
+    // 迁移：旧的 localStorage 存档搬进 IndexedDB（IDB里没有或localStorage更新时）
+    try {
+      const legacy = localStorage.getItem(LEGACY_KEY);
+      if (legacy) {
+        let lt = 0, ct = -1;
+        try { lt = (JSON.parse(legacy)._time) || 0; } catch (_) {}
+        try { ct = cache.auto ? (JSON.parse(cache.auto)._time || 0) : -1; } catch (_) {}
+        if (ct < lt) set('auto', legacy);
+      }
+    } catch (_) {}
+    return true;
+  })();
+
+  function persist(slot, json) {
+    if (!db) return;
+    try {
+      const tx = db.transaction(STORE, 'readwrite');
+      if (json === null) tx.objectStore(STORE).delete(slot);
+      else tx.objectStore(STORE).put(json, slot);
+      tx.onerror = (e) => console.error('[存档库] IndexedDB写入失败', slot, e);
+    } catch (e) { console.error('[存档库] IndexedDB写入异常', e); }
+  }
+
+  function set(slot, json) {
+    cache[slot] = json;
+    persist(slot, json);
+    if (slot === 'auto') {  // 兼容镜像：放不下就静默放弃（IDB里已有完整版）
+      try { localStorage.setItem(LEGACY_KEY, json); } catch (_) {}
+    }
+  }
+
+  function get(slot) {
+    if (cache[slot] != null) return cache[slot];
+    if (slot === 'auto') { try { return localStorage.getItem(LEGACY_KEY); } catch (_) {} }
+    return null;
+  }
+
+  function remove(slot) {
+    delete cache[slot];
+    persist(slot, null);
+    if (slot === 'auto') { try { localStorage.removeItem(LEGACY_KEY); } catch (_) {} }
+  }
+
+  function meta(slot) {
+    const raw = get(slot);
+    if (!raw) return null;
+    try {
+      const s = JSON.parse(raw);
+      const players = (s.S && s.S.players) || [];
+      return {
+        slot, time: s._time || 0,
+        round: s.S && s.S.round, phase: (s.S && s.S.phase) || '',
+        alive: players.filter(p => p.alive).length, total: players.length,
+        sizeKB: Math.round(raw.length / 1024)
+      };
+    } catch (_) { return {slot, time: 0, broken: true}; }
+  }
+
+  return {ready, get, set, remove, meta, isAvailable: () => available};
+})();
+
+/* ================================================================
+ *  § SaveUI：存档管理器（多槽位 + 文件导出/导入）
+ * ================================================================ */
+const SaveUI = (() => {
+  const MANUAL_SLOTS = ['slot1','slot2','slot3','slot4','slot5','slot6'];
+  const SLOTS = ['auto'].concat(MANUAL_SLOTS);
+  const label = (s) => s === 'auto' ? '⚡ 自动槽' : '📦 槽位' + s.replace('slot', '');
+
+  function render() {
+    const list = document.getElementById('save-slot-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const canWrite = !!(typeof S !== 'undefined' && S && Array.isArray(S.players) && S.players.length && S.phase && S.phase !== 'waiting');
+    SLOTS.forEach(slot => {
+      const m = SaveStore.meta(slot);
+      const hasSave = !!(m && !m.broken);
+      const row = document.createElement('div');
+      row.style.cssText = 'border:1px solid rgba(200,180,140,0.18);border-radius:var(--r);padding:8px 10px;background:rgba(255,255,255,0.03)';
+      const info = document.createElement('div');
+      info.style.cssText = 'font-size:.78em;margin-bottom:6px;line-height:1.5';
+      if (hasSave) {
+        const t = new Date(m.time).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+        info.innerHTML = '<b style="color:var(--gold)">' + label(slot) + '</b> · ' + t +
+          '<br><span style="color:#8a7e6a">第' + m.round + '回·' + m.phase + ' · 存活' + m.alive + '/' + m.total + ' · ' + m.sizeKB + 'KB</span>';
+      } else {
+        info.innerHTML = '<b style="color:#8a7e6a">' + label(slot) + '</b> · <span style="color:#5a5348">' + (m && m.broken ? '存档损坏' : '空') + '</span>';
+      }
+      const btns = document.createElement('div');
+      btns.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+      const mk = (txt, style, fn, disabled) => {
+        const b = document.createElement('button');
+        b.textContent = txt;
+        b.style.cssText = 'flex:1;min-width:54px;padding:5px 6px;font-size:.75em;border-radius:var(--r);cursor:pointer;' + style;
+        if (disabled) { b.disabled = true; b.style.opacity = .35; b.style.cursor = 'default'; }
+        else b.addEventListener('click', fn);
+        return b;
+      };
+      btns.appendChild(mk('💾 存入', 'background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)', () => {
+        if (hasSave && !confirm('覆盖「' + label(slot) + '」里的存档？')) return;
+        if (saveGame({slot})) render();
+      }, !canWrite));
+      btns.appendChild(mk('📂 读取', 'background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold)', () => {
+        close(); loadGame(slot);
+      }, !hasSave && !(m && m.broken)));
+      btns.appendChild(mk('📤 导出', 'background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)', () => exportSlot(slot), !hasSave));
+      btns.appendChild(mk('🗑 删除', 'background:rgba(180,80,80,0.12);color:#c88880;border:1px solid rgba(180,80,80,0.4)', () => {
+        if (!confirm('删除「' + label(slot) + '」的存档？不可恢复。')) return;
+        SaveStore.remove(slot); render();
+      }, !hasSave && !(m && m.broken)));
+      row.appendChild(info); row.appendChild(btns);
+      list.appendChild(row);
+    });
+  }
+
+  function exportSlot(slot) {
+    const raw = SaveStore.get(slot);
+    if (!raw) return;
+    const blob = new Blob([raw], {type: 'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    a.download = '狼人杀存档-' + slot + '-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }
+
+  function importFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const snap = JSON.parse(reader.result);
+        if (!snap || !snap.S || !snap.S.players) throw new Error('不是有效的存档文件');
+        const target = MANUAL_SLOTS.find(s => !SaveStore.get(s)) || 'auto';
+        SaveStore.set(target, JSON.stringify(snap));
+        render();
+        if (confirm('✅ 已导入到「' + label(target) + '」。\n立即读取这个存档？')) { close(); loadGame(target); }
+      } catch (e) { alert('导入失败：' + e.message); }
+    };
+    reader.onerror = () => alert('导入失败：文件读取出错');
+    reader.readAsText(file);
+  }
+
+  function open() {
+    render();
+    SaveStore.ready.then(render);  // IndexedDB异步加载完后刷新一次
+    const pop = document.getElementById('savepop');
+    if (pop) pop.classList.add('show');
+  }
+  function close() {
+    const pop = document.getElementById('savepop');
+    if (pop) pop.classList.remove('show');
+  }
+  return {open, close, render, importFile};
+})();
+
+/* ================================================================
  *  § 存档 / 读档
  * ================================================================ */
 function saveGame(options = {}) {
+  if (options && typeof options.preventDefault === 'function') options = {};  // 兼容被直接绑成事件回调的情况
   const silent = !!(options && options.silent);
   // ★ v7修复:存档自动降级——超quota时逐级压缩memory,避免完全丢失存档
   const buildSnap = (memLimit) => ({
@@ -4561,7 +4766,7 @@ function saveGame(options = {}) {
     try {
       const snap = buildSnap(limit);
       const json = JSON.stringify(snap);
-      localStorage.setItem('wg_savegame', json);
+      SaveStore.set(options.slot || 'auto', json);
       if (window.CloudSave && typeof window.CloudSave.schedule === 'function') {
         window.CloudSave.schedule(json, options.reason || (silent ? '自动保存' : '手动保存'));
       }
@@ -4585,13 +4790,14 @@ function saveGame(options = {}) {
     }
   }
   // 全部降级都失败
-  Render.log('system', '⚠️ 存档完全失败（localStorage已满）:建议手动导出后清空浏览器存储。错误:' + (lastErr ? lastErr.message : '未知'));
+  Render.log('system', '⚠️ 存档完全失败:建议打开「💾 存档」用导出功能备份到文件。错误:' + (lastErr ? lastErr.message : '未知'));
   return false;
 }
 
-function loadGame() {
+function loadGame(slotArg) {
+  const slot = (typeof slotArg === 'string' && slotArg) ? slotArg : 'auto';
   try {
-    const raw = localStorage.getItem('wg_savegame');
+    const raw = SaveStore.get(slot);
     if (!raw) { alert('没有找到存档'); return; }
     const snap = JSON.parse(raw);
     if (!snap || !snap.S || !snap.S.players) { alert('存档格式无效'); return; }
@@ -4788,7 +4994,7 @@ const CloudSave = (() => {
   }
 
   async function uploadNow() {
-    const raw = localStorage.getItem('wg_savegame');
+    const raw = SaveStore.get('auto');
     if (!raw) return showMessage('本机还没有游戏存档，请先开始游戏或点击“存档”。');
     setBusy(true);
     const ok = await upload(raw, '上传');
@@ -4806,9 +5012,9 @@ const CloudSave = (() => {
     if (!data || !data.snapshot) { render(); return showMessage('云端还没有存档。'); }
     const when = data.updated_at ? new Date(data.updated_at).toLocaleString('zh-CN') : '未知时间';
     if (!confirm(`用云存档覆盖当前本机存档？\n云端更新时间：${when}`)) { render(); return; }
-    localStorage.setItem('wg_savegame', JSON.stringify(data.snapshot));
+    SaveStore.set('auto', JSON.stringify(data.snapshot));
     setStatus(`云存档已下载 · ${when}`);
-    loadGame();
+    loadGame('auto');
   }
 
   function credentials() {
@@ -16716,8 +16922,14 @@ function bindEvents() {
     }
     forceReset();
   });
-  $('btn-save-game').addEventListener('click', saveGame);
-  $('btn-load-game').addEventListener('click', loadGame);
+  $('btn-save-game').addEventListener('click', () => SaveUI.open());
+  $('btn-load-game').addEventListener('click', () => SaveUI.open());
+  if ($('btn-close-savepop')) $('btn-close-savepop').addEventListener('click', SaveUI.close);
+  if ($('save-import-file')) $('save-import-file').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) SaveUI.importFile(f);
+    e.target.value = '';
+  });
   if ($('fb-add')) $('fb-add').addEventListener('click', () => {
     extraFallbacks.push({url:'',key:'',model:'',type:'openai'});
     renderFbList(); saveCfg();
