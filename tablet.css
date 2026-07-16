@@ -90,7 +90,9 @@ html.capacitor-native .apivault-overlay {
 @media (min-width: 601px) and (max-width: 1100px) and (orientation: landscape) and (min-height: 601px) {
   .gc.active { flex-direction: row; height: 100dvh; overflow: hidden; }
   .side {
-    width: clamp(145px, 16vw, 175px);
+    width: 175px;
+    min-width: 175px;
+    max-width: 175px;
     max-height: none;
     flex-direction: column;
     flex-wrap: nowrap;
@@ -99,7 +101,13 @@ html.capacitor-native .apivault-overlay {
   }
   .side-title { display: block; }
   .side .pc { width: 100%; min-width: 0; }
-  .side .ch { flex-direction: row; text-align: left; }
+  .side .ch { flex-direction: row; gap: 6px; text-align: left; }
+  .side .pc { padding: 6px 8px; }
+  .side .av { width: 26px; height: 26px; font-size: .8em; }
+  .side .pn { font-size: .8em; }
+  .side .rt { font-size: .6em; }
+  .side .ptag { font-size: .55em; }
+  .side .mbtitag { font-size: .5em; }
   .cen { flex: 1; min-width: 0; }
   .mc { flex-direction: row; align-items: stretch; }
   .mcd { width: 170px; max-width: 200px; }
