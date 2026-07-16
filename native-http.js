@@ -35,7 +35,7 @@
     const link = document.createElement('link');
     link.id = 'tablet-layout-css';
     link.rel = 'stylesheet';
-    link.href = './tablet.css?v=3';
+    link.href = './tablet.css?v=4';
     document.head.appendChild(link);
   };
   if (document.readyState === 'loading') {
