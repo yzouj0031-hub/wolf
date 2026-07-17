@@ -35,10 +35,17 @@ body{color:var(--bone);font-family:'Noto Sans SC',sans-serif;font-weight:300;use
 .tag{font-size:10px;letter-spacing:.2em;color:var(--paper);border:1px solid #33301f;padding:2px 7px;background:rgba(20,18,10,.6);}
 
 /* 摇杆 */
-#stickZone{position:fixed;z-index:9;left:0;bottom:0;width:45%;height:52%;}
-#stick{position:absolute;width:104px;height:104px;border:1px solid rgba(143,179,160,.25);border-radius:50%;background:rgba(10,16,13,.35);display:none;}
-#knob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(143,179,160,.3);border:1px solid rgba(143,179,160,.5);}
-#lookZone{position:fixed;z-index:9;right:0;bottom:0;width:55%;height:70%;}
+#stickZone{position:fixed;z-index:9;left:0;top:0;bottom:0;width:42%;}
+#stick{position:absolute;width:132px;height:132px;left:26px;bottom:calc(30px + env(safe-area-inset-bottom));border:1px solid rgba(143,179,160,.3);border-radius:50%;background:rgba(10,16,13,.4);opacity:.55;transition:opacity .15s;}
+#stick.active{opacity:1;}
+#knob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(143,179,160,.35);border:1px solid rgba(143,179,160,.6);}
+#lookZone{position:fixed;z-index:9;right:0;top:0;bottom:0;width:58%;}
+/* 竖屏提示横屏 */
+#rotate{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--void);gap:18px;}
+#rotate .ph{width:44px;height:74px;border:2px solid var(--phosphor);border-radius:8px;animation:rot 1.6s ease-in-out infinite;}
+@keyframes rot{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(90deg)}}
+#rotate p{font-size:13px;letter-spacing:.4em;color:var(--phosphor);}
+@media (orientation:portrait){body.playing #rotate{display:flex;}}
 
 /* 调查按钮 */
 #actBtn{position:fixed;z-index:10;right:20px;bottom:calc(96px + env(safe-area-inset-bottom));
@@ -108,8 +115,9 @@ body.shake #game{animation:bodyshake .07s linear infinite;}
 <div id="stickZone"><div id="stick"><div id="knob"></div></div></div>
 <div id="lookZone"></div>
 <button id="actBtn">调 查</button>
-<div id="hint">左侧拖动 = 移动 · 右侧滑动 = 转视角</div>
+<div id="hint">左下摇杆 = 移动 · 右半屏滑动 = 转视角</div>
 
+<div id="rotate"><div class="ph"></div><p>请 把 手 机 横 过 来</p></div>
 <div id="panel"><div id="ptext"></div><div id="popts"></div></div>
 
 <div id="bridgeMode"><div id="stepnum">一</div><div id="steplabel">第 一 阶</div><div id="stephint">点击屏幕，踏出下一步</div></div>
@@ -144,7 +152,7 @@ body.shake #game{animation:bodyshake .07s linear infinite;}
 桥只有十二阶。
 但有人数出过十三阶。
 
-【操作】屏幕左侧拖动移动，右侧滑动转视角。
+【操作】横屏游玩：左下角摇杆移动，右半屏滑动转视角。
 电脑可用 WSAD 移动 + 鼠标拖动转向。
 走近发光的东西，会出现「调查」按钮。</div>
   <button class="btn" id="startBtn">进 入 校 园</button>
@@ -318,18 +326,23 @@ addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 // 摇杆
 const stickZone=$('stickZone'),stick=$('stick'),knob=$('knob');
 let stickId=null,stickCx=0,stickCy=0;
-stickZone.addEventListener('pointerdown',e=>{stickId=e.pointerId;stickCx=e.clientX;stickCy=e.clientY;
-  stick.style.display='block';stick.style.left=(stickCx-52)+'px';stick.style.top=(stickCy-52)+'px';stickZone.setPointerCapture(e.pointerId);});
-stickZone.addEventListener('pointermove',e=>{if(e.pointerId!==stickId)return;
-  let dx=e.clientX-stickCx,dy=e.clientY-stickCy;const d=Math.hypot(dx,dy),max=52;
+stickZone.addEventListener('pointerdown',e=>{stickId=e.pointerId;
+  const r=stick.getBoundingClientRect();const bx=r.left+r.width/2,by=r.top+r.height/2;
+  // 摸在摇杆附近就用固定基座；摸远处就以落点为中心，两种都顺手
+  if(Math.hypot(e.clientX-bx,e.clientY-by)<r.width){stickCx=bx;stickCy=by;}
+  else{stickCx=e.clientX;stickCy=e.clientY;stick.style.left=(stickCx-66)+'px';stick.style.top=(stickCy-66)+'px';stick.style.bottom='auto';}
+  stick.classList.add('active');stickZone.setPointerCapture(e.pointerId);stickMove(e);});
+function stickMove(e){let dx=e.clientX-stickCx,dy=e.clientY-stickCy;const d=Math.hypot(dx,dy),max=62;
   if(d>max){dx=dx/d*max;dy=dy/d*max;}
-  knob.style.transform=`translate(${dx}px,${dy}px)`;move.x=dx/max;move.y=dy/max;});
-function stickEnd(e){if(e.pointerId!==stickId)return;stickId=null;move.x=0;move.y=0;stick.style.display='none';knob.style.transform='';}
+  knob.style.transform=`translate(${dx}px,${dy}px)`;move.x=dx/max;move.y=dy/max;}
+stickZone.addEventListener('pointermove',e=>{if(e.pointerId===stickId)stickMove(e);});
+function stickEnd(e){if(e.pointerId!==stickId)return;stickId=null;move.x=0;move.y=0;
+  stick.classList.remove('active');knob.style.transform='';stick.style.left='';stick.style.top='';stick.style.bottom='';}
 stickZone.addEventListener('pointerup',stickEnd);stickZone.addEventListener('pointercancel',stickEnd);
 // 视角
 const lookZone=$('lookZone');let lookId=null,lastLX=0;
 lookZone.addEventListener('pointerdown',e=>{lookId=e.pointerId;lastLX=e.clientX;lookZone.setPointerCapture(e.pointerId);});
-addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;P.a+=(e.clientX-lastLX)*0.006;lastLX=e.clientX;});
+addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;P.a+=(e.clientX-lastLX)*0.0095;lastLX=e.clientX;});
 function lookEnd(e){if(e.pointerId===lookId)lookId=null;}
 addEventListener('pointerup',lookEnd);addEventListener('pointercancel',lookEnd);
 
@@ -354,7 +367,7 @@ function update(dt){
   let f=-move.y,s=move.x;
   if(keys['w'])f+=1;if(keys['s'])f-=1;if(keys['a'])s-=1;if(keys['d'])s+=1;
   if(keys['arrowleft'])P.a-=2.2*dt;if(keys['arrowright'])P.a+=2.2*dt;
-  const sp=3.1*dt,ca=Math.cos(P.a),sa=Math.sin(P.a);
+  const sp=3.5*dt,ca=Math.cos(P.a),sa=Math.sin(P.a);
   const vx=(ca*f - sa*s)*sp, vy=(sa*f + ca*s)*sp;
   if(vx||vy){tryMove(P.x+vx,P.y+vy);walkT+=dt;if(walkT>0.42){walkT=0;sfxStep(.18);}}
   $('zone').textContent=zoneName(P.x,P.y);
@@ -481,6 +494,11 @@ requestAnimationFrame(loop);
 /* ============ 开场 ============ */
 $('startBtn').onclick=()=>{
   ac();startDrone();sfxClick();
+  document.body.classList.add('playing');
+  const de=document.documentElement;
+  (de.requestFullscreen?de.requestFullscreen():Promise.reject()).then(()=>{
+    if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});
+  }).catch(()=>{});
   $('titleScreen').classList.remove('on');
   S.mode='play';inv();
   setTimeout(()=>{$('hint').style.opacity=0;},6000);
