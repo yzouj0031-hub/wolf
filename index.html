@@ -11751,6 +11751,46 @@ const NightActions = {
       const v = String((r && r.interrupt) || '').toLowerCase().trim();
       return /^(yes|y|true|1|是|要|对|嗯)$/i.test(v);
     }
+
+    // 狼刀目标在盲名模式下会被脱敏成 P 编号，而引擎内部仍使用真实姓名。
+    // 在这个边界统一把 P12 / 12号 / “提议刀P12” 解回玩家姓名，
+    // 避免 action 明明有效却落入“所有目标提取失败”的随机兜底。
+    function extractWolfTargetName(text, pool) {
+      if (!text || !pool || !pool.length) return null;
+      const raw = String(text).normalize('NFKC').trim();
+
+      // 结构化 action 的标准形式：<action>P12</action>
+      const standaloneSeat = /^(?:[Pp]\s*#?\s*\d{1,3}(?:\s*号)?|\d{1,3}\s*号(?:\s*玩家)?|(?:玩家|选手|座位)\s*(?:第)?\s*\d{1,3}\s*(?:号位|号|位)?)$/i;
+      if (standaloneSeat.test(raw)) {
+        const bySeat = findPlayerBySeatRef(raw, pool);
+        if (bySeat) return bySeat.name;
+      }
+
+      // game/thinking 兜底：只认“刀/杀/目标”等动作词后的 P 编号，
+      // 不会因为分析中普通提到某个座位就将它当成刀口。
+      const seatAction = /(?:刀|杀|带走|咬|投|出|选|推|目标|名义刀口)\s*(?:是|为)?\s*[:：]?\s*((?:[Pp]\s*#?\s*\d{1,3}(?:\s*号)?)|(?:\d{1,3}\s*号))/gi;
+      let match;
+      while ((match = seatAction.exec(raw)) !== null) {
+        const prefix = raw.slice(Math.max(0, match.index - 3), match.index);
+        if (/(?:不|别|不要|不能)\s*$/.test(prefix)) continue;
+        const bySeat = findPlayerBySeatRef(match[1], pool);
+        if (bySeat) return bySeat.name;
+      }
+
+      // 若整段只出现一个合法 P 编号，它也可作为安全兜底。
+      const seatRefs = [...raw.matchAll(/[Pp]\s*#?\s*\d{1,3}(?:\s*号)?/gi)]
+        .map(m => findPlayerBySeatRef(m[0], pool))
+        .filter(Boolean);
+      const uniqueSeatIds = [...new Set(seatRefs.map(p => p.id))];
+      if (uniqueSeatIds.length === 1) {
+        const byId = pool.find(p => p.id === uniqueSeatIds[0]);
+        if (byId) return byId.name;
+      }
+
+      // 非盲名模式继续使用原有姓名/别名解析。
+      return extractTargetName(raw, pool);
+    }
+
     // 从 action 文本里精确解出目标玩家——专治"夜神月,不,刀L"这种多名字 action
     // 策略:① 先按常见分隔符切片,取最后一片精确匹配;② 失败再用 extractTargetName 取末尾名
     function parseWolfTarget(actionStr, pool) {
@@ -11769,8 +11809,8 @@ const NightActions = {
           if (m) return m;
         }
       }
-      // 兜底:用 extractTargetName(取整段里最后出现的名字)
-      const lastName = extractTargetName(cleaned, pool);
+      // 兜底:同时支持真实姓名与盲名 P 编号
+      const lastName = extractWolfTargetName(cleaned, pool);
       if (lastName) return pool.find(x => x.name === lastName) || null;
       // 最后兜底:子串匹配(可能误判,但总比 null 好)
       return pool.find(x => cleaned.includes(x.name)) || null;
@@ -11816,7 +11856,7 @@ const NightActions = {
       if (!r || isAISilentFailure(r.game)) {
         let recoveredTarget = parseWolfTarget((r && r.action) || '', validWolfTargets);
         if (!recoveredTarget && r && r.thinking) {
-          const fromThink = extractTargetName(r.thinking, validWolfTargets);
+          const fromThink = extractWolfTargetName(r.thinking, validWolfTargets);
           if (fromThink) recoveredTarget = validWolfTargets.find(x => x.name === fromThink) || null;
         }
         const safeLine = recoveredTarget
@@ -11857,7 +11897,7 @@ const NightActions = {
       // ★ v9.9.1: 进一步加 thinking 兜底（思考模型常把结论写在 thinking 里）
       let finalTarget = target;
       if (!finalTarget && r && r.game) {
-        const fromGame = extractTargetName(r.game, validWolfTargets);
+        const fromGame = extractWolfTargetName(r.game, validWolfTargets);
         if (fromGame) {
           finalTarget = validWolfTargets.find(x => x.name === fromGame) || null;
           if (finalTarget) {
@@ -11866,7 +11906,7 @@ const NightActions = {
         }
       }
       if (!finalTarget && r && r.thinking) {
-        const fromThink = extractTargetName(r.thinking, validWolfTargets);
+        const fromThink = extractWolfTargetName(r.thinking, validWolfTargets);
         if (fromThink) {
           finalTarget = validWolfTargets.find(x => x.name === fromThink) || null;
           if (finalTarget) {
@@ -12031,19 +12071,19 @@ ${magicKillDecisionHint}
         // ★ v9.9: GPT-5 等模型可能把名字写在 game 里而不是 action,加同样的兜底
         let finalTarget = target;
         if (!finalTarget && voteR && voteR.game) {
-          const fromGame = extractTargetName(voteR.game, validWolfTargets);
+          const fromGame = extractWolfTargetName(voteR.game, validWolfTargets);
           if (fromGame) finalTarget = validWolfTargets.find(x => x.name === fromGame) || null;
         }
         // ★ v9.9.1: 再从 thinking 末尾兜底（思考模型常把结论写在 thinking 里）
         if (!finalTarget && voteR && voteR.thinking) {
-          const fromThink = extractTargetName(voteR.thinking, validWolfTargets);
+          const fromThink = extractWolfTargetName(voteR.thinking, validWolfTargets);
           if (fromThink) finalTarget = validWolfTargets.find(x => x.name === fromThink) || null;
         }
         // ★ v9.9.1: 从 openingRecords 的历史 game/thinking 兜底
         if (!finalTarget && rec) {
           for (const field of [rec.game, rec.raw && rec.raw.thinking]) {
             if (!field) continue;
-            const t = extractTargetName(field, validWolfTargets);
+            const t = extractWolfTargetName(field, validWolfTargets);
             if (t) { finalTarget = validWolfTargets.find(x => x.name === t) || null; break; }
           }
         }
@@ -12059,7 +12099,7 @@ ${magicKillDecisionHint}
         if (rec) {
           for (const field of [rec.game, rec.action, rec.raw && rec.raw.thinking]) {
             if (!field) continue;
-            const t = extractTargetName(field, validWolfTargets);
+            const t = extractWolfTargetName(field, validWolfTargets);
             if (t) { wolfLastActions[w.id] = t; break; }
           }
         }
