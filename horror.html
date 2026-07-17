@@ -214,7 +214,7 @@ function zoneName(x,y){
 
 /* ============ 状态 ============ */
 const S={fear:0,minute:41,has:{note:false,battery:false,charm:false,photo:false},
-  flags:{readWall:false,mirror:0,lockerOpen:false,chase:false,codeKnown:false},mode:'title'};
+  flags:{readWall:false,mirror:0,lockerOpen:false,chase:false,doorSeq:false,codeKnown:false},doorHits:0,mode:'title'};
 const P={x:2.5,y:2.5,a:0};
 const GHOST={x:0,y:0,on:false,mode:'none',t:0};
 const $=id=>document.getElementById(id);
@@ -271,11 +271,20 @@ function lockerAct(){
   say(`她的柜子。<span class="em">四位数密码锁</span>。\n纸条上说：密码是<span class="paper">「她走的那一年」</span>。`+(S.flags.readWall?'':`\n……哪一年？校史墙上也许有线索。`),cs);}
 function exitAct(){
   if(GHOST.mode==='chase'){escapeToBridge();return;}
-  say(`后门虚掩着。门外，雨声。\n再往前，就是后山的<span class="em">旧桥</span>了。\n出去了，就没有回头路。`+(S.has.charm?'':`\n（你总觉得……好像还缺了点什么。）`),
-    [{label:'推门出去',cls:'danger',act:escapeToBridge},{label:'再回去看看',act:closePanel}]);}
+  say(`后门就在眼前。门外，雨声。\n再往前，就是后山的<span class="em">旧桥</span>了。\n出去了，就没有回头路。`+(S.has.charm?'':`\n（你总觉得……好像还缺了点什么。）`),
+    [{label:'推门出去',cls:'danger',act:()=>{ if(S.flags.chase){escapeToBridge();}else{doorSequence();} }},
+     {label:'再回去看看',act:closePanel}]);}
+function doorSequence(){
+  closePanel();S.flags.chase=true;S.flags.doorSeq=true;S.doorHits=0;
+  GHOST.on=true;GHOST.mode='chase';GHOST.x=9.2;GHOST.y=5.4;
+  sfxScream();addFear(14);if(navigator.vibrate)navigator.vibrate([80,50,80]);
+  const ht=$('hint');ht.textContent='门锁住了！！狂点「撞 门」！！';ht.style.opacity=1;ht.style.color='#c53a2e';}
+function doorHit(){
+  S.doorHits++;sfxStep(.7);if(navigator.vibrate)navigator.vibrate(40);
+  if(S.doorHits>=6){S.flags.doorSeq=false;const ht=$('hint');ht.style.opacity=0;escapeToBridge();}}
 
 /* ============ 追逐战 ============ */
-function startChase(){GHOST.on=true;GHOST.mode='chase';GHOST.x=18.3;GHOST.y=8.5;addFear(12);sfxScream();
+function startChase(){S.flags.chase=true;GHOST.on=true;GHOST.mode='chase';GHOST.x=18.3;GHOST.y=8.5;addFear(12);sfxScream();
   if(navigator.vibrate)navigator.vibrate([60,40,60]);}
 function escapeToBridge(){closePanel();GHOST.on=false;GHOST.mode='none';S.mode='bridge';$('rain').classList.add('on');sfxThunder();
   say(`你撞开后门，冲进雨里。\n身后的脚步声，在门口停住了。\n\n手电的光柱里全是雨。旧桥就在眼前，石头的，窄得只容一个人走。\n保安的话在你耳边响：<span class="em">桥只有十二阶。</span>`+(S.has.note?`\n纸条上写：<span class="paper">不要数完。</span>`:'')+`\n\n你没有别的路了。`,
@@ -351,6 +360,7 @@ const actBtn=$('actBtn');let nearItem=null;
 actBtn.onclick=()=>{if(nearItem){sfxClick();nearItem.act();}};
 function checkNear(){nearItem=null;
   if(panelOpen||S.mode!=='play'){actBtn.style.display='none';return;}
+  if(S.flags.doorSeq){nearItem={label:'撞 门',act:doorHit};actBtn.style.display='block';actBtn.textContent='撞 门！';return;}
   let best=null,bd=1.3;
   for(const it of ITEMS){if(it.done())continue;const d=Math.hypot(it.x-P.x,it.y-P.y);if(d<bd){bd=d;best=it;}}
   nearItem=best;
