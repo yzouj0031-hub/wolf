@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#050807">
+<title>第十三阶</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;500;700;900&family=Noto+Sans+SC:wght@300;400&display=swap');
+
+:root{
+  --void:#050807;
+  --moss:#0b1210;
+  --phosphor:#8fb3a0;   /* 旧日光灯的冷绿 */
+  --bone:#d9d4c7;
+  --blood:#8e1f1a;
+  --blood-hot:#c53a2e;
+  --paper:#b39a63;      /* 符纸黄 */
+  --dim:#2c3833;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  background:var(--void);
+  color:var(--bone);
+  font-family:'Noto Sans SC',sans-serif;
+  font-weight:300;
+  overflow:hidden;
+  user-select:none;
+}
+#app{
+  position:relative;
+  height:100dvh;
+  max-width:640px;
+  margin:0 auto;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+/* ---------- 场景底光：每个地点一种"光" ---------- */
+#backdrop{
+  position:absolute;inset:0;z-index:0;
+  transition:background 1.2s ease;
+  background:radial-gradient(ellipse 90% 55% at 50% 0%, rgba(38,52,45,.55), transparent 65%), var(--void);
+}
+#app[data-loc="study"]   #backdrop{background:radial-gradient(ellipse 90% 55% at 50% 0%, rgba(58,74,58,.5), transparent 65%), var(--void);}
+#app[data-loc="hall"]    #backdrop{background:radial-gradient(ellipse 70% 40% at 50% 8%, rgba(70,92,78,.42), transparent 60%), var(--void);}
+#app[data-loc="toilet"]  #backdrop{background:radial-gradient(ellipse 80% 50% at 50% 20%, rgba(60,80,86,.4), transparent 60%), var(--void);}
+#app[data-loc="locker"]  #backdrop{background:radial-gradient(ellipse 60% 45% at 50% 15%, rgba(66,60,42,.4), transparent 60%), var(--void);}
+#app[data-loc="lobby"]   #backdrop{background:radial-gradient(ellipse 90% 45% at 50% 5%, rgba(84,46,38,.32), transparent 62%), var(--void);}
+#app[data-loc="field"]   #backdrop{background:linear-gradient(180deg, rgba(20,30,40,.7), transparent 55%), var(--void);}
+#app[data-loc="bridge"]  #backdrop{background:linear-gradient(180deg, rgba(10,14,20,.9), var(--void) 70%);}
+
+/* 声控灯闪烁 */
+#backdrop.flicker{animation:flick .55s steps(2,end) 3;}
+@keyframes flick{0%{filter:brightness(1);}45%{filter:brightness(.15);}55%{filter:brightness(1.6);}100%{filter:brightness(1);}}
+
+/* 雨 */
+#rain{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;transition:opacity 2s;
+  background-image:repeating-linear-gradient(78deg, transparent 0 22px, rgba(180,200,210,.05) 22px 23px);
+  animation:rainfall .38s linear infinite;}
+@keyframes rainfall{from{background-position:0 0;}to{background-position:-30px 60px;}}
+#rain.on{opacity:1;}
+
+/* 颗粒噪点：恐惧越高越糊 */
+#grain{position:absolute;inset:-50%;z-index:2;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  animation:grain .4s steps(4) infinite;}
+@keyframes grain{0%{transform:translate(0,0);}25%{transform:translate(-3%,2%);}50%{transform:translate(2%,-3%);}75%{transform:translate(-2%,-2%);}100%{transform:translate(3%,3%);}}
+
+/* ---------- 顶栏 ---------- */
+#top{
+  position:relative;z-index:5;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px 18px 10px;
+  font-size:12px;letter-spacing:.18em;color:var(--dim);
+}
+#clock{font-family:'Noto Serif SC',serif;font-weight:500;color:var(--phosphor);letter-spacing:.3em;font-size:13px;}
+#clock.late{color:var(--blood-hot);}
+#fearbar{width:64px;height:2px;background:#151d19;border-radius:2px;overflow:hidden;}
+#fearfill{height:100%;width:0%;background:var(--blood);transition:width .8s;}
+
+/* ---------- 主体 ---------- */
+#stage{position:relative;z-index:5;flex:1;display:flex;flex-direction:column;padding:8px 22px 0;overflow-y:auto;}
+#loctitle{
+  font-family:'Noto Serif SC',serif;font-weight:900;
+  font-size:26px;letter-spacing:.35em;color:var(--bone);
+  padding:6px 0 2px;
+}
+#loctitle small{display:block;font-weight:300;font-size:11px;letter-spacing:.4em;color:var(--dim);margin-top:6px;}
+#text{
+  margin-top:16px;font-size:15.5px;line-height:2.05;color:#b8b3a6;
+  min-height:120px;white-space:pre-wrap;
+}
+#text .em{color:var(--phosphor);}
+#text .bad{color:var(--blood-hot);}
+#text .paper{color:var(--paper);}
+
+/* ---------- 选项 ---------- */
+#opts{position:relative;z-index:5;padding:10px 22px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;}
+.opt{
+  appearance:none;border:1px solid #1e2a25;background:rgba(14,20,17,.75);
+  color:var(--bone);font-family:'Noto Sans SC',sans-serif;font-weight:300;
+  font-size:14.5px;letter-spacing:.12em;text-align:left;
+  padding:13px 16px;border-radius:2px;cursor:pointer;
+  transition:border-color .25s, background .25s;
+}
+.opt:active{background:rgba(34,46,40,.9);border-color:var(--phosphor);}
+.opt.go::before{content:"→ ";color:var(--dim);}
+.opt.item::before{content:"✦ ";color:var(--paper);}
+.opt.danger{border-color:#3a1512;}
+.opt.danger:active{border-color:var(--blood-hot);}
+.opt:disabled{opacity:.35;}
+
+/* ---------- 物品栏 ---------- */
+#inv{position:relative;z-index:5;display:flex;gap:8px;padding:0 22px;min-height:26px;flex-wrap:wrap;}
+.tag{font-size:11px;letter-spacing:.2em;color:var(--paper);border:1px solid #33301f;padding:3px 9px;border-radius:2px;background:rgba(20,18,10,.6);}
+
+/* ---------- 数阶模式 ---------- */
+#bridgeMode{
+  position:absolute;inset:0;z-index:20;display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse 70% 60% at 50% 45%, rgba(16,22,30,.9), var(--void) 80%);
+}
+#bridgeMode.on{display:flex;}
+#stepnum{
+  font-family:'Noto Serif SC',serif;font-weight:900;
+  font-size:96px;color:var(--bone);letter-spacing:.1em;
+  text-shadow:0 0 40px rgba(143,179,160,.25);
+  transition:transform .15s;
+}
+#steplabel{font-family:'Noto Serif SC',serif;font-size:18px;letter-spacing:.6em;color:var(--dim);margin-top:8px;}
+#stephint{font-size:13px;letter-spacing:.25em;color:#5a6660;margin-top:46px;animation:breathe 2.4s ease-in-out infinite;}
+@keyframes breathe{0%,100%{opacity:.35;}50%{opacity:.9;}}
+#stepnum.thirteen{color:var(--blood-hot);text-shadow:0 0 60px rgba(197,58,46,.5);}
+
+/* ---------- 突脸 ---------- */
+#scare{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:#000;}
+#scare.on{display:flex;animation:scarein .12s steps(2) forwards;}
+@keyframes scarein{from{filter:brightness(3);}to{filter:brightness(1);}}
+#scare svg{width:min(96vw,560px);animation:lurch .09s steps(2,end) infinite;}
+@keyframes lurch{0%{transform:translate(0,0) scale(1);}50%{transform:translate(-8px,5px) scale(1.06);}100%{transform:translate(6px,-7px) scale(1.03);}}
+body.shake #app{animation:bodyshake .07s linear infinite;}
+@keyframes bodyshake{0%{transform:translate(2px,-2px);}50%{transform:translate(-3px,2px);}100%{transform:translate(2px,1px);}}
+
+/* ---------- 结局 / 标题 ---------- */
+.screen{
+  position:fixed;inset:0;z-index:60;display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  background:var(--void);padding:32px;text-align:center;
+}
+.screen.on{display:flex;}
+.screen h1{font-family:'Noto Serif SC',serif;font-weight:900;font-size:44px;letter-spacing:.3em;color:var(--bone);}
+.screen h1 .red{color:var(--blood-hot);}
+.screen .sub{margin-top:18px;font-size:13px;letter-spacing:.35em;color:var(--dim);line-height:2.2;}
+.screen .story{margin-top:26px;max-width:420px;font-size:14px;line-height:2.3;color:#a29d90;text-align:left;}
+.screen .btn{
+  margin-top:44px;appearance:none;border:1px solid var(--dim);background:transparent;
+  color:var(--bone);font-family:'Noto Serif SC',serif;font-size:15px;letter-spacing:.5em;
+  padding:14px 34px 14px 40px;cursor:pointer;border-radius:2px;
+}
+.screen .btn:active{border-color:var(--phosphor);color:var(--phosphor);}
+#endTitle.dead h1{color:var(--blood-hot);}
+.endtag{margin-top:10px;font-size:12px;letter-spacing:.4em;color:var(--blood);}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important;}
+}
+</style>
+</head>
+<body>
+
+<div id="app" data-loc="study">
+  <div id="backdrop"></div>
+  <div id="rain"></div>
+  <div id="grain"></div>
+
+  <div id="top">
+    <span id="clock">23:41</span>
+    <div id="fearbar"><div id="fearfill"></div></div>
+  </div>
+
+  <div id="stage">
+    <div id="loctitle">自习室<small>文学院 · 三楼</small></div>
+    <div id="text"></div>
+  </div>
+
+  <div id="inv"></div>
+  <div id="opts"></div>
+
+  <div id="bridgeMode">
+    <div id="stepnum">一</div>
+    <div id="steplabel">第 一 阶</div>
+    <div id="stephint">踏出下一步</div>
+  </div>
+</div>
+
+<!-- 突脸 -->
+<div id="scare">
+  <svg viewBox="0 0 400 480" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="skin" cx="50%" cy="42%" r="65%">
+        <stop offset="0%" stop-color="#e8e4da"/>
+        <stop offset="70%" stop-color="#b7b2a5"/>
+        <stop offset="100%" stop-color="#4a4640"/>
+      </radialGradient>
+      <radialGradient id="pit" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#000"/>
+        <stop offset="80%" stop-color="#0a0505"/>
+        <stop offset="100%" stop-color="#2a1512"/>
+      </radialGradient>
+    </defs>
+    <!-- 头发 -->
+    <path d="M200 8 C 70 20 38 150 44 300 C 46 390 60 470 60 470 L 120 470 C 96 380 90 300 96 210 C 100 140 130 70 200 60 C 270 70 300 140 304 210 C 310 300 304 380 280 470 L 340 470 C 340 470 354 390 356 300 C 362 150 330 20 200 8 Z" fill="#050505"/>
+    <!-- 脸 -->
+    <ellipse cx="200" cy="230" rx="108" ry="150" fill="url(#skin)"/>
+    <!-- 垂发遮脸 -->
+    <path d="M120 90 C 100 180 104 300 118 400 L 138 396 C 126 300 124 190 142 100 Z" fill="#060606"/>
+    <path d="M280 90 C 300 180 296 300 282 400 L 262 396 C 274 300 276 190 258 100 Z" fill="#060606"/>
+    <path d="M180 70 C 176 120 178 160 184 200 L 196 198 C 190 160 190 120 194 74 Z" fill="#080808" opacity=".9"/>
+    <!-- 眼窝 -->
+    <ellipse cx="160" cy="210" rx="30" ry="38" fill="url(#pit)"/>
+    <ellipse cx="242" cy="212" rx="30" ry="40" fill="url(#pit)"/>
+    <circle cx="162" cy="222" r="4" fill="#d8d2c6" opacity=".85"/>
+    <circle cx="244" cy="200" r="3" fill="#d8d2c6" opacity=".7"/>
+    <!-- 鼻影 -->
+    <path d="M198 240 C 194 262 192 274 190 284 L 208 286 C 206 274 204 260 202 240 Z" fill="#8a857a" opacity=".6"/>
+    <!-- 嘴：撕开的黑 -->
+    <path d="M148 322 C 180 306 224 306 256 324 C 240 372 214 396 202 396 C 190 396 162 370 148 322 Z" fill="#0a0303"/>
+    <path d="M156 324 C 184 314 220 314 248 326 C 246 332 240 338 234 342 C 212 334 190 334 168 342 C 162 338 158 330 156 324 Z" fill="#c9c2b4" opacity=".9"/>
+    <!-- 颈 -->
+    <path d="M160 372 L 152 480 L 250 480 L 242 372 C 228 386 176 386 160 372 Z" fill="#9a9588"/>
+  </svg>
+</div>
+
+<!-- 标题屏 -->
+<div class="screen on" id="titleScreen">
+  <h1>第<span class="red">十三</span>阶</h1>
+  <div class="sub">建议戴耳机 · 音量适中<br>含突发惊吓画面与音效</div>
+  <div class="story">期末周。你为了赶报告，在文学院待到了半夜。
+
+保安说过，学校十二点锁大门。
+
+还说过——下雨的晚上，别走后山那座旧桥。
+桥只有十二阶。
+但有人数出过十三阶。</div>
+  <button class="btn" id="startBtn">进 入 校 园</button>
+</div>
+
+<!-- 结局屏 -->
+<div class="screen" id="endTitle">
+  <h1 id="endName"></h1>
+  <div class="endtag" id="endTag"></div>
+  <div class="story" id="endStory"></div>
+  <button class="btn" onclick="location.reload()">再 来 一 次</button>
+</div>
+
+<script>
+/* ================== 音频（全部 WebAudio 合成，无需外部文件） ================== */
+let AC=null, droneNodes=[], heartTimer=null;
+function ac(){ if(!AC){ AC=new (window.AudioContext||window.webkitAudioContext)(); } if(AC.state==='suspended')AC.resume(); return AC; }
+function noiseBuf(sec){ const a=ac(), b=a.createBuffer(1,a.sampleRate*sec,a.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; return b; }
+function startDrone(){
+  const a=ac(); stopDrone();
+  const g=a.createGain(); g.gain.value=.05; g.connect(a.destination);
+  const o=a.createOscillator(); o.type='sine'; o.frequency.value=48;
+  const o2=a.createOscillator(); o2.type='sine'; o2.frequency.value=48.7;
+  const og=a.createGain(); og.gain.value=.5; o.connect(og); o2.connect(og); og.connect(g);
+  const n=a.createBufferSource(); n.buffer=noiseBuf(4); n.loop=true;
+  const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=220;
+  const ng=a.createGain(); ng.gain.value=.35; n.connect(f); f.connect(ng); ng.connect(g);
+  o.start(); o2.start(); n.start();
+  droneNodes=[o,o2,n,g];
+}
+function stopDrone(){ droneNodes.forEach(x=>{try{x.stop?x.stop():x.disconnect();}catch(e){}}); droneNodes=[]; }
+function sfxClick(){ const a=ac(),o=a.createOscillator(),g=a.createGain(); o.type='square';o.frequency.value=180; g.gain.setValueAtTime(.06,a.currentTime); g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.06); o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.07); }
+function sfxStep(){ const a=ac(),s=a.createBufferSource();s.buffer=noiseBuf(.25); const f=a.createBiquadFilter();f.type='lowpass';f.frequency.value=300; const g=a.createGain(); g.gain.setValueAtTime(.5,a.currentTime); g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.22); s.connect(f);f.connect(g);g.connect(a.destination);s.start(); }
+function sfxThunder(){ const a=ac(),s=a.createBufferSource();s.buffer=noiseBuf(2.2); const f=a.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(900,a.currentTime); f.frequency.exponentialRampToValueAtTime(60,a.currentTime+2); const g=a.createGain(); g.gain.setValueAtTime(.6,a.currentTime); g.gain.exponentialRampToValueAtTime(.001,a.currentTime+2.1); s.connect(f);f.connect(g);g.connect(a.destination);s.start(); }
+function sfxWhisper(){ const a=ac(),s=a.createBufferSource();s.buffer=noiseBuf(1.4); const f=a.createBiquadFilter();f.type='bandpass';f.frequency.value=1600;f.Q.value=6; const g=a.createGain(); g.gain.setValueAtTime(.001,a.currentTime); g.gain.exponentialRampToValueAtTime(.12,a.currentTime+.5); g.gain.exponentialRampToValueAtTime(.001,a.currentTime+1.3); const p=a.createStereoPanner?a.createStereoPanner():null; s.connect(f); if(p){f.connect(g);g.connect(p);p.pan.value=(Math.random()>.5?1:-1)*.8;p.connect(a.destination);}else{f.connect(g);g.connect(a.destination);} s.start(); }
+function sfxScream(){
+  const a=ac();
+  const s=a.createBufferSource(); s.buffer=noiseBuf(1.6);
+  const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(700,a.currentTime); f.frequency.exponentialRampToValueAtTime(2600,a.currentTime+.25); f.Q.value=2;
+  const g=a.createGain(); g.gain.setValueAtTime(.9,a.currentTime); g.gain.exponentialRampToValueAtTime(.001,a.currentTime+1.5);
+  s.connect(f);f.connect(g);g.connect(a.destination); s.start();
+  [880,932,1245].forEach((fr,i)=>{ const o=a.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(fr,a.currentTime); o.frequency.exponentialRampToValueAtTime(fr*1.6,a.currentTime+.3); const og=a.createGain(); og.gain.setValueAtTime(.16,a.currentTime); og.gain.exponentialRampToValueAtTime(.001,a.currentTime+1.1+i*.1); o.connect(og);og.connect(a.destination); o.start(); o.stop(a.currentTime+1.3); });
+}
+function heart(on){
+  if(on&&!heartTimer){ heartTimer=setInterval(()=>{ const a=ac(); [0,.16].forEach(t=>{ const o=a.createOscillator();o.type='sine';o.frequency.value=52; const g=a.createGain(); g.gain.setValueAtTime(.0001,a.currentTime+t); g.gain.exponentialRampToValueAtTime(.28,a.currentTime+t+.02); g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+t+.14); o.connect(g);g.connect(a.destination); o.start(a.currentTime+t); o.stop(a.currentTime+t+.2); }); },900); }
+  if(!on&&heartTimer){ clearInterval(heartTimer); heartTimer=null; }
+}
+
+/* ================== 状态 ================== */
+const S={
+  loc:'study', fear:0, minute:41,
+  has:{battery:false,torch:false,charm:false,photo:false,note:false},
+  flags:{readWall:false,mirror:0,lockerOpen:false,guardDone:false,triedGate:false,rain:false,firstHall:true,codeTries:0},
+};
+const $=id=>document.getElementById(id);
+const app=$('app'), textEl=$('text'), optsEl=$('opts');
+
+function addFear(n){ S.fear=Math.max(0,Math.min(100,S.fear+n)); $('fearfill').style.width=S.fear+'%'; $('grain').style.opacity=(0.05+S.fear/100*0.22).toFixed(2); heart(S.fear>=60); if(S.fear>=100) endGame('mad'); }
+function tick(n){ S.minute+=n; let h=23,m=S.minute; if(m>=60){h=0;m-=60;} const c=$('clock'); c.textContent=(h===0?'00':'23')+':'+String(m).padStart(2,'0'); if(h===0)c.classList.add('late'); }
+function inv(){ const el=$('inv'); el.innerHTML=''; const names={battery:'电池',torch:'手电筒',charm:'平安符',photo:'旧照片',note:'纸条'}; for(const k in S.has) if(S.has[k]){ const t=document.createElement('span'); t.className='tag'; t.textContent=names[k]; el.appendChild(t);} }
+
+/* 打字机 */
+let typing=null;
+function say(html, then){
+  clearInterval(typing); textEl.innerHTML='';
+  const tmp=document.createElement('div'); tmp.innerHTML=html;
+  const nodes=[]; (function walk(n,out){ n.childNodes.forEach(c=>{ if(c.nodeType===3){ for(const ch of c.textContent) out.push({t:'char',v:ch,wrap:n!==tmp?n:null}); } else { walk(c,out);} }); })(tmp,nodes);
+  // 简化：直接按纯文本打字，样式用整段替换
+  const plain=tmp.textContent; let i=0;
+  typing=setInterval(()=>{ i+=2; textEl.textContent=plain.slice(0,i); if(i>=plain.length){ clearInterval(typing); textEl.innerHTML=html; if(then)then(); } },18);
+}
+function opts(list){
+  optsEl.innerHTML='';
+  list.forEach(o=>{ if(o.cond&&!o.cond())return;
+    const b=document.createElement('button'); b.className='opt '+(o.cls||''); b.textContent=o.label;
+    b.onclick=()=>{ sfxClick(); o.act(); };
+    optsEl.appendChild(b); });
+}
+
+/* 随机氛围事件 */
+function ambient(){
+  const r=Math.random();
+  if(r<.28){ $('backdrop').classList.remove('flicker'); void $('backdrop').offsetWidth; $('backdrop').classList.add('flicker'); sfxWhisper(); addFear(4); }
+  else if(r<.4){ sfxStep(); setTimeout(sfxStep,420); setTimeout(sfxStep,840); addFear(3); }
+}
+
+/* 突脸 */
+function jumpscare(then, hold=1400){
+  sfxScream(); document.body.classList.add('shake');
+  $('scare').classList.add('on');
+  if(navigator.vibrate)navigator.vibrate([80,40,120,40,200]);
+  setTimeout(()=>{ $('scare').classList.remove('on'); document.body.classList.remove('shake'); if(then)then(); }, hold);
+}
+
+/* ================== 场景 ================== */
+const LOC={
+  study:{t:'自习室',s:'文学院 · 三楼'},
+  hall:{t:'走 廊',s:'三楼 · 声控灯'},
+  toilet:{t:'洗手间',s:'走廊尽头'},
+  locker:{t:'储物柜区',s:'楼梯口'},
+  lobby:{t:'一楼大厅',s:'铁门 · 警卫室'},
+  field:{t:'操 场',s:'后门方向'},
+  bridge:{t:'旧 桥',s:'后山 · 溪上'},
+};
+function go(loc,fn){ S.loc=loc; app.dataset.loc=loc; const L=LOC[loc]; $('loctitle').innerHTML=L.t+'<small>'+L.s+'</small>'; tick(1+Math.floor(Math.random()*2)); if(Math.random()<.5&&loc!=='study')ambient(); fn(); }
+
+function scStudy(){ go('study',()=>{
+  say(`日光灯管嗡嗡作响。整层楼只剩你一个人。\n手机没有信号，只剩 <span class="em">17%</span> 的电。\n桌上压着一张同学留下的<span class="paper">纸条</span>。窗外，好像开始起雾了。`);
+  opts([
+    {label:'看那张纸条',cls:'item',cond:()=>!S.has.note,act:()=>{ S.has.note=true; inv(); addFear(2);
+      say(`纸条上的字迹很急：\n<span class="paper">「我先走了。别等到十二点。\n如果只能走后山的桥——去我柜子里拿那个东西。\n密码是'她走的那一年'。」</span>\n她的柜子……在楼梯口的储物柜区。`); scStudyOpts(); }},
+    {label:'翻抽屉找点有用的',cond:()=>!S.has.torch,act:()=>{ S.has.torch=true; inv();
+      say(`抽屉深处有一支<span class="em">手电筒</span>。你按了按开关——没反应。\n<span class="bad">没有电池。</span>`); scStudyOpts(); }},
+    {label:'走廊',cls:'go',act:scHall},
+  ]);
+});}
+function scStudyOpts(){ opts([
+  {label:'翻抽屉找点有用的',cond:()=>!S.has.torch,act:()=>{ S.has.torch=true; inv(); say(`抽屉深处有一支<span class="em">手电筒</span>。没有电池。`); scStudyOpts(); }},
+  {label:'走廊',cls:'go',act:scHall},
+]);}
+
+function scHall(){ go('hall',()=>{
+  let d=`声控灯一盏一盏亮起来，又在你身后一盏一盏熄灭。\n墙上是落满灰的<span class="em">校史墙</span>。`;
+  if(S.flags.firstHall){ S.flags.firstHall=false; d+=`\n\n走廊尽头的洗手间里，传来<span class="bad">水龙头没关紧的滴水声</span>。`; addFear(3);}
+  say(d);
+  opts([
+    {label:'看校史墙',cond:()=>!S.flags.readWall,act:()=>{ S.flags.readWall=true;
+      say(`「本校创立于 1963 年。」\n「后山石桥建于 1958 年，共十二阶。」\n最角落有一张剪报，标题被撕掉了半边——\n<span class="bad">「1987 年 · 雨夜 · 女学生……坠……」</span>\n剪报下有人用笔写了一行小字：<span class="paper">「不要数完。」</span>`); addFear(6); scHallOpts(); }},
+    ...hallGo(),
+  ]);
+});}
+function hallGo(){ return [
+  {label:'洗手间',cls:'go',act:scToilet},
+  {label:'储物柜区',cls:'go',act:scLocker},
+  {label:'下楼 · 一楼大厅',cls:'go',act:scLobby},
+  {label:'回自习室',cls:'go',act:scStudy},
+];}
+function scHallOpts(){ opts(hallGo()); }
+
+function scToilet(){ go('toilet',()=>{
+  say(`滴。滴。滴。\n水槽上方是一面<span class="em">发黄的镜子</span>。镜面有一层雾，像有人刚在这里洗过很久的手。\n水槽里泡着什么东西。`);
+  opts([
+    {label:'伸手进水槽',cls:'item',cond:()=>!S.has.battery,act:()=>{ S.has.battery=true; inv(); addFear(4);
+      const t=S.has.torch?`\n你把电池装进手电筒——<span class="em">灯亮了。</span>`:'';
+      say(`水是凉的，凉得不像自来水。\n你摸出两节<span class="em">电池</span>，外壳还很新。\n是谁泡在这里的？${t}`); scToiletOpts(); }},
+    {label:'擦开镜子上的雾',cls:'danger',act:mirror},
+    {label:'回走廊',cls:'go',act:scHall},
+  ]);
+});}
+function scToiletOpts(){ opts([
+  {label:'擦开镜子上的雾',cls:'danger',act:mirror},
+  {label:'回走廊',cls:'go',act:scHall},
+]);}
+function mirror(){
+  S.flags.mirror++;
+  if(S.flags.mirror===1){ sfxWhisper(); addFear(14);
+    say(`你用手抹开雾气。\n镜子里是你自己，疲惫，眼下发青。\n但你身后靠墙的位置——\n<span class="bad">好像立着一个比阴影更深的东西。</span>\n你猛地回头。什么都没有。`);
+    opts([{label:'再看一眼镜子',cls:'danger',act:mirror},{label:'离开这里',cls:'go',act:scHall}]);
+  } else {
+    say(`你又凑近了镜子。\n雾气自己散开了。\n镜子里，那个东西<span class="bad">已经贴在你的耳边</span>。`);
+    optsEl.innerHTML='';
+    setTimeout(()=>jumpscare(()=>endGame('mirror')),900);
+  }
+}
+
+function scLocker(){ go('locker',()=>{
+  if(S.flags.lockerOpen){ say(`柜门开着，里面已经空了。`); opts([{label:'回走廊',cls:'go',act:scHall}]); return; }
+  if(!S.has.note){ say(`一排铁皮储物柜。其中一个挂着<span class="em">四位数密码锁</span>。\n你不知道是谁的柜子。`); opts([{label:'回走廊',cls:'go',act:scHall}]); return; }
+  say(`她的柜子挂着<span class="em">四位数密码锁</span>。\n纸条上说：密码是<span class="paper">「她走的那一年」</span>。`+(S.flags.readWall?'':`\n……哪一年？你需要线索。`));
+  const tryCode=(y,ok)=>()=>{ if(ok){ S.flags.lockerOpen=true; S.has.charm=true; S.has.photo=true; inv(); sfxThunder(); addFear(8);
+      say(`「咔哒。」锁开了。\n柜子里只有两样东西：\n一张对折的<span class="paper">平安符</span>，符纸边缘焦黑，像被火燎过。\n一张<span class="em">旧照片</span>：黑白的，拍的是后山那座桥。\n你数了数照片里的台阶。\n<span class="bad">十三阶。最上面那阶，站着一个白色的影子。</span>\n\n窗外，雨点砸了下来。`);
+      S.flags.rain=true; $('rain').classList.add('on');
+      opts([{label:'回走廊',cls:'go',act:scHall}]);
+    } else { S.flags.codeTries++; sfxWhisper(); addFear(7);
+      say(`锁没有动。\n但你听见柜子<span class="bad">里面</span>，传来了一下很轻的、指甲划铁皮的声音。`);
+      lockerOpts(); } };
+  function lockerOpts(){ opts([
+    {label:'输入 1958',cond:()=>S.flags.readWall,act:tryCode(1958,false)},
+    {label:'输入 1963',cond:()=>S.flags.readWall,act:tryCode(1963,false)},
+    {label:'输入 1987',cond:()=>S.flags.readWall,act:tryCode(1987,true)},
+    {label:'回走廊',cls:'go',act:scHall},
+  ]); }
+  lockerOpts();
+});}
+
+function scLobby(){ go('lobby',()=>{
+  if(!S.flags.triedGate){ S.flags.triedGate=true; addFear(5);
+    say(`大厅只亮着一盏应急灯，红的。\n你冲到铁门前用力推——<span class="bad">锁死了。</span>\n挂锁上缠着三圈铁链。\n警卫室的门虚掩着，里面没有人，监控屏幕还亮着。`);
+  } else {
+    say(`铁门纹丝不动。应急灯把你的影子拉得很长。`);
+  }
+  opts([
+    {label:'进警卫室看看',cond:()=>!S.flags.guardDone,act:()=>{ S.flags.guardDone=true; addFear(10); sfxWhisper();
+      say(`桌上的茶还是温的，人却不在。\n监控屏幕分成九格。八格是雪花。\n只有一格能看清——拍的是<span class="em">后山的桥</span>。\n画面里，桥头站着一个<span class="bad">白色的人影</span>，一动不动。\n你眨了一下眼。\n<span class="bad">影子不见了。</span>\n墙上的钥匙挂钩全都空着，只留一张手写的巡逻表，最后一行写着：\n<span class="paper">「00:00 前，走后门。」</span>`);
+      opts([{label:'去操场 · 后门方向',cls:'go',act:scField},{label:'上楼回走廊',cls:'go',act:scHall}]); }},
+    {label:'去操场 · 后门方向',cls:'go',act:scField},
+    {label:'上楼回走廊',cls:'go',act:scHall},
+  ]);
+});}
+
+function scField(){ go('field',()=>{
+  if(!S.flags.rain){ S.flags.rain=true; $('rain').classList.add('on'); sfxThunder(); }
+  let d=`雨下大了。操场空得发白。\n后门也锁了，但栅栏边有个大家都知道的豁口——钻出去，就是后山。\n黑暗里传来溪水声。\n还有一点别的声音。很轻。\n<span class="bad">像是有个女孩子，在雨里哼歌。</span>`;
+  addFear(8);
+  say(d);
+  opts([
+    {label:'钻出豁口，走向旧桥',cls:'danger',act:scBridgeHead},
+    {label:'回大厅',cls:'go',act:scLobby},
+  ]);
+});}
+
+function scBridgeHead(){ go('bridge',()=>{
+  if(!S.has.torch||!S.has.battery){ addFear(12); sfxWhisper();
+    say(`山路彻底黑了。没有手电，你连脚下的路都看不见。\n哼歌声停了。\n<span class="bad">因为它发现你了，正在靠近。</span>\n你连滚带爬地退回操场。`);
+    opts([{label:'退回操场',cls:'go',act:scField}]); return; }
+  say(`手电的光柱里全是雨。\n旧桥就在眼前，石头的，窄得只容一个人走。\n哼歌声不知道什么时候停了。\n整座山安静得只剩下你的呼吸。\n保安的话在你耳边响：<span class="em">桥只有十二阶。</span>\n纸条上写：<span class="paper">不要数完。</span>\n\n你没有别的路了。`);
+  opts([
+    {label:'踏上第一阶',cls:'danger',act:startBridge},
+    {label:'再等等……退回操场',cls:'go',act:scField},
+  ]);
+});}
+
+/* ---------- 数阶 ---------- */
+const CN=['零','一','二','三','四','五','六','七','八','九','十','十一','十二','十三'];
+let step=0, bridgeLock=false;
+function startBridge(){
+  step=0; $('bridgeMode').classList.add('on');
+  $('stephint').textContent='踏出下一步';
+  nextStep();
+  $('bridgeMode').onclick=()=>{ if(!bridgeLock) nextStep(); };
+}
+function nextStep(){
+  step++;
+  if(step>13)return;
+  sfxStep(); if(navigator.vibrate)navigator.vibrate(30);
+  const n=$('stepnum'),l=$('steplabel');
+  n.textContent=CN[step]; l.textContent='第 '+CN[step]+' 阶';
+  n.style.transform='scale(1.15)'; setTimeout(()=>n.style.transform='scale(1)',140);
+  if(step===7){ sfxWhisper(); $('stephint').textContent='雨里，有人跟着你的脚步在数'; addFear(6); }
+  if(step===10){ sfxWhisper(); $('stephint').textContent='「……十。」是个女孩子的声音'; addFear(8); }
+  if(step===12){ $('stephint').textContent='到头了。应该到头了。'; }
+  if(step===13){
+    bridgeLock=true;
+    n.textContent='十三'; n.classList.add('thirteen'); l.textContent='第 十三 阶';
+    sfxThunder(); addFear(15);
+    $('stephint').textContent='';
+    setTimeout(()=>{
+      $('bridgeMode').classList.remove('on');
+      say(`你明明数着，桥应该到头了。\n可你的脚，落在了<span class="bad">第十三阶</span>上。\n\n身后，有一只冰凉的手，<span class="bad">轻轻拍了拍你的肩膀。</span>\n一个很轻很轻的声音，贴着你的后颈：\n<span class="bad">「同学——借个伞好不好？」</span>`);
+      opts([
+        {label:'回头',cls:'danger',act:()=>{ optsEl.innerHTML=''; setTimeout(()=>jumpscare(()=>endGame('look')),600); }},
+        {label:'攥紧平安符，继续往前走',cond:()=>S.has.charm,act:()=>endGame('escape')},
+        {label:'不回头，硬着头皮往前走',cond:()=>!S.has.charm,act:()=>{ optsEl.innerHTML='';
+          say(`你咬着牙迈出下一步。\n可那只手<span class="bad">扣住了你的肩膀</span>，指甲陷进肉里。\n你的脚，再也够不到地面了。`);
+          setTimeout(()=>jumpscare(()=>endGame('pulled')),1400); }},
+      ]);
+    },1600);
+  }
+}
+
+/* ================== 结局 ================== */
+const ENDS={
+  escape:{name:'桥的那头',tag:'结局 · 生还',dead:false,story:`符纸在你掌心发烫。\n那只手停在了你的肩膀上，没有再用力。\n你一步、一步走下桥，始终没有回头。\n\n身后的雨声里，那个声音轻轻说了一句：\n「……谢谢你陪我数完。」\n\n第二天，你在校史馆查到：1987年的那个雨夜，\n有个女生在桥上等人送伞，等到了午夜。\n\n从此你再也没有在雨夜留过校。`},
+  look:{name:'回 头',tag:'结局 · 失踪',dead:true,story:`不该回头的。\n监控里最后一次拍到你，是23:58，操场的豁口。\n后来去找你的人说，那座桥——\n明明只有十二阶。`},
+  pulled:{name:'十三阶',tag:'结局 · 坠',dead:true,story:`溪水很浅，浅得根本淹不死人。\n可你就是没有再上来。\n打捞的人数了三遍台阶：十二阶。\n只是从那以后，雨夜路过的人说，\n桥上会有两个声音一起数数。`},
+  mirror:{name:'镜中人',tag:'结局 · 失踪',dead:true,story:`第二天清晨，保洁阿姨推开洗手间的门。\n水龙头滴着水，镜子上的雾气很新。\n雾上有一行手写的字：\n「他替我留下了。」`},
+  mad:{name:'天亮之前',tag:'结局 · 崩溃',dead:true,story:`他们在自习室找到你的时候，你缩在桌子底下，\n一直在小声数数。\n数到十二，就从头再数。\n谁问你话，你都只说一句：\n「不能数完。不能数完。」`},
+};
+function endGame(key){
+  stopDrone(); heart(false);
+  const e=ENDS[key];
+  $('endName').textContent=e.name; $('endTag').textContent=e.tag; $('endStory').textContent=e.story;
+  const sc=$('endTitle'); sc.classList.toggle('dead',e.dead); sc.classList.add('on');
+}
+
+/* ================== 启动 ================== */
+$('startBtn').onclick=()=>{
+  ac(); startDrone(); sfxClick();
+  $('titleScreen').classList.remove('on');
+  inv(); scStudy();
+};
+</script>
+</body>
+</html>
