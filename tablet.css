@@ -31,7 +31,7 @@ html.capacitor-native .apivault-overlay {
 
 /* Tablet portrait: restore a roomy three-column game instead of the old
    601-900px "large phone" stack. */
-@media (min-width: 601px) and (max-width: 900px) and (orientation: portrait) {
+@media (min-width: 601px) and (max-width: 1100px) and (orientation: portrait) {
   .gc.active {
     flex-direction: row;
     height: 100dvh;
@@ -87,11 +87,11 @@ html.capacitor-native .apivault-overlay {
 }
 
 /* Larger tablet landscape: keep the relaxed desktop structure. */
-@media (min-width: 601px) and (max-width: 1100px) and (orientation: landscape) and (min-height: 601px) {
+@media (min-width: 601px) and (max-width: 1400px) and (orientation: landscape) and (min-height: 501px) {
   .gc.active { flex-direction: row; height: 100dvh; overflow: hidden; }
   .side {
-    width: 175px;
-    min-width: 175px;
+    width: clamp(118px, 12vw, 175px);
+    min-width: 0;
     max-width: 175px;
     max-height: none;
     flex-direction: column;

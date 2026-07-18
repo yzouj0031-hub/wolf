@@ -260,7 +260,7 @@ select { min-width: 60px; }
 .gc { display: none; height: 100vh; height: 100dvh; overflow: hidden; position: relative; z-index: 1; }
 .gc.active { display: flex; }
 
-.side { width: 175px; background: linear-gradient(180deg, rgba(18,16,30,0.95), rgba(10,10,20,0.98)); padding: 6px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex-shrink: 0; border-right: 1px solid rgba(245,160,184,0.08); }
+.side { width: clamp(118px, 12.5vw, 175px); min-width: 0; background: linear-gradient(180deg, rgba(18,16,30,0.95), rgba(10,10,20,0.98)); padding: 6px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex-shrink: 0; border-right: 1px solid rgba(245,160,184,0.08); }
 .side.right { border-right: none; border-left: 1px solid rgba(245,160,184,0.08); }
 .side.hidden { display: none; }
 .side-title { font-family: var(--font-title); color: var(--gold); font-size: 0.75em; text-align: center; padding: 4px; letter-spacing: 0.15em; border-bottom: 1px solid rgba(245,160,184,0.1); margin-bottom: 4px; }
@@ -771,7 +771,7 @@ body.blind-review .le.ending { display:none !important; }
 .seat-item .seat-name { color: var(--gold-light); }
 .mobile-secondary { border: 0; margin: 0; padding: 0; min-width: 0; }
 .mobile-secondary > summary { display: none; }
-@media (max-width: 900px) {
+@media (max-width: 900px) and (orientation: portrait) {
   .gc.active { flex-direction: column; height: 100vh; overflow: hidden; }
   .side { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; padding: 4px; gap: 3px; flex-shrink: 0; max-height: 15vh; overflow-y: auto; border-right: none !important; border-left: none !important; border-bottom: 1px solid rgba(245,160,184,0.08); }
   .side-title { display: none; }
