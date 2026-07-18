@@ -2753,6 +2753,12 @@ const WB_PINGMIN_DANGDAO = '\n\n【牌效·客观事实】\n场上有强好人/�
 //  常驻给所有狼阵营。只罗列"有这些概念",让狼知道这些选项存在。
 const WB_LANG_GAINIAN = '\n\n【狼队战术概念库·仅供你知道存在】\n以下是狼人杀里存在的高阶打法概念,列出来只是让你知道"有这些选项",不是教你怎么用、什么时候用——具体场况里值不值得用、怎么用,自己在 thinking 里算。\n· 双狼起跳:两只狼同时跳同一神职互咬,把真神挤掉/把场子搅浑。\n· 倒钩:前期站边真神职做高身份,后期反水冲票。\n· 深水:全程低调发言,不跳不冲,靠不被注意活到后期。\n· 自刀:狼队故意刀掉自己人,骗女巫救药或洗白身份。\n· 悍跳对冲:狼悍跳神职和真神对跳,撕扯归票权。\n· 挡刀位/牺牲位:让一个狼吸引火力,保住更重要的位置。\n· 对付骑士(尤其连斩骑士):骑士是好人方能主动验人的硬牌,但他有个死穴——【斩错好人就当场死】。所以对付他的核心不是"骗他把剑用掉"(连斩局这招没用,斩对了他还能continue),而是反过来【让他斩错】。两条路:① 话术误导——把某个真神/强好人包装成"逻辑上铁狼",顺水推舟引导骑士去斩他(注意:这招最大的便利是,场上往往已经有【被带歪的好人】在真心怂恿骑士斩错人,你只需要顺着这股风、再添一把火、显得自己也很「客观」地认同那个方向就行,不必自己跳出来当煽动者那么显眼);② 死亡技能换骑士——狼王开枪、狼美人魅惑殉情、白狼王自爆,都可以用来直接带走骑士(尤其骑士已经斩了你一两个队友、连斩威胁很大时,用一个死亡技能换掉他往往值)。哪条路更好看局势:能误导就误导(零成本、还坑掉一个好人位),误导不了、骑士又威胁大就用技能换。\n这些只是名字,不是清单。你不需要"打出某个招式",你只需要在每个具体局面里算"现在做什么收益最高"——这些概念可能给你提供思路,也可能完全不适用本局。';
 
+const WB_CONFIDENCE_EVIDENCE = `
+
+【表达置信度不是身份证据】
+“说得笃定/肯定/没有余地”只描述一个人的语气，不能推出他有狼人夜间视角。好人、狼人和人设强势的玩家都能说得很满。只有当他说出了闭眼玩家不可能知道的具体私密事实，或者他的结论与已公开事实存在具体矛盾，才能进入身份判断。
+不得使用“他说得太肯定，超出闭眼好人的信息边界”这种偷换：先指出他究竟多知道了哪一件未公开事实；说不出来，就只是风格印象，证据权重为零。多个人复读同一个“他太笃定”也仍然是零条独立证据。`;
+
 // ─── 常驻好人神职：该跳就跳、该藏就藏的判断框架 ────────
 //  注入对象:好人阵营且持有神职(预言家/女巫/守卫/猎人/骑士)
 //  原则:不告诉 AI "什么身份必须什么时候跳",只给一个"判断要不要跳"的思考框架。
@@ -2870,7 +2876,7 @@ const WB_STRATEGY_AUTONOMY = `
 
 /* ★ 按需组装世界书：根据玩家身份和当前局势挑选模块 */
 function buildWorldBook(p) {
-  let wb = WB_CORE + WB_RULE_CLARIFY;
+  let wb = WB_CORE + WB_CONFIDENCE_EVIDENCE + WB_RULE_CLARIFY;
 
   // 角色相关：守卫/女巫需要奶穿机制
   if (p && (p.role.id === 'guard' || p.role.id === 'witch')) {
@@ -11968,14 +11974,17 @@ const NightActions = {
 ② 扑空风险：我想刀的这个人，今晚可能被守卫守、被女巫救吗？(已跳神职、警长、明显强好人——好人最想保，守卫女巫也最可能扑在他身上，你刀过去大概率扑空白费一晚。)越是"明面上最该刀"的人，越可能有保护。
 ③ 反推防御：回顾之前的刀口结果——出现过平安夜吗？那说明好人有守卫或女巫救药(可能还在)。结合女巫药用没用、守卫规律，判断今晚哪些位置"看起来没保护、刀了能稳定见血"。
 ④ 综合定目标：在"高价值但可能有保护"和"价值中等但大概率刀得死"之间权衡。有时刀一个没保护的强好人，比硬刚一个被层层保护的明神更划算。
-⑤ 白天配套：今晚这刀和明天的发言/跳身份/警上分工怎么衔接。
+⑤ 队友生存账：刀掉此人后，哪些队友会因对跳、查杀、站边或票型立刻暴露？谁还能替狼队承担白天火力？刀掉真预言家不是默认最优；如果他一死就会坐实查杀、打穿悍跳队友，必须把这些后续损失算进去。
+⑥ 查验边际威胁：预言家下一验真的大概率命中狼队吗？如果他的查验流只会验好人、他白天已在抗推位，留着他可能比刀掉更能消耗好人轮次。反之，他下一验即将命中核心队友时才是急迫刀口。
+⑦ 方案对比：至少比较“刀预言家”、“刀能重新盘回真相的逻辑位/其他神职”和“留预言家继续被推”三条路线的下一天票型与存活狼数，不准只因“预言家能查验”就结束分析。
+⑧ 白天配套：今晚这刀和明天的发言/跳身份/警上分工怎么衔接。
 ${magicKillDecisionHint}
 
 【你的任务】你是第一个发言(队友的开场你还看不到)，独立给出：
 ① 提议刀谁(具体到名字)  ② 理由(基于上面的推演，不是"感觉他可疑")  ③ 白天配套战术(如有)
 
 【格式·严格遵守】
-<thinking>按上面①~⑤推演；若魔术师存活，再明确比较直刀V与反刀D的实际落点、概率和收益</thinking>
+<thinking>按上面①~⑧推演，必须写出刀后队友的暴露/存活变化并比较至少三条路线；若魔术师存活，再明确比较直刀V与反刀D的实际落点、概率和收益</thinking>
 <game>对队友说的话(口语化,30-140字，说清名义刀口、希望的最终落点和理由)。⚠️ 不要在这里写 &lt;interrupt&gt; 等标签。</game>
 <action>提议刀的目标完整名字（从【可刀目标】里选一个）</action>
 <interrupt>no</interrupt>`;
@@ -14407,7 +14416,19 @@ function showLeaderboard() {
       try { Object.values(ALL_ROLES).forEach(r => { if (r && r.name) { roleEmoji[r.name] = r.emoji || ''; roleTeam[r.name] = r.team; } }); } catch(_) {}
       const roleEntries = Object.keys(roleAgg).map(rn => {
         const w = roleAgg[rn].wins, l = roleAgg[rn].losses, g = w + l;
-        return {role:rn, wins:w, losses:l, games:g, winRate: g > 0 ? (w / g * 100).toFixed(1) : '0.0'};
+        const candidates = entries.map(e => {
+          const rr = e.roles && e.roles[rn];
+          if (!rr) return null;
+          const pw = Number(rr.wins) || 0, pl = Number(rr.losses) || 0, pg = pw + pl;
+          return pg > 0 ? {name:e.name, wins:pw, losses:pl, games:pg, rate:pw / pg} : null;
+        }).filter(Boolean).sort((a, b) => {
+          const ae = a.games >= 3, be = b.games >= 3;
+          if (ae !== be) return ae ? -1 : 1;
+          return (b.rate - a.rate) || (b.games - a.games) || a.name.localeCompare(b.name, 'zh-CN');
+        });
+        const eligible = candidates.filter(c => c.games >= 3);
+        const best = (eligible.length ? eligible : candidates)[0] || null;
+        return {role:rn, wins:w, losses:l, games:g, winRate: g > 0 ? (w / g * 100).toFixed(1) : '0.0', best, bestOfficial:!!(best && best.games >= 3)};
       });
       // 与名字榜同规则：≥3场按胜率排，不足3场靠后（避免"1场100%"霸榜）
       roleEntries.sort((a, b) => {
@@ -14419,12 +14440,12 @@ function showLeaderboard() {
       });
 
       html += '<h3 style="font-family:var(--font-title);color:var(--gold);text-align:center;margin:20px 0 4px;font-size:1.15em">🎭 按身份统计</h3>';
-      html += '<div style="text-align:center;font-size:0.72em;color:var(--text2);margin-bottom:10px">每个身份在所有对局中的战绩合并排名（名字每局随机，这个榜才真正反映身份强弱）· ≥3场才排胜率，不足3场靠后并标注</div>';
+      html += '<div style="text-align:center;font-size:0.72em;color:var(--text2);margin-bottom:10px">身份总体战绩按席位累计 · 同身份下个人胜率最高者显示为最佳玩家 · 个人使用该身份≥3场才正式上榜，不足时标注“暂定”</div>';
       if (roleEntries.length === 0) {
         html += '<div style="text-align:center;color:var(--text2);padding:12px">暂无身份数据，完成一局后这里会显示</div>';
       } else {
         html += '<table style="width:100%;border-collapse:collapse;font-size:0.82em">';
-        html += '<tr style="border-bottom:1px solid rgba(245,160,184,0.15)"><th style="text-align:left;padding:6px;color:var(--gold)">排名</th><th style="text-align:left;padding:6px;color:var(--gold)">身份</th><th style="text-align:center;padding:6px;color:var(--gold)">场次</th><th style="text-align:center;padding:6px;color:var(--gold)">胜</th><th style="text-align:center;padding:6px;color:var(--gold)">负</th><th style="text-align:center;padding:6px;color:var(--gold)">胜率</th></tr>';
+        html += '<tr style="border-bottom:1px solid rgba(245,160,184,0.15)"><th style="text-align:left;padding:6px;color:var(--gold)">排名</th><th style="text-align:left;padding:6px;color:var(--gold)">身份</th><th style="text-align:center;padding:6px;color:var(--gold)">席位</th><th style="text-align:center;padding:6px;color:var(--gold)">胜</th><th style="text-align:center;padding:6px;color:var(--gold)">负</th><th style="text-align:center;padding:6px;color:var(--gold)">胜率</th><th style="text-align:left;padding:6px;color:var(--gold)">最佳玩家</th></tr>';
         let rank = 0;
         roleEntries.forEach(e => {
           const valid = e.games >= 3;
@@ -14435,6 +14456,9 @@ function showLeaderboard() {
           const em = roleEmoji[e.role] || '';
           const teamDot = roleTeam[e.role] === 'bad' ? '🐺 ' : roleTeam[e.role] === 'good' ? '✅ ' : '';
           const lowTag = valid ? '' : ' <span style="font-size:0.82em;color:var(--text2);opacity:0.7">(样本不足)</span>';
+          const bestHtml = e.best
+            ? `<span style="color:${e.bestOfficial?'var(--gold-light)':'var(--text2)'};font-family:var(--font-title)">${e.best.name}</span><div style="font-size:0.78em;color:var(--text2);margin-top:2px">${e.best.wins}胜${e.best.losses}负 · ${(e.best.rate*100).toFixed(1)}%${e.bestOfficial?'':' · 暂定'}</div>`
+            : '<span style="color:var(--text2)">暂无</span>';
           html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.03)${valid ? '' : ';opacity:0.6'}">
             <td style="padding:6px;text-align:left">${medal}</td>
             <td style="padding:6px;color:var(--text);font-family:var(--font-title)">${teamDot}${em} ${e.role}${lowTag}</td>
@@ -14449,6 +14473,7 @@ function showLeaderboard() {
                 <span style="color:${barColor};font-size:0.9em">${e.winRate}%</span>
               </div>
             </td>
+            <td style="padding:6px;text-align:left;white-space:nowrap">${bestHtml}</td>
           </tr>`;
         });
         html += '</table>';
@@ -16372,11 +16397,11 @@ function _formatPublicDeathCause(subject, opts) {
 function _formatCharmPublicNote(victims, hiddenRoles) {
   if (!victims || !victims.length) return '';
   const victimNames = victims.map(x => x.name).join('、');
-  if (hiddenRoles) {
-    return `🌹 公开事件（身份含义请勿混淆）：${victimNames}是被魅惑目标/殉情者，不会因为“魅惑连带”而被认定为狼美人，阵营也未因此得到验证。只能确认另有一名狼美人已经出局，但隐死亡规则不公开狼美人本体具体是哪名死者。`;
-  }
   const beautyNames = (S.players || []).filter(x => !x.alive && x.role && x.role.id === 'wolfbeauty').map(x => x.name).join('、') || '未记录';
-  return `🌹 公开事件：狼美人本体=${beautyNames}；被魅惑殉情者=${victimNames}。两者不是同一个事件身份，请勿把殉情者误认为狼美人。`;
+  if (hiddenRoles) {
+    return `🌹 公开事件：${victimNames}因狼美人魅惑连带殉情；这确认有一名狼美人在本次结算中已经出局，但隐死亡模式不直接公布狼美人姓名。玩家可以结合公开的死亡顺序和同期出局者自行推断，推断不等于系统翻牌。${victimNames}只是被魅惑者，其原阵营仍未验证。`;
+  }
+  return `🌹 已公开验证：${beautyNames}的死亡触发了狼美人魅惑连带，因此${beautyNames}是狼美人本体；${victimNames}是被魅惑的殉情者。殉情者的原阵营仍未验证。`;
 }
 
 function _formatLoverPublicNote(victims) {
@@ -19947,10 +19972,10 @@ function buildWebPrompt(p) {
       ? `\n魔术师仍存活：先定真正想杀的V，再预测魔术师会不会换V↔D。比较直刀V（换位后落D）与反刀D（换位后落回V）的预期收益，并考虑魔术师可能反向识破。最后明确区分“真正想杀的人”和“名义刀口”。`
       : '';
     const nightTask = {
-      werewolf: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n直接说出你的提议和理由，不超过140字。`,
-      wolfking: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n直接说出你的提议和理由，不超过140字。`,
-      wolfbeauty: `现在是狼人密谈阶段。你和队友要商量今晚刀谁，以及你打算魅惑谁。${webMagicWolfHint}\n直接说出你的意见，不超过140字。`,
-      whitewolf: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n直接说出你的提议和理由，不超过140字。`,
+      werewolf: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出提议和理由，不超过140字。`,
+      wolfking: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出提议和理由，不超过140字。`,
+      wolfbeauty: `现在是狼人密谈阶段。你和队友要商量今晚刀谁，以及你打算魅惑谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出意见，不超过140字。`,
+      whitewolf: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出提议和理由，不超过140字。`,
       seer: `现在是预言家查验阶段。你需要选择今晚查验谁。\n直接说出你要查验的目标和理由，一句话即可。`,
       witch: `现在是女巫行动阶段。主持人会告诉你今晚的刀口。\n你需要决定：救还是不救？要不要用毒药毒人？直接说你的决定。`,
       guard: `现在是守卫行动阶段。你需要选择今晚守护谁（不能和上次一样）。\n直接说出你要守护的目标，一句话即可。`,
