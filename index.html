@@ -12287,7 +12287,9 @@ ${magicKillDecisionHint}
     if (!wb) return;
     if (!isAnon()) Render.log('night-detail','🌹 狼美人行动…');
     Render.setSpeaking(wb.id,true);
-    const targets = alive.filter(p => p.id!==wb.id && p.role.team!=='bad');
+    // 狼美人可魅惑非狼玩家；机械狼与狼队互不相认，故【也在候选内】——
+    // 既避免"名单里少了谁谁就是机械狼"的信息泄漏，也符合她并不知情的设定（误魅惑队友是互不相认应付的代价）。
+    const targets = alive.filter(p => p.id!==wb.id && (p.role.team!=='bad' || p.role.id==='mechwolf'));
     let charmTechnicalFailure = false;
     if (targets.length) {
       if (wb.isPlayer) {
