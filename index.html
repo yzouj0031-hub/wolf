@@ -12726,7 +12726,7 @@ function renderSpeakOrderSummary(order, meta) {
 function buildSheriffOrderRuleBlock() {
   return S && S.sheriffDailyOrderMode
     ? '\n\n【本局模式·警长每日定序】只要警长仍在场，无论昨夜是平安夜还是有人死亡，每个白天都由警长指定一名存活玩家起始，并选择顺时针或逆时针；系统据此排出全员顺序，警长最后发言归票。警长死亡或警徽流失时，才退回死者下家/默认座位顺序。'
-    : '\n\n【本局发言定序·经典兼容】第一天有警长时由警长指定起点和方向；后续白天不再每日询问警长，有夜间死者时从首名死者的下一存活座位顺时针开始，平安夜则按默认座位顺序。警长仍然最后发言归票。';
+    : '\n\n【本局发言定序·经典兼容】第一天有警长时由警长指定起点和方向；后续白天不再每日询问警长，有夜间死者时从首名死者的下一存活座位顺时针开始，平安夜则按默认座位顺序；若警长不在场且昨夜死亡多于一人，起始发言位由系统随机抽取。警长在场时仍然最后发言归票。';
 }
 
 /* ================================================================
@@ -13215,12 +13215,24 @@ const PhaseHandlers = {
       };
       Render.log('system', `👑 ${sheriffP.name}决定今日从 ${S.players[startId].name} 开始，${dirText}发言`);
     } else {
-      // 未触发警长定序：有死者则从首名死者下家顺时针；平安夜按P1起的默认座位顺序。
+      // 未触发警长定序：无警长且多死→随机起始位（死者位置有歧义）；单死→首名死者下家；平安夜按P1起默认座位顺序。
       let startFrom = 0;
-      if (nightDeaths.length) startFrom = (nightDeaths[0].id + 1) % S.players.length;
+      let randomMultiDeath = false;
+      if (!hasLivingSheriff && nightDeaths.length >= 2) {
+        const pick = alive[Math.floor(Math.random() * alive.length)];
+        if (pick) { startFrom = pick.id; randomMultiDeath = true; }
+      } else if (nightDeaths.length) {
+        startFrom = (nightDeaths[0].id + 1) % S.players.length;
+      }
       speakOrder = buildCircularSpeakOrder(S.players, startFrom, 1);
       const actualStart = speakOrder[0];
-      if (nightDeaths.length) {
+      if (randomMultiDeath) {
+        speakOrderMeta = {
+          title: `🎲 ${nightContext} · 随机从${actualStart ? actualStart.name : '起始位'}开始`,
+          rule: '无警长的多死之夜 · 起始位由系统随机抽取 · 顺时针'
+        };
+        Render.log('system', `🎲 昨夜多人死亡且警长不在场，随机抽取 ${actualStart ? actualStart.name : '起始位'} 先发言`);
+      } else if (nightDeaths.length) {
         speakOrderMeta = {
           title: `💀 ${nightContext} · 从${actualStart ? actualStart.name : '下一存活位'}开始`,
           rule: `${S.sheriffDailyOrderMode ? '警长不在场，回退' : '经典兼容'} · 死者下家起顺时针`
