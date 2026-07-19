@@ -2437,6 +2437,7 @@ body.has-wp::after {
   <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">系统语音免费开箱即用。若你有自己的TTS服务（OpenAI格式 /v1/audio/speech，如OpenAI、硅基流动等），可切换成自定义API，声音更自然。接口需支持浏览器跨域（CORS），与配置AI接口同理。</div>
   <label style="display:flex;gap:6px;align-items:center;font-size:.85em;margin-bottom:6px;cursor:pointer"><input type="radio" name="tts-engine" value="system" style="width:auto;min-width:auto">系统语音（免费）</label>
   <label style="display:flex;gap:6px;align-items:center;font-size:.85em;margin-bottom:8px;cursor:pointer"><input type="radio" name="tts-engine" value="api" style="width:auto;min-width:auto">自定义API（OpenAI格式）</label>
+  <label style="display:flex;gap:6px;align-items:flex-start;font-size:.85em;margin-bottom:8px;cursor:pointer;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:var(--r)"><input type="checkbox" id="tts-live" style="width:auto;min-width:auto;margin-top:3px"><span>抢先播报（边生成边念）<br><span style="font-size:.82em;color:#8a7e6a">AI每写完一句就先念出来，不必等整段生成完。仅在「发言并发=1」时生效，并发更高会自动关闭以免多人同时开口。</span></span></label>
   <div id="tts-api-fields" style="display:none;flex-direction:column;gap:6px">
     <input id="tts-url" placeholder="接口地址，如 https://api.openai.com/v1/audio/speech">
     <input id="tts-key" type="password" placeholder="API Key（只存在本机，不会上传）">
@@ -4770,7 +4771,7 @@ const TTS = (() => {
 
   // —— 配置：engine = 'system'(系统语音,免费) | 'api'(自定义OpenAI格式TTS) ——
   const DEFAULT_VOICES = 'alloy,echo,fable,onyx,nova,shimmer';
-  let cfg = {engine: 'system', url: '', key: '', model: '', voices: '', speed: 1};
+  let cfg = {engine: 'system', url: '', key: '', model: '', voices: '', speed: 1, live: true};
   try { Object.assign(cfg, JSON.parse(localStorage.getItem('wg_tts_cfg') || '{}')); } catch (_) {}
   function getCfg() { return Object.assign({}, cfg); }
   function setCfg(next) {
@@ -4876,23 +4877,16 @@ const TTS = (() => {
     playing = false; prefetch = null;
   }
 
-  function speak(p, text) {
-    if (!on) return;
+  function enqueueText(prof, text) {
     const t = clean(text);
     if (!t) return;
-    const prof = profile(p);
-    const name = clean((p && p.name) || '');
     if (useApi()) {
-      const parts = chunks(t);
-      if (name) parts.unshift(name + '说：');
-      parts.forEach(part => audioQueue.push({text: part, voice: prof.apiVoice}));
+      chunks(t).forEach(part => audioQueue.push({text: part, voice: prof.apiVoice}));
       playLoop();
       return;
     }
     if (!synth) return;
-    const list = chunks(t);
-    if (name) list.unshift(name + '说：');
-    list.forEach(part => {
+    chunks(t).forEach(part => {
       const u = new SpeechSynthesisUtterance(part);
       u.lang = 'zh-CN';
       if (prof.voice) u.voice = prof.voice;
@@ -4901,6 +4895,52 @@ const TTS = (() => {
       synth.speak(u);
     });
     startPump();
+  }
+  function speak(p, text) {
+    if (!on) return;
+    const t = clean(text);
+    if (!t) return;
+    const name = clean((p && p.name) || '');
+    enqueueText(profile(p), (name ? name + '说：' : '') + t);
+  }
+  /* —— 抢先播报:模型边生成,凑满一句就先念,不等整段写完 —— */
+  let liveMark = null;
+  const SENT_END = '。！？!?；;…\n';
+  function beginLive(p) {
+    if (!on || !cfg.live) return null;
+    // 盲名复盘模式下真名不能被念出来,直接不启用抢先朗读
+    if (typeof blindNamesOn === 'function' && blindNamesOn()) return null;
+    const prof = profile(p), name = clean((p && p.name) || '');
+    let raw = '', emitted = 0, said = false;
+    function flush(final) {
+      if (!on) return;
+      const g = raw.indexOf('<game>');
+      if (g < 0) return;                       // 只念正式发言,thinking一律不念
+      let body = raw.slice(g + 6);
+      const c = body.indexOf('</game>');
+      if (c >= 0) body = body.slice(0, c);
+      const pending = body.slice(emitted);
+      if (!pending) return;
+      let take = '';
+      if (final) take = pending;
+      else {
+        let cut = -1;
+        for (let i = pending.length - 1; i >= 0; i--) if (SENT_END.includes(pending[i])) { cut = i; break; }
+        if (cut >= 6) take = pending.slice(0, cut + 1);   // 攒够一整句再送去合成
+      }
+      if (!take.trim()) return;
+      emitted += take.length;
+      enqueueText(prof, (said ? '' : (name ? name + '说：' : '')) + take);
+      said = true;
+    }
+    return {
+      push(d) { raw += d; flush(false); },
+      end() { flush(true); if (said) liveMark = p.id; }
+    };
+  }
+  function claimLive(p) {
+    if (liveMark !== null && p && liveMark === p.id) { liveMark = null; return true; }
+    return false;
   }
 
   function stop() {
@@ -4931,7 +4971,7 @@ const TTS = (() => {
     on = wasOn;
   }
 
-  return {speak, toggle, setOn, isOn: () => on, stop, getCfg, setCfg, test};
+  return {speak, toggle, setOn, isOn: () => on, stop, getCfg, setCfg, test, beginLive, claimLive};
 })();
 
 /* ================================================================
@@ -6370,7 +6410,35 @@ function isRescuedContentSafe(text) {
 async function parseAPIResponseWithSSEFallback(res, opts) {
   opts = opts || {};
   const tag = opts.tag || '';  // 用于日志,如 "[P4]" 或 "[测试]"
-  const rawText = await res.text();
+  const onDelta = typeof opts.onDelta === 'function' ? opts.onDelta : null;
+  let rawText;
+  if (onDelta && res.body && typeof res.body.getReader === 'function') {
+    // ★ 真流式:边收边解析,content增量实时回调(供抢先朗读)。
+    //   仍然把原始字节全量累积到 rawText,后续解析逻辑与缓冲路径完全一致,行为不变。
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let acc = '', buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const piece = dec.decode(value, { stream: true });
+      acc += piece; buf += piece;
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        let evt; try { evt = JSON.parse(payload); } catch(_) { continue; }
+        const d = (evt.choices && evt.choices[0] && (evt.choices[0].delta || {})) || {};
+        if (typeof d.content === 'string' && d.content) { try { onDelta(d.content); } catch(_) {} }
+        if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') { try { onDelta(evt.delta); } catch(_) {} }
+      }
+    }
+    rawText = acc;
+  } else {
+    rawText = await res.text();
+  }
   const ctype = (res.headers.get('content-type') || '').toLowerCase();
   const looksLikeSSE = ctype.includes('event-stream') || /^\s*data:\s*[\{\[]/.test(rawText);
 
@@ -7672,7 +7740,12 @@ async function callAI(p, prompt, opts) {
         }
       }
       // ★★ SSE 容错解析(v9.6 抽到全局 parseAPIResponseWithSSEFallback)
-      const data = await parseAPIResponseWithSSEFallback(res, { tag: `[P${p.id+1}]` });
+      const _live = opts.liveTTS ? TTS.beginLive(p) : null;
+      const data = await parseAPIResponseWithSSEFallback(res, {
+        tag: `[P${p.id+1}]`,
+        onDelta: _live ? (d => _live.push(d)) : null
+      });
+      if (_live) _live.end();
       const content = data.choices?.[0]?.message?.content;
       // ★ v9.5.1: 兼容三种 thinking 字段命名
       //   - reasoning_content: 大部分 thinking 模型(GLM-5.1 / DeepSeek-R1 / 老版 Kimi K2)
@@ -8614,7 +8687,7 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
   $('gl').appendChild(entry);
   scrollGL();
   // 🔊 朗读与打字机【同时】启动:先按句切分入队,首句音频到位即开口,不必等整段合成
-  if (result.game && !isWolfChat && !(player && player.isPlayer)) TTS.speak(player, result.game);
+  if (result.game && !isWolfChat && !(player && player.isPlayer) && !TTS.claimLive(player)) TTS.speak(player, result.game);
   await fakeStream(gd, result.game || '(沉默)');
   const isTechnicalSpeechFailure = !isWolfChat && typeof isAISilentFailure === 'function' && isAISilentFailure(result.game);
   if (!isWolfChat && result.game && !isTechnicalSpeechFailure) {
@@ -9590,7 +9663,9 @@ async function proc(players, promptFn, label, opts) {
         }
       };
       {
-        let _r = factCheck(p, await callAI(p, promptFn(p), opts));
+        // ★ 抢先朗读只在"发言并发=1的公开发言"时开启:并发>1会造成多人同时开口、乱序
+        const _liveOK = batch.length === 1 && !opts.wolfOnly && !opts.silent;
+        let _r = factCheck(p, await callAI(p, promptFn(p), _liveOK ? {...opts, liveTTS:true} : opts));
         // 只对白天非狼队发言做过短处理
         // ★ 调试开关 S.debugDisableShortRetry: 在控制台执行 S.debugDisableShortRetry=true 可关闭重试,用于观察AI真实输出
         if (!opts.wolfOnly && !opts.silent && !_isValidShortGame(_r && _r.game) && !S.debugDisableShortRetry) {
@@ -17338,6 +17413,7 @@ function bindEvents() {
       $('tts-model').value = c.model || '';
       $('tts-voices').value = c.voices || '';
       $('tts-speed').value = c.speed || '';
+      $('tts-live').checked = c.live !== false;
       $('tts-api-fields').style.display = (c.engine === 'api') ? 'flex' : 'none';
     };
     const readTtsPop = () => ({
@@ -17346,7 +17422,8 @@ function bindEvents() {
       key: $('tts-key').value.trim(),
       model: $('tts-model').value.trim(),
       voices: $('tts-voices').value.trim(),
-      speed: parseFloat($('tts-speed').value) || 1
+      speed: parseFloat($('tts-speed').value) || 1,
+      live: $('tts-live').checked
     });
     $('btn-tts-cfg').addEventListener('click', () => { fillTtsPop(); $('ttspop').classList.add('show'); });
     document.querySelectorAll('input[name="tts-engine"]').forEach(r => r.addEventListener('change', () => {
