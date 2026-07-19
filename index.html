@@ -4828,43 +4828,52 @@ const TTS = (() => {
   }
 
   // —— 自定义API引擎：顺序播放队列 ——
-  let audioQueue = [], playing = false, currentAudio = null, apiErrorShown = false;
+  let audioQueue = [], playing = false, currentAudio = null, apiErrorShown = false, prefetch = null;
+  function fetchAudio(item) {
+    return fetch(cfg.url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key},
+      body: JSON.stringify({
+        model: cfg.model || 'tts-1',
+        input: item.text.slice(0, 4000),
+        voice: item.voice,
+        speed: Number(cfg.speed) || 1
+      })
+    }).then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.blob();
+    }).then(b => URL.createObjectURL(b));
+  }
+  function playUrl(url) {
+    return new Promise((resolve) => {
+      const a = new Audio(url);
+      currentAudio = a;
+      const done = () => { URL.revokeObjectURL(url); currentAudio = null; resolve(); };
+      a.onended = done; a.onerror = done;
+      a.play().catch(done);
+    });
+  }
   async function playLoop() {
     if (playing) return;
     playing = true;
     while (audioQueue.length) {
       const item = audioQueue.shift();
-      try {
-        const res = await fetch(cfg.url, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key},
-          body: JSON.stringify({
-            model: cfg.model || 'tts-1',
-            input: item.text.slice(0, 4000),
-            voice: item.voice,
-            speed: Number(cfg.speed) || 1
-          })
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const blobUrl = URL.createObjectURL(await res.blob());
-        await new Promise((resolve) => {
-          const a = new Audio(blobUrl);
-          currentAudio = a;
-          a.onended = () => { URL.revokeObjectURL(blobUrl); resolve(); };
-          a.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(); };
-          a.play().catch(() => { URL.revokeObjectURL(blobUrl); resolve(); });
-        });
-        currentAudio = null;
-        apiErrorShown = false;
-      } catch (e) {
+      let p = (prefetch && prefetch.item === item) ? prefetch.p : fetchAudio(item);
+      // 播当前句的同时预取下一句,消除句间空档
+      prefetch = audioQueue.length ? {item: audioQueue[0], p: fetchAudio(audioQueue[0]).catch(() => null)} : null;
+      let url = null;
+      try { url = await p; apiErrorShown = false; }
+      catch (e) {
         console.error('[朗读] 自定义API失败', e);
         if (!apiErrorShown) {
           apiErrorShown = true;
           try { Render.log('system', '⚠️ 朗读API请求失败（' + e.message + '），请检查🎚️朗读设置里的地址/Key，或该接口是否支持浏览器跨域。本条已跳过。'); } catch (_) {}
         }
       }
+      if (url && on) await playUrl(url);
+      else if (url) URL.revokeObjectURL(url);
     }
-    playing = false;
+    playing = false; prefetch = null;
   }
 
   function speak(p, text) {
@@ -4874,7 +4883,9 @@ const TTS = (() => {
     const prof = profile(p);
     const name = clean((p && p.name) || '');
     if (useApi()) {
-      audioQueue.push({text: (name ? name + '说：' : '') + t, voice: prof.apiVoice});
+      const parts = chunks(t);
+      if (name) parts.unshift(name + '说：');
+      parts.forEach(part => audioQueue.push({text: part, voice: prof.apiVoice}));
       playLoop();
       return;
     }
@@ -4894,6 +4905,7 @@ const TTS = (() => {
 
   function stop() {
     audioQueue.length = 0;
+    prefetch = null;
     if (currentAudio) { try { currentAudio.pause(); } catch (_) {} currentAudio = null; }
     if (synth) synth.cancel();
   }
@@ -8601,6 +8613,8 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
 
   $('gl').appendChild(entry);
   scrollGL();
+  // 🔊 朗读与打字机【同时】启动:先按句切分入队,首句音频到位即开口,不必等整段合成
+  if (result.game && !isWolfChat && !(player && player.isPlayer)) TTS.speak(player, result.game);
   await fakeStream(gd, result.game || '(沉默)');
   const isTechnicalSpeechFailure = !isWolfChat && typeof isAISilentFailure === 'function' && isAISilentFailure(result.game);
   if (!isWolfChat && result.game && !isTechnicalSpeechFailure) {
