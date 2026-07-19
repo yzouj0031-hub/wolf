@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>狼人杀 · 视觉方向预览</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { min-height:100%; }
+body {
+  font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", sans-serif;
+  transition: background .45s ease, color .45s ease;
+  padding-bottom: 60px;
+}
+
+/* ======== 方向A · 夜宴 —— 暗金乌木,烛光下的高端牌局 ======== */
+body[data-theme="a"] {
+  --bg:#0f0c09; --bg2:#171209; --panel:rgba(26,20,12,.92); --card:rgba(34,26,15,.9);
+  --line:rgba(201,162,39,.22); --txt:#efe6d2; --dim:#9a8a68;
+  --ac:#c9a227; --ac2:#e8c96a; --danger:#b4322e; --safe:#7ba05b;
+  --r:6px; --display:"Songti SC","STSong","Noto Serif CJK SC",serif;
+  background: radial-gradient(ellipse 120% 80% at 50% -10%, #241a0d 0%, var(--bg) 55%);
+  color:var(--txt);
+}
+body[data-theme="a"] .stage::before { content:''; position:fixed; inset:0; pointer-events:none;
+  background: radial-gradient(ellipse 90% 60% at 50% 30%, transparent 40%, rgba(0,0,0,.55) 100%); }
+body[data-theme="a"] .pcard { border:1px solid var(--line); box-shadow: 0 1px 0 rgba(232,201,106,.12) inset, 0 8px 24px rgba(0,0,0,.5); }
+body[data-theme="a"] .pcard.sheriff { border-color:var(--ac); box-shadow: 0 0 0 1px rgba(201,162,39,.35), 0 0 22px rgba(201,162,39,.18), 0 8px 24px rgba(0,0,0,.5); }
+body[data-theme="a"] .phase-num { font-family:var(--display); letter-spacing:.12em; }
+body[data-theme="a"] .btn-main { background:linear-gradient(180deg,#d8b23a,#a8841e); color:#221a08; border:none; box-shadow:0 2px 10px rgba(201,162,39,.35); }
+body[data-theme="a"] .divider { height:1px; background:linear-gradient(90deg,transparent,var(--line) 20%,var(--ac) 50%,var(--line) 80%,transparent); }
+body[data-theme="a"] .death { border-left:2px solid var(--danger); background:linear-gradient(90deg,rgba(180,50,46,.14),transparent 70%); }
+
+/* ======== 方向B · 月狩 —— 冷月银辉,狼与月夜本身 ======== */
+body[data-theme="b"] {
+  --bg:#0a0f0e; --bg2:#0e1514; --panel:rgba(14,21,20,.92); --card:rgba(19,28,27,.9);
+  --line:rgba(168,216,206,.16); --txt:#dfe9e6; --dim:#77908a;
+  --ac:#a8d8ce; --ac2:#d9efe9; --danger:#d4494f; --safe:#9ec99a;
+  --r:14px; --display:inherit;
+  background: linear-gradient(180deg,#0c1413 0%, var(--bg) 100%);
+  color:var(--txt);
+}
+body[data-theme="b"] .stage::before { content:''; position:fixed; top:-90px; right:-70px; width:260px; height:260px; border-radius:50%;
+  background: radial-gradient(circle at 38% 38%, rgba(217,239,233,.16), rgba(168,216,206,.05) 55%, transparent 72%); pointer-events:none; }
+body[data-theme="b"] .pcard { border:1px solid var(--line); backdrop-filter:blur(6px); }
+body[data-theme="b"] .pcard.sheriff { border-color:rgba(168,216,206,.6); box-shadow:0 0 18px rgba(168,216,206,.14); }
+body[data-theme="b"] .phase-num { letter-spacing:.35em; font-weight:200; }
+body[data-theme="b"] .tagline, body[data-theme="b"] .rulehint { letter-spacing:.2em; }
+body[data-theme="b"] .btn-main { background:transparent; color:var(--ac); border:1px solid var(--ac); box-shadow:0 0 14px rgba(168,216,206,.12) inset; }
+body[data-theme="b"] .divider { height:1px; background:var(--line); }
+body[data-theme="b"] .death { border-left:2px solid var(--danger); background:rgba(212,73,79,.08); }
+body[data-theme="b"] .moons { display:flex; gap:7px; align-items:center; }
+body[data-theme="b"] .moon { width:9px; height:9px; border-radius:50%; border:1px solid var(--dim); }
+body[data-theme="b"] .moon.full { background:var(--ac); border-color:var(--ac); box-shadow:0 0 8px rgba(168,216,206,.5); }
+
+/* ======== 方向C · 话本 —— 水墨朱砂,一册夜话志怪 ======== */
+body[data-theme="c"] {
+  --bg:#131215; --bg2:#1a181c; --panel:rgba(26,24,28,.94); --card:#211f24;
+  --line:rgba(200,190,175,.14); --txt:#e6e0d4; --dim:#8d8578;
+  --ac:#c33d33; --ac2:#e0564a; --safe:#6f8f6a; --danger:#c33d33;
+  --paper:#ece4d2; --ink:#2a2622;
+  --r:3px; --display:"Songti SC","STSong","Noto Serif CJK SC",serif;
+  background: var(--bg); color:var(--txt);
+}
+body[data-theme="c"] .phase-num { font-family:var(--display); font-weight:700; }
+body[data-theme="c"] .pcard { border:1px solid var(--line); border-top:2px solid rgba(200,190,175,.25); }
+body[data-theme="c"] .pcard.sheriff { border-top-color:var(--ac); }
+body[data-theme="c"] .seal { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
+  border:2px solid var(--ac); color:var(--ac); font-family:var(--display); font-weight:700; font-size:.8em;
+  transform:rotate(-4deg); border-radius:4px; line-height:1.05; text-align:center; }
+body[data-theme="c"] .popup-mock { background:var(--paper) !important; color:var(--ink) !important; border:none !important; }
+body[data-theme="c"] .popup-mock .dim2 { color:#7a6f5c; }
+body[data-theme="c"] .popup-mock h4 { font-family:var(--display); border-bottom:1px solid rgba(42,38,34,.25); padding-bottom:6px; }
+body[data-theme="c"] .btn-main { background:var(--ac); color:#f5efe2; border:none; }
+body[data-theme="c"] .divider { height:3px; background:
+  radial-gradient(circle 1.2px at 10% 50%, var(--dim) 98%, transparent), 
+  linear-gradient(90deg, transparent, rgba(200,190,175,.28) 15%, rgba(200,190,175,.28) 85%, transparent);
+  background-size: 24px 3px, 100% 1px; background-position: 0 50%, 0 50%; background-repeat: repeat-x, no-repeat; }
+body[data-theme="c"] .death { border-left:3px double var(--ac); background:linear-gradient(90deg,rgba(195,61,51,.12),transparent 65%); }
+
+/* ======== 公共骨架 ======== */
+.stage { max-width:520px; margin:0 auto; padding:18px 16px; position:relative; }
+.switch { position:fixed; bottom:0; left:0; right:0; display:flex; z-index:99;
+  background:var(--panel); border-top:1px solid var(--line); backdrop-filter:blur(10px); }
+.switch button { flex:1; padding:13px 4px; background:none; border:none; color:var(--dim); font-size:.92em; cursor:pointer; font-family:inherit; }
+.switch button.on { color:var(--ac); font-weight:700; }
+.tagline { font-size:.72em; color:var(--dim); margin:2px 0 16px; }
+h2.dir { font-size:1.5em; margin-bottom:2px; }
+body[data-theme="a"] h2.dir, body[data-theme="c"] h2.dir { font-family:var(--display); }
+
+.topbar { display:flex; justify-content:space-between; align-items:center; padding:12px 14px;
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--r); margin-bottom:12px; }
+.phase-num { font-size:1.1em; }
+.rulehint { font-size:.7em; color:var(--dim); }
+
+.pcard { background:var(--card); border-radius:var(--r); padding:10px 12px; margin-bottom:10px;
+  display:flex; align-items:center; gap:11px; transition:all .3s; }
+.avatar { width:40px; height:40px; border-radius:50%; background:var(--bg2); border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-size:1.15em; flex-shrink:0; }
+.pinfo { flex:1; min-width:0; }
+.pname { font-weight:600; font-size:.95em; }
+.pmeta { display:flex; gap:6px; margin-top:4px; align-items:center; flex-wrap:wrap; }
+.tag { font-size:.62em; padding:2px 7px; border-radius:20px; border:1px solid var(--line); color:var(--dim); }
+.tag.model { color:var(--ac); border-color:var(--ac); opacity:.85; }
+.crown { font-size:.8em; }
+
+.log { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:13px 14px; margin:12px 0; }
+.log .entry { margin-bottom:11px; font-size:.85em; line-height:1.65; }
+.log .who { font-weight:700; color:var(--ac2, var(--ac)); margin-right:5px; }
+.log .sys { font-size:.78em; color:var(--dim); padding:7px 10px; border-radius:2px; }
+.divider { margin:10px 0; border:none; }
+
+.btnrow { display:flex; gap:9px; margin:14px 0; }
+.btnrow button { flex:1; padding:11px 8px; border-radius:var(--r); font-size:.9em; cursor:pointer; font-family:inherit;
+  background:var(--card); color:var(--txt); border:1px solid var(--line); transition:transform .12s; }
+.btnrow button:active { transform:scale(.96); }
+
+.popup-mock { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:15px 16px; margin:12px 0; }
+.popup-mock h4 { margin-bottom:9px; font-size:1em; }
+.popup-mock .dim2 { font-size:.75em; color:var(--dim); line-height:1.6; }
+
+.note { font-size:.72em; color:var(--dim); line-height:1.7; margin-top:20px; padding:12px 14px;
+  border:1px dashed var(--line); border-radius:var(--r); }
+</style>
+</head>
+<body data-theme="a">
+<div class="stage">
+  <h2 class="dir" id="dir-title">夜宴</h2>
+  <div class="tagline" id="dir-tag">暗金乌木 · 烛光下的高端牌局 · 鎏金令牌</div>
+
+  <div class="topbar">
+    <div>
+      <div class="phase-num" id="phase-text">第三回 · 夜晚</div>
+      <div class="rulehint">存活 12 / 16 · 警徽在场</div>
+    </div>
+    <div class="moons" id="extra-widget" style="display:none">
+      <div class="moon full"></div><div class="moon full"></div><div class="moon full"></div>
+      <div class="moon"></div><div class="moon"></div><div class="moon"></div><div class="moon"></div>
+    </div>
+    <div class="seal" id="seal-widget" style="display:none">第三夜</div>
+  </div>
+
+  <div class="pcard sheriff">
+    <div class="avatar">🕵️</div>
+    <div class="pinfo">
+      <div class="pname"><span class="crown">👑</span> 安室透 <span style="color:var(--dim);font-weight:400;font-size:.8em">P3</span></div>
+      <div class="pmeta"><span class="tag model">GPT-5</span><span class="tag">🔮 预言家</span></div>
+    </div>
+  </div>
+  <div class="pcard">
+    <div class="avatar">🃏</div>
+    <div class="pinfo">
+      <div class="pname">黑羽快斗 <span style="color:var(--dim);font-weight:400;font-size:.8em">P13</span></div>
+      <div class="pmeta"><span class="tag model">Gemini 3</span><span class="tag">🎭 身份未知</span></div>
+    </div>
+  </div>
+
+  <div class="log">
+    <div class="entry"><span class="who">服部平次:</span>哟,各位!7号那句查杀我盘了一晚上——真预言家哪有把警徽流说反的?这票我先压在他身上。</div>
+    <div class="sys death">💀 昨夜死亡:宫野志保 · 死因不公开</div>
+    <div class="divider"></div>
+    <div class="entry" style="margin-bottom:0"><span class="who">Ryuzaki:</span>先把账立起来。死因还没确认,谁现在就讲"灭口剧本",谁就是在编剧,不是推理。</div>
+  </div>
+
+  <div class="btnrow">
+    <button class="btn-main">▶ 继续</button>
+    <button>🔄 自动</button>
+    <button>💾 存档</button>
+  </div>
+
+  <div class="popup-mock">
+    <h4>── 存档管理 ──</h4>
+    <div class="dim2">弹窗与战报区在此方向下的质感示例。方向C中,弹窗会翻转为宣纸底色配墨字,像翻开一册话本;方向A/B保持深色玻璃质感。</div>
+  </div>
+
+  <div class="note" id="dir-note"></div>
+</div>
+
+<div class="switch">
+  <button data-t="a" class="on">A · 夜宴</button>
+  <button data-t="b">B · 月狩</button>
+  <button data-t="c">C · 话本</button>
+</div>
+
+<script>
+const INFO = {
+  a: { title:'夜宴', tag:'暗金乌木 · 烛光下的高端牌局 · 鎏金令牌', phase:'第三回 · 夜晚',
+       note:'【方向A · 夜宴】把游戏做成一场烛光下的豪门夜局:暖黑底、鎏金线、宋体大字回合数,警长牌带描金光晕,全场有一圈舞台暗角(vignette)。最直接的"高大上",偏奢华厚重。签名元素:鎏金令牌式命牌。' },
+  b: { title:'月狩', tag:'冷月银辉 · 狼与月夜 · 呼吸感留白', phase:'第 三 夜',
+       note:'【方向B · 月狩】从"狼"这个意象本身出发:冷月青白、极细银线、大圆角玻璃卡片、右上角一轮月晕,回合进度用月相点表示(签名元素)。克制、现代、清冷,信息密度最舒服,夜里玩不刺眼。' },
+  c: { title:'话本', tag:'水墨朱砂 · 一册夜话志怪 · 朱印落款', phase:'第三回 · 夜话',
+       note:'【方向C · 话本】把整局游戏当一册志怪话本来排:墨色舞台、朱砂印章记事(签名元素:死亡与关键事件盖"朱印"),弹窗和战报翻转成宣纸底墨字,像在读线装书。最有中式叙事感,和你游戏的古风底子、盲推战报天然契合。' }
+};
+document.querySelectorAll('.switch button').forEach(b => b.addEventListener('click', () => {
+  const t = b.dataset.t;
+  document.body.dataset.theme = t;
+  document.querySelectorAll('.switch button').forEach(x => x.classList.toggle('on', x === b));
+  document.getElementById('dir-title').textContent = INFO[t].title;
+  document.getElementById('dir-tag').textContent = INFO[t].tag;
+  document.getElementById('phase-text').textContent = INFO[t].phase;
+  document.getElementById('dir-note').textContent = INFO[t].note;
+  document.getElementById('extra-widget').style.display = t === 'b' ? 'flex' : 'none';
+  document.getElementById('seal-widget').style.display = t === 'c' ? 'inline-flex' : 'none';
+}));
+document.getElementById('dir-note').textContent = INFO.a.note;
+</script>
+</body>
+</html>
