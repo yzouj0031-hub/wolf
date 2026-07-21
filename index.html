@@ -1838,6 +1838,8 @@ body.has-wp::after {
   <div style="font-size:0.72em;color:#8880a8;text-align:center;margin-bottom:12px">创建专属身份，加入自定义局中使用</div>
   <div class="ct-row"><label>角色名</label><input type="text" id="cr-name" placeholder="例：魔术师" style="flex:1;max-width:none"></div>
   <div class="ct-row"><label>Emoji</label><input type="text" id="cr-emoji" placeholder="🪄" style="max-width:60px;text-align:center;font-size:1.2em"><label style="margin-left:12px">阵营</label><select id="cr-team" style="min-width:80px"><option value="good">✅ 好人</option><option value="bad">🐺 狼人</option><option value="third">🎭 第三方</option></select></div>
+  <div class="ct-row"><label>技能模板</label><select id="cr-ability" style="flex:1;max-width:none"><option value="">无（只有人设，夜里无技能）</option><option value="seer">🔮 预言家 · 每晚验人</option><option value="witch">🧪 女巫 · 解药+毒药</option><option value="guard">🛡️ 守卫 · 每晚守护一人</option><option value="hunter">🔫 猎人 · 死亡时开枪带走一人</option><option value="knight">⚔️ 骑士 · 白天可发起决斗</option><option value="magician">🪄 魔术师 · 每晚交换两人</option><option value="werewolf">🐺 狼人 · 参与夜间狼刀</option><option value="wolfking">👹 狼王 · 夜刀+死亡咬人</option></select></div>
+  <div style="font-size:0.66em;color:#6a6080;margin:-2px 0 8px;line-height:1.5">💡 选了技能模板后，这个自创角色晚上会<b>真正拥有该技能</b>（复用内置角色的机制），阵营也随模板自动确定（预言家/女巫/守卫/猎人/骑士/魔术师=好人，狼人/狼王=狼队）；仅当选「无」时才用上面的阵营设置。名字、emoji、人设仍是你自创的。</div>
   <div class="ct-row" style="align-items:flex-start"><label style="padding-top:6px">能力简介</label><input type="text" id="cr-desc" placeholder="例：每晚可以交换两人的身份" style="flex:1;max-width:none"></div>
   <div class="ct-row" style="align-items:flex-start"><label style="padding-top:6px">AI行动指南</label></div>
   <textarea id="cr-guide" placeholder="详细描述AI应该如何扮演这个角色：能力机制、使用时机、策略建议…&#10;&#10;例：你是魔术师。每晚你可以选择两名玩家，交换他们的身份牌（好人变狼，狼变好人）……" style="width:100%;height:130px;background:rgba(0,0,0,0.3);border:1px solid rgba(208,160,240,0.2);color:#d8d0e8;border-radius:var(--r);padding:8px;font-size:0.78em;font-family:var(--font-body);resize:vertical;margin-bottom:8px"></textarea>
@@ -3272,18 +3274,41 @@ function mechLearnSummaryText() {
 /* ── 自创角色全局存储 ── */
 window._customRolesDefs = window._customRolesDefs || [];
 
+// ★ 允许自创角色映射到的"技能模板"白名单（值为内置角色id，其夜间机制会被完整复用）
+const CUSTOM_ABILITY_BASE = ['seer','witch','guard','hunter','knight','magician','werewolf','wolfking'];
+
 function registerCustomRole(cr) {
-  // cr: {id, name, emoji, team, desc, guide}
+  // cr: {id, name, emoji, team, desc, guide, ability}
+  // ability 为空 = 只有人设的"皮"（沿用 cr.team）；ability 有值 = 映射到内置技能，阵营随模板确定。
+  const base = (cr.ability && CUSTOM_ABILITY_BASE.includes(cr.ability) && ALL_ROLES[cr.ability]) ? cr.ability : '';
+  const team = base ? ALL_ROLES[base].team : cr.team;
   reg({
     id: cr.id,
     name: cr.name,
-    team: cr.team,
+    team: team,
     emoji: cr.emoji,
     desc: cr.desc,
     maxCount: 99,
-    cssClass: cr.team==='bad'?'tw':'',
+    baseAbility: base,                 // ★ 空串=无技能；否则=内置角色id
+    cssClass: team==='bad'?'tw':'',
     guide: cr.guide || ('你是' + cr.name + '。\n【能力】' + cr.desc)
   });
+}
+
+// ★ 发牌/读档时把角色id解析成"上桌用"的角色对象。
+//   若是映射了技能模板的自创角色，返回一个克隆：机械 id = 模板(复用内置全部夜间逻辑)，
+//   但显示用的 name/emoji/desc 仍是自创的；customId 保留原自创id，供存档恢复。
+function resolveRoleForPlay(rid) {
+  const def = ALL_ROLES[rid];
+  if (def && def.baseAbility && ALL_ROLES[def.baseAbility]) {
+    const b = ALL_ROLES[def.baseAbility];
+    return Object.assign({}, b, {
+      id: b.id,                        // 机械身份=模板，夜间技能据此生效
+      name: def.name, emoji: def.emoji, desc: def.desc, team: b.team,
+      customId: def.id, customName: def.name, customEmoji: def.emoji
+    });
+  }
+  return def || ALL_ROLES['villager'];
 }
 
 const MODE_CONFIGS = {
@@ -5128,7 +5153,7 @@ function saveGame(options = {}) {
         id: p.id, alive: p.alive, revealed: p.revealed,
         name: p.name, isPlayer: p.isPlayer, poisoned: p.poisoned,
         deathCause: p.deathCause, deathRound: p.deathRound, deathPhase: p.deathPhase,
-        roleId: p.role.id, mbtiKey: p.mbtiKey,
+        roleId: p.role.id, customId: p.role.customId || null, mbtiKey: p.mbtiKey,
         _plan: p._plan || null, _planRound: p._planRound || null,
         memory: p.memory.slice(-memLimit)
       }))
@@ -5227,7 +5252,7 @@ function loadGame(slotArg) {
 
     // 恢复玩家（需要重新挂 role 对象）
     S.players = ss.players.map(p => {
-      const role = ALL_ROLES[p.roleId] || ALL_ROLES['villager'];
+      const role = p.customId ? resolveRoleForPlay(p.customId) : (ALL_ROLES[p.roleId] || ALL_ROLES['villager']);
       const ks = Object.keys(MBTI_ALL);
       const mbtiKey = p.mbtiKey || ks[p.id % ks.length];
       return {
@@ -15039,7 +15064,7 @@ function startGame() {
     else finalRoles.push(shuffledRemain[remainIdx++]);
   }
   S.players = finalRoles.map((rid, i) => ({
-    id:i, role:ALL_ROLES[rid] || ALL_ROLES['villager'], alive:true, revealed:false, memory:[],
+    id:i, role:resolveRoleForPlay(rid), alive:true, revealed:false, memory:[],
     name: curNames[i]||'P'+(i+1),
     isPlayer: S.directorMode ? S.directorIds.includes(i) : i===pid,
     poisoned:false,
@@ -17903,6 +17928,7 @@ function openCustomRoleDialog() {
   $('cr-team').value = 'good';
   $('cr-desc').value = '';
   $('cr-guide').value = '';
+  if ($('cr-ability')) $('cr-ability').value = '';
   $('crpop-title').textContent = '── ✏️ 自创角色 ──';
   // 删除隐藏的编辑id
   $('cr-save').dataset.editId = '';
@@ -17941,6 +17967,7 @@ function editCustomRole(id) {
   $('cr-team').value = cr.team;
   $('cr-desc').value = cr.desc||'';
   $('cr-guide').value = cr.guide||'';
+  if ($('cr-ability')) $('cr-ability').value = cr.ability||'';
   $('crpop-title').textContent = '── ✏️ 编辑角色 ──';
   $('cr-save').dataset.editId = id;
 }
@@ -17964,6 +17991,7 @@ function saveCustomRole() {
   const team = $('cr-team').value;
   const desc = $('cr-desc').value.trim();
   const guide = $('cr-guide').value.trim();
+  const ability = ($('cr-ability') && $('cr-ability').value) || '';  // ★ 技能模板
 
   if (!name) { $('cr-name').focus(); $('cr-name').style.borderColor='var(--cinnabar)'; return; }
   $('cr-name').style.borderColor='';
@@ -17974,15 +18002,15 @@ function saveCustomRole() {
   if (editId) {
     // 编辑模式：原id保留
     id = editId;
-    window._customRolesDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,desc,guide} : x);
+    window._customRolesDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,desc,guide,ability} : x);
   } else {
     // 新建：生成唯一id
     id = 'custom_' + name.replace(/\s/g,'_') + '_' + Date.now();
     window._customRolesDefs = window._customRolesDefs || [];
-    window._customRolesDefs.push({id, name, emoji, team, desc, guide});
+    window._customRolesDefs.push({id, name, emoji, team, desc, guide, ability});
   }
 
-  registerCustomRole({id, name, emoji, team, desc, guide});
+  registerCustomRole({id, name, emoji, team, desc, guide, ability});
   saveCfg();
   initRoles();
   renderCustomRoleList();
