@@ -314,6 +314,31 @@ select { min-width: 60px; }
   text-shadow: 0 0 15px rgba(200,48,64,0.4);
   filter: none;
 }
+/* ── 狼人击杀特效：朱砂血溅 + 爪痕（仅夜袭/连环杀/狼王咬时一次性播放）── */
+.wk-fx { position:absolute; inset:0; pointer-events:none; z-index:6; border-radius:inherit; overflow:hidden; }
+.wk-fx .wk-splat {
+  position:absolute; inset:0; opacity:0; filter:blur(0.3px);
+  background:
+    radial-gradient(circle at 32% 38%, rgba(200,48,64,0.92) 0 6px, transparent 7px),
+    radial-gradient(circle at 64% 30%, rgba(240,104,128,0.85) 0 4px, transparent 5px),
+    radial-gradient(circle at 50% 58%, rgba(160,20,36,0.90) 0 9px, transparent 10px),
+    radial-gradient(circle at 72% 66%, rgba(200,48,64,0.80) 0 5px, transparent 6px),
+    radial-gradient(circle at 40% 76%, rgba(200,48,64,0.70) 0 3px, transparent 4px);
+  animation: wk-splat 0.7s ease-out forwards;
+}
+.wk-fx .wk-claw::before, .wk-fx .wk-claw::after {
+  content:''; position:absolute; left:-8%; width:116%; height:2px; opacity:0;
+  background:linear-gradient(90deg, transparent, var(--cinnabar-light), var(--cinnabar), transparent);
+  box-shadow:0 0 6px rgba(240,104,128,0.85); transform:rotate(-22deg);
+  animation: wk-claw 0.5s ease-out 0.1s forwards;
+}
+.wk-fx .wk-claw::before { top:40%; }
+.wk-fx .wk-claw::after  { top:56%; left:-4%; width:108%; animation-delay:0.18s; }
+@keyframes wk-splat { 0%{opacity:0;transform:scale(0.4)} 30%{opacity:1;transform:scale(1.05)} 100%{opacity:0;transform:scale(1)} }
+@keyframes wk-claw  { 0%{opacity:0;clip-path:inset(0 100% 0 0)} 30%{opacity:1} 100%{opacity:0;clip-path:inset(0 0 0 0)} }
+@keyframes wk-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(3px)} 60%{transform:translateX(-2px)} 80%{transform:translateX(1px)} }
+.pc.wk-shake { animation: wk-shake 0.4s; }
+
 .pc.speaking {
   border-color: var(--gold) !important;
   box-shadow: 0 0 18px rgba(245,160,184,0.25), inset 0 0 8px rgba(245,160,184,0.05) !important;
@@ -10849,6 +10874,25 @@ async function _triggerLoverDeath(p, hd) {
   }
 }
 
+// ★ 狼人击杀特效：在被害者的卡片上一次性播放"朱砂血溅+爪痕"，然后自动移除。
+//   仅用于狼系直接击杀（夜刀 kill / 狼王咬 bite / 连环杀 serialkill），放逐/毒杀不触发。
+function wolfKillEffect(p) {
+  try {
+    if (!p) return;
+    const c = document.getElementById('p-' + p.id);
+    if (!c) return;
+    const fx = document.createElement('div');
+    fx.className = 'wk-fx';
+    fx.innerHTML = '<div class="wk-splat"></div><div class="wk-claw"></div>';
+    c.appendChild(fx);
+    c.classList.add('wk-shake');
+    setTimeout(() => {
+      c.classList.remove('wk-shake');
+      if (fx.parentNode) fx.parentNode.removeChild(fx);
+    }, 900);
+  } catch (e) { /* 特效失败绝不影响对局流程 */ }
+}
+
 async function killPlayer(p, cause, opts) {
   opts = opts || {};
   p.alive = false;
@@ -10865,6 +10909,8 @@ async function killPlayer(p, cause, opts) {
   else p.deathPhase = S.phase;
   if (cause==='poison') p.poisoned = true;
   Render.card(p);
+  // ★ 狼系击杀播放血溅特效（夜刀/狼王咬/连环杀）；放逐、毒、决斗等不触发
+  if (cause==='kill' || cause==='bite' || cause==='serialkill') wolfKillEffect(p);
   const hd = $('m-hdeath').checked;
   const causeText = {kill:'昨晚死亡',serialkill:'昨晚死亡',vote:'被投票放逐',poison:'昨晚死亡',duel:'因骑士决斗结算而亡',mechduel:'被机械狼的强制决斗处死（该技能不验证阵营）',shoot:'作为中枪者被公开开枪技能带走',bite:'作为被咬者被狼王咬死',charm:'作为被魅惑者随狼美人殉情（本人不因此被认定为狼美人）',loversick:'作为恋人随另一方殉情（该死因不验证原身份或阵营）',explode:'作为目标被白狼王自爆带走（本人不是白狼王）',selfexplode:'发动自爆技能身亡（他本人就是白狼王）',trial:'作为被审判者被定罪处决',trialfail:'发起审判失败、反坐身亡（他是发起质疑的一方，不是被审判者）'}[cause]||'死亡';
   Render.log('death', '💀 '+p.name+(hd?'':' '+p.role.name)+' 死亡' + (opts.suffix||''));
