@@ -1,0 +1,67 @@
+name: Build Android APK
+
+# 用 Capacitor 把 PWA 打成安卓 APK。手动触发，或推到 claude/android-apk 分支时触发。
+# 产物 app-debug.apk 会作为 workflow artifact 上传，可直接下载侧载安装。
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/android-apk]
+    paths:
+      - 'index.html'
+      - 'native-http.js'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'tablet.css'
+      - 'icons/**'
+      - 'package.json'
+      - 'capacitor.config.json'
+      - 'scripts/build-www.mjs'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Collect web assets into www/
+        run: node scripts/build-www.mjs
+
+      - name: Add & sync Android platform
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk ai-wolf-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-wolf-apk
+          path: ai-wolf-debug.apk
+          if-no-files-found: error
