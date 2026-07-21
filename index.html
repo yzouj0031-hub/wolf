@@ -12936,15 +12936,16 @@ ${magicKillDecisionHint}
     const ts = alive.slice();  // 含自己：锁自己=谁查/守/毒你就反噬谁，一次性护身
     let t = null;
     if (wc.isPlayer) {
-      const v = await waitChoice('反弹锁定谁？（今晚查验/守护/毒他的神职会被反弹到自己身上；锁自己=反噬来查/守/毒你的人）','🌒 反弹锁定', ts.map(x=>({label:x.id===wc.id?'自己':x.name,value:x.name})));
-      t = findPlayer(v, ts);
+      const v = await waitChoice('反弹锁定谁？（今晚查验/守护/毒他的神职会被反弹到自己身上；锁自己=反噬来查/守/毒你的人）','🌒 反弹锁定', ts.map(x=>({label:x.id===wc.id?'自己':x.name,value:x.name})).concat([{label:'今晚不锁（空过）',value:'None',abs:true}]));
+      t = v==='None' ? null : findPlayer(v, ts);
     } else {
       const targetList = ts.map(x => `P${x.id + 1} ${x.name}${x.id===wc.id?'(你自己)':''}`).join('、');
-      const contextPrompt = '【蚀时狼妃·第'+S.round+'夜·反弹锁定】\n可选目标：'+targetList+'\n今晚锁定一人X：凡查验X的预言家、守护X的守卫、毒X的女巫，其技能都会被反弹、落到他们自己身上（预言家查到自己、守卫守自己、女巫毒死自己）。首个命中X的神职触发，仅一次。\n两种用法：①锁好人这边最可能被查/守/毒的关键位（你怀疑的真预言家想查的对象、或女巫想毒的狼队友）反噬神职、保护狼队；②【锁自己】——任何来查验/守护/毒你的神职都反噬回他自己，等于一次性护住你的身份不被验证/处理。';
-      const actionPrompt = '你锁定谁？可锁别人，也可锁自己。\n<action>玩家名或"自己"（精确复制）</action>';
+      const contextPrompt = '【蚀时狼妃·第'+S.round+'夜·反弹锁定】\n可选目标：'+targetList+'\n今晚锁定一人X：凡查验X的预言家、守护X的守卫、毒X的女巫，其技能都会被反弹、落到他们自己身上（预言家查到自己、守卫守自己、女巫毒死自己）。首个命中X的神职触发，仅一次。\n用法：①锁好人这边最可能被查/守/毒的关键位（你怀疑的真预言家想查的对象、或女巫想毒的狼队友）反噬神职、保护狼队；②【锁自己】——任何来查验/守护/毒你的神职都反噬回他自己，一次性护住你的身份；③也可以今晚不锁、空过。';
+      const actionPrompt = '你锁定谁？可锁别人、可锁自己，也可空过。\n<action>玩家名、"自己" 或 None（空过）</action>';
       const r = await nightTwoStep(wc, contextPrompt, actionPrompt);
       logNightThinking(wc, r);
-      t = findPlayer(r.action, ts) || (/自己|自我|自身/.test((r.action||'')+(r.thinking||'')) ? wc : null) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, ts, 'wolfconcubine'), ts)) || ts[Math.floor(Math.random()*ts.length)];
+      if (!/^\s*none\s*$/i.test((r.action||'').trim()) && !/空过|不锁/.test(r.action||''))
+        t = findPlayer(r.action, ts) || (/自己|自我|自身/.test((r.action||'')+(r.thinking||'')) ? wc : null) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, ts, 'wolfconcubine'), ts));
     }
     if (t) {
       S.nightData.concubineGuard = t.id;
@@ -13154,12 +13155,12 @@ ${magicKillDecisionHint}
         const reflCand = alive.slice();
         let t = null;
         if (p.isPlayer) {
-          const v = await waitChoice('【'+p.role.name+'·反弹】锁定谁？（查/守/毒他的神职反弹到自己；锁自己=反噬来查/守/毒你的人）','🌒 反弹锁定', reflCand.map(x=>({label:x.id===p.id?'自己':x.name,value:x.name})));
-          t = findPlayer(v, reflCand);
+          const v = await waitChoice('【'+p.role.name+'·反弹】锁定谁？（查/守/毒他的神职反弹到自己；锁自己=反噬来查/守/毒你的人）','🌒 反弹锁定', reflCand.map(x=>({label:x.id===p.id?'自己':x.name,value:x.name})).concat([{label:'今晚不锁（空过）',value:'None',abs:true}]));
+          t = v==='None' ? null : findPlayer(v, reflCand);
         } else {
-          const r = await callAI(p, '【'+p.role.name+'·反弹·第'+S.round+'夜】锁定一人X，凡查验/守护/毒X的神职都被反弹到自己身上（首个命中触发、仅一次）。可锁别人，也可【锁自己】——锁自己则任何来查验/守护/毒你的神职都反噬回他自己，等于一次性保护你的身份。锁谁？可选：'+reflCand.map(x=>'P'+(x.id+1)+' '+x.name+(x.id===p.id?'(自己)':'')).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名或"自己"</action>', {noMemory:true, skillConfirm:true});
+          const r = await callAI(p, '【'+p.role.name+'·反弹·第'+S.round+'夜】锁定一人X，凡查验/守护/毒X的神职都被反弹到自己身上（首个命中触发、仅一次）。可锁别人，也可【锁自己】（任何来查验/守护/毒你的神职都反噬回他自己，一次性保护你的身份），也可以今晚不锁、空过。锁谁？可选：'+reflCand.map(x=>'P'+(x.id+1)+' '+x.name+(x.id===p.id?'(自己)':'')).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名、"自己" 或 None（空过）</action>', {noMemory:true, skillConfirm:true});
           logNightThinking(p, r);
-          t = findPlayer(r.action, reflCand) || (/自己|自我|自身/.test(r.action||'') ? p : null) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, reflCand, 'reflect'), reflCand));
+          if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, reflCand) || (/自己|自我|自身/.test(r.action||'') ? p : null) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, reflCand, 'reflect'), reflCand));
         }
         if (t) { S.nightData.concubineGuard = t.id; p.memory.push({role:'system', content:'【反弹·私密】你锁定了'+(t.id===p.id?'自己':t.name)+'：查/守/毒'+(t.id===p.id?'你':'他')+'的神职会被反弹到自己（仅首个命中者触发）。'}); if (!isAnon()) Render.log('night-result','🌒 '+p.name+'反弹锁定了'+(t.id===p.id?'自己':t.name)); }
       }
