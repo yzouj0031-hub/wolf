@@ -1,0 +1,113 @@
+name: Build Android APK
+
+# 用 Capacitor 把 PWA 打成安卓 APK：生成应用图标/启动图 → 构建 → 签名 → 出包。
+# - 推到 main：构建并发布到 GitHub Release（滚动标签 android-latest），永久可下载。
+# - 推到 claude/android-apk：只出 workflow 产物，方便验证。
+# - 配了发布签名密钥(secrets)就用正式签名，否则自动回退 debug 签名。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/android-apk]
+    paths:
+      - 'index.html'
+      - 'native-http.js'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'tablet.css'
+      - 'icons/**'
+      - 'package.json'
+      - 'capacitor.config.json'
+      - 'scripts/**'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Render app icon & splash from SVG
+        run: node scripts/render-icon.mjs
+
+      - name: Collect web assets into www/
+        run: node scripts/build-www.mjs
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Generate launcher icons & splash
+        run: npx capacitor-assets generate --android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build & sign APK
+        id: build
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          cd android
+          chmod +x gradlew
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "🔐 检测到发布签名密钥，使用正式签名"
+            echo "$KEYSTORE_BASE64" | base64 -d > ../release.jks
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+            "$BT/zipalign" -f 4 app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+            "$BT/apksigner" sign \
+              --ks ../release.jks --ks-pass "pass:$KEYSTORE_PASSWORD" \
+              --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASSWORD" \
+              --out ../ai-wolf.apk aligned.apk
+            echo "signed=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "🧪 未配置发布签名密钥，使用 debug 签名（个人侧载安装即可）"
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            cp app/build/outputs/apk/debug/app-debug.apk ../ai-wolf.apk
+            echo "signed=debug" >> "$GITHUB_OUTPUT"
+          fi
+          cd ..
+          ls -la ai-wolf.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-wolf-apk
+          path: ai-wolf.apk
+          if-no-files-found: error
+
+      - name: Publish to GitHub Release (main only)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: AI狼人杀 · 安卓版（最新）
+          body: |
+            自动构建的安卓 APK（${{ steps.build.outputs.signed }} 签名）。
+            下载下方的 `ai-wolf.apk`，传到手机侧载安装即可。首次打开需联网、在设置里填模型 API key。
+          files: ai-wolf.apk
+          make_latest: true
