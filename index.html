@@ -1839,7 +1839,17 @@ body.has-wp::after {
   <div class="ct-row"><label>角色名</label><input type="text" id="cr-name" placeholder="例：魔术师" style="flex:1;max-width:none"></div>
   <div class="ct-row"><label>Emoji</label><input type="text" id="cr-emoji" placeholder="🪄" style="max-width:60px;text-align:center;font-size:1.2em"><label style="margin-left:12px">阵营</label><select id="cr-team" style="min-width:80px"><option value="good">✅ 好人</option><option value="bad">🐺 狼人</option><option value="third">🎭 第三方</option></select></div>
   <div class="ct-row"><label>技能模板</label><select id="cr-ability" style="flex:1;max-width:none"><option value="">无（只有人设，夜里无技能）</option><option value="seer">🔮 预言家 · 每晚验人</option><option value="witch">🧪 女巫 · 解药+毒药</option><option value="guard">🛡️ 守卫 · 每晚守护一人</option><option value="hunter">🔫 猎人 · 死亡时开枪带走一人</option><option value="knight">⚔️ 骑士 · 白天可发起决斗</option><option value="magician">🪄 魔术师 · 每晚交换两人</option><option value="werewolf">🐺 狼人 · 参与夜间狼刀</option><option value="wolfking">👹 狼王 · 夜刀+死亡咬人</option></select></div>
-  <div style="font-size:0.66em;color:#6a6080;margin:-2px 0 8px;line-height:1.5">💡 选了技能模板后，这个自创角色晚上会<b>真正拥有该技能</b>（复用内置角色的机制），阵营也随模板自动确定（预言家/女巫/守卫/猎人/骑士/魔术师=好人，狼人/狼王=狼队）；仅当选「无」时才用上面的阵营设置。名字、emoji、人设仍是你自创的。</div>
+  <div style="font-size:0.66em;color:#6a6080;margin:-2px 0 8px;line-height:1.5">💡 单选模板：整个角色<b>变成该内置角色</b>（复用其机制，阵营随模板定）。想<b>自由拼技能</b>请用下面的「积木」多选。</div>
+  <div class="ct-row" style="align-items:flex-start"><label style="padding-top:4px">积木技能<br><span style="font-size:0.72em;color:#8880a8;font-weight:400">可多选叠加</span></label>
+    <div id="cr-blocks" style="flex:1;display:flex;flex-direction:column;gap:5px">
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="inspect">🔮 查验 · 每晚验一人阵营（狼/好人）</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="protect">🛡️ 守护 · 每晚守护一人免于狼刀</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="poison">🧪 毒 · 一次性毒杀一人（被毒者不能发动死亡技能）</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="save">💉 解药 · 一次性救活当晚被刀的人</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="delayedDeath">🐈‍⬛ 缓死 · 被出局时延迟一轮才真死、翻牌公开</label>
+    </div>
+  </div>
+  <div style="font-size:0.66em;color:#6a6080;margin:-2px 0 8px;line-height:1.5">💡 <b>积木可自由叠加</b>（如「查验+守护」= 会守人的预言家）。<b>只要勾了任意积木，就用积木组合、忽略上面的单选模板；阵营用你上面选的那个。</b>名字、emoji、人设仍是你自创的。</div>
   <div class="ct-row" style="align-items:flex-start"><label style="padding-top:6px">能力简介</label><input type="text" id="cr-desc" placeholder="例：每晚可以交换两人的身份" style="flex:1;max-width:none"></div>
   <div class="ct-row" style="align-items:flex-start"><label style="padding-top:6px">AI行动指南</label></div>
   <textarea id="cr-guide" placeholder="详细描述AI应该如何扮演这个角色：能力机制、使用时机、策略建议…&#10;&#10;例：你是魔术师。每晚你可以选择两名玩家，交换他们的身份牌（好人变狼，狼变好人）……" style="width:100%;height:130px;background:rgba(0,0,0,0.3);border:1px solid rgba(208,160,240,0.2);color:#d8d0e8;border-radius:var(--r);padding:8px;font-size:0.78em;font-family:var(--font-body);resize:vertical;margin-bottom:8px"></textarea>
@@ -3311,9 +3321,39 @@ window._customRolesDefs = window._customRolesDefs || [];
 // ★ 允许自创角色映射到的"技能模板"白名单（值为内置角色id，其夜间机制会被完整复用）
 const CUSTOM_ABILITY_BASE = ['seer','witch','guard','hunter','knight','magician','werewolf','wolfking'];
 
+// ★ 积木技能元数据：可多选叠加，由通用引擎(NightActions.customGods + resolveNight)真实结算。
+const CUSTOM_BLOCKS = {
+  inspect:      {emoji:'🔮', label:'查验', g:'每晚可查验一名其他玩家，得知其阵营（狼人/好人）。这是你的核心情报，跳身份时如实报告。'},
+  protect:      {emoji:'🛡️', label:'守护', g:'每晚可守护一名玩家（可含自己），使其当晚免于狼刀；不能连续两晚守同一人。'},
+  poison:       {emoji:'🧪', label:'毒药', g:'拥有一瓶毒药、整局一次性：某晚可毒杀一名玩家、当晚死亡（被毒者无法发动死亡技能）。用错=害死好人，慎用。'},
+  save:         {emoji:'💉', label:'解药', g:'拥有一瓶解药、整局一次性：当晚有人被狼刀时可将其救活（有救药时你能看到当晚刀口）。'},
+  delayedDeath: {emoji:'🐈‍⬛', label:'缓死', g:'被动：你被任意方式判出局时不立即死——当场翻牌公开身份、延迟到下一个同类阶段才真正死亡（夜里被刀→撑到下一个夜晚；白天被投→撑到下一个投票阶段）。缓死期间你仍是活人，可正常发言、投票。'}
+};
+function buildCustomAbilityGuide(name, team, abilities){
+  const teamTxt = team==='bad' ? '狼人阵营' : (team==='third' ? '第三方' : '好人阵营');
+  let s = '\n\n【你的技能（自创·积木组合，全部真实生效）】你是' + name + '，属于' + teamTxt + '。你同时拥有以下技能：';
+  abilities.forEach(a => { if (CUSTOM_BLOCKS[a]) s += '\n· ' + CUSTOM_BLOCKS[a].emoji + ' ' + CUSTOM_BLOCKS[a].label + '：' + CUSTOM_BLOCKS[a].g; });
+  s += '\n夜间的查验结果、用药、守护记录都是只有你知道的私密信息，跳身份前不要说漏嘴。';
+  if (team === 'bad') s += '\n你和狼队共享胜负，白天绝不能暴露夜间信息和刀口。';
+  return s;
+}
+
 function registerCustomRole(cr) {
-  // cr: {id, name, emoji, team, desc, guide, ability}
-  // ability 为空 = 只有人设的"皮"（沿用 cr.team）；ability 有值 = 映射到内置技能，阵营随模板确定。
+  // cr: {id, name, emoji, team, desc, guide, ability, abilities}
+  // ★ 优先级：勾了积木(abilities) → 积木组合(保留自身id、通用引擎结算)；否则单选模板(ability)克隆内置角色；否则纯人设皮。
+  const abilities = Array.isArray(cr.abilities) ? cr.abilities.filter(a => CUSTOM_BLOCKS[a]) : [];
+  if (abilities.length) {
+    const team = cr.team;
+    const baseGuide = (cr.guide && cr.guide.trim()) ? cr.guide.trim() : ('你是' + cr.name + '。' + (cr.desc || ''));
+    reg({
+      id: cr.id, name: cr.name, team, emoji: cr.emoji, desc: cr.desc, maxCount: 99,
+      customAbilities: abilities,                         // ★ 积木列表，通用引擎据此逐块结算
+      delayedDeath: abilities.includes('delayedDeath') || undefined,  // 缓死复用白猫机制
+      cssClass: team === 'bad' ? 'tw' : '',
+      guide: baseGuide + buildCustomAbilityGuide(cr.name, team, abilities)
+    });
+    return;
+  }
   const base = (cr.ability && CUSTOM_ABILITY_BASE.includes(cr.ability) && ALL_ROLES[cr.ability]) ? cr.ability : '';
   const team = base ? ALL_ROLES[base].team : cr.team;
   reg({
@@ -3334,6 +3374,10 @@ function registerCustomRole(cr) {
 //   但显示用的 name/emoji/desc 仍是自创的；customId 保留原自创id，供存档恢复。
 function resolveRoleForPlay(rid) {
   const def = ALL_ROLES[rid];
+  // ★ 积木组合角色：保留自身 id（通用引擎按 customAbilities 结算），不克隆内置角色。
+  if (def && Array.isArray(def.customAbilities) && def.customAbilities.length) {
+    return Object.assign({}, def, { customId: def.id, customName: def.name, customEmoji: def.emoji });
+  }
   if (def && def.baseAbility && ALL_ROLES[def.baseAbility]) {
     const b = ALL_ROLES[def.baseAbility];
     return Object.assign({}, b, {
@@ -13004,6 +13048,80 @@ ${magicKillDecisionHint}
       }
     }
   },
+
+  // 🧩 积木自创角色·通用夜间处理器：一个角色可带多个积木（守护/查验/毒/解药），逐块行动。缓死为被动、由 killPlayer 处理。
+  async customGods(alive) {
+    for (const p of alive) {
+      const ab = p.role && p.role.customAbilities;
+      if (!Array.isArray(ab) || !ab.length) continue;
+      if (!ab.includes('protect') && !ab.includes('inspect') && !ab.includes('poison') && !ab.includes('save')) continue;
+      const others = alive.filter(x => x.id !== p.id);
+      Render.setSpeaking(p.id, true);
+      // 🛡️ 守护（可守自己，不能连守同一人）
+      if (ab.includes('protect')) {
+        const cand = alive.filter(x => x.id !== p._cLastGuard);
+        let t = null;
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·守护】守护谁？（可守自己）','🛡️ 守护', cand.map(x=>({label:x.id===p.id?'自己':x.name,value:x.name})).concat([{label:'空守',value:'None',abs:true}]));
+          t = v==='None' ? null : findPlayer(v, cand);
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·守护·第'+S.round+'夜】你每晚守护一人使其免于狼刀（可守自己，不能连守同一人）。可选：'+cand.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名 或 None（空守）</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, cand) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, cand, 'guard'), cand));
+        }
+        if (t) { S.nightData.customProtect.push(t.id); p._cLastGuard = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'守护了'+(t.id===p.id?'自己':t.name)); }
+        else p._cLastGuard = -1;
+      }
+      // 🔮 查验
+      if (ab.includes('inspect') && others.length) {
+        let t = null;
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·查验】查验谁？','🔮 查验', others.map(x=>({label:x.name,value:x.name})));
+          t = findPlayer(v, others);
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·查验·第'+S.round+'夜】你每晚查验一人得知其阵营。可选：'+others.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'seer'), others)) || others[Math.floor(Math.random()*others.length)];
+        }
+        if (t) {
+          const iw = seerSeesAsWolf(reflectInspectSubject(p, t));  // 🌒 复用蚀时狼妃反弹
+          p.memory.push({role:'system', content:'【查验结果·私密】你查验了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道，跳身份时如实报。'});
+          if (!isAnon()) Render.log('night-result','🔮 '+p.name+'查验'+t.name+'→'+(iw?'🐺狼人':'✅好人'));
+          gameRecord.push({type:'night_action', role:'custom-inspect', round:S.round, target:t.name, result:iw?'wolf':'good'});
+        }
+      }
+      // 🧪 毒（一次性）
+      if (ab.includes('poison') && !p._cPoisonUsed && others.length) {
+        let t = null;
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·毒药】毒谁？（整局一次性）','🧪 毒药', others.map(x=>({label:'☠️'+x.name,value:x.name})).concat([{label:'不用',value:'None',abs:true}]));
+          t = v==='None' ? null : findPlayer(v, others);
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·毒药·第'+S.round+'夜】你有一瓶一次性毒药，可毒杀一人（当晚死亡）。要用吗？可选：'+others.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'poison'), others));
+        }
+        if (t) { S.nightData.customPoison.push(t.id); p._cPoisonUsed = true; p.memory.push({role:'system', content:'【毒·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','🧪 '+p.name+'毒了'+t.name); }
+      }
+      // 💉 解药（一次性，需看到当晚刀口）
+      if (ab.includes('save') && !p._cSaveUsed && S.nightData.kill !== null) {
+        const victim = S.players[S.nightData.kill];
+        if (victim && victim.alive) {
+          let doSave = false;
+          if (p.isPlayer) {
+            const v = await waitChoice(victim.name+'今晚被狼刀，救否？（解药整局一次性）','💉 解药',[{label:'💚 救',value:'SAVE'},{label:'不救',value:'NO'}]);
+            doSave = v === 'SAVE';
+          } else {
+            const r = await callAI(p, '【'+p.role.name+'·解药·第'+S.round+'夜】今晚'+victim.name+'被狼刀了。你有一瓶一次性解药，要救吗？\n<thinking>思考</thinking>\n<action>SAVE 或 NO</action>', {noMemory:true, skillConfirm:true});
+            logNightThinking(p, r);
+            doSave = /save|救/i.test(r.action||'');
+          }
+          if (doSave) { S.nightData.customSave.push(victim.id); p._cSaveUsed = true; p.memory.push({role:'system', content:'【解药·私密】你救了'+victim.name+'。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','💉 '+p.name+'救了'+victim.name); }
+        }
+      }
+      Render.setSpeaking(p.id, false);
+    }
+  },
 };
 
 /* ================================================================
@@ -13162,7 +13280,9 @@ const PhaseHandlers = {
       // 🎪 奇迹商人：merchantLucky=幸运儿ID；merchantGift=赐予类型
       merchantLucky:null, merchantGift:null,
       // 🎁 被商人赐予的一次性技能（次夜起可用）在此登记本夜行动目标
-      grantInspect:null, grantPoison:null, grantGuard:null};
+      grantInspect:null, grantPoison:null, grantGuard:null,
+      // 🧩 积木自创角色的当晚产出：守护/解药挡刀的目标集合、毒杀目标集合
+      customProtect:[], customSave:[], customPoison:[]};
     S.silenced = -1;
     S.players.forEach(p => Render.card(p));
     Render.phaseClass(); Render.stats();
@@ -13195,6 +13315,7 @@ const PhaseHandlers = {
       NightActions.applyMagicSwap();
       await nightAtmo(1);
       await NightActions.witch(alive);
+      await NightActions.customGods(alive);
       await NightActions.seer(alive);
       await NightActions.grantedSkill(alive);
       await NightActions.serialKiller(alive);
@@ -13233,6 +13354,7 @@ const PhaseHandlers = {
     NightActions.applyMagicSwap();
     await nightAtmo(1);
     await NightActions.witch(alive);
+    await NightActions.customGods(alive);
     await NightActions.seer(alive);
     await NightActions.grantedSkill(alive);
     await NightActions.serialKiller(alive);
@@ -14458,8 +14580,13 @@ async function resolveNight() {
     const doubleProtect = anyGuard && is;
     // 🦊 子狐媚惑·禁刀：当晚全狼无法用狼刀击杀（覆盖破盾刀，因机械狼也是狼）
     const foxBlocked = !!S.nightData.foxBlockKill;
+    // 🧩 积木自创角色的守护/解药命中被刀者 → 干净挡下（不参与同守同救）
+    const customBlocked = (Array.isArray(S.nightData.customProtect) && S.nightData.customProtect.includes(S.nightData.kill)) ||
+                          (Array.isArray(S.nightData.customSave) && S.nightData.customSave.includes(S.nightData.kill));
     if (foxBlocked) {
       Render.log('system','🦊 子狐媚惑·禁刀生效，'+v.name+'挡下了本夜的狼刀');
+    } else if (customBlocked && !breakKnife) {
+      Render.log('system','🛡️ '+v.name+'被自创角色的守护/解药挡下了狼刀');
     } else if (mechShielded && !breakKnife) {
       // ★ 机械盾挡下狼刀（对毒的免疫在下方毒药结算里处理）
       Render.log('system','🤖🛡️ 机械盾守护，'+v.name+'挡下了狼刀');
@@ -14522,6 +14649,16 @@ async function resolveNight() {
     if (gpo && gpo.alive && gpo.id !== S.nightData.witchPoison) {
       gpo.alive=false; gpo.revealed=true; gpo.poisoned=true; gpo.deathCause='poison'; gpo.deathRound=S.round; gpo.deathPhase='night';
       deaths.push({player:gpo, cause:'poison'});
+    }
+  }
+  // 🧩 积木自创角色·毒药结算（按"毒"处理，不能发动死亡技能）
+  if (Array.isArray(S.nightData.customPoison) && S.nightData.customPoison.length) {
+    for (const pid of S.nightData.customPoison) {
+      const cpo = S.players[pid];
+      if (cpo && cpo.alive && pid !== S.nightData.witchPoison) {
+        cpo.alive=false; cpo.revealed=true; cpo.poisoned=true; cpo.deathCause='poison'; cpo.deathRound=S.round; cpo.deathPhase='night';
+        deaths.push({player:cpo, cause:'poison'});
+      }
     }
   }
 
@@ -18305,6 +18442,7 @@ function openCustomRoleDialog() {
   $('cr-desc').value = '';
   $('cr-guide').value = '';
   if ($('cr-ability')) $('cr-ability').value = '';
+  document.querySelectorAll('.cr-blk').forEach(cb => cb.checked = false);
   $('crpop-title').textContent = '── ✏️ 自创角色 ──';
   // 删除隐藏的编辑id
   $('cr-save').dataset.editId = '';
@@ -18344,6 +18482,8 @@ function editCustomRole(id) {
   $('cr-desc').value = cr.desc||'';
   $('cr-guide').value = cr.guide||'';
   if ($('cr-ability')) $('cr-ability').value = cr.ability||'';
+  const abils = Array.isArray(cr.abilities) ? cr.abilities : [];
+  document.querySelectorAll('.cr-blk').forEach(cb => cb.checked = abils.includes(cb.value));
   $('crpop-title').textContent = '── ✏️ 编辑角色 ──';
   $('cr-save').dataset.editId = id;
 }
@@ -18367,7 +18507,9 @@ function saveCustomRole() {
   const team = $('cr-team').value;
   const desc = $('cr-desc').value.trim();
   const guide = $('cr-guide').value.trim();
-  const ability = ($('cr-ability') && $('cr-ability').value) || '';  // ★ 技能模板
+  const ability = ($('cr-ability') && $('cr-ability').value) || '';  // ★ 技能模板（单选）
+  // ★ 积木技能（多选，可叠加）；勾了任意积木则优先用积木组合
+  const abilities = Array.from(document.querySelectorAll('.cr-blk')).filter(cb => cb.checked).map(cb => cb.value);
 
   if (!name) { $('cr-name').focus(); $('cr-name').style.borderColor='var(--cinnabar)'; return; }
   $('cr-name').style.borderColor='';
@@ -18378,15 +18520,15 @@ function saveCustomRole() {
   if (editId) {
     // 编辑模式：原id保留
     id = editId;
-    window._customRolesDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,desc,guide,ability} : x);
+    window._customRolesDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,desc,guide,ability,abilities} : x);
   } else {
     // 新建：生成唯一id
     id = 'custom_' + name.replace(/\s/g,'_') + '_' + Date.now();
     window._customRolesDefs = window._customRolesDefs || [];
-    window._customRolesDefs.push({id, name, emoji, team, desc, guide, ability});
+    window._customRolesDefs.push({id, name, emoji, team, desc, guide, ability, abilities});
   }
 
-  registerCustomRole({id, name, emoji, team, desc, guide, ability});
+  registerCustomRole({id, name, emoji, team, desc, guide, ability, abilities});
   saveCfg();
   initRoles();
   renderCustomRoleList();
