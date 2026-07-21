@@ -1847,6 +1847,12 @@ body.has-wp::after {
       <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="poison">🧪 毒 · 一次性毒杀一人（被毒者不能发动死亡技能）</label>
       <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="save">💉 解药 · 一次性救活当晚被刀的人</label>
       <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="delayedDeath">🐈‍⬛ 缓死 · 被出局时延迟一轮才真死、翻牌公开</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="muteSkill">🔇 封技能 · 每晚封锁一人当晚的夜间主动技</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="reflect">🌒 反弹 · 每晚锁一人，查/守/毒他的神职反弹到自己</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="blockKill">🚫 禁刀 · 一次性：某晚宣告当晚全狼无法击杀</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="lynchImmune">🃏 首放逐免疫 · 首次被投放逐翻牌免疫不死（被动）</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="shield">🛡️ 可转移护盾 · 每晚护一人挡一次夜死、闲置转护己（一次性）</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:0.76em;color:#c8bce0;cursor:pointer"><input type="checkbox" class="cr-blk" value="grant">🎁 赐予 · 每晚赐一人 盾/查验/毒（幸运儿是狼则出局）</label>
     </div>
   </div>
   <div style="font-size:0.66em;color:#6a6080;margin:-2px 0 8px;line-height:1.5">💡 <b>积木可自由叠加</b>（如「查验+守护」= 会守人的预言家）。<b>只要勾了任意积木，就用积木组合、忽略上面的单选模板；阵营用你上面选的那个。</b>名字、emoji、人设仍是你自创的。</div>
@@ -3327,7 +3333,13 @@ const CUSTOM_BLOCKS = {
   protect:      {emoji:'🛡️', label:'守护', g:'每晚可守护一名玩家（可含自己），使其当晚免于狼刀；不能连续两晚守同一人。'},
   poison:       {emoji:'🧪', label:'毒药', g:'拥有一瓶毒药、整局一次性：某晚可毒杀一名玩家、当晚死亡（被毒者无法发动死亡技能）。用错=害死好人，慎用。'},
   save:         {emoji:'💉', label:'解药', g:'拥有一瓶解药、整局一次性：当晚有人被狼刀时可将其救活（有救药时你能看到当晚刀口）。'},
-  delayedDeath: {emoji:'🐈‍⬛', label:'缓死', g:'被动：你被任意方式判出局时不立即死——当场翻牌公开身份、延迟到下一个同类阶段才真正死亡（夜里被刀→撑到下一个夜晚；白天被投→撑到下一个投票阶段）。缓死期间你仍是活人，可正常发言、投票。'}
+  delayedDeath: {emoji:'🐈‍⬛', label:'缓死', g:'被动：你被任意方式判出局时不立即死——当场翻牌公开身份、延迟到下一个同类阶段才真正死亡（夜里被刀→撑到下一个夜晚；白天被投→撑到下一个投票阶段）。缓死期间你仍是活人，可正常发言、投票。'},
+  muteSkill:    {emoji:'🔇', label:'封技能', g:'每晚可封锁一名玩家当晚的夜间主动技（预言家查验/女巫用药/守卫守护/魔术师换位等，被封当晚失效）。'},
+  reflect:      {emoji:'🌒', label:'反弹', g:'每晚锁定一人X：凡查验/守护/毒X的神职都被反弹、落到该神职自己身上（首个命中者触发，仅一次）。'},
+  blockKill:    {emoji:'🚫', label:'禁刀', g:'整局一次性：某晚可宣告当晚全体狼无法击杀（护住全场一晚）。用掉即消。'},
+  lynchImmune:  {emoji:'🃏', label:'首放逐免疫', g:'被动：第一次被投票放逐时翻牌公开、免疫此次放逐（不死）；仅对投票放逐有效，自爆/枪/审判照死。'},
+  shield:       {emoji:'🛡️', label:'可转移护盾', g:'每晚指定一人（可含自己）挂护盾、替他挡一次夜间致命伤；若他今晚没挨刀则盾自动转护你自己；成功挡下一次即消耗（一次性）。'},
+  grant:        {emoji:'🎁', label:'赐予', g:'每晚指定一名幸运儿赐予【盾/查验/毒】之一；若幸运儿其实是狼→礼物作废、当场出局；查验/毒为次夜起的一次性技。'}
 };
 function buildCustomAbilityGuide(name, team, abilities){
   const teamTxt = team==='bad' ? '狼人阵营' : (team==='third' ? '第三方' : '好人阵营');
@@ -11028,12 +11040,16 @@ async function killPlayer(p, cause, opts) {
     if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({ type: 'reprieve', name: p.name, role: p.role.name, round: S.round, phase: p._rp.phase });
     return;
   }
-  // 🃏 愚者·首次被投票放逐免疫：翻牌、免疫、失去全部技能（与夜间护盾共用一次保命；仅对投票放逐，自爆/枪/审判照死）
-  if (p && p.role && p.role.id==='fool' && cause==='vote' && !p._foolUsed && !opts._rpResolve) {
-    p._foolUsed = true; p.revealed = true;
+  // 🃏 首放逐免疫（愚者本职 / 积木 lynchImmune）：首次被投票放逐→翻牌免疫不死。仅对投票放逐；自爆/枪/审判照死。
+  //   愚者用 _foolUsed（与其夜间护盾共用一次保命）；积木角色用独立的 _lynchImmuneUsed。
+  const _hasLynchImmune = p && p.role && (p.role.id==='fool' || (Array.isArray(p.role.customAbilities) && p.role.customAbilities.includes('lynchImmune')));
+  const _liFlag = (p && p.role && p.role.id==='fool') ? '_foolUsed' : '_lynchImmuneUsed';
+  if (_hasLynchImmune && cause==='vote' && !p[_liFlag] && !opts._rpResolve) {
+    p[_liFlag] = true; p.revealed = true;
     Render.card(p);
-    Render.log('system','🃏【愚者免疫】'+p.name+'被投票放逐，但触发首放逐免疫：翻牌公开、本次不死，从此失去全部技能。');
-    S.players.filter(x => x.id !== p.id).forEach(x => x.memory.push({role:'system', content:'【公告】'+p.name+'被投票放逐，但身份是【愚者】——触发「首放逐免疫」：本次不死、身份已公开，之后不再拥有任何技能。'}));
+    const _liName = (p.role.id==='fool') ? '愚者' : p.role.name;
+    Render.log('system','🃏【首放逐免疫】'+p.name+'被投票放逐，但触发免疫：翻牌公开、本次不死'+(p.role.id==='fool'?'，从此失去全部技能':'')+'。');
+    S.players.filter(x => x.id !== p.id).forEach(x => x.memory.push({role:'system', content:'【公告】'+p.name+'被投票放逐，但触发「首放逐免疫」：本次不死、身份已公开（'+_liName+'）。'}));
     if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({type:'foolImmune', name:p.name, round:S.round});
     return;
   }
@@ -13054,7 +13070,8 @@ ${magicKillDecisionHint}
     for (const p of alive) {
       const ab = p.role && p.role.customAbilities;
       if (!Array.isArray(ab) || !ab.length) continue;
-      if (!ab.includes('protect') && !ab.includes('inspect') && !ab.includes('poison') && !ab.includes('save')) continue;
+      const _ACTIVE_BLOCKS = ['protect','inspect','poison','save','muteSkill','reflect','blockKill','shield','grant'];
+      if (!_ACTIVE_BLOCKS.some(k => ab.includes(k))) continue;  // 只有被动积木(缓死/免疫)则无需夜间行动
       const others = alive.filter(x => x.id !== p.id);
       Render.setSpeaking(p.id, true);
       // 🛡️ 守护（可守自己，不能连守同一人）
@@ -13117,6 +13134,83 @@ ${magicKillDecisionHint}
             doSave = /save|救/i.test(r.action||'');
           }
           if (doSave) { S.nightData.customSave.push(victim.id); p._cSaveUsed = true; p.memory.push({role:'system', content:'【解药·私密】你救了'+victim.name+'。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','💉 '+p.name+'救了'+victim.name); }
+        }
+      }
+      // 🔇 封技能（复用子狐 foxMuteIds；被封者夜间主动技当晚失效）
+      if (ab.includes('muteSkill') && others.length) {
+        let t = null;
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·封技能】封锁谁今晚的技能？','🔇 封技能', others.map(x=>({label:x.name,value:x.name})).concat([{label:'不封',value:'None',abs:true}]));
+          t = v==='None' ? null : findPlayer(v, others);
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·封技能·第'+S.round+'夜】你每晚可封锁一名玩家当晚的夜间主动技（预言家查/女巫药/守卫守等失效）。封谁？可选：'+others.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'mute'), others));
+        }
+        if (t) { if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id); p.memory.push({role:'system', content:'【封技能·私密】你封锁了'+t.name+'今晚的夜间主动技。'}); if (!isAnon()) Render.log('night-result','🔇 '+p.name+'封锁了'+t.name+'的技能'); }
+      }
+      // 🌒 反弹（复用蚀时狼妃 concubineGuard）
+      if (ab.includes('reflect') && others.length) {
+        let t = null;
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·反弹】锁定谁？（查/守/毒他的神职反弹到自己）','🌒 反弹锁定', others.map(x=>({label:x.name,value:x.name})));
+          t = findPlayer(v, others);
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·反弹·第'+S.round+'夜】锁定一人X，凡查验/守护/毒X的神职都被反弹到自己身上（首个命中触发、仅一次）。锁谁？可选：'+others.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'reflect'), others));
+        }
+        if (t) { S.nightData.concubineGuard = t.id; p.memory.push({role:'system', content:'【反弹·私密】你锁定了'+t.name+'：查/守/毒他的神职会被反弹到自己（仅首个命中者触发）。'}); if (!isAnon()) Render.log('night-result','🌒 '+p.name+'反弹锁定了'+t.name); }
+      }
+      // 🚫 禁刀（一次性，复用 foxBlockKill）
+      if (ab.includes('blockKill') && !p._cBlockUsed) {
+        let doBlock = false;
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·禁刀】今晚宣告全狼禁刀吗？（整局一次性）','🚫 禁刀',[{label:'🚫 宣告禁刀',value:'YES'},{label:'留着',value:'NO'}]);
+          doBlock = v === 'YES';
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·禁刀·第'+S.round+'夜】你有一次性的禁刀：今晚宣告则全体狼无法击杀（护住全场一晚）。现在用吗？\n<thinking>思考</thinking>\n<action>YES 或 NO</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          doBlock = /yes|用|禁刀/i.test(r.action||'') && !/^\s*no\b|不用|不禁|留着/i.test((r.action||'').trim());
+        }
+        if (doBlock) { S.nightData.foxBlockKill = true; p._cBlockUsed = true; p.memory.push({role:'system', content:'【禁刀·私密】你宣告了今晚全狼禁刀。'}); if (!isAnon()) Render.log('night-result','🚫 '+p.name+'宣告了今晚全狼禁刀'); }
+      }
+      // 🛡️ 可转移护盾（一次性、含自己；闲置转护己，结算在 resolveNight 后处理）
+      if (ab.includes('shield') && !p._shieldUsed) {
+        const cand = alive.slice();
+        let t = null;
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·护盾】护谁？（他没挨刀则盾自动转护你自己）','🛡️ 护盾', cand.map(x=>({label:x.id===p.id?'自己':x.name,value:x.name})));
+          t = findPlayer(v, cand);
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·护盾·第'+S.round+'夜】你有一块一次性护盾：护一人挡一次夜死，他今晚没挨刀则盾自动转护你自己。护谁？可选：'+cand.map(x=>'P'+(x.id+1)+' '+x.name+(x.id===p.id?'(自己)':'')).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名或"自己"</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          t = findPlayer(r.action, cand) || (/自己|自我|自身/.test(r.action||'') ? p : null) || p;
+        }
+        if (t) { S.nightData.customShield[p.id] = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'护住了'+(t.id===p.id?'自己':t.name)); }
+      }
+      // 🎁 赐予（复用奇迹商人机制：盾即时/查验毒次夜；幸运儿是狼→当场出局）
+      if (ab.includes('grant') && others.length) {
+        let t = null, gift = 'shield';
+        const GIFTS = [{k:'shield',label:'🛡️ 盾'},{k:'inspect',label:'🔮 查验'},{k:'poison',label:'🧪 毒'}];
+        if (p.isPlayer) {
+          const v = await waitChoice('【'+p.role.name+'·赐予】赐给谁？（若他是狼→作废、当场出局）','🎁 幸运儿', others.map(x=>({label:x.name,value:x.name})).concat([{label:'今晚不赐',value:'None',abs:true}]));
+          if (v !== 'None') { t = findPlayer(v, others); if (t) gift = await waitChoice('赐什么礼物？','🎁 礼物', GIFTS.map(g=>({label:g.label,value:g.k}))); }
+        } else {
+          const r = await callAI(p, '【'+p.role.name+'·赐予·第'+S.round+'夜】指定一名幸运儿赐【盾/查验/毒】之一；是狼则作废、当场出局。可选：'+others.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'\n<thinking>思考</thinking>\n<action>玩家名 | 礼物(盾/查验/毒) 或 None</action>', {noMemory:true, skillConfirm:true});
+          logNightThinking(p, r);
+          const raw = (r.action||'');
+          if (!/^\s*none\s*$/i.test(raw.trim())) { t = findPlayer(raw.split(/[|｜,，]/)[0], others) || findPlayer(extractSkillTarget(raw+' '+(r.thinking||''), others, 'grant'), others); gift = /毒/.test(raw)?'poison':(/查验|验/.test(raw)?'inspect':'shield'); }
+        }
+        if (t) {
+          if (t.role.team === 'bad') { S.nightData.customExpose.push(t.id); p.memory.push({role:'system', content:'【赐予·私密】幸运儿'+t.name+'其实是狼，礼物作废、当场出局。'}); if (!isAnon()) Render.log('night-result','🎁 '+p.name+'的幸运儿'+t.name+'竟是狼，当场出局'); }
+          else {
+            if (gift === 'shield') t._grantShield = true; else t._grant = {type:gift, ready:S.round+1};
+            const gt = gift==='shield'?'一块护盾(今晚免一次夜死)':(gift==='inspect'?'一次性查验(次夜起)':'一次性毒药(次夜起)');
+            p.memory.push({role:'system', content:'【赐予·私密】你赐给'+t.name+'(好人)'+gt+'。'});
+            t.memory.push({role:'system', content:'【神秘馈赠】今夜有神秘之力赐予你'+gt+'。'});
+            if (!isAnon()) Render.log('night-result','🎁 '+p.name+'赐予'+t.name+gt);
+          }
         }
       }
       Render.setSpeaking(p.id, false);
@@ -13282,7 +13376,9 @@ const PhaseHandlers = {
       // 🎁 被商人赐予的一次性技能（次夜起可用）在此登记本夜行动目标
       grantInspect:null, grantPoison:null, grantGuard:null,
       // 🧩 积木自创角色的当晚产出：守护/解药挡刀的目标集合、毒杀目标集合
-      customProtect:[], customSave:[], customPoison:[]};
+      customProtect:[], customSave:[], customPoison:[],
+      // 🧩 积木·可转移护盾(施法者id→护盾目标id) / 赐予翻出的狼幸运儿(当场出局)
+      customShield:{}, customExpose:[]};
     S.silenced = -1;
     S.players.forEach(p => Render.card(p));
     Render.phaseClass(); Render.stats();
@@ -14661,6 +14757,16 @@ async function resolveNight() {
       }
     }
   }
+  // 🧩 积木·赐予：幸运儿其实是狼 → 当场出局
+  if (Array.isArray(S.nightData.customExpose) && S.nightData.customExpose.length) {
+    for (const eid of S.nightData.customExpose) {
+      const ev = S.players[eid];
+      if (ev && ev.alive) {
+        ev.alive=false; ev.revealed=true; ev.deathCause='merchant'; ev.deathRound=S.round; ev.deathPhase='night';
+        deaths.push({player:ev, cause:'merchant'});
+      }
+    }
+  }
 
   // ★ 连环杀手袭击结算：独立于狼刀与毒药。守卫/机械盾可挡；女巫解药无效（她只看得到狼刀口）；
   //   魔术师交换不影响（只重定向狼刀）。放在毒药结算之后：若目标已被毒死则按"毒"优先（不能发动死亡技能）。
@@ -14717,6 +14823,27 @@ async function resolveNight() {
       saved.memory.push({role:'system', content:'【护盾生效】神秘馈赠的护盾替你挡下了一次夜间致命伤。⚠️只有你知道。'});
     }
   });
+  // 🧩 积木·可转移护盾：护住的人挨刀则救他，否则盾转护施法者自己；成功挡下即消耗（每个带 shield 积木的角色各一次）
+  if (S.nightData.customShield) {
+    S.players.forEach(sp => {
+      if (!sp.role || !Array.isArray(sp.role.customAbilities) || !sp.role.customAbilities.includes('shield')) return;
+      if (sp._shieldUsed) return;
+      const shieldedId = S.nightData.customShield[sp.id];
+      if (shieldedId == null) return;
+      const hitSet = new Set(deaths.map(d => d.player.id));
+      const protectId = hitSet.has(shieldedId) ? shieldedId : sp.id;
+      const idx = deaths.findIndex(d => d.player.id === protectId);
+      if (idx >= 0) {
+        const saved = deaths[idx].player;
+        saved.alive = true; saved.revealed = false; saved.poisoned = false;
+        saved.deathCause = null; saved.deathRound = null; saved.deathPhase = null;
+        deaths.splice(idx, 1); Render.card(saved);
+        sp._shieldUsed = true;
+        Render.log('system','🛡️ '+sp.name+'的护盾挡下一次夜袭，'+saved.name+'幸免于难（护盾已消耗）');
+        sp.memory.push({role:'system', content:'【护盾生效】你的护盾替'+(saved.id===sp.id?'你自己':saved.name)+'挡下了一次夜间致命伤，护盾已消耗。⚠️只有你知道。'});
+      }
+    });
+  }
   // ★ 机械狼是孤狼，不参与狼队夜刀 → 不接收狼队刀口记录（避免它拿到"睁眼"信息穿帮）
   const ws = S.players.filter(p => p.alive && p.role.team==='bad' && p.role.id!=='mechwolf');
   // ★ 机械狼独狼行凶时（普通狼已全灭），它自己知道刀口结果，单独给它记录
