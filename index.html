@@ -339,6 +339,21 @@ select { min-width: 60px; }
 @keyframes wk-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(3px)} 60%{transform:translateX(-2px)} 80%{transform:translateX(1px)} }
 .pc.wk-shake { animation: wk-shake 0.4s; }
 
+/* --- 神职特效 --- */
+.role-fx { position:absolute; inset:0; pointer-events:none; z-index:7; display:flex; justify-content:center; align-items:center; border-radius:inherit; overflow:hidden; font-size:2em; }
+.role-fx .fx-icon { opacity:0; }
+.poison-fx .fx-icon { animation: poison-bubble 1s ease-out forwards; text-shadow: 0 0 10px #a020f0; }
+.save-fx .fx-icon { animation: save-glow 1s ease-out forwards; text-shadow: 0 0 10px #40f040; }
+.save-fx .plus { position:absolute; font-size:0.5em; right:10px; top:10px; animation: save-glow 1s ease-out 0.2s forwards; }
+.seer-fx .fx-icon { animation: seer-scan 1.2s ease-in-out forwards; text-shadow: 0 0 15px #4080f0; }
+.hunter-fx .target { animation: hunter-lock 0.5s ease-in forwards; text-shadow: 0 0 10px #f02020; }
+.guard-fx .shield { animation: guard-pulse 1s ease-in-out forwards; text-shadow: 0 0 15px #40c0f0; }
+@keyframes poison-bubble { 0%{opacity:0;transform:translateY(20px) scale(0.5)} 50%{opacity:1;transform:translateY(-10px) scale(1.2)} 100%{opacity:0;transform:translateY(-30px) scale(1.5)} }
+@keyframes save-glow { 0%{opacity:0;transform:scale(0.5) rotate(-45deg)} 50%{opacity:1;transform:scale(1.5) rotate(0deg)} 100%{opacity:0;transform:scale(2) rotate(45deg)} }
+@keyframes seer-scan { 0%{opacity:0;transform:scale(2)} 20%{opacity:1;transform:scale(1)} 80%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(0)} }
+@keyframes hunter-lock { 0%{opacity:0;transform:scale(3)} 80%{opacity:1;transform:scale(0.8)} 100%{opacity:0;transform:scale(1)} }
+@keyframes guard-pulse { 0%{opacity:0;transform:scale(0.8)} 50%{opacity:0.8;transform:scale(1.1)} 100%{opacity:0;transform:scale(1.3)} }
+
 .pc.speaking {
   border-color: var(--gold) !important;
   box-shadow: 0 0 18px rgba(245,160,184,0.25), inset 0 0 8px rgba(245,160,184,0.05) !important;
@@ -11007,9 +11022,78 @@ async function _triggerLoverDeath(p, hd) {
 }
 
 // ★ 狼人击杀特效：在被害者的卡片上一次性播放"朱砂血溅+爪痕"，然后自动移除。
-//   仅用于狼系直接击杀（夜刀 kill / 狼王咬 bite / 连环杀 serialkill），放逐/毒杀不触发。
+// ★ 角色特效：视觉与音效 (Web Audio API)
+const SoundFX = {
+  ctx: null,
+  init() { if(this.ctx) return; try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} },
+  play(type) {
+    if(!this.ctx) this.init();
+    if(!this.ctx || this.ctx.state === 'suspended') {
+      try { this.ctx.resume(); } catch(e){}
+    }
+    if(!this.ctx) return;
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      if(type==='wolf') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(40, t+0.3);
+        gain.gain.setValueAtTime(0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.3);
+        osc.start(t); osc.stop(t+0.3);
+      } else if(type==='poison') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(300, t); osc.frequency.linearRampToValueAtTime(800, t+0.4);
+        gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.4);
+        osc.start(t); osc.stop(t+0.4);
+      } else if(type==='save') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(600, t); osc.frequency.linearRampToValueAtTime(1200, t+0.2); osc.frequency.linearRampToValueAtTime(800, t+0.6);
+        gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(0.2, t+0.1); gain.gain.exponentialRampToValueAtTime(0.01, t+0.6);
+        osc.start(t); osc.stop(t+0.6);
+      } else if(type==='seer') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(1200, t);
+        gain.gain.setValueAtTime(0.15, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.2);
+        osc.start(t); osc.stop(t+0.2);
+      } else if(type==='hunter') {
+        const bs=this.ctx.sampleRate*0.3; const buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate); const dat=buf.getChannelData(0);
+        for(let i=0;i<bs;i++) dat[i]=Math.random()*2-1;
+        const nz=this.ctx.createBufferSource(); nz.buffer=buf;
+        const flt=this.ctx.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=1000;
+        nz.connect(flt); flt.connect(gain);
+        gain.gain.setValueAtTime(0.5, t); gain.gain.exponentialRampToValueAtTime(0.01, t+0.3);
+        nz.start(t); nz.stop(t+0.3);
+      } else if(type==='guard') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(200, t); osc.frequency.linearRampToValueAtTime(220, t+0.1); osc.frequency.linearRampToValueAtTime(200, t+0.5);
+        gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(0.2, t+0.1); gain.gain.exponentialRampToValueAtTime(0.01, t+0.5);
+        osc.start(t); osc.stop(t+0.5);
+      }
+    } catch(e) {}
+  }
+};
+
+function playRoleEffect(p, type) {
+  try {
+    if(!p) return;
+    SoundFX.play(type);
+    const c = document.getElementById('p-' + p.id);
+    if(!c) return;
+    const fx = document.createElement('div');
+    fx.className = 'role-fx ' + type + '-fx';
+    if(type==='poison') fx.innerHTML = '<div class="fx-icon">🫧</div>';
+    else if(type==='save') fx.innerHTML = '<div class="fx-icon">✨</div><div class="fx-icon plus">➕</div>';
+    else if(type==='seer') fx.innerHTML = '<div class="fx-icon">👁️</div>';
+    else if(type==='hunter') fx.innerHTML = '<div class="fx-icon target">🎯</div>';
+    else if(type==='guard') fx.innerHTML = '<div class="fx-icon shield">🛡️</div>';
+    c.appendChild(fx);
+    if(type==='hunter') { c.classList.add('wk-shake'); setTimeout(()=>c.classList.remove('wk-shake'), 400); }
+    setTimeout(() => { if (fx.parentNode) fx.parentNode.removeChild(fx); }, 1500);
+  } catch(e) {}
+}
+
+// 仅用于狼系直接击杀（夜刀 kill / 狼王咬 bite / 连环杀 serialkill），放逐/毒杀不触发。
 function wolfKillEffect(p) {
   try {
+    SoundFX.play('wolf');
     if (!p) return;
     const c = document.getElementById('p-' + p.id);
     if (!c) return;
@@ -11086,6 +11170,8 @@ async function killPlayer(p, cause, opts) {
   Render.card(p);
   // ★ 狼系击杀播放血溅特效（夜刀/狼王咬/连环杀）；放逐、毒、决斗等不触发
   if (cause==='kill' || cause==='bite' || cause==='serialkill') wolfKillEffect(p);
+  else if (cause==='poison') playRoleEffect(p, 'poison');
+  else if (cause==='shoot') playRoleEffect(p, 'hunter');
   const hd = $('m-hdeath').checked;
   const causeText = {kill:'昨晚死亡',serialkill:'昨晚死亡',vote:'被投票放逐',poison:'昨晚死亡',merchant:'赐福时误将礼物赐给了狼、遭反噬身亡',duel:'因骑士决斗结算而亡',mechduel:'被机械狼的强制决斗处死（该技能不验证阵营）',shoot:'作为中枪者被公开开枪技能带走',bite:'作为被咬者被狼王咬死',charm:'作为被魅惑者随狼美人殉情（本人不因此被认定为狼美人）',loversick:'作为恋人随另一方殉情（该死因不验证原身份或阵营）',explode:'作为目标被白狼王自爆带走（本人不是白狼王）',selfexplode:'发动自爆技能身亡（他本人就是白狼王）',trial:'作为被审判者被定罪处决',trialfail:'发起审判失败、反坐身亡（他是发起质疑的一方，不是被审判者）'}[cause]||'死亡';
   Render.log('death', '💀 '+p.name+(hd?'':' '+p.role.name)+' 死亡' + (opts.suffix||''));
@@ -14787,6 +14873,10 @@ async function resolveNight() {
     // 🧩 积木自创角色的守护/解药命中被刀者 → 干净挡下（不参与同守同救）
     const customBlocked = (Array.isArray(S.nightData.customProtect) && S.nightData.customProtect.includes(S.nightData.kill)) ||
                           (Array.isArray(S.nightData.customSave) && S.nightData.customSave.includes(S.nightData.kill));
+                          
+    if (anyGuard || (Array.isArray(S.nightData.customProtect) && S.nightData.customProtect.includes(S.nightData.kill))) playRoleEffect(v, 'guard');
+    if (is || (Array.isArray(S.nightData.customSave) && S.nightData.customSave.includes(S.nightData.kill))) setTimeout(() => playRoleEffect(v, 'save'), 500);
+
     if (foxBlocked) {
       Render.log('system','🦊 子狐媚惑·禁刀生效，'+v.name+'挡下了本夜的狼刀');
     } else if (customBlocked && !breakKnife) {
