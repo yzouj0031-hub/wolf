@@ -1888,6 +1888,7 @@ body.has-wp::after {
   </div>
   <div class="cbtn">
     <button id="ccancel" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">取消</button>
+    <button id="cgo-save" style="background:rgba(208,160,240,0.15);color:#d0a0f0;border:1px solid rgba(208,160,240,0.4)" title="把当前配置存成常驻模式卡片，下次一点即玩">💾 存为模式</button>
     <button id="cgo" style="background:rgba(200,168,76,0.2);color:var(--gold);border:1px solid var(--gold)" disabled>开局</button>
   </div>
 </div></div>
@@ -5601,6 +5602,7 @@ function saveCfg() {
     spectatorList, specEnable:$('spec-enable')?$('spec-enable').checked:false, specFreq:$('spec-freq')?$('spec-freq').value:'mid',
     conc:{speak:getC('c-speak'),vote:getC('c-vote'),wolf:getC('c-wolf'),wvote:getC('c-wvote'),trial:getC('c-trial'),end:getC('c-end')},
     customRolesDefs: window._customRolesDefs || [],
+    customModes: window._customModes || [],
     personaPool: window.personaPool || [],
     personaPoolEnabled: $('m-persona-pool') ? $('m-persona-pool').checked : false,
     extraFallbacks: extraFallbacks
@@ -5670,6 +5672,10 @@ function loadCfg() {
       // 迁移旧版单备选
       extraFallbacks = [{url:d.fbUrl||'',key:d.fbKey||'',model:d.fbModel||'',type:d.fbType||'openai'}];
       renderFbList();
+    }
+    if (d.customModes && Array.isArray(d.customModes)) {
+      window._customModes = d.customModes;
+      if (typeof renderCustomModeCards === 'function') renderCustomModeCards();
     }
     if (d.customRolesDefs && Array.isArray(d.customRolesDefs)) {
       window._customRolesDefs = d.customRolesDefs;
@@ -16022,6 +16028,74 @@ function startC() {
   forceReset();
 }
 
+/* ══════ 自定义模式预设：把当前自定配置存成常驻卡片，下次一点即玩 ══════ */
+window._customModes = window._customModes || [];
+
+// 把一套自定配置压成简短的角色摘要（供卡片显示），如 "🐺×3 🔮 🧪 🛡️ 👨‍🌾×2"
+function _customModeSummary(counts) {
+  const parts = [];
+  for (const id in counts) {
+    const n = counts[id]; if (!n || !ALL_ROLES[id]) continue;
+    parts.push((ALL_ROLES[id].emoji || ALL_ROLES[id].name) + (n > 1 ? '×' + n : ''));
+  }
+  return parts.join(' ');
+}
+
+// 保存当前自定弹窗里的配置为一个预设模式
+function saveCustomModePreset() {
+  // 校验：与开局同样的合法性（总数匹配、至少1狼、好人多于狼、6~20人）
+  customTotal = parseInt($('ct-num').value) || 10;
+  let t = 0, w = 0;
+  for (const id in customCounts) { const n = customCounts[id] || 0; t += n; if (ALL_ROLES[id] && ALL_ROLES[id].team === 'bad') w += n; }
+  if (!(t === customTotal && w >= 1 && (t - w) > w && customTotal >= 6 && customTotal <= 20)) {
+    alert('当前配置还不合法（需人数匹配、至少1狼、好人多于狼、6~20人），先配好再存为模式。');
+    return;
+  }
+  const name = (prompt('给这个模式起个名字：', '我的' + customTotal + '人局') || '').trim();
+  if (!name) return;
+  const counts = {};
+  for (const id in customCounts) { if (customCounts[id] > 0 && ALL_ROLES[id]) counts[id] = customCounts[id]; }
+  window._customModes.push({ id: 'cm_' + Date.now(), name, count: customTotal, counts });
+  saveCfg();
+  renderCustomModeCards();
+  alert('✅ 已保存为模式「' + name + '」，返回主菜单即可看到它的卡片。');
+}
+
+// 在主菜单模式区渲染所有自定义模式预设卡片（先清掉旧的再重画）
+function renderCustomModeCards() {
+  const grid = $('mode-cards');
+  if (!grid) return;
+  grid.querySelectorAll('.mcd-preset').forEach(el => el.remove());
+  (window._customModes || []).forEach(cm => {
+    const card = document.createElement('div');
+    card.className = 'mcd mcd-preset';
+    card.dataset.mode = cm.id;
+    card.innerHTML = '<button class="cm-del" title="删除此模式" style="position:absolute;top:4px;right:6px;width:20px;height:20px;line-height:18px;padding:0;border-radius:50%;background:rgba(200,48,64,0.25);border:1px solid rgba(200,48,64,0.5);color:#f0a0a8;font-size:0.8em;cursor:pointer;z-index:2">✕</button>'
+      + '<h3>' + escapeHtml(cm.name) + '</h3><div class="pl">📌</div>'
+      + '<div class="desc">' + cm.count + '人 · 自定义<br>' + escapeHtml(_customModeSummary(cm.counts)) + '</div>';
+    card.style.position = 'relative';
+    grid.appendChild(card);
+  });
+}
+
+// 点击预设卡：还原配置 → 直接进入开局设置
+function startCustomModePreset(id) {
+  const cm = (window._customModes || []).find(x => x.id === id);
+  if (!cm) return;
+  customTotal = cm.count;
+  customCounts = {};
+  for (const rid in cm.counts) { if (ALL_ROLES[rid]) customCounts[rid] = cm.counts[rid]; }  // 过滤已删除的自创角色
+  if ($('ct-num')) $('ct-num').value = customTotal;
+  S._customPureAI = false;
+  startC();
+}
+
+function deleteCustomMode(id) {
+  window._customModes = (window._customModes || []).filter(x => x.id !== id);
+  saveCfg();
+  renderCustomModeCards();
+}
+
 /* ================================================================
  *  § 22. 面板管理
  * ================================================================ */
@@ -18118,17 +18192,25 @@ function bindEvents() {
     const card = e.target.closest('[data-mode]');
     if (!card) return;
     const mode = card.dataset.mode;
+    // 预设卡上的删除按钮
+    if (e.target.closest('.cm-del')) {
+      const cm = (window._customModes || []).find(x => x.id === mode);
+      if (cm && confirm('删除自定义模式「' + cm.name + '」？')) deleteCustomMode(mode);
+      return;
+    }
     if (mode === 'custom') openCustom();
     else if (mode === 'customai') openCustom(true);
     else if (mode === 'pureai') selectMode('standard', true);
     else if (mode === 'groupchat') openGChat();
     else if (mode === 'mystery') openMurderMystery();
+    else if (mode.indexOf('cm_') === 0) startCustomModePreset(mode);  // 自定义模式预设
     else selectMode(mode);
   });
 
   $('ct-num').addEventListener('change', updateCS);
   $('ccancel').addEventListener('click', () => $('cpop').classList.remove('show'));
   $('cgo').addEventListener('click', startC);
+  { const _s = $('cgo-save'); if (_s) _s.addEventListener('click', saveCustomModePreset); }
   $('croles').addEventListener('click', e => {
     const btn = e.target.closest('[data-adj]');
     if (!btn) return;
@@ -19202,6 +19284,7 @@ renderFbList();
 loadSpecList();
 bindEvents();
 renderCosplayPresets();
+renderCustomModeCards();
 
 /* ================================================================
  *  § 壁纸管理
