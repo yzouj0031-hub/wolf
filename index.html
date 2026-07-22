@@ -13219,7 +13219,7 @@ ${magicKillDecisionHint}
             const iw2 = seerSeesAsWolf(t2);
             p.memory.push({role:'system',content:'【永久查验·结果】你看了'+t2.name+'→'+(iw2?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
             if (!isAnon()) Render.log('night-result','🔮 '+p.name+'（获赐永久查验）看了'+t2.name);
-            gameRecord.push({type:'night_action', role:'granted-seer', round:S.round, target:t2.name, result:iw2?'wolf':'good'});
+            gameRecord.push({type:'night_action', role:'granted-seer', round:S.round, name:p.name, target:t2.name, result:iw2?'wolf':'good'});
           }
         }
       }
@@ -13247,12 +13247,12 @@ ${magicKillDecisionHint}
           const iw = seerSeesAsWolf(t);
           p.memory.push({role:'system',content:'【赐予查验·结果】你用一次性查验看了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
           if (!isAnon()) Render.log('night-result','🎁 '+p.name+'用赐予的查验看了'+t.name);
-          gameRecord.push({type:'night_action', role:'granted-inspect', round:S.round, target:t.name, result:iw?'wolf':'good'});
+          gameRecord.push({type:'night_action', role:'granted-inspect', round:S.round, name:p.name, target:t.name, result:iw?'wolf':'good'});
         } else if (g.type==='poison') {
           if (S.nightData.grantPoison==null) S.nightData.grantPoison = t.id;
           p.memory.push({role:'system',content:'【赐予毒药·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'});
           if (!isAnon()) Render.log('night-result','🎁 '+p.name+'用赐予的毒药毒了'+t.name);
-          gameRecord.push({type:'night_action', role:'granted-poison', round:S.round, target:t.name});
+          gameRecord.push({type:'night_action', role:'granted-poison', round:S.round, name:p.name, target:t.name});
         }
       }
     }
@@ -13279,7 +13279,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, cand) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, cand, 'guard'), cand));
         }
-        if (t) { S.nightData.customProtect.push(t.id); p._cLastGuard = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'守护了'+(t.id===p.id?'自己':t.name)); }
+        if (t) { S.nightData.customProtect.push(t.id); p._cLastGuard = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'守护了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-protect', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); }
         else p._cLastGuard = -1;
       }
       // 🔮 查验
@@ -13297,7 +13297,7 @@ ${magicKillDecisionHint}
           const iw = seerSeesAsWolf(reflectInspectSubject(p, t));  // 🌒 复用蚀时狼妃反弹
           p.memory.push({role:'system', content:'【查验结果·私密】你查验了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道，跳身份时如实报。'});
           if (!isAnon()) Render.log('night-result','🔮 '+p.name+'查验'+t.name+'→'+(iw?'🐺狼人':'✅好人'));
-          gameRecord.push({type:'night_action', role:'custom-inspect', round:S.round, target:t.name, result:iw?'wolf':'good'});
+          gameRecord.push({type:'night_action', role:'custom-inspect', round:S.round, name:p.name, custom:p.role.name, target:t.name, result:iw?'wolf':'good'});
         }
       }
       // 🧪 毒（一次性）
@@ -13311,7 +13311,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'poison'), others));
         }
-        if (t) { S.nightData.customPoison.push(t.id); p._cPoisonUsed = true; p.memory.push({role:'system', content:'【毒·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','🧪 '+p.name+'毒了'+t.name); }
+        if (t) { S.nightData.customPoison.push(t.id); p._cPoisonUsed = true; p.memory.push({role:'system', content:'【毒·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','🧪 '+p.name+'毒了'+t.name); gameRecord.push({type:'night_action', role:'custom-poison', round:S.round, name:p.name, custom:p.role.name, target:t.name}); }
       }
       // 💉 解药（一次性，需看到当晚刀口）
       if (ab.includes('save') && !p._cSaveUsed && S.nightData.kill !== null) {
@@ -13327,7 +13327,7 @@ ${magicKillDecisionHint}
             const _sa = (r.action||'').trim();
             doSave = /save|救/i.test(_sa) && !/不救|no|不用|别救|不救人|放弃/i.test(_sa);  // 防"不救"被 /救/ 命中
           }
-          if (doSave) { S.nightData.customSave.push(victim.id); p._cSaveUsed = true; p.memory.push({role:'system', content:'【解药·私密】你救了'+victim.name+'。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','💉 '+p.name+'救了'+victim.name); }
+          if (doSave) { S.nightData.customSave.push(victim.id); p._cSaveUsed = true; p.memory.push({role:'system', content:'【解药·私密】你救了'+victim.name+'。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','💉 '+p.name+'救了'+victim.name); gameRecord.push({type:'night_action', role:'custom-save', round:S.round, name:p.name, custom:p.role.name, target:victim.name}); }
         }
       }
       // 🔇 封技能（复用子狐 foxMuteIds；被封者夜间主动技当晚失效）
@@ -13341,7 +13341,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'mute'), others));
         }
-        if (t) { if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id); p.memory.push({role:'system', content:'【封技能·私密】你封锁了'+t.name+'今晚的夜间主动技。'}); if (!isAnon()) Render.log('night-result','🔇 '+p.name+'封锁了'+t.name+'的技能'); }
+        if (t) { if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id); p.memory.push({role:'system', content:'【封技能·私密】你封锁了'+t.name+'今晚的夜间主动技。'}); if (!isAnon()) Render.log('night-result','🔇 '+p.name+'封锁了'+t.name+'的技能'); gameRecord.push({type:'night_action', role:'custom-mute', round:S.round, name:p.name, custom:p.role.name, target:t.name}); }
       }
       // 🌒 反弹（复用蚀时狼妃 concubineGuard）；目标含自己（锁自己=谁查/守/毒你就反噬谁，一次性防身）
       if (ab.includes('reflect')) {
@@ -13355,7 +13355,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, reflCand) || (/自己|自我|自身/.test(r.action||'') ? p : null) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, reflCand, 'reflect'), reflCand));
         }
-        if (t) { S.nightData.concubineGuard = t.id; p.memory.push({role:'system', content:'【反弹·私密】你锁定了'+(t.id===p.id?'自己':t.name)+'：查/守/毒'+(t.id===p.id?'你':'他')+'的神职会被反弹到自己（仅首个命中者触发）。'}); if (!isAnon()) Render.log('night-result','🌒 '+p.name+'反弹锁定了'+(t.id===p.id?'自己':t.name)); }
+        if (t) { S.nightData.concubineGuard = t.id; p.memory.push({role:'system', content:'【反弹·私密】你锁定了'+(t.id===p.id?'自己':t.name)+'：查/守/毒'+(t.id===p.id?'你':'他')+'的神职会被反弹到自己（仅首个命中者触发）。'}); if (!isAnon()) Render.log('night-result','🌒 '+p.name+'反弹锁定了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-reflect', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); }
       }
       // 🚫 禁刀（一次性，复用 foxBlockKill）
       if (ab.includes('blockKill') && !p._cBlockUsed) {
@@ -13368,7 +13368,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           doBlock = /yes|用|禁刀/i.test(r.action||'') && !/^\s*no\b|不用|不禁|留着/i.test((r.action||'').trim());
         }
-        if (doBlock) { S.nightData.foxBlockKill = true; p._cBlockUsed = true; p.memory.push({role:'system', content:'【禁刀·私密】你宣告了今晚全狼禁刀。'}); if (!isAnon()) Render.log('night-result','🚫 '+p.name+'宣告了今晚全狼禁刀'); }
+        if (doBlock) { S.nightData.foxBlockKill = true; p._cBlockUsed = true; p.memory.push({role:'system', content:'【禁刀·私密】你宣告了今晚全狼禁刀。'}); if (!isAnon()) Render.log('night-result','🚫 '+p.name+'宣告了今晚全狼禁刀'); gameRecord.push({type:'night_action', role:'custom-block', round:S.round, name:p.name, custom:p.role.name, target:null}); }
       }
       // 🛡️ 可转移护盾（一次性、含自己；闲置转护己，结算在 resolveNight 后处理）
       if (ab.includes('shield') && !p._shieldUsed) {
@@ -13382,7 +13382,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           t = findPlayer(r.action, cand) || (/自己|自我|自身/.test(r.action||'') ? p : null) || p;
         }
-        if (t) { S.nightData.customShield[p.id] = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'护住了'+(t.id===p.id?'自己':t.name)); }
+        if (t) { S.nightData.customShield[p.id] = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'护住了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-shield', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); }
       }
       // 🎁 赐予（复用奇迹商人机制：盾即时/查验毒次夜；幸运儿是狼→当场出局）
       if (ab.includes('grant') && others.length) {
@@ -13398,13 +13398,14 @@ ${magicKillDecisionHint}
           if (!/^\s*none\s*$/i.test(raw.trim())) { t = findPlayer(raw.split(/[|｜,，]/)[0], others) || findPlayer(extractSkillTarget(raw+' '+(r.thinking||''), others, 'grant'), others); gift = /毒/.test(raw)?'poison':(/查验|验/.test(raw)?'inspect':'shield'); }
         }
         if (t) {
-          if (t.role.team === 'bad') { S.nightData.customExpose.push(p.id); p.memory.push({role:'system', content:'【赐予·私密】你赐给'+t.name+'，但他其实是狼——赐福被反噬，你自己今晚出局（他毫发无损）。'}); if (!isAnon()) Render.log('night-result','🎁 '+p.name+'误将礼物赐给了狼（'+t.name+'），反被反噬、自己出局'); }
+          if (t.role.team === 'bad') { S.nightData.customExpose.push(p.id); p.memory.push({role:'system', content:'【赐予·私密】你赐给'+t.name+'，但他其实是狼——赐福被反噬，你自己今晚出局（他毫发无损）。'}); if (!isAnon()) Render.log('night-result','🎁 '+p.name+'误将礼物赐给了狼（'+t.name+'），反被反噬、自己出局'); gameRecord.push({type:'night_action', role:'custom-grant', round:S.round, name:p.name, custom:p.role.name, target:t.name, result:'backfire'}); }
           else {
             if (gift === 'shield') t._grantShield = true; else t._grant = {type:gift, ready:S.round+1};
             const gt = gift==='shield'?'一块护盾(今晚免一次夜死)':(gift==='inspect'?'一次性查验(次夜起)':'一次性毒药(次夜起)');
             p.memory.push({role:'system', content:'【赐予·私密】你赐给'+t.name+'(好人)'+gt+'。'});
             t.memory.push({role:'system', content:'【神秘馈赠】今夜有神秘之力赐予你'+gt+'。'});
             if (!isAnon()) Render.log('night-result','🎁 '+p.name+'赐予'+t.name+gt);
+            gameRecord.push({type:'night_action', role:'custom-grant', round:S.round, name:p.name, custom:p.role.name, target:t.name, result:'grant', gift:(gift==='shield'?'盾':gift==='inspect'?'查验':'毒')});
           }
         }
       }
@@ -16544,6 +16545,8 @@ function generateReplay() {
       if (ev.type === 'trial') return `<div class="ev vote-ev">${escapeHtml(_formatPublicTrialEvent(ev))}</div>`;
       if (ev.type === 'sheriff_transfer') return `<div class="ev vote-ev">${escapeHtml(_formatPublicSheriffTransfer(ev))}</div>`;
       if (ev.type === 'night_action') {
+        const _cl = _formatCustomNightAction(ev);
+        if (_cl) return `<div class="ev action-ev">${escapeHtml(_cl)}</div>`;
         const icons = {wolf:'🐺',seer:'🔮',witch:'🧙‍♀️',guard:'🛡️',wolfbeauty:'🌹',wolfking:'👹'};
         return `<div class="ev action-ev"><span class="ev-icon">${icons[ev.role]||'🎯'}</span><span class="ev-role-name">${ev.role}</span> → ${ev.target||'无'}</div>`;
       }
@@ -16691,6 +16694,10 @@ function _buildGodViewReport() {
         else if (r.role === 'guard' && r.target) lines.push(`  🛡️ 守卫守护 ${r.target}`);
         else if (r.role === 'serialkiller' && r.target) lines.push(`  🔪 连环杀手袭击 ${r.target}`);
         else if (r.role && r.role.startsWith('mechwolf') && r.target) lines.push(`  🤖 机械狼：${r.target}`);
+        else if (r.role === 'witch') lines.push(`  🧙‍♀️ 女巫：${r.saved?'救'+r.saved:'未救'}${r.poisoned?'·毒'+r.poisoned:''}`);
+        else if (r.role === 'wolf' && r.target) lines.push(`  🐺 狼队刀 ${r.target}`);
+        else if (r.role === 'wolfbeauty') lines.push(`  🌹 狼美人魅惑 ${r.target||'无'}`);
+        else { const _cl = _formatCustomNightAction(r); if (_cl) lines.push('  ' + _cl); }
       } else if (r.type === 'death') {
         lines.push(`  💀 ${r.name}(${roleName(r.name)}) 死亡（${r.cause||'?'}）`);
       } else if (r.type === 'skillConsumed') {
@@ -17523,6 +17530,41 @@ function _formatLoverPublicNote(victims) {
   return `💘 公开事件：${pair[0].name}与${pair[1].name}的恋人关系已因殉情触发而公开。“恋人/殉情者”只是关系身份，不会验证两人原本的角色或阵营。`;
 }
 
+// 🧩 自创/样板角色夜间行动 → 展示文案。返回 null 表示不是自创角色事件（交由内置分支处理）。
+//   覆盖样板角色（子狐/蚀时狼妃/愚者/奇迹商人/游商 + 赐予衍生技）与积木自创角色（custom-*）。
+//   ⚠️ 这些行动均为夜间私密信息：只应在上帝视角/复盘导出或行动者本人自视角中显示，不得进入他人视角摘要。
+function _formatCustomNightAction(r) {
+  const t = r.target || '无';
+  const wg = res => res === 'wolf' ? '🐺狼人' : '✅好人';
+  const who = r.custom || '自创角色';   // 积木自创角色用玩家自定义的角色名
+  switch (r.role) {
+    case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
+    case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（凡查/守/毒他的神职反噬其自身，仅首个命中触发）';
+    case 'fool':           return '🃏 愚者护盾：护住 ' + t + '（他若没挨刀，盾自动转护愚者本人）';
+    case 'merchant':
+    case 'youshang':       return (r.role === 'merchant' ? '🎪 奇迹商人' : '🎁 游商') + '赐予：' + t +
+                                  (r.result === 'backfire' ? '（对方竟是🐺狼→赐福反噬、赐予者自己出局）' : '（对方是好人→待其自选盾/查验/毒）');
+    case 'granted-seer':   return '🎁🔮 获赐永久查验：' + t + ' → ' + wg(r.result);
+    case 'granted-inspect':return '🎁🔮 获赐一次性查验：' + t + ' → ' + wg(r.result);
+    case 'granted-poison': return '🎁🧪 获赐毒药：毒杀 ' + t;
+    case 'custom-inspect': return '🔮 ' + who + '·查验：' + t + ' → ' + wg(r.result);
+    case 'custom-protect': return '🛡️ ' + who + '·守护：' + t;
+    case 'custom-poison':  return '🧪 ' + who + '·毒药：毒杀 ' + t;
+    case 'custom-save':    return '💉 ' + who + '·解药：救 ' + t;
+    case 'custom-mute':    return '🔇 ' + who + '·封技能：' + t + '（其今晚夜间技失效）';
+    case 'custom-reflect': return '🌒 ' + who + '·反弹锁定：' + t;
+    case 'custom-block':   return '🚫 ' + who + '·禁刀：今晚全狼无法击杀';
+    case 'custom-shield':  return '🛡️ ' + who + '·护盾：护 ' + t + '（他若没挨刀，盾自动转护本人）';
+    case 'custom-grant':   return '🎁 ' + who + '·赐予：' + t +
+                                  (r.result === 'backfire' ? '（对方竟是🐺狼→反噬、赐予者自己出局）' : '（对方是好人→赐 ' + (r.gift || '礼物') + '）');
+    default:               return null;
+  }
+}
+// 判断某条 night_action 是否属于某视角玩家本人（用于自视角摘要显示自己的自创技能行动）
+function _isOwnNightAction(r, viewerP) {
+  return !!(r && viewerP && r.name && r.name === viewerP.name && /^(custom-|granted-|fox$|fool$|merchant$|youshang$|wolfconcubine$)/.test(r.role || ''));
+}
+
 function _buildChatSummary(viewerP, roundFilter, opts) {
   // viewerP=null 表示上帝视角；roundFilter=null 表示全部轮次，否则是 [{round,phase,label}] 数组
   // opts.hideDeathRole=true 隐藏已出局玩家身份；opts.feedClaude=true 在前面加完整系统prompt
@@ -17738,6 +17780,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         else if (r.role === 'mechwolf_poison') txt += '\n🤖☠️ 机械狼毒=' + (r.target||'未毒') + '\n';
         else if (r.role === 'mechwolf_magician') txt += '\n🤖🎩 机械狼魔术情报=' + (r.target||'魔术师空过') + '\n';
         else if (r.role === 'mechwolf_kill') txt += '\n🤖🔪 ' + (r.target ? '机械狼刀='+r.target : '机械狼选择空刀') + '\n';
+        else { const _cl = _formatCustomNightAction(r); if (_cl) txt += '\n' + _cl + '\n'; }
       };
       if (isGod && !blindReview) {
         // 上帝视角：全部夜间行动可见
@@ -17745,7 +17788,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       } else {
         if ((r.role === 'wolf' || r.role === 'wolfbeauty') && isWolf) {
           appendNightAction();
-        } else if (r.role === roleId || isMechOwn) {
+        } else if (r.role === roleId || isMechOwn || _isOwnNightAction(r, viewerP)) {
           if (r.role === 'witch') {
             // ★ 只有当夜仍持有救药时，女巫才能看到刀口。
             // 救药使用当夜仍可见；从下一夜起必须隐藏，避免导出记录泄露上帝视角。
@@ -17862,6 +17905,7 @@ function openExport() {
       else if (r.role === 'mechwolf_poison') actionDesc = r.target ? `毒了${r.target}` : '未毒';
       else if (r.role === 'mechwolf_magician') actionDesc = r.target ? `得知真实换位${r.target}` : '得知魔术师空过';
       else if (r.role === 'mechwolf_kill') actionDesc = r.target ? `刀${r.target}` : '选择空刀';
+      else { const _cl = _formatCustomNightAction(r); if (_cl) { txt += _cl + '\n'; if (inc && r.thinking) txt += '  ('+r.thinking+')\n'; txt += '\n'; return; } }
       txt += `[第${r.round}夜·${roleEmoji}] ${actionDesc}\n`;
       if (inc && r.thinking) txt += '  ('+r.thinking+')\n';
       if (r.gameText) txt += '  '+r.gameText+'\n';
