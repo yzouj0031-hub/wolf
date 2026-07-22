@@ -3223,7 +3223,8 @@ reg({id:'magician',name:'魔术师',team:'good',emoji:'🎩',desc:'每晚可交�
 reg({id:'whitecat',name:'白猫',team:'good',emoji:'🐈‍⬛',desc:'好人。被任意方式出局后触发【缓死】：翻牌公开、本次不死，延迟到下一个同类阶段才真正死亡；缓死期间仍是活人可发言投票。',maxCount:99,cssClass:'',delayedDeath:true,guide:'你是白猫（好人）。\n【缓死·被动】你被任意方式判出局（狼刀/投票/枪/自爆…）时不会立即死：当场翻牌公开身份，但本次不死，延迟到"下一个同类阶段"才真正死亡——夜里被刀→撑到下一个夜晚才死；白天被投→撑到下一个投票阶段才死。缓死期间你仍是活人，可以正常发言、投票。\n【怎么玩】你有一条命的缓冲，可以更大胆地站边、跳身份、试探狼——就算被推/被刀，你还能再活一轮，把关键信息在缓死这一轮充分传递给好人。注意翻牌后身份已公开、狼会针对你，用好这最后一轮。'});
 reg({id:'fox',name:'子狐',team:'good',emoji:'🦊',desc:'好人神职。第2夜起每晚媚惑一人：若他是狼→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营。',maxCount:1,cssClass:'',startRound:2,guide:'你是子狐（好人神职）。\n【媚惑·第2夜起】每晚选一名其他玩家：若他是狼→当晚【全体狼无法击杀】（护住全场）；若他是好人→他今晚的夜间主动技能失效（浪费一个神职一晚）。行动后你会私下得知他的真实阵营。第一夜无法行动。\n【怎么玩】优先媚惑你最怀疑是狼的人——赌对了直接废掉当晚狼刀，赌错了顶多封掉一个好人一晚技能，而且确认了他是好人，等于变相验人。你每晚都在积累"谁狼谁好"的硬信息。\n【保密】媚惑得到的阵营只有你知道，跳身份前别说漏；跳出来报媚惑记录能自证并提供大量验人信息。'});
 reg({id:'fool',name:'愚者',team:'good',emoji:'🃏',desc:'好人。一次性保命：①首次被投票放逐→翻牌免疫不死；②每晚护一人挡一次夜间致命伤，闲置则转护己。两者共用一次，任一触发后失去全部技能。',maxCount:1,cssClass:'',guide:'你是愚者（好人）。你有【一次】保命机会，两种触发方式共用这一次，任一触发后失去所有技能：\n【白天·首放逐免疫】第一次被投票放逐时→翻牌公开、免疫此次放逐（不死）。仅对投票放逐有效，自爆/枪/审判处决照死。免疫后仍可继续投票。\n【夜间·可转移护盾】每晚指定一人挂护盾，替他挡一次夜间致命伤；若他今晚没挨刀（盾没用上），盾自动转来护你自己。成功挡下一次伤害后失去全部技能。\n【怎么玩】护盾在手时可以大胆站边、诱狼刀你自证；但白天免疫和夜间护盾只有一发，用在最关键的一次保命上。'});
-reg({id:'merchant',name:'奇迹商人',team:'good',emoji:'🎪',desc:'好人。每晚指定一名幸运儿赐【盾/查验/毒】之一；若幸运儿其实是狼→赐福反噬、商人自己出局（只敢赐信任的好人）。',maxCount:1,cssClass:'',guide:'你是奇迹商人（好人）。\n【赐予】每晚指定一名幸运儿，赐予【盾/查验/毒】之一：盾=今晚护他免一次夜死；查验=他从次夜起可验一人阵营（一次性）；毒=他从次夜起可毒杀一人（一次性）。\n【⚠️ 纯赌命·最重要的规则】若幸运儿其实是狼→赐福被反噬、【你自己当场出局】（那只狼毫发无损、也不得技能）！所以这个技能是【拿自己的命赌幸运儿是好人】——绝不能赐给你怀疑是狼的人（那等于自杀），只赐给你【真心信任是好人】的对象：已被预言家验成金水的、逻辑铁好人的、你确认的神职队友。\n【怎么玩】它是"送福利"技能，不是"抓狼"技能——你是在给你信任的好人加 buff（盾/查验/毒），代价是赌错阵营就赔上自己。赐得越保守越安全；越急着赐给可疑对象越容易自爆。你私下知道幸运儿是否收到礼物（收到=好人；你自己死了=他是狼），也算一种验人（但代价高昂）。\n【保密】赐予对象和结果是私密信息，跳身份前别说漏。'});
+reg({id:'merchant',name:'奇迹商人',team:'good',emoji:'🎪',desc:'好人。整局仅赐 1 次：指定一名幸运儿，由幸运儿自选【盾/查验/毒】之一并永久生效（查验=此后每晚可验一人）；幸运儿若是狼→赐福反噬、商人自己出局。可不赐、不能赐自己。',maxCount:1,cssClass:'',guide:'你是奇迹商人（好人）。\n【赐予·整局仅一次】你整局只能赐 1 次：指定一名你信任的幸运儿，由 ta 自己从【盾/查验/毒】里挑一个，永久生效——盾=获得一次挡刀；查验=此后每晚可验一人阵营（等于多一个预言家位）；毒=获得一次毒杀（择夜使用）。你也可以「今晚不赐」，攒着等看准了再出手（这一次很宝贵）。\n【⚠️ 纯赌命·最重要的规则】若幸运儿其实是狼→赐福被反噬、【你自己当场出局】（那只狼毫发无损、也不得技能）！所以绝不能赐给你怀疑是狼的人（等于自杀），只赐给你【真心信任是好人】的对象：金水、逻辑铁好人、你确认的神职队友。\n【怎么玩】整局一锤子买卖，赐得越稳越好；没把握就先不赐。你私下知道结果（赐成功=好人；你死了=他是狼）。\n【保密】赐予对象和结果私密，跳身份前别说漏。'});
+reg({id:'youshang',name:'游商',team:'good',emoji:'🎁',desc:'好人。每晚指定一名幸运儿（不能连续两晚赐同一人），由幸运儿自选【盾/查验/毒】之一，仅一晚有效、不累积；幸运儿若是狼→反噬、游商自己出局。可不赐、不能赐自己。',maxCount:1,cssClass:'',guide:'你是游商（好人）。\n【赐予·每晚】每晚可指定一名幸运儿（⚠️不能连续两晚赐同一人，要隔开），由 ta 自己挑【盾/查验/毒】之一，但礼物只当晚有效、次晚失效、不累积：盾=当晚挡一刀；查验=获得一次当晚可用的查验；毒=获得一次当晚可用的毒杀。你也可以「今晚不赐」。\n【⚠️ 纯赌命】赐到狼→赐福反噬、你自己当场出局（狼毫发无损、也不得技能）！只赐你真心信任是好人的人（金水、铁好人、神职队友）。\n【怎么玩】比奇迹商人灵活（每晚都能给），但每次都在拿命赌、且礼物不过夜。稳赐金水最安全，没把握就不赐。\n【保密】赐予对象和结果私密，跳身份前别说漏。'});
 reg({id:'wolfconcubine',name:'蚀时狼妃',team:'bad',emoji:'🌒',desc:'狼阵营。每晚锁定一人X：凡查验/守护/毒打到X的神职都被反弹、落到该神职自己身上（首个命中者触发，仅一次）。',maxCount:1,cssClass:'tw',guide:'你是蚀时狼妃（狼阵营，反弹型狼）。\n【反弹锁定】你和狼队一起参与夜间狼刀讨论；另外每晚额外锁定一人X（可含你自己）：今晚凡是查验X的预言家、守护X的守卫、毒X的女巫，技能都会被反弹、落到他们自己身上（预言家查到自己、守卫守自己、女巫毒死自己）。首个命中X的神职触发，仅一次，X本人不受影响。\n【怎么玩·两种用法】①【锁别人·进攻】把X设成好人最可能去查/守/毒的关键位——你怀疑的真预言家想验的对象、或女巫想毒的狼队友。赌中就能反噬神职（甚至让女巫毒死自己）、保护狼队。②【锁自己·防身】把X设成你自己，则任何来查验你的预言家会查到他自己（拿到废结果）、来毒你的女巫会毒死自己、来守你的守卫守到自己——等于一次性护住你的身份不被验证或处理。局势紧、怕被查杀/被毒时，锁自己是很硬的保命手。\n【保密】和普通狼一样，白天绝不能提夜间的事和刀口。'});
 reg({id:'villager',name:'村民',team:'good',emoji:'👨‍🌾',desc:'普通好人 没有特殊能力',maxCount:99,cssClass:'',guide:'你是村民。没有特殊能力,你唯一的资源是发言。\n\n【⚠️ 核心铁律:必须产出独立判断,纯附和=负分】\n如果你每轮发言都只是"我同意XX""我也觉得YY像狼",你就把自己变成了透明人——好人没法靠你抓狼,狼人乐见其成。\n每轮发言前在 thinking 里强制问:\n· 我这一轮有没有提出至少一个别人还没说过的判断点?(某句话的具体破绽 / 一条没人提过的获利链 / 一个被忽略的票型反常)\n· 如果只能附和,强迫自己多想一层:他们的共识有没有被忽略的反例?最被孤立的那个人是真有问题还是被冤枉了?\n纯附和让你显得像深水狼。狼人附和的成本为 0,村民必须用独立产出证明自己。\n\n【找狼的核心方法——具体矛盾,不是感觉】\n· 谁说了一句话和已知事实对不上?\n· 谁的票型在关键时刻指向了对狼队更安全的方向?\n· 谁在某人被证伪后还在洗,或者提前就在帮他洗?\n· 谁因此事变得更安全?——获利链往往比发言风格更暴露狼\n\n【发言风格——精短或深入,不要划水中间态】\n两种都是好村民:\n· 精短型(3-5 句):每句都带具体判断点,不水\n· 深入型(把对方某句话拆成 2-3 个漏洞逐条反驳):适合关键轮次\n禁止第三种:很多客套话+很多附和+很少独立判断——长度上去了但信息密度低,等于划水。宁可短而准,不要长而空。\n\n【你的额外资源——你的命和身份也是工具】\n虽然没技能,但你的命和身份本身可以作为筹码使用——比如让狼把你当神职刀,让狼队对你的真实身份做出错误判断,或在票型混乱时主动承担一个聚拢的位置。这些不是招式,是把"我是村民"这件事反过来用。具体怎么用、什么时候用、风险有多大、用完怎么收尾——每次都要在 thinking 里把目的、代价、退路都想清楚。\n\n【被集火时——硬怀疑就反击,锁死就保留信息】\n被多人怀疑时先在 thinking 里判断票型还能不能翻盘。能则反击(找最具体的指控反驳、指出攻击者的获利链);锁死了就接受,把遗言用来传递最大化信息(你认为的狼坑、获利最明显的人)。\n\n【推神职——好人的隐藏必修课】\n抓狼只是一半,另一半是推断己方神职并保护他们。在 thinking 里主动想:谁可能是预言家/女巫/守卫?狼今晚会刀谁?——推出来后可以在发言中给他做身份或挡火力。\n投票时也要算:今天出这个人如果他是好人,我们损失了什么?宁可空一票也不要在信息不足时送神职。\\n\\n【⚠️ 你没信息,但绝不是"陪跑的"——主动找事做,别当狼的提款机】村民最容易陷入两个困境:一是没技能没视角、发言没分量,容易被狼当"没信息量"推掉;二是只会跟票,狼带节奏时你就是那张被借走杀好人的刀。破解办法是【用脑子和大局观刷存在感】——一个会动脑的村民,狼最头疼(推他会显得心虚),价值不比神职低。除了前面说的独立盘逻辑,你还能主动做一件别人忽略的事:\\n· **帮神职做"用药协调"建议(村民说这个最安全,因为不暴露任何身份)。** 但⚠️必须【先讲原因、再给建议】,否则会被当成狼——如果你张口就指挥"女巫别交药",女巫和全场第一反应是"你凭什么管我的解药?是不是狼想骗我别救人、好让狼刀生效?"反而把自己说成狼。正确顺序:① 先讲原因——"女巫的解药很金贵,而且有个风险:如果场上有守卫,守卫守的人万一和女巫救的人撞一起(同守同救),那人反而会死、药还白费,所以药不能乱交";② 再给建议——"我建议解药留给预言家这种已确认的关键神职;今晚被刀的不是要紧位置就先别用,当然刀口是女巫自己的话自救没问题"。这样你以一个"懂行、为好人着想的村民"形象贡献了战术大局观,而不是"凭空抢药权的可疑分子"。\\n· **别让自己变成狼的工具:** 每次跟一个票之前自问一句——"这票是我自己判断的,还是被人带的?如果带我的人是狼,我这票是不是正帮他杀好人?"有自己的判断,就不会被当枪使。村民的存在感不靠技能,靠脑子:会盘、会协调、有独立判断的村民,是好人方的隐形中坚。\\n· **提"用骑士破对跳僵局"的思路(平民也能贡献的破局大局观)。** 当场上两个预言家对跳、好人靠发言分不清真假时,你可以提醒大家一个机制:如果场上有骑士,他决斗其中一个预言家,无论翻牌是狼还是好人,都能直接验明两个预言家谁真谁假,一剑破僵局。但⚠️必须守两条纪律,否则这个提议反而害死好人:① **只讲机制,绝不指定骑士该决斗谁**——你可以说"决斗其中一个就能验真假",但绝不能喊"骑士快去决斗某某";因为你不能保证自己判断对,万一你指的恰好是真预言家,就等于借骑士的剑杀了真神(狼最爱借好人的嘴指挥骑士的剑去杀真神)。具体决斗谁,必须骑士自己按收益逻辑判断。② **是给思路、不是逼骑士马上行动**——别催、别逼真骑士仓促暴露或仓促拔剑,把决定权和时机完全留给骑士。你的价值是"点出这个破局工具的存在",不是"替骑士做决定"。'+N1});
 
@@ -12985,55 +12986,128 @@ ${magicKillDecisionHint}
     Render.setSpeaking(fl.id, false);
   },
 
-  // 🎪 奇迹商人：每晚指定幸运儿赐【盾/查验/毒】之一；幸运儿是狼→礼物作废、当场出局。
-  async merchant(alive) {
-    const me = alive.find(p => p.role.id==='merchant');
+  // 🎪🎁 赐予型角色·选人阶段：商人/游商指定幸运儿(或今晚不赐)；礼物种类留给幸运儿自选(见 pickGift)。
+  //   赐到狼 → 赐福反噬、赐福者当场出局；赐到好人 → 挂 _giftPending 待其自选。
+  async _grantSelect(me, alive, cfg) {
     if (!me) return;
+    if (cfg.once && me._grantUsed) return;                 // 一次性商人：整局只赐一次
     if (nightSkillMuted(me)) { me.memory.push({role:'system',content:'【异常】你今晚的赐予被封锁了。'}); return; }
-    if (!isAnon()) Render.log('night-detail','🎪 奇迹商人行动…');
+    if (!isAnon()) Render.log('night-detail', cfg.emoji+' '+cfg.roleName+'行动…');
     Render.setSpeaking(me.id, true);
-    const ts = alive.filter(p => p.id!==me.id);
-    let t = null, gift = 'shield';
-    const GIFTS = [{k:'shield',label:'🛡️ 盾（今晚护住他免一次夜死）'},{k:'inspect',label:'🔮 查验（他次夜起可验一人阵营·一次性）'},{k:'poison',label:'🧪 毒（他次夜起可毒杀一人·一次性）'}];
-    if (me.isPlayer) {
-      const v = await waitChoice('把礼物赐给谁？（⚠️若他其实是狼→你自己反噬出局，所以只赐你信任是好人的人）','🎪 幸运儿', ts.map(x=>({label:x.name,value:x.name})));
-      t = findPlayer(v, ts);
-      if (t) gift = await waitChoice('赐予什么礼物？','🎁 礼物', GIFTS.map(g=>({label:g.label,value:g.k})));
-    } else {
-      const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
-      const contextPrompt = '【奇迹商人·第'+S.round+'夜】\n可选幸运儿：'+targetList+'\n你每晚指定一名幸运儿，赐予【盾/查验/毒】之一：盾=今晚护他免一次夜死；查验=他从次夜起可验一人阵营（一次性）；毒=他从次夜起可毒杀一人（一次性）。\n⚠️【纯赌命·核心规则】若幸运儿其实是狼→赐福被反噬、【你自己当场出局】（那只狼毫发无损、也不得技能）！所以【绝不能】把礼物赐给你怀疑是狼的人——那等于自杀。只赐给你【真心信任是好人】的对象（已被验金水、逻辑铁好人、你的神职队友等）。赌错=你死，务必谨慎。';
-      const actionPrompt = '选择幸运儿和礼物：\n<action>玩家名 | 礼物(盾/查验/毒)</action>';
-      const r = await nightTwoStep(me, contextPrompt, actionPrompt);
-      logNightThinking(me, r);
-      const raw = (r.action||'');
-      t = findPlayer(raw.split(/[|｜,，]/)[0], ts) || findPlayer(extractSkillTarget(raw+' '+(r.thinking||''), ts, 'merchant'), ts) || ts[Math.floor(Math.random()*ts.length)];
-      gift = /毒/.test(raw)?'poison':(/查验|验/.test(raw)?'inspect':'shield');
+    let ts = alive.filter(p => p.id!==me.id);              // 不能赐自己
+    if (cfg.noConsec && Number.isInteger(me[cfg.lastKey]) && me[cfg.lastKey]>=0) {
+      ts = ts.filter(p => p.id!==me[cfg.lastKey]);          // 不能连赐同一人
     }
-    if (t) {
-      const isWolf = t.role.team==='bad';
-      if (isWolf) {
-        // ★ 纯赌命：赐到狼 → 赐福被反噬，商人自己出局；狼幸运儿不死、也不得技能
-        S.nightData.customExpose.push(me.id);
-        me.memory.push({role:'system',content:'【赐予·私密】你赐给了'+t.name+'，但他其实是🐺狼——赐福被反噬，你自己今晚出局（他毫发无损）。⚠️只有你知道。'});
-        if (!isAnon()) Render.log('night-result','🎪 奇迹商人误将礼物赐给了狼（'+t.name+'），反被反噬、自己出局');
-        gameRecord.push({type:'night_action', role:'merchant', round:S.round, target:t.name, result:'backfire'});
+    let t = null;
+    if (ts.length) {
+      if (me.isPlayer) {
+        const opts = ts.map(x=>({label:x.name,value:x.name})); opts.push({label:'🚫 今晚不赐',value:'None',abs:true});
+        const v = await waitChoice('把礼物赐给谁？（⚠️赐到狼→你自己反噬出局；礼物种类由对方自选）', cfg.emoji+' 幸运儿', opts);
+        if (v!=='None') t = findPlayer(v, ts);
       } else {
-        if (gift==='shield') t._grantShield = true;
-        else t._grant = {type:gift, ready:S.round+1};
-        S.nightData.merchantLucky = t.id; S.nightData.merchantGift = gift;
-        const giftTxt = gift==='shield'?'一块护盾（今晚免一次夜死）':(gift==='inspect'?'一次性查验（次夜起可用）':'一次性毒药（次夜起可用）');
-        me.memory.push({role:'system',content:'【赐予·私密】你赐给了'+t.name+'（好人）'+giftTxt+'。⚠️只有你知道。'});
-        t.memory.push({role:'system',content:'【神秘馈赠】今夜有神秘之力赐予你'+giftTxt+'。'+(gift==='shield'?'今晚若遭夜袭，会为你挡下一次。':'从下一个夜晚起，你可以主动使用它一次。')});
-        if (!isAnon()) Render.log('night-result','🎪 奇迹商人赐予'+t.name+giftTxt);
-        gameRecord.push({type:'night_action', role:'merchant', round:S.round, target:t.name, result:gift});
+        const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
+        const ctx = '【'+cfg.roleName+'·第'+S.round+'夜】\n可选幸运儿：'+targetList+'\n你指定一名信任的幸运儿赐福（礼物种类盾/查验/毒由 ta 自选）。\n⚠️【纯赌命】赐到狼→赐福反噬、你自己当场出局（狼不死）！只赐你真心信任是好人的对象（金水/铁好人/神职队友）。没把握就不赐。'+(cfg.noConsec?'\n（不能连续两晚赐同一人。）':'')+(cfg.once?'\n（整局只能赐这一次，很宝贵。）':'');
+        const r = await nightTwoStep(me, ctx, '选择幸运儿：\n<action>玩家名 或 None（今晚不赐）</action>');
+        logNightThinking(me, r);
+        if (!/^\s*none\s*$/i.test((r.action||'').trim())) {
+          t = findPlayer(r.action, ts) || (r.thinking && findPlayer(extractSkillTarget(r.action+' '+(r.thinking||''), ts, 'merchant'), ts));
+        }
       }
     }
+    if (t) {
+      if (cfg.noConsec) me[cfg.lastKey] = t.id;
+      if (cfg.once) me._grantUsed = true;                  // 实际赐出才消耗"整局一次"（不赐不消耗）
+      if (t.role.team==='bad') {
+        S.nightData.customExpose.push(me.id);              // 赐到狼 → 反噬出局
+        me.memory.push({role:'system',content:'【赐予·私密】你赐给了'+t.name+'，但他其实是🐺狼——赐福被反噬，你自己今晚出局（他毫发无损）。⚠️只有你知道。'});
+        if (!isAnon()) Render.log('night-result', cfg.emoji+' '+cfg.roleName+'误将礼物赐给了狼（'+t.name+'），反被反噬、自己出局');
+        gameRecord.push({type:'night_action', role:me.role.id, round:S.round, target:t.name, result:'backfire'});
+      } else {
+        t._giftPending = { giver: me.id, permanent: !!cfg.permanent, from: cfg.roleName };  // 待幸运儿自选
+        me.memory.push({role:'system',content:'【赐予·私密】你把礼物赐给了'+t.name+'（好人），礼物种类由 ta 自己挑。⚠️只有你知道。'});
+        if (!isAnon()) Render.log('night-result', cfg.emoji+' '+cfg.roleName+'赐福给了'+t.name+'（由其自选礼物）');
+        gameRecord.push({type:'night_action', role:me.role.id, round:S.round, target:t.name, result:'grant'});
+      }
+    } else if (cfg.noConsec) {
+      me[cfg.lastKey] = -1;                                // 今晚不赐 → 清空"上次"，下晚可再赐任意人
+    }
     Render.setSpeaking(me.id, false);
+  },
+
+  // 🎪 奇迹商人：整局仅赐 1 次，礼物永久生效。
+  async merchant(alive) {
+    await NightActions._grantSelect(alive.find(p=>p.role.id==='merchant'), alive, {roleName:'奇迹商人', emoji:'🎪', once:true, permanent:true, noConsec:false});
+  },
+  // 🎁 游商：每晚可赐、礼物仅一晚有效、不能连赐同一人。
+  async youshang(alive) {
+    await NightActions._grantSelect(alive.find(p=>p.role.id==='youshang'), alive, {roleName:'游商', emoji:'🎁', once:false, permanent:false, noConsec:true, lastKey:'_youLast'});
+  },
+
+  // 🎁 幸运儿自选礼物：被赐福者从 盾/查验/毒 里自选一个。permanent(商人)=查验永久每晚验；否则(游商)=仅本晚。
+  async pickGift(alive) {
+    for (const p of alive) {
+      const pend = p._giftPending;
+      if (!pend) continue;
+      p._giftPending = null;
+      const perm = pend.permanent;
+      const GIFTS = [
+        {k:'shield', label:'🛡️ 盾（今晚免一次夜死）'},
+        {k:'inspect', label: perm?'🔮 查验（此后每晚可验一人）':'🔮 查验（仅今晚验一人）'},
+        {k:'poison', label: perm?'🧪 毒（择夜毒杀一人·一次性）':'🧪 毒（仅今晚可毒一人）'}
+      ];
+      let gift = 'shield';
+      if (p.isPlayer) {
+        gift = await waitChoice('你收到了'+pend.from+'的赐福，自选一份礼物：', '🎁 自选礼物', GIFTS.map(g=>({label:g.label,value:g.k})));
+      } else {
+        const r = await callAI(p, '【神秘馈赠·自选】你收到了神秘赐福，可自选一份礼物：\n🛡️盾='+(perm?'一次挡刀':'今晚挡一刀')+'；🔮查验='+(perm?'此后每晚可验一人阵营（等于多一个预言家位）':'今晚验一人阵营')+'；🧪毒='+(perm?'择夜毒杀一人':'今晚毒杀一人')+'。\n<thinking>思考</thinking>\n<action>盾 / 查验 / 毒</action>', {noMemory:true, skillConfirm:true});
+        logNightThinking(p, r);
+        const raw = (r.action||'')+' '+(r.thinking||'');
+        gift = /毒/.test(raw)?'poison':(/查验|验/.test(raw)?'inspect':'shield');
+      }
+      if (gift==='shield') {
+        p._grantShield = true; p._grantShieldExpire = perm ? Infinity : S.round;   // 游商盾仅当晚
+        p.memory.push({role:'system',content:'【神秘馈赠】你获得【护盾】：'+(perm?'一次挡刀（留到被夜袭时生效）':'今晚若被夜袭挡下一次')+'。⚠️只有你知道。'});
+      } else if (gift==='inspect' && perm) {
+        p._grantedSeer = true; p._grantedSeerReady = S.round+1;                     // 商人永久查验：次夜起每晚可验
+        p.memory.push({role:'system',content:'【神秘馈赠】你获得【查验·永久】：从下一个夜晚起，每晚可查验一人阵营。⚠️只有你知道。'});
+      } else {
+        p._grant = {type:gift, ready: perm ? S.round+1 : S.round, expire: perm ? Infinity : S.round};  // 一次性查验/毒
+        p.memory.push({role:'system',content:'【神秘馈赠】你获得【'+(gift==='inspect'?'查验':'毒药')+'·一次性】（'+(perm?'从下一个夜晚起可用一次':'仅限今晚使用')+'）。⚠️只有你知道。'});
+      }
+      if (!isAnon()) Render.log('night-result','🎁 '+p.name+'自选了'+(gift==='shield'?'护盾':gift==='inspect'?'查验':'毒药'));
+    }
   },
 
   // 🎁 被奇迹商人赐予的一次性技能行动（查验/毒，次夜起可用；用掉即消）
   async grantedSkill(alive) {
     for (const p of alive) {
+      // 🎁 游商盾仅当晚有效：过期清理
+      if (p._grantShield && p._grantShieldExpire != null && S.round > p._grantShieldExpire) p._grantShield = false;
+      // 🔮 奇迹商人·永久查验：自 _grantedSeerReady 起，每晚可验一人（持久，不消耗）
+      if (p._grantedSeer && (p._grantedSeerReady || 0) <= S.round) {
+        const ts2 = alive.filter(x => x.id!==p.id);
+        if (ts2.length) {
+          let t2 = null;
+          if (p.isPlayer) {
+            const opts2 = ts2.map(x=>({label:x.name,value:x.name})); opts2.push({label:'今晚不验',value:'None',abs:true});
+            const v2 = await waitChoice('用永久查验看谁？','🔮 赐予·永久查验', opts2);
+            if (v2!=='None') t2 = findPlayer(v2, ts2);
+          } else {
+            const tl = ts2.map(x=>`P${x.id+1} ${x.name}`).join('、');
+            const r2 = await callAI(p, '【神秘馈赠·永久查验·第'+S.round+'夜】你每晚可查验一人阵营。可选：'+tl+'\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>', {noMemory:true, skillConfirm:true});
+            logNightThinking(p, r2);
+            if (!/^\s*none\s*$/i.test((r2.action||'').trim())) t2 = findPlayer(r2.action, ts2) || (r2.thinking && findPlayer(extractSkillTarget(r2.thinking, ts2, 'granted'), ts2));
+          }
+          if (t2) {
+            const iw2 = seerSeesAsWolf(t2);
+            p.memory.push({role:'system',content:'【永久查验·结果】你看了'+t2.name+'→'+(iw2?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
+            if (!isAnon()) Render.log('night-result','🔮 '+p.name+'（获赐永久查验）看了'+t2.name);
+            gameRecord.push({type:'night_action', role:'granted-seer', round:S.round, target:t2.name, result:iw2?'wolf':'good'});
+          }
+        }
+      }
+      // 🎁 一次性查验/毒：到期(游商仅当晚)清理
+      if (p._grant && p._grant.expire != null && S.round > p._grant.expire) p._grant = null;
       if (!p._grant || p._grant.ready > S.round) continue;
       const g = p._grant;
       const ts = alive.filter(x => x.id!==p.id);
@@ -13403,6 +13477,8 @@ const PhaseHandlers = {
       await NightActions.fox(alive);
       await NightActions.wolfconcubine(alive);
       await NightActions.merchant(alive);
+      await NightActions.youshang(alive);
+      await NightActions.pickGift(alive);
       await NightActions.fool(alive);
       // 第一夜后续行动（丘比特已先行）：魔术师→守卫→狼人→女巫→预言家→连环杀手→狼美人
       await NightActions.magician(alive);
@@ -13442,6 +13518,8 @@ const PhaseHandlers = {
     await NightActions.fox(alive);
     await NightActions.wolfconcubine(alive);
     await NightActions.merchant(alive);
+    await NightActions.youshang(alive);
+    await NightActions.pickGift(alive);
     await NightActions.fool(alive);
     // 夜间行动顺序：魔术师→守卫→狼人（刀口经魔术师交换重定向）→女巫→预言家→狼美人
     await NightActions.magician(alive);
