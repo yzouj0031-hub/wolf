@@ -20723,6 +20723,11 @@ function buildWebPrompt(p) {
           pushBucket(round, seg, detail);
           break;
         }
+        case 'foolImmune':
+        case 'reprieve': {
+          pushBucket(round, seg, _formatPublicRevealEvent(r));
+          break;
+        }
         case 'lover_death': {
           pushBucket(round, seg, `💘 恋人连带：${r.trigger}死亡，${r.lover}随之殉情（只公开恋人关系，不验证原身份/阵营）`);
           break;
