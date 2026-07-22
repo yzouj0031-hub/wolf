@@ -13,6 +13,8 @@ const FILES = [
   'manifest.webmanifest',
   'sw.js',
   'tablet.css',
+  'role-effects.css',
+  'role-effects.js',
   'native-http.js',
   'horror.html',
   'style-preview.html'
