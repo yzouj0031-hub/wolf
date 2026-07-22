@@ -13216,7 +13216,7 @@ ${magicKillDecisionHint}
             if (!/^\s*none\s*$/i.test((r2.action||'').trim())) t2 = findPlayer(r2.action, ts2) || (r2.thinking && findPlayer(extractSkillTarget(r2.thinking, ts2, 'granted'), ts2));
           }
           if (t2) {
-            const iw2 = seerSeesAsWolf(t2);
+            const iw2 = seerSeesAsWolf(reflectInspectSubject(p, t2));  // 🌒 蚀时狼妃反弹：命中被锁X则静默查到自己
             p.memory.push({role:'system',content:'【永久查验·结果】你看了'+t2.name+'→'+(iw2?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
             if (!isAnon()) Render.log('night-result','🔮 '+p.name+'（获赐永久查验）看了'+t2.name);
             gameRecord.push({type:'night_action', role:'granted-seer', round:S.round, name:p.name, target:t2.name, result:iw2?'wolf':'good'});
@@ -13244,12 +13244,12 @@ ${magicKillDecisionHint}
       if (t) {
         p._grant = null;   // 一次性，用掉即消
         if (g.type==='inspect') {
-          const iw = seerSeesAsWolf(t);
+          const iw = seerSeesAsWolf(reflectInspectSubject(p, t));  // 🌒 蚀时狼妃反弹：命中被锁X则静默查到自己
           p.memory.push({role:'system',content:'【赐予查验·结果】你用一次性查验看了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
           if (!isAnon()) Render.log('night-result','🎁 '+p.name+'用赐予的查验看了'+t.name);
           gameRecord.push({type:'night_action', role:'granted-inspect', round:S.round, name:p.name, target:t.name, result:iw?'wolf':'good'});
         } else if (g.type==='poison') {
-          if (S.nightData.grantPoison==null) S.nightData.grantPoison = t.id;
+          if (S.nightData.grantPoison==null) S.nightData.grantPoison = reflectEffectTarget(p, t.id);  // 🌒 命中被锁X则反噬赐毒者自己
           p.memory.push({role:'system',content:'【赐予毒药·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'});
           if (!isAnon()) Render.log('night-result','🎁 '+p.name+'用赐予的毒药毒了'+t.name);
           gameRecord.push({type:'night_action', role:'granted-poison', round:S.round, name:p.name, target:t.name});
@@ -13279,7 +13279,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, cand) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, cand, 'guard'), cand));
         }
-        if (t) { S.nightData.customProtect.push(t.id); p._cLastGuard = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'守护了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-protect', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); }
+        if (t) { S.nightData.customProtect.push(reflectEffectTarget(p, t.id)); p._cLastGuard = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'守护了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-protect', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); }
         else p._cLastGuard = -1;
       }
       // 🔮 查验
@@ -13311,7 +13311,7 @@ ${magicKillDecisionHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'poison'), others));
         }
-        if (t) { S.nightData.customPoison.push(t.id); p._cPoisonUsed = true; p.memory.push({role:'system', content:'【毒·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','🧪 '+p.name+'毒了'+t.name); gameRecord.push({type:'night_action', role:'custom-poison', round:S.round, name:p.name, custom:p.role.name, target:t.name}); }
+        if (t) { S.nightData.customPoison.push(reflectEffectTarget(p, t.id)); p._cPoisonUsed = true; p.memory.push({role:'system', content:'【毒·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','🧪 '+p.name+'毒了'+t.name); gameRecord.push({type:'night_action', role:'custom-poison', round:S.round, name:p.name, custom:p.role.name, target:t.name}); }
       }
       // 💉 解药（一次性，需看到当晚刀口）
       if (ab.includes('save') && !p._cSaveUsed && S.nightData.kill !== null) {
@@ -14820,6 +14820,18 @@ function reflectInspectSubject(caster, t){
     return caster;
   }
   return t;
+}
+// 🌒 蚀时狼妃反弹·通用重定向（守护/毒等落点型效果）：命中被锁 X 的效果 → 静默改落到施法者自己身上
+//   （首个命中触发、仅一次；与查验反弹、内置守卫/女巫反弹共用同一个 _concubineTriggered 开关）。
+//   覆盖赐予的毒、积木自创角色的守护/毒——与设定"凡查验/守护/毒打到 X 的都反弹"一致。
+function reflectEffectTarget(caster, targetId){
+  if (!caster || targetId == null || !S.nightData) return targetId;
+  if (S.nightData.concubineGuard == null || S.nightData._concubineTriggered) return targetId;
+  if (targetId === S.nightData.concubineGuard && caster.id !== S.nightData.concubineGuard){
+    S.nightData._concubineTriggered = true;
+    return caster.id;
+  }
+  return targetId;
 }
 // resolveNight 最前的自创技能预处理：子狐封技能（守卫/女巫/魔术师）、蚀时狼妃反弹（守卫守护/女巫毒）。
 //   预言家的封技能/反弹在其夜间行动源头即时处理，此处只补足需要按 nightData 结算的三类。
