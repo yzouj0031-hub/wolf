@@ -13064,7 +13064,11 @@ ${magicKillDecisionHint}
       } else {
         const r = await callAI(p, '【神秘馈赠·自选】你收到了神秘赐福，可自选一份礼物：\n🛡️盾='+(perm?'一次挡刀':'今晚挡一刀')+'；🔮查验='+(perm?'此后每晚可验一人阵营（等于多一个预言家位）':'今晚验一人阵营')+'；🧪毒='+(perm?'择夜毒杀一人':'今晚毒杀一人')+'。\n<thinking>思考</thinking>\n<action>盾 / 查验 / 毒</action>', {noMemory:true, skillConfirm:true});
         logNightThinking(p, r);
-        const raw = (r.action||'')+' '+(r.thinking||'');
+        // ★ fix: 只从 action（权威字段）判定礼物；action 为空才退回 thinking。
+        //   否则 thinking 里讨论"毒/查验"等选项的字眼会盖过 action 的真实选择
+        //   （例：action=盾，但 thinking 提到过"毒"→ 被误判成毒药）。
+        const act = (r.action||'').trim();
+        const raw = act || (r.thinking||'');
         gift = /毒/.test(raw)?'poison':(/查验|验/.test(raw)?'inspect':'shield');
       }
       if (gift==='shield') {
