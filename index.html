@@ -3160,14 +3160,24 @@ function buildWorldBook(p) {
     // ─── 新增 ⑩ 本局有【干扰夜间技能】的角色（子狐封技能 / 蚀时狼妃反弹）时的意识提示 ───
     //  · 好人夜间主动神职：你的查验/守护/毒可能被反弹/转移/封锁，单次结果别当铁证（不点名、不告知具体晚次）。
     //  · 会刀的狼：你的狼刀可能某晚被封锁，平安夜别一口咬定守卫/女巫。
-    const _foxInGame = S.players && S.players.some(pl => pl.role && pl.role.id === 'fox');
-    const _concubineInGame = S.players && S.players.some(pl => pl.role && pl.role.id === 'wolfconcubine');
-    if (p && p.role && (_foxInGame || _concubineInGame)) {
-      if (p.role.team === 'good' && ['seer','witch','guard','magician'].includes(p.role.id)) {
+    // ★ 干扰源不仅是 reg 的子狐/蚀时狼妃——积木自创角色带 reflect/muteSkill/blockKill 块时产生同样效果，一并计入。
+    const _rolesInPlay = (S.players || []).map(pl => pl && pl.role).filter(Boolean);
+    const _hasBlock = ab => _rolesInPlay.some(r => Array.isArray(r.customAbilities) && r.customAbilities.includes(ab));
+    const _muteInGame     = _rolesInPlay.some(r => r.id === 'fox') || _hasBlock('muteSkill');            // 封技能
+    const _reflectInGame  = _rolesInPlay.some(r => r.id === 'wolfconcubine') || _hasBlock('reflect');    // 反弹
+    const _blockKillInGame= _rolesInPlay.some(r => r.id === 'fox') || _hasBlock('blockKill');            // 禁刀
+    const _tamperGods = _muteInGame || _reflectInGame;   // 查验/守护/毒会被反弹或封锁
+    if (p && p.role) {
+      // 好人夜间主动神职（含积木自创的查验/守护/毒/解药/护盾角色）——你的结果/技能未必可靠
+      const _isGoodNightGod = p.role.team === 'good' && (
+        ['seer','witch','guard','magician'].includes(p.role.id) ||
+        (Array.isArray(p.role.customAbilities) && p.role.customAbilities.some(a => ['inspect','protect','poison','save','shield'].includes(a)))
+      );
+      if (_tamperGods && _isGoodNightGod) {
         wb += WB_TAMPER_GODS;
       }
-      // 子狐的禁刀会封锁狼刀 → 给会刀的明狼一个"平安夜可能是被禁刀"的意识（机械狼残局带刀时也算）
-      else if (_foxInGame && p.role.team === 'bad') {
+      // 禁刀会封锁狼刀 → 给会刀的明狼一个"平安夜可能是被禁刀"的意识（机械狼残局带刀时也算）
+      else if (_blockKillInGame && p.role.team === 'bad') {
         wb += WB_TAMPER_WOLVES;
       }
     }
@@ -3446,7 +3456,7 @@ const NAME_POOL = {
  * ================================================================ */
 // ★ 存档需持久化的"技能已用/状态"玩家级标记（白猫缓死/愚者/自创积木/赐予等）。
 //   不持久化则读档/回溯后这些标记丢失→技能"复活"（如愚者免疫后读档又能用护盾）。
-const SKILL_STATE_KEYS = ['_foolUsed','_shieldUsed','_lynchImmuneUsed','_rpUsed','_rp','_rpCause','_rpResolved','_cLastGuard','_cPoisonUsed','_cSaveUsed','_cBlockUsed','_grant','_grantShield','_grantShieldExpire','_grantUsed','_grantedSeer','_grantedSeerReady','_giftPending'];
+const SKILL_STATE_KEYS = ['_foolUsed','_shieldUsed','_lynchImmuneUsed','_rpUsed','_rp','_rpCause','_rpResolved','_cLastGuard','_cPoisonUsed','_cSaveUsed','_cBlockUsed','_grant','_grantShield','_grantShieldExpire','_grantUsed','_grantedSeer','_grantedSeerReady','_giftPending','_youLast'];
 function serializeSkillFlags(p){ const o={}; for(const k of SKILL_STATE_KEYS){ if(p[k]!==undefined && p[k]!==null) o[k]=p[k]; } return o; }
 
 function freshState(prev) {
