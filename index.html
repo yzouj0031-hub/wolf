@@ -6826,6 +6826,10 @@ ${userPersona}
       }
       continue;
     }
+    if (r.type === 'foolImmune' || r.type === 'reprieve') {
+      _pushTimeline(_timelinePhase(r), '已发生·系统事实', _formatPublicRevealEvent(r));
+      continue;
+    }
     if (r.type === 'sheriff_transfer') {
       _pushTimeline(_timelinePhase({...r, round:r.deathRound || r.round, phase:r.deathPhase || r.atPhase}), '已发生·系统事实', _formatPublicSheriffTransfer(r));
       continue;
@@ -11054,7 +11058,7 @@ async function killPlayer(p, cause, opts) {
     const _liName = (p.role.id==='fool') ? '愚者' : p.role.name;
     Render.log('system','🃏【首放逐免疫】'+p.name+'被投票放逐，但触发免疫：翻牌公开、本次不死'+(p.role.id==='fool'?'，从此失去全部技能':'')+'。');
     S.players.filter(x => x.id !== p.id).forEach(x => x.memory.push({role:'system', content:'【公告】'+p.name+'被投票放逐，但触发「首放逐免疫」：本次不死、身份已公开（'+_liName+'）。'}));
-    if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({type:'foolImmune', name:p.name, round:S.round});
+    if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({type:'foolImmune', name:p.name, roleName:_liName, round:S.round});
     return;
   }
   p.alive = false;
@@ -16329,6 +16333,9 @@ function generateReplay() {
           <span class="ev-tag">${escapeHtml(desc)}</span>
         </div>`;
       }
+      if (ev.type === 'foolImmune' || ev.type === 'reprieve') {
+        return `<div class="ev death-ev"><span class="ev-icon">${ev.type==='reprieve'?'🐈‍⬛':'🃏'}</span><span class="ev-tag">${escapeHtml(_formatPublicRevealEvent(ev))}</span></div>`;
+      }
       if (ev.type === 'speech') {
         const p = S.players.find(x=>x.name===ev.name);
         const rc = p ? (roleColor[p.role.id]||'#a0a8b8') : '#c0b8d0';
@@ -16505,6 +16512,10 @@ function _buildGodViewReport() {
         else if (r.role && r.role.startsWith('mechwolf') && r.target) lines.push(`  🤖 机械狼：${r.target}`);
       } else if (r.type === 'death') {
         lines.push(`  💀 ${r.name}(${roleName(r.name)}) 死亡（${r.cause||'?'}）`);
+      } else if (r.type === 'foolImmune') {
+        lines.push(`  🃏 ${r.name}(${r.roleName||'愚者'}) 被投票放逐→触发首放逐免疫：翻牌公开、本次不死`);
+      } else if (r.type === 'reprieve') {
+        lines.push(`  🐈‍⬛ ${r.name}(${r.role||'白猫'}) 被判出局→触发缓死：翻牌公开、延迟到${r.phase==='night'?'下一夜':'下一投票阶段'}才真死`);
       } else if (r.type === 'vote' && r.subtype === 'day') {
         const outName = r.out || r.result || '';
         if (outName) lines.push(`  🗳️ 白天投票放逐：${outName}`);
@@ -17189,6 +17200,20 @@ function _formatPublicSheriffTransfer(r) {
     : `👑 ${r.from}在${timing}选择销毁警徽；本局后续无警长。${planWarning}`;
 }
 
+// 🃏🐈‍⬛ "翻牌未死"公开事件：愚者首放逐免疫 / 白猫缓死——被判出局但当场翻牌公开、本次不死。
+//   这两种事件都会公开身份，属于全场可见的公开信息，各导出/摘要/网页端时间线都应显示。
+function _formatPublicRevealEvent(r) {
+  if (!r) return '';
+  if (r.type === 'reprieve') {
+    const when = r.phase === 'night' ? '下一个夜晚结算' : '下一个白天投票阶段';
+    return '🐈‍⬛ ' + r.name + ' 被判出局，但身份是【' + (r.role || '白猫') + '】——触发「缓死」：当场翻牌公开、本次不死，将在' + when + '才真正死亡（在此之前仍是活人，可发言投票）。';
+  }
+  if (r.type === 'foolImmune') {
+    return '🃏 ' + r.name + ' 被投票放逐，但身份是【' + (r.roleName || r.role || '愚者') + '】——触发「首放逐免疫」：当场翻牌公开、本次不死。';
+  }
+  return '';
+}
+
 function _formatPublicTrialEvent(r) {
   if (!r) return '⚖️ 审判事件（记录不完整）';
   const oneLine = s => String(s || '').replace(/\s+/g, ' ').trim();
@@ -17491,6 +17516,9 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
       txt += '\n💀 ' + r.name + ' 出局 — ' + detail + voteSuffix + '\n';
 
+    } else if (r.type === 'foolImmune' || r.type === 'reprieve') {
+      txt += '\n' + _formatPublicRevealEvent(r) + '\n';
+
     } else if (r.type === 'lover_death') {
       txt += `\n💘 恋人连带：${r.trigger}死亡，${r.lover}随之殉情（只公开恋人关系，不验证原身份/阵营）\n`;
 
@@ -17622,6 +17650,7 @@ function openExport() {
       const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
       txt += '💀 '+r.name+(hid?'':'【'+r.role+'】')+' 出局 — '+desc+voteSuffix+'\n\n';
     }
+    else if (r.type==='foolImmune' || r.type==='reprieve') { txt += _formatPublicRevealEvent(r)+'\n\n'; }
     else if (r.type==='speech') { txt += '['+r.label+'] '+r.name+':\n'; if(inc&&r.thinking) txt+='  ('+r.thinking+')\n'; txt += '  '+r.game+'\n\n'; }
     else if (r.type==='night_action') {
       // ★ 夜间行动本身属于上帝视角完整记录，始终导出；“含内心独白”只控制 thinking，
