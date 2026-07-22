@@ -17274,6 +17274,59 @@ function _buildPrivateInfoLines(p) {
     if (S.wolfStrategy) lines.push(`狼队密约：「${S.wolfStrategyName}」— ${S.wolfStrategy}`);
   }
 
+  // 🧩 自创/样板角色：从 gameRecord 重建本人的技能行动历史。
+  //   ★ 切到网页AI接力时，AI 必须知道自己每晚做了什么、验到了谁——否则会当自己没技能、瞎打。
+  //   查验/媚惑类结果是【铁验证阵营】，与预言家查验记录同等可信。
+  {
+    const rid = p.role.id;
+    const recs = (gameRecord || []).filter(r => r && r.type === 'night_action');
+    const byRole = tag => recs.filter(r => r.role === tag);              // 唯一样板角色：按 role 取
+    const mine   = tag => recs.filter(r => r.role === tag && r.name === p.name); // 赐予/积木：按本人名字取
+    const wg = res => res === 'wolf' ? '🐺狼人显示' : '✅好人显示';
+
+    // 🦊 子狐·媚惑（blockKill=对方是狼、mute=对方是好人；均私下确认阵营）
+    if (rid === 'fox') {
+      const acts = byRole('fox').map(r => `第${r.round}夜：媚惑${r.target} → 确认其为${r.result==='blockKill'?'🐺狼人（当晚已禁刀）':'✅好人（已封其今晚技能）'}`);
+      if (acts.length) lines.push(`你的媚惑记录（媚惑结果=铁验证阵营）：\n  ${acts.join('\n  ')}`);
+    }
+    // 🌒 蚀时狼妃·反弹锁定
+    if (rid === 'wolfconcubine') {
+      const acts = byRole('wolfconcubine').map(r => `第${r.round}夜：锁定${r.target}（凡查/守/毒他的神职反噬其自身，仅首个命中触发）`);
+      if (acts.length) lines.push(`你的反弹锁定记录：\n  ${acts.join('\n  ')}`);
+    }
+    // 🃏 愚者·护盾 + 保命状态
+    if (rid === 'fool') {
+      const acts = byRole('fool').map(r => `第${r.round}夜：护盾护住${r.target}（他若没挨刀，盾自动转护你自己）`);
+      if (acts.length) lines.push(`你的护盾记录：\n  ${acts.join('\n  ')}`);
+      lines.push(`你的保命状态：${p._foolUsed ? '❌ 已用尽——护盾或首放逐免疫已触发，你已【失去全部技能】（护盾和免疫都没了）' : '✅ 仍在——首放逐免疫与夜间护盾共用这一次保命，任一先触发则全部技能消失'}`);
+    }
+    // 🎪🎁 奇迹商人/游商·赐予
+    if (rid === 'merchant' || rid === 'youshang') {
+      const acts = byRole(rid).map(r => `第${r.round}夜：赐予${r.target}${r.result==='backfire'?'（⚠️他竟是狼→赐福反噬、你已出局）':'（好人，礼物由其自选盾/查验/毒）'}`);
+      if (acts.length) lines.push(`你的赐予记录：\n  ${acts.join('\n  ')}`);
+    }
+    // 🎁 被赐予者·用赐予技能的历史（查验结果=铁验证阵营）
+    const gAll = mine('granted-seer').map(r => `第${r.round}夜：永久查验${r.target} → ${wg(r.result)}`)
+      .concat(mine('granted-inspect').map(r => `第${r.round}夜：一次性查验${r.target} → ${wg(r.result)}`))
+      .concat(mine('granted-poison').map(r => `第${r.round}夜：赐予毒药毒杀${r.target}`));
+    if (gAll.length) lines.push(`你获赐技能的使用记录（查验结果=铁验证阵营）：\n  ${gAll.join('\n  ')}`);
+
+    // 🧩 积木自创角色·各积木块行动历史
+    if (Array.isArray(p.role.customAbilities) && p.role.customAbilities.length) {
+      const c = [];
+      mine('custom-inspect').forEach(r => c.push(`第${r.round}夜：查验${r.target} → ${wg(r.result)}`));
+      mine('custom-protect').forEach(r => c.push(`第${r.round}夜：守护${r.target}`));
+      mine('custom-poison').forEach(r => c.push(`第${r.round}夜：毒杀${r.target}`));
+      mine('custom-save').forEach(r => c.push(`第${r.round}夜：解药救${r.target}`));
+      mine('custom-mute').forEach(r => c.push(`第${r.round}夜：封锁${r.target}今晚的夜间技`));
+      mine('custom-reflect').forEach(r => c.push(`第${r.round}夜：反弹锁定${r.target}`));
+      mine('custom-block').forEach(r => c.push(`第${r.round}夜：宣告今晚全狼禁刀`));
+      mine('custom-shield').forEach(r => c.push(`第${r.round}夜：护盾护${r.target}`));
+      mine('custom-grant').forEach(r => c.push(`第${r.round}夜：赐予${r.target}${r.result==='backfire'?'（⚠️他是狼→反噬、你已出局）':'（'+(r.gift||'礼物')+'）'}`));
+      if (c.length) lines.push(`你的自创技能行动记录（含查验等铁验证结果）：\n  ${c.join('\n  ')}`);
+    }
+  }
+
   return lines;
 }
 
