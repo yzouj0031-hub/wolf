@@ -11158,6 +11158,10 @@ async function killPlayer(p, cause, opts) {
     const _liName = (p.role.id==='fool') ? '愚者' : p.role.name;
     Render.log('system','🃏【首放逐免疫】'+p.name+'被投票放逐，但触发免疫：翻牌公开、本次不死'+(p.role.id==='fool'?'，从此失去全部技能':'')+'。');
     S.players.filter(x => x.id !== p.id).forEach(x => x.memory.push({role:'system', content:'【公告】'+p.name+'被投票放逐，但触发「首放逐免疫」：本次不死、身份已公开（'+_liName+'）。'}));
+    // ★ 关键：明确告诉愚者本人技能已消耗，别再以为自己还有保命/护盾。
+    p.memory.push({role:'system', content: p.role.id==='fool'
+      ? '【你的保命已用尽】你触发了「首放逐免疫」：翻牌免疫、本次不死，但从此【失去全部技能】（护盾和免疫都没了）。你已没有任何保命手段，后续按已公开的普通身份行动，别再指望技能保命。'
+      : '【技能已用尽】你触发了「首放逐免疫」：翻牌免疫、本次不死，此免疫已用掉、不再生效。'});
     if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({type:'foolImmune', name:p.name, roleName:_liName, round:S.round});
     return;
   }
@@ -15007,6 +15011,7 @@ async function resolveNight() {
       foolP._foolUsed = true;
       Render.log('system','🃏 愚者护盾挡下一次夜袭，'+saved.name+'幸免于难（愚者失去全部技能）');
       foolP.memory.push({role:'system', content:'【护盾生效】你的护盾替'+(saved.id===foolP.id?'你自己':saved.name)+'挡下了一次夜间致命伤。你已失去所有技能（含首放逐免疫）。⚠️只有你知道。'});
+      if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({type:'skillConsumed', name:foolP.name, roleName:'愚者', detail:'护盾替'+(saved.id===foolP.id?'自己':saved.name)+'挡下一次夜袭，从此失去全部技能', round:S.round, phase:'night', godOnly:true});
     }
   }
   // 🎪 商人赐盾：被赐盾者若在死亡名单则救回一次，消耗盾
@@ -15038,6 +15043,7 @@ async function resolveNight() {
         sp._shieldUsed = true;
         Render.log('system','🛡️ '+sp.name+'的护盾挡下一次夜袭，'+saved.name+'幸免于难（护盾已消耗）');
         sp.memory.push({role:'system', content:'【护盾生效】你的护盾替'+(saved.id===sp.id?'你自己':saved.name)+'挡下了一次夜间致命伤，护盾已消耗。⚠️只有你知道。'});
+        if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({type:'skillConsumed', name:sp.name, roleName:sp.role.name, detail:'护盾替'+(saved.id===sp.id?'自己':saved.name)+'挡下一次夜袭，护盾已消耗', round:S.round, phase:'night', godOnly:true});
       }
     });
   }
@@ -16507,8 +16513,8 @@ function generateReplay() {
           <span class="ev-tag">${escapeHtml(desc)}</span>
         </div>`;
       }
-      if (ev.type === 'foolImmune' || ev.type === 'reprieve') {
-        return `<div class="ev death-ev"><span class="ev-icon">${ev.type==='reprieve'?'🐈‍⬛':'🃏'}</span><span class="ev-tag">${escapeHtml(_formatPublicRevealEvent(ev))}</span></div>`;
+      if (ev.type === 'foolImmune' || ev.type === 'reprieve' || ev.type === 'skillConsumed') {
+        return `<div class="ev death-ev"><span class="ev-icon">${ev.type==='reprieve'?'🐈‍⬛':ev.type==='skillConsumed'?'🛡️':'🃏'}</span><span class="ev-tag">${escapeHtml(_formatPublicRevealEvent(ev))}</span></div>`;
       }
       if (ev.type === 'speech') {
         const p = S.players.find(x=>x.name===ev.name);
@@ -16687,6 +16693,8 @@ function _buildGodViewReport() {
         else if (r.role && r.role.startsWith('mechwolf') && r.target) lines.push(`  🤖 机械狼：${r.target}`);
       } else if (r.type === 'death') {
         lines.push(`  💀 ${r.name}(${roleName(r.name)}) 死亡（${r.cause||'?'}）`);
+      } else if (r.type === 'skillConsumed') {
+        lines.push(`  🛡️ ${r.name}(${r.roleName||'愚者'}) 技能生效并消耗：${r.detail||'保命触发'}`);
       } else if (r.type === 'foolImmune') {
         lines.push(`  🃏 ${r.name}(${r.roleName||'愚者'}) 被投票放逐→触发首放逐免疫：翻牌公开、本次不死`);
       } else if (r.type === 'reprieve') {
@@ -17386,6 +17394,9 @@ function _formatPublicRevealEvent(r) {
   if (r.type === 'foolImmune') {
     return '🃏 ' + r.name + ' 被投票放逐，但身份是【' + (r.roleName || r.role || '愚者') + '】——触发「首放逐免疫」：当场翻牌公开、本次不死。';
   }
+  if (r.type === 'skillConsumed') {
+    return '🛡️ ' + r.name + '（' + (r.roleName || '愚者') + '）的技能生效并消耗：' + (r.detail || '保命触发') + '。';
+  }
   return '';
 }
 
@@ -17691,7 +17702,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
       txt += '\n💀 ' + r.name + ' 出局 — ' + detail + voteSuffix + '\n';
 
-    } else if (r.type === 'foolImmune' || r.type === 'reprieve') {
+    } else if (r.type === 'foolImmune' || r.type === 'reprieve' || (r.type === 'skillConsumed' && isGod)) {
       txt += '\n' + _formatPublicRevealEvent(r) + '\n';
 
     } else if (r.type === 'lover_death') {
@@ -17825,7 +17836,7 @@ function openExport() {
       const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
       txt += '💀 '+r.name+(hid?'':'【'+r.role+'】')+' 出局 — '+desc+voteSuffix+'\n\n';
     }
-    else if (r.type==='foolImmune' || r.type==='reprieve') { txt += _formatPublicRevealEvent(r)+'\n\n'; }
+    else if (r.type==='foolImmune' || r.type==='reprieve' || r.type==='skillConsumed') { txt += _formatPublicRevealEvent(r)+'\n\n'; }
     else if (r.type==='speech') { txt += '['+r.label+'] '+r.name+':\n'; if(inc&&r.thinking) txt+='  ('+r.thinking+')\n'; txt += '  '+r.game+'\n\n'; }
     else if (r.type==='night_action') {
       // ★ 夜间行动本身属于上帝视角完整记录，始终导出；“含内心独白”只控制 thinking，
