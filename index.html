@@ -13214,7 +13214,8 @@ ${magicKillDecisionHint}
           } else {
             const r = await callAI(p, '【'+p.role.name+'·解药·第'+S.round+'夜】今晚'+victim.name+'被狼刀了。你有一瓶一次性解药，要救吗？\n<thinking>思考</thinking>\n<action>SAVE 或 NO</action>', {noMemory:true, skillConfirm:true});
             logNightThinking(p, r);
-            doSave = /save|救/i.test(r.action||'');
+            const _sa = (r.action||'').trim();
+            doSave = /save|救/i.test(_sa) && !/不救|no|不用|别救|不救人|放弃/i.test(_sa);  // 防"不救"被 /救/ 命中
           }
           if (doSave) { S.nightData.customSave.push(victim.id); p._cSaveUsed = true; p.memory.push({role:'system', content:'【解药·私密】你救了'+victim.name+'。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','💉 '+p.name+'救了'+victim.name); }
         }
@@ -13943,7 +13944,10 @@ const PhaseHandlers = {
         const targetName = extractTargetName(actionText, candidates);
         const targetP = targetName ? candidates.find(x => x.name === targetName) : null;
         if (targetP) startId = targetP.id;
-        direction = actionText.includes('逆') ? -1 : 1;
+        // ★ 方向优先只从 action 判定：action 里写了方向词就只看 action，没写才退回 game；
+        //   且必须"含逆且不含顺"才逆——避免公开发言里顺带提到"逆时针"把方向判反。
+        const _dirSrc = /顺|逆/.test(((r && r.action) || '')) ? ((r && r.action) || '') : actionText;
+        direction = (/逆/.test(_dirSrc) && !/顺/.test(_dirSrc)) ? -1 : 1;
       }
 
       speakOrder = buildCircularSpeakOrder(S.players, startId, direction);
