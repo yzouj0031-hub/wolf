@@ -1933,14 +1933,15 @@ body.has-wp::after {
       <button id="gchat-clear" style="padding:5px 10px;background:rgba(200,48,64,0.1);border:1px solid rgba(200,48,64,0.25);border-radius:var(--r);color:#c87080;font-size:.78em;cursor:pointer">🗑 清空</button>
     </div>
     <div style="margin-top:10px;border-top:1px solid rgba(245,160,184,0.08);padding-top:8px">
-      <div style="font-size:.72em;color:#8880a8;margin-bottom:5px">💬 话题预设</div>
+      <div style="font-size:.72em;color:#8880a8;margin-bottom:5px">💬 群设定：让成员拥有共同关系、当前事件和要解决的事</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
         <button class="gchat-preset-btn" data-topic="现在是狼人杀游戏结束后，大家正在复盘刚才的游戏，可以分析战略、吐槽失误、讨论身份。">🐺 狼人杀复盘</button>
         <button class="gchat-preset-btn" data-topic="大家正在一起喝下午茶，随意闲聊，可以聊任何话题。">☕ 下午茶闲聊</button>
         <button class="gchat-preset-btn" data-topic="这是一场即兴推理游戏，有人发现了一个谜题，大家一起讨论破案。">🔍 推理讨论</button>
         <button class="gchat-preset-btn" data-topic="大家正在自由对话，话题完全随意。">🎭 自由对话</button>
       </div>
-      <textarea id="gchat-topic" rows="2" placeholder="或手动输入当前话题/场景背景（可留空）" style="width:100%;resize:none;background:rgba(0,0,0,0.3);border:1px solid rgba(245,160,184,0.12);color:#c8b8d8;border-radius:var(--r);padding:6px 8px;font-size:.75em;font-family:var(--font-body)"></textarea>
+      <textarea id="gchat-topic" rows="3" placeholder="写下群的共同设定：大家为何在这里、此刻发生了什么、希望解决什么。例：合租屋群；房东说明早突击检查，大家要找出是谁把公共账单花超了。" style="width:100%;resize:none;background:rgba(0,0,0,0.3);border:1px solid rgba(245,160,184,0.12);color:#c8b8d8;border-radius:var(--r);padding:6px 8px;font-size:.75em;font-family:var(--font-body)"></textarea>
+      <div style="font-size:.65em;color:#786880;margin-top:4px;line-height:1.45">💡 好群聊不是“随便聊”：给一个共同事件或未解决的问题，角色才会互相回应、站队或推进故事。</div>
     </div>
   </div>
   <div id="gchat-log" class="gchat-log" style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch"></div>
@@ -1986,11 +1987,12 @@ body.has-wp::after {
         </label>
         <label>你的参与方式
           <select class="jbs-input" id="jbs-role">
+            <option value="conan">🕵️ 我来扮演：江户川柯南（推荐）</option>
             <option value="">🍿 纯观战（全部角色由AI扮演）</option>
           </select>
         </label>
         <div id="jbs-web-warning" class="jbs-note" style="display:none">网页端AI模式会逐个显示角色的私密提示词，只适合你作为主持人/观战者使用，因此会自动切换为纯观战。</div>
-        <div class="jbs-note">API 模式直接复用狼人杀设置里的 API 地址、密钥和模型；六个角色依次使用 P1～P6 的配置，空缺时回退到全局配置。</div>
+        <div class="jbs-note">推荐亲自扮演一名角色：你会获得私密剧本，并在搜证、发言和指认中改变这一局。API 模式复用狼人杀设置里的 API 地址、密钥和模型。</div>
         <button class="jbs-btn primary" id="jbs-start" type="button">开始剧本杀</button>
       </div>
     </section>
@@ -19355,6 +19357,7 @@ WP.init();
   var COLORS = ['#f5a0b8','#68b8e8','#a0e8a0','#e8c848','#c8a0e8','#e8a068','#e8d0a0','#a0c8e8'];
   var EMOJIS = ['🌸','🔵','🌿','⭐','🟣','🔶','🌙','💎'];
   var members = [], history = [], running = false, activeTopic = '';
+  var sceneNudge = '先回应群内正在发生的事；如果话题停滞，提出一个具体问题、选择或新发现来推进关系。';
   var gcAutoFollow = true;
 
   function gcNearBottom(log) {
@@ -19435,8 +19438,8 @@ WP.init();
     }
     var sys = (member.persona || ('你是' + member.name + '，自由聊天。'))
       + topicNote
-      + '\n\n【重要】你们在自由群聊中，你要主动发言，像真实朋友一样说话。'
-      + '可以接着上一条话题聊，也可以突然提起新话题，或者吐槽什么，或者问问题。'
+      + '\n\n【重要】这不是无目的的轮流闲聊。' + sceneNudge
+      + '保留自己的立场，不要替所有人总结，也不要把话题一次说完。'
       + '口语化自然，不超过100字，不要用bullet list，不要有前缀标签，直接说话。'
       + lastCtx;
     var msgs = [{role:'system', content:sys}];
@@ -19500,12 +19503,12 @@ WP.init();
         members = d.members;
       } else {
         members = gcBuildFromLastGame() || [
-          {name:'柯南', model:'', url:'', key:'', persona:'你是江户川柯南，聪明好奇，说话简洁，偶尔有推理口吻。口语化，100字以内。'},
-          {name:'L',    model:'', url:'', key:'', persona:'你是L·劳莱特，冷静精准，喜欢甜食，偶尔说奇怪的话。口语化，100字以内。'}
+          {name:'柯南', model:'', url:'', key:'', persona:'你是江户川柯南，聪明好奇、习惯追问细节。你和 L 是会互相较劲也会合作的朋友。'},
+          {name:'L',    model:'', url:'', key:'', persona:'你是L·劳莱特，冷静精准，喜欢甜食。你认可柯南的能力，但会用不同角度挑战他的结论。'}
         ];
       }
       history = d.history || [];
-      activeTopic = d.topic || '';
+      activeTopic = d.topic || '柯南和 L 的侦探事务所群：委托人刚发来一张模糊照片，声称其中藏着求救信息。两人要决定先核实照片，还是直接赶往拍摄地点。';
     } catch(e) { members=[]; history=[]; activeTopic=''; }
   }
 
@@ -19675,7 +19678,7 @@ WP.init();
         +'<input placeholder="模型（留空用全局）" value="'+gcEsc(m.model||'')+'" style="flex:2;font-size:.76em" data-mi="'+i+'" data-f="model">'
         +'<button class="gchat-del" data-mi="'+i+'" style="padding:1px 6px;background:rgba(200,48,64,0.15);border:1px solid rgba(200,48,64,0.3);border-radius:4px;color:#c87080;font-size:.75em;cursor:pointer">✕</button>'
         +'</div>'
-        +'<textarea placeholder="人设（AI会以这个身份聊天）" rows="2" style="width:100%;resize:none;font-size:.73em;background:rgba(245,160,184,0.04);border:1px solid rgba(245,160,184,0.1);color:#c8b8d8;border-radius:4px;padding:4px 6px;font-family:var(--font-body)" data-mi="'+i+'" data-f="persona">'+gcEsc(m.persona||'')+'</textarea>'
+        +'<textarea placeholder="人设与关系（例如：和谁熟、在意什么、瞒着什么）" rows="2" style="width:100%;resize:none;font-size:.73em;background:rgba(245,160,184,0.04);border:1px solid rgba(245,160,184,0.1);color:#c8b8d8;border-radius:4px;padding:4px 6px;font-family:var(--font-body)" data-mi="'+i+'" data-f="persona">'+gcEsc(m.persona||'')+'</textarea>'
         +'<details style="margin-top:4px"><summary style="font-size:.68em;color:#5a5070;cursor:pointer">🔑 独立API（留空用全局）</summary>'
         +'<div style="display:flex;gap:4px;margin-top:3px">'
         +'<input placeholder="API地址" value="'+gcEsc(m.url||'')+'" style="flex:2;font-size:.72em" data-mi="'+i+'" data-f="url">'
@@ -19712,7 +19715,7 @@ WP.init();
       var mi = members.indexOf(member);
       gcAddTyping(member.name, mi);
       var topicNote = activeTopic ? '\n\n【当前场景/话题】'+activeTopic : '';
-      var sys = (member.persona||('你是'+member.name+'，自由聊天。')) + topicNote + '\n\n回复要口语化自然，不超过120字，不要用bullet list，就像真人在群聊里说话。';
+      var sys = (member.persona||('你是'+member.name+'，在一个有共同历史的群里聊天。')) + topicNote + '\n\n【群聊原则】'+sceneNudge+' 保留自己的立场，口语化自然，不超过120字，不要用 bullet list。';
       var msgs = [{role:'system',content:sys}];
       history.slice(-24).forEach(function(h) {
         msgs.push({role:h.role==='user'?'user':'assistant', content:h.name+'：'+h.text});
@@ -21338,7 +21341,7 @@ const MurderMystery = (() => {
   const STEPS = ['开场','一幕搜证','初步讨论','二幕搜证','圆桌交锋','最终指认','真相'];
   const J = {
     players:[],youId:null,driver:'api',phase:'setup',round:0,found:[],
-    events:[],votes:{},seq:0,runId:0,busy:false,currentAbort:null,
+    events:[],votes:{},seq:0,runId:0,busy:false,currentAbort:null,actionsLeft:0,
     pendingCancel:null,webResolve:null,webReject:null,inited:false
   };
 
@@ -21528,11 +21531,12 @@ const MurderMystery = (() => {
     setControls([{label:'进入第一幕搜证',primary:true,run:()=>phaseInvestigate(1)}]);
   }
   async function phaseInvestigate(stage){
-    J.phase=stage===1?'第一幕搜证':'第二幕搜证';J.round=stage;setPhase(J.phase,stage===1?'勘察案发现场':'追查证词与隐藏物证',stage===1?1:3);clearDynamic();
+    J.phase=stage===1?'第一幕搜证':'第二幕搜证';J.round=stage;J.actionsLeft=J.youId?2:0;setPhase(J.phase,stage===1?'勘察案发现场':'追查证词与隐藏物证',stage===1?1:3);clearDynamic();
     const avail=SCRIPT.clues.filter(c=>c.stage===stage);
-    q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">点击公开线索</div><div class="jbs-clues">'+avail.map(c=>'<button class="jbs-clue '+(J.found.includes(c.id)?'found':'')+'" data-clue="'+c.id+'" '+(J.found.includes(c.id)?'disabled':'')+'><b>'+h(c.title)+'</b><br><small>'+(J.found.includes(c.id)?'已公开':'点击搜查')+'</small></button>').join('')+'</div></div>';
+    q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">'+(J.youId?'你的行动点：<span id="jbs-ap">'+J.actionsLeft+'</span> / 2（每次搜查都会公开线索）':'主持人公开线索')+'</div><div class="jbs-note">'+(J.youId?'选择你认为最值得调查的线索；行动点用完后可直接推进，不必找全。':'点击公开线索')+'</div><div class="jbs-clues">'+avail.map(c=>'<button class="jbs-clue '+(J.found.includes(c.id)?'found':'')+'" data-clue="'+c.id+'" '+(J.found.includes(c.id)?'disabled':'')+'><b>'+h(c.title)+'</b><br><small>'+(J.found.includes(c.id)?'已公开':'点击搜查')+'</small></button>').join('')+'</div></div>';
     q('jbs-dynamic').querySelectorAll('[data-clue]').forEach(btn=>btn.onclick=()=>{
-      const c=SCRIPT.clues.find(x=>x.id===btn.dataset.clue);if(!c||J.found.includes(c.id))return;
+      const c=SCRIPT.clues.find(x=>x.id===btn.dataset.clue);if(!c||J.found.includes(c.id)|| (J.youId&&J.actionsLeft<=0))return;
+      if(J.youId){J.actionsLeft--;const ap=q('jbs-ap');if(ap)ap.textContent=J.actionsLeft;}
       J.found.push(c.id);btn.classList.add('found');btn.disabled=true;btn.querySelector('small').textContent='已公开';clue(c);
     });
     J.busy=false;
@@ -21638,7 +21642,7 @@ const MurderMystery = (() => {
   }
   function init(){
     if(J.inited)return;J.inited=true;
-    q('jbs-role').innerHTML='<option value="">🍿 纯观战（全部角色由AI扮演）</option>'+SCRIPT.cast.map(x=>'<option value="'+x.id+'">'+x.emoji+' '+h(x.name)+'（'+h(x.public)+'）</option>').join('');
+    q('jbs-role').innerHTML='<option value="conan">🕵️ 我来扮演：江户川柯南（推荐）</option><option value="">🍿 纯观战（全部角色由AI扮演）</option>'+SCRIPT.cast.filter(x=>x.id!=='conan').map(x=>'<option value="'+x.id+'">'+x.emoji+' '+h(x.name)+'（'+h(x.public)+'）</option>').join('');
     q('jbs-driver').onchange=syncDriver;q('jbs-start').onclick=start;q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
     q('jbs-web-copy').onclick=async()=>{try{await navigator.clipboard.writeText(q('jbs-web-prompt').value);q('jbs-web-copy').textContent='✅ 已复制';setTimeout(()=>q('jbs-web-copy').textContent='📋 复制提示词',1500);}catch(e){q('jbs-web-prompt').select();}};
     q('jbs-web-submit').onclick=()=>{const raw=q('jbs-web-reply').value.trim();if(!raw)return;if(J.webResolve)J.webResolve(raw);};
