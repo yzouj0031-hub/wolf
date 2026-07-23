@@ -427,6 +427,15 @@ body.anon .le.wolfchat, body.anon .le.meeting, body.anon .le.night-detail, body.
 body.anon.is-wolf .le.wolfchat, body.anon.is-wolf .le.meeting { display: block; }
 body.hmbti .mbtitag { display: none; }
 
+/* ⚡ 精简特效（性能模式）：关掉毛玻璃与常驻动画，解决部分浏览器高负载时"画面缺一块"的合成问题。
+   毛玻璃(backdrop-filter)会不停"重拍背景+模糊"，无限动画让合成层持续重绘——二者叠加时浏览器偶尔漏画一块瓦片。
+   规则用 !important 覆盖内联样式(内联无 !important，故此处能生效)；只关装饰性视觉，绝不影响任何游戏逻辑。 */
+body.fx-lite *, body.fx-lite *::before, body.fx-lite *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  animation: none !important;
+}
+
 .mcd-chaos { border-color: rgba(232,180,72,0.35) !important; }
 .mcd-chaos:hover { border-color: rgba(232,180,72,0.7) !important; box-shadow: 0 0 12px rgba(232,180,72,0.2); }
 .mcd-chaos h3 { color: #e8c058; }
@@ -2164,6 +2173,7 @@ body.has-wp::after {
       <label class="mti"><input type="checkbox" id="m-cosplay" checked>🎭 Cosplay</label>
       <label class="mti" title="开启后，公开界面、API公共战报、网页端AI提示词与摘要都只显示P编号；每个AI只在私密提示中知道自己的Cosplay角色名，避免名气刀、仇刀和角色名联想。"><input type="checkbox" id="m-blindnames">🙈 盲名Cosplay</label>
       <label class="mti"><input type="checkbox" id="m-hardcore">🔥 硬核</label>
+      <label class="mti" title="关掉毛玻璃和常驻动画。若你在浏览器里遇到「玩着玩着某块画面变空白，但游戏照常」，打开它即可解决——那是浏览器合成高负载特效时的老毛病，与游戏逻辑无关。桌面默认关闭（保留华丽特效）。"><input type="checkbox" id="m-litefx">⚡ 精简特效</label>
       <label class="mti"><input type="checkbox" id="m-mc">⚖️ 主持人</label>
       <label class="mti" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口——可以指定杀谁，也可以选「空刀」制造平安夜。无论你是否扮演狼、纯观战也能用，直接覆盖AI狼队的决定。关闭则狼队自己民主投票（默认）"><input type="checkbox" id="m-director-veto">🎬 导演刀口主控</label>
       <label class="mti"><input type="checkbox" id="m-audio" checked>🔊 音效</label>
@@ -5613,8 +5623,14 @@ const CloudSave = (() => {
 window.CloudSave = CloudSave;
 CloudSave.init();
 
+// ⚡ 精简特效开关：给 body 挂/摘 fx-lite 类（CSS 据此关掉毛玻璃+常驻动画）。只动视觉，不碰逻辑。
+function applyLiteFx() {
+  try { document.body.classList.toggle('fx-lite', !!($('m-litefx') && $('m-litefx').checked)); } catch (e) {}
+}
+
 function saveCfg() {
   try { localStorage.setItem('wg_gufeng', JSON.stringify({
+    litefx:$('m-litefx')?$('m-litefx').checked:false,
     url:$('g-url').value, key:$('g-key').value, model:$('g-model').value,
     maxtk:$('g-maxtk')?$('g-maxtk').value:'131072', mem:$('g-mem')?$('g-mem').value:'40',
     fbUrl:$('fb-url')?$('fb-url').value:'', fbKey:$('fb-key')?$('fb-key').value:'', fbModel:$('fb-model')?$('fb-model').value:'', fbType:$('fb-type')?$('fb-type').value:'openai',
@@ -5658,6 +5674,8 @@ function loadCfg() {
     if (d.anon   !== undefined) $('m-anon').checked   = d.anon;
     if (d.trial  !== undefined) $('m-trial').checked  = d.trial;
     if (d.hdeath !== undefined) $('m-hdeath').checked  = d.hdeath;
+    if (d.litefx !== undefined && $('m-litefx')) $('m-litefx').checked = d.litefx;
+    applyLiteFx();
     if (d.killEdge !== undefined && $('m-kill-edge')) { $('m-kill-edge').checked = d.killEdge; S.killEdgeMode = d.killEdge; }
     if (d.knightChain !== undefined && $('m-knight-chain')) { $('m-knight-chain').checked = d.knightChain; S.knightChainMode = d.knightChain; }
     if (d.sheriffDailyOrder !== undefined && $('m-sheriff-daily-order')) { $('m-sheriff-daily-order').checked = d.sheriffDailyOrder; S.sheriffDailyOrderMode = !!d.sheriffDailyOrder; }
@@ -18704,6 +18722,7 @@ function bindEvents() {
   $('m-hdeath').addEventListener('change', Render.modes);
   $('m-mbti').addEventListener('change', Render.modes);
   $('m-cosplay').addEventListener('change', () => { saveCfg(); renderCosplayPresets(); });
+  if ($('m-litefx')) $('m-litefx').addEventListener('change', () => { applyLiteFx(); saveCfg(); });
   $('m-blindnames').addEventListener('change', () => {
     if ($('m-blindnames').checked && $('m-cosplay')) $('m-cosplay').checked = true;
     saveCfg();
