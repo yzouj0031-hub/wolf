@@ -2221,6 +2221,7 @@ body.has-wp::after {
     <button id="gl-jump-bottom" class="scroll-jump-bottom" type="button">↓ 回到最新</button>
     <div class="ctrls">
       <button class="bs" id="bst">🎮 开局</button>
+      <button class="bs" id="btn-demo" title="无需任何 API key，本地脚本自动放一局，供路人观战">🎬 观战Demo</button>
       <button class="bn" id="bne" disabled>▶ 继续</button>
       <button class="ba" id="bau">🔄 自动</button>
       <button class="be" id="btn-ask">💬 提问</button>
@@ -7506,8 +7507,42 @@ function isManualRetryEnabled() {
 }
 
 
+// 🎬 演示模式：无需任何 API key，本地脚本让 AI 说套路话 + 出合法操作，把整局真实引擎跑给路人看。
+//   开启方式：window.__DEMO__ = true（或 URL 带 ?demo=1）。整局零 API 调用、零 key。
+const DEMO_TOWN_LINES = [
+  '我先说，我是好人。{t} 号刚才发言有点飘，我留个心。',
+  '别急着投票，狼肯定藏在跳身份的人里。',
+  '从票型看，{t} 号在带节奏，我不太信 ta。',
+  '我倾向今天先出 {t} 号，起码是个信息。',
+  '我是村民，愿意接受查验，真狼别装了。',
+  '大家冷静点，别被一个人带偏了节奏。'
+];
+const DEMO_WOLF_LINES = [
+  '我觉得 {t} 号最可疑，逻辑到处是漏洞。',
+  '我可是老实好人，别怀疑我。',
+  '我支持出 {t} 号，ta 一直在搅浑水。',
+  '{t} 号发言太干净了，反而像狼。',
+  '我要是狼早被查出来了，投我就是浪费票。'
+];
+async function demoResponder(p, prompt) {
+  await new Promise(r => setTimeout(r, 450 + Math.random() * 450));   // 放慢一点，画面可读
+  const others = S.players.filter(x => x.alive && x.id !== p.id);
+  const pick = others.length ? others[Math.floor(Math.random() * others.length)] : null;
+  const tname = pick ? pick.name : '大家';
+  const say = arr => arr[Math.floor(Math.random() * arr.length)].replace(/\{t\}/g, tname);
+  const isWolf = p.role && p.role.team === 'bad';
+  let action = 'None';
+  if (/同意\s*或\s*反对|是否同意/.test(prompt)) action = Math.random() < 0.5 ? '同意' : '反对';
+  else if (/盾\s*\/\s*查验\s*\/\s*毒/.test(prompt)) action = ['盾', '查验', '毒'][Math.floor(Math.random() * 3)];
+  else if (/申请\s*或\s*None/.test(prompt)) action = 'None';               // 演示里不申请额外发言，保持流畅
+  else if (/EXPLODE|自爆|TRIAL|审判/.test(prompt)) action = 'None';        // 演示里不自爆/不审判
+  else if (pick && /(名字|玩家名|投谁|目标|查验|守护|守谁|毒|刀|锁定|幸运儿|None|P\d)/.test(prompt)) action = pick.name;
+  return { thinking: '(演示模式)', game: say(isWolf ? DEMO_WOLF_LINES : DEMO_TOWN_LINES), action };
+}
+
 async function callAI(p, prompt, opts) {
   opts = opts || {};
+  if (window.__DEMO__) return await demoResponder(p, prompt);   // 🎬 演示模式：本地脚本，无需 key
   const rationalCap = opts.skillConfirm ? 0.5 : Infinity;
   const myGid = S.gameId;
   const api = getAPI(p.id);
@@ -15911,7 +15946,7 @@ if (S.pureAI) { $('m-anon').checked = false; document.body.classList.remove('ano
 
 function startGame() {
   const api = getAPI(0);
-  if (!api.key) { Render.log('system','⚠️ 未配置API'); return; }
+  if (!window.__DEMO__ && !api.key) { Render.log('system','⚠️ 未配置API'); return; }  // 🎬 演示模式免 key
   const cfg = MODE_CONFIGS[S.mode];
   let pid = S.pureAI ? -1 : parseInt($('p-sel').value);
   if (pid === -2) pid = Math.floor(Math.random() * cfg.count);
@@ -16057,6 +16092,30 @@ function toggleAuto() {
   $('bau').innerText = S.auto ? '⏸ 暂停' : '🔄 自动';
   if (S.auto) nextStep();
 }
+
+// 🎬 一键观战 Demo：开启演示模式（本地脚本、免 key）+ 纯AI + 自动推进，把整局真实引擎跑给路人看。
+function startDemo() {
+  try {
+    window.__DEMO__ = true;
+    S.pureAI = true;                                  // 纯AI观战，无人类玩家
+    if (!MODE_CONFIGS[S.mode]) S.mode = 'standard';   // 保底用标准板
+    const pa = $('m-pureai'); if (pa) pa.checked = true;
+    Render.log('system','🎬 演示模式：本地脚本对局（无需任何 API key）。开始观战…');
+    startGame();
+    if (!S.gameOver) {
+      S.auto = true;
+      const b = $('bau'); if (b) b.innerText = '⏸ 暂停';
+      nextStep();
+    }
+  } catch (e) { console.error('startDemo', e); }
+}
+
+// URL 带 ?demo=1 → 载入后自动开一局观战 Demo（用于分享链接：点开即自动放一局）
+window.addEventListener('load', () => {
+  try {
+    if (new URLSearchParams(location.search).get('demo') === '1') setTimeout(startDemo, 1000);
+  } catch (e) {}
+});
 
 /* ================================================================
  *  § 21. 自定义模式
@@ -18512,6 +18571,7 @@ function bindEvents() {
       : (phoneLayoutMq.matches ? `── 命牌 ${b.querySelectorAll('.pc').length}人 · 横滑查看 ▼ ──` : '── 展开命牌 ▼ ──');
   });
   $('bst').addEventListener('click', startGame);
+  { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', startDemo); }   // 🎬 观战Demo
   $('bne').addEventListener('click', nextStep);
   $('bau').addEventListener('click', toggleAuto);
   $('btn-export').addEventListener('click', e => {
