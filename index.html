@@ -7536,8 +7536,9 @@ async function demoResponder(p, prompt) {
   else if (/盾\s*\/\s*查验\s*\/\s*毒/.test(prompt)) action = ['盾', '查验', '毒'][Math.floor(Math.random() * 3)];
   else if (/申请\s*或\s*None/.test(prompt)) action = 'None';               // 演示里不申请额外发言，保持流畅
   else if (/EXPLODE|自爆|TRIAL|审判/.test(prompt)) action = 'None';        // 演示里不自爆/不审判
+  else if (/魔术师|换位|交换|丘比特|爱神|情侣|恋人|连接两/.test(prompt)) action = 'None';  // 需两个目标的技能→演示里直接空过，避免报错刷屏
   else if (pick && /(名字|玩家名|投谁|目标|查验|守护|守谁|毒|刀|锁定|幸运儿|None|P\d)/.test(prompt)) action = pick.name;
-  return { thinking: '(演示模式)', game: say(isWolf ? DEMO_WOLF_LINES : DEMO_TOWN_LINES), action };
+  return { thinking: '', game: say(isWolf ? DEMO_WOLF_LINES : DEMO_TOWN_LINES), action };   // thinking 留空→演示里不刷"💭想法"
 }
 
 async function callAI(p, prompt, opts) {
