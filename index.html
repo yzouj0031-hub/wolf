@@ -9,11 +9,24 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AI狼人杀">
 <meta name="application-name" content="AI狼人杀">
-<meta name="description" content="可安装到 Android 和 iPhone 的 AI 狼人杀游戏">
+<meta name="description" content="多个大模型（GPT / Gemini / DeepSeek / Claude / Qwen）自动开局的 AI 狼人杀：互相推理、欺骗、结盟，你只管观战。免安装在线玩，支持 Android / iPhone。">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
-<title>🐺 AI狼人杀 · 盲名Cosplay·时序修复版</title>
+<title>🐺 AI狼人杀 · 多个大模型在线自动对局·可观战</title>
+<!-- 社交预览卡：链接被贴到任何地方(微信/QQ/小红书/X/论坛)都会自动显示封面图+钩子 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AI 狼人杀">
+<meta property="og:title" content="🐺 AI 狼人杀 · 多个大模型自动对局·可观战">
+<meta property="og:description" content="多个大模型自动开局，互相推理、欺骗、结盟。你只管观战，看它们互相做局。免安装，点开即玩。">
+<meta property="og:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://yzouj0031-hub.github.io/wolf/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="🐺 AI 狼人杀 · 多个大模型自动对局·可观战">
+<meta name="twitter:description" content="多个大模型互相推理、欺骗、结盟，你只管观战。免安装，点开即玩。">
+<meta name="twitter:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner.png">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js"></script>
 <script src="./native-http.js"></script>
@@ -2222,6 +2235,7 @@ body.has-wp::after {
     <div class="ctrls">
       <button class="bs" id="bst">🎮 开局</button>
       <button class="bs" id="btn-demo" title="无需任何 API key，本地脚本自动放一局，供路人观战">🎬 观战Demo</button>
+      <button class="bs" id="btn-share" title="把观战链接分享给朋友">🔗 分享</button>
       <button class="bn" id="bne" disabled>▶ 继续</button>
       <button class="ba" id="bau">🔄 自动</button>
       <button class="be" id="btn-ask">💬 提问</button>
@@ -16111,6 +16125,19 @@ function startDemo() {
   } catch (e) { console.error('startDemo', e); }
 }
 
+// 🔗 分享观战：优先系统分享面板（手机），否则复制链接到剪贴板
+async function shareGame() {
+  const url = 'https://yzouj0031-hub.github.io/wolf/?demo=1';
+  const text = '🐺 AI 狼人杀 · 多个大模型自动对局，你只管观战，看它们互相推理、欺骗、做局。点开即看：';
+  try { if (navigator.share) { await navigator.share({ title: 'AI 狼人杀', text, url }); return; } }
+  catch (e) { if (e && e.name === 'AbortError') return; }
+  try {
+    await navigator.clipboard.writeText(text + ' ' + url);
+    Render.log('system', '🔗 观战链接已复制到剪贴板，去粘给朋友吧：' + url);
+    alert('观战链接已复制到剪贴板：\n' + url);
+  } catch (e) { alert('观战链接（长按复制）：\n' + url); }
+}
+
 // URL 带 ?demo=1 → 载入后自动开一局观战 Demo（用于分享链接：点开即自动放一局）
 window.addEventListener('load', () => {
   try {
@@ -18573,6 +18600,7 @@ function bindEvents() {
   });
   $('bst').addEventListener('click', startGame);
   { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', startDemo); }   // 🎬 观战Demo
+  { const bsh = $('btn-share'); if (bsh) bsh.addEventListener('click', shareGame); }   // 🔗 分享
   $('bne').addEventListener('click', nextStep);
   $('bau').addEventListener('click', toggleAuto);
   $('btn-export').addEventListener('click', e => {
