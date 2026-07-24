@@ -16494,6 +16494,7 @@ function generateReplay() {
     openChatSummary();
     return;
   }
+  _backfillGiftChoiceRecords();
   const modeName = (MODE_CONFIGS[S.mode]||{}).name||'自定义';
   const hd = $('m-hdeath').checked;
 
@@ -17020,6 +17021,7 @@ ${godReport}
 function openChatSummary() {
   const alive = S.players;
   if (!alive.length) { alert('游戏尚未开始'); return; }
+  _backfillGiftChoiceRecords();
 
   // ── 分析 gameRecord 里有哪些轮次 ──
   // ★ 夜晚计数已全局统一为"第1夜起"：时间线 = 第1夜 → 第1天 → 第2夜 → 第2天 ……
@@ -17627,6 +17629,36 @@ function _formatLoverPublicNote(victims) {
   const pair = S.loverPair.map(id => S.players[id]).filter(Boolean);
   if (pair.length !== 2) return '';
   return `💘 公开事件：${pair[0].name}与${pair[1].name}的恋人关系已因殉情触发而公开。“恋人/殉情者”只是关系身份，不会验证两人原本的角色或阵营。`;
+}
+
+// ★ 兼容旧存档：旧版只把赐予结果写进玩家状态，没有写入 gameRecord。
+//   导出前从仍可识别的技能状态/使用历史补回礼物选择，避免上帝视角永久停在“待其自选”。
+function _backfillGiftChoiceRecords() {
+  if (!Array.isArray(gameRecord) || !S || !Array.isArray(S.players)) return;
+  S.players.forEach(p => {
+    if (gameRecord.some(r => r.type==='night_action' && r.role==='gift-choice' && r.name===p.name)) return;
+    const grant = gameRecord.slice().reverse().find(r =>
+      r.type==='night_action' && (r.role==='merchant' || r.role==='youshang') &&
+      r.target===p.name && r.result!=='backfire'
+    );
+    if (!grant) return;
+    let gift = null;
+    let permanent = grant.role === 'merchant';
+    if (p._grantShield) {
+      gift = 'shield';
+      permanent = p._grantShieldExpire === Infinity;
+    } else if (p._grantedSeer || gameRecord.some(r => r.role==='granted-seer' && r.name===p.name)) {
+      gift = 'inspect'; permanent = true;
+    } else if (p._grant && (p._grant.type==='inspect' || p._grant.type==='poison')) {
+      gift = p._grant.type;
+      permanent = p._grant.expire === Infinity;
+    } else if (gameRecord.some(r => r.role==='granted-inspect' && r.name===p.name)) {
+      gift = 'inspect';
+    } else if (gameRecord.some(r => r.role==='granted-poison' && r.name===p.name)) {
+      gift = 'poison';
+    }
+    if (gift) gameRecord.push({type:'night_action', role:'gift-choice', round:grant.round, name:p.name, gift, permanent, migrated:true});
+  });
 }
 
 // 🧩 自创/样板角色夜间行动 → 展示文案。返回 null 表示不是自创角色事件（交由内置分支处理）。
