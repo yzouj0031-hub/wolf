@@ -1664,6 +1664,8 @@ body.has-wp::after {
       <button class="cloud-btn" id="cloud-account-open">登录 / 注册</button>
       <button class="cloud-btn" id="cloud-save-now" style="display:none">上传</button>
       <button class="cloud-btn" id="cloud-load" style="display:none">恢复</button>
+      <button class="cloud-btn" id="cloud-cfg-up" style="display:none" title="把 API 配置(含所有 key/模型/各玩家设置)上传到你的云端账号">上传配置</button>
+      <button class="cloud-btn" id="cloud-cfg-down" style="display:none" title="从云端下载 API 配置到本机(换设备免重输 key)">下载配置</button>
       <button class="cloud-btn danger" id="cloud-logout" style="display:none">退出</button>
     </div>
   </div>
@@ -5573,7 +5575,7 @@ const CloudSave = (() => {
   function render() {
     const loggedIn = !!user;
     if (el('cloud-account-open')) el('cloud-account-open').style.display = loggedIn ? 'none' : '';
-    ['cloud-save-now','cloud-load','cloud-logout'].forEach(id => {
+    ['cloud-save-now','cloud-load','cloud-cfg-up','cloud-cfg-down','cloud-logout'].forEach(id => {
       if (el(id)) el(id).style.display = loggedIn ? '' : 'none';
     });
     setStatus(loggedIn ? `已登录：${user.email || '用户'} · 自动同步已开启` : '未登录 · 当前仅保存到本机');
@@ -5647,7 +5649,9 @@ const CloudSave = (() => {
       setBusy(false);
       if (error) throw error;
       el('cloud-pop')?.classList.remove('show');
-      showMessage('✅ 登录成功，后续存档会自动同步');
+      // 换设备免重输：本机没配 API key 时，登录后自动拉取云端配置
+      try { if (!(el('g-key') && el('g-key').value)) await downloadConfig(true); } catch (e) {}
+      showMessage('✅ 登录成功，存档与配置会自动同步');
     } catch (error) { setBusy(false); showMessage('登录失败：' + error.message); }
   }
 
@@ -5671,6 +5675,34 @@ const CloudSave = (() => {
     await client.auth.signOut();
   }
 
+  // ☁️ API 配置(含所有 key)云同步：复用 game_saves 表的 slot='config'，与存档共用同一套 RLS。
+  //   wg_gufeng 本身就是完整配置 blob，下载后写回并 loadCfg() 即可一键应用。
+  async function uploadConfig() {
+    if (!client || !user) return false;
+    const raw = localStorage.getItem('wg_gufeng');
+    if (!raw) return false;
+    let cfg; try { cfg = JSON.parse(raw); } catch (_) { return false; }
+    const { error } = await client.from('game_saves').upsert({
+      user_id: user.id, slot: 'config', snapshot: cfg, client_updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,slot' });
+    if (error) { console.error('[云配置] 上传失败', error); return false; }
+    return true;
+  }
+  async function downloadConfig(silent) {
+    if (!client || !user) return false;
+    const { data, error } = await client.from('game_saves')
+      .select('snapshot').eq('user_id', user.id).eq('slot', 'config').maybeSingle();
+    if (error || !data || !data.snapshot) { if (!silent) showMessage('云端还没有配置。请先在有 key 的设备上点「上传配置」。'); return false; }
+    localStorage.setItem('wg_gufeng', JSON.stringify(data.snapshot));
+    try { if (typeof loadCfg === 'function') loadCfg(); } catch (e) {}
+    if (!silent) showMessage('✅ 已从云端下载配置(含 API key)并应用');
+    return true;
+  }
+  async function uploadConfigNow() {
+    setBusy(true); const ok = await uploadConfig(); setBusy(false);
+    showMessage(ok ? '✅ 配置(含 API key)已上传到云端' : '上传失败，或本机还没有可上传的配置');
+  }
+
   async function init() {
     if (!client) { setStatus('云存档组件加载失败，请检查网络'); return; }
     el('cloud-account-open')?.addEventListener('click', () => el('cloud-pop')?.classList.add('show'));
@@ -5680,10 +5712,14 @@ const CloudSave = (() => {
     el('cloud-logout')?.addEventListener('click', signOut);
     el('cloud-save-now')?.addEventListener('click', uploadNow);
     el('cloud-load')?.addEventListener('click', download);
+    el('cloud-cfg-up')?.addEventListener('click', uploadConfigNow);
+    el('cloud-cfg-down')?.addEventListener('click', () => downloadConfig(false));
     client.auth.onAuthStateChange((_event, session) => { user = session?.user || null; render(); });
     const {data} = await client.auth.getSession();
     user = data.session?.user || null;
     render();
+    // 已登录且本机没 key（换了设备/清了缓存）→ 自动拉云端配置
+    try { if (user && !(el('g-key') && el('g-key').value)) await downloadConfig(true); } catch (e) {}
   }
 
   return {init, schedule, uploadNow, download};
