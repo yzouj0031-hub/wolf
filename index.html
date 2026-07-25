@@ -802,9 +802,10 @@ body.blind-review .le.ending { display:none !important; }
 /* ══════════════════════════════════════
    § 按钮组
    ══════════════════════════════════════ */
-.ctrls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.ctrls { display: flex; flex-direction: column; gap: 5px; }
+.ctrls-main { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 5px; }
 .ctrls button { padding: 8px; font-size: 0.78em; font-weight: 600; border-radius: var(--r); letter-spacing: 0.05em; transition: all 0.25s; }
-.bs { background: linear-gradient(135deg, rgba(245,160,184,0.2), rgba(192,104,136,0.12)); border: 1px solid var(--gold); color: var(--gold); grid-column: span 3; }
+.bs { background: linear-gradient(135deg, rgba(245,160,184,0.2), rgba(192,104,136,0.12)); border: 1px solid var(--gold); color: var(--gold); }
 .bs:hover { background: rgba(245,160,184,0.3); box-shadow: 0 0 15px rgba(245,160,184,0.15); }
 .bn { background: rgba(104,184,232,0.12); border: 1px solid var(--jade); color: var(--jade); }
 .bn:hover { background: rgba(104,184,232,0.25); }
@@ -812,8 +813,37 @@ body.blind-review .le.ending { display:none !important; }
 .ba:hover { background: rgba(245,160,184,0.2); }
 .be { background: rgba(136,136,204,0.12); border: 1px solid var(--indigo); color: #a0a0d0; }
 .be:hover { background: rgba(136,136,204,0.25); }
-.br { background: rgba(200,48,64,0.1); border: 1px solid rgba(200,48,64,0.3); color: var(--cinnabar-light); grid-column: span 3; }
+.br { background: rgba(200,48,64,0.1); border: 1px solid rgba(200,48,64,0.3); color: var(--cinnabar-light); }
 .br:hover { background: rgba(200,48,64,0.2); }
+.ctrls-more { min-width: 0; }
+.ctrls-more > summary {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 6px 10px; cursor: pointer; list-style: none;
+  color: #8f88a5; font-size: 0.7em; letter-spacing: 0.08em;
+  border: 1px solid rgba(136,136,204,0.18); border-radius: var(--r);
+  background: rgba(136,136,204,0.055); transition: all 0.2s;
+}
+.ctrls-more > summary::-webkit-details-marker { display: none; }
+.ctrls-more > summary:hover { color: #c0b8d8; background: rgba(136,136,204,0.11); }
+.ctrls-more-chevron { display: inline-block; transition: transform 0.2s; }
+.ctrls-more[open] .ctrls-more-chevron { transform: rotate(180deg); }
+.ctrls-more-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; padding-top: 4px; }
+.ctrls-more-grid .br { grid-column: span 3; }
+
+.lobby-demo {
+  width: min(420px, calc(100% - 20px)); margin: 0 auto 18px; padding: 11px 14px;
+  display: flex; align-items: center; gap: 11px; text-align: left;
+  color: #ddd6ed; border: 1px solid rgba(104,184,232,0.28); border-radius: var(--r-lg);
+  background: linear-gradient(115deg, rgba(104,184,232,0.11), rgba(160,100,220,0.07));
+  box-shadow: 0 5px 18px rgba(0,0,0,0.12); transition: all 0.25s;
+}
+.lobby-demo:hover { transform: translateY(-2px); border-color: rgba(104,184,232,0.58); box-shadow: 0 8px 24px rgba(104,184,232,0.1); }
+.lobby-demo-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; background: rgba(104,184,232,0.13); font-size: 1.05em; }
+.lobby-demo-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.lobby-demo-copy strong { color: #c8e5f5; font-family: var(--font-title); font-size: 0.86em; letter-spacing: 0.06em; }
+.lobby-demo-copy small { margin-top: 2px; color: #8880a8; font-size: 0.68em; }
+.lobby-demo-arrow { color: var(--jade); font-size: 1.35em; transition: transform 0.2s; }
+.lobby-demo:hover .lobby-demo-arrow { transform: translateX(3px); }
 
 
 /* ══════════════════════════════════════
@@ -907,9 +937,11 @@ body.blind-review .le.ending { display:none !important; }
   .le.system { padding: 3px 6px; }
   .le.system::before, .le.system::after { display: none; }
   .log-game { padding: 2px 3px; line-height: 1.55; }
-  .ctrls { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; flex-shrink: 0; padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+  .ctrls { gap: 3px; flex-shrink: 0; padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+  .ctrls-main { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+  .ctrls-more-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
   .ctrls button { padding: 6px 2px; min-width: 0; font-size: .62em; letter-spacing: 0; white-space: nowrap; }
-  .ctrls .bs, .ctrls .br { grid-column: auto; }
+  .ctrls-more-grid .br { grid-column: span 3; }
   .overlay, .pcpop, .cpop, .epop, .model-list-overlay, .apivault-overlay { padding: 7px; }
   .pbox, .pcbox, .cbox, .ebox, .model-list-box, .apivault-box, .wolf-strat-panel { padding: 12px; max-height: calc(100dvh - 14px); border-radius: 9px; }
   .mm { padding: 20px 10px; }
@@ -917,6 +949,7 @@ body.blind-review .le.ending { display:none !important; }
   .mm-sub { margin-bottom: 16px; }
   .mc { display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 7px; margin-bottom: 16px; }
   .mcd { width: 100%; max-width: none; padding: 12px 8px; }
+  .lobby-demo { width: 100%; margin-bottom: 13px; padding: 9px 11px; }
   .isec, .rpan { padding: 10px; }
   .rgrid { grid-template-columns: 1fr; }
 }
@@ -969,9 +1002,18 @@ body.blind-review .le.ending { display:none !important; }
   /* 右列三行：顶栏 / 战报 / 按钮 */
   .hbar { grid-area: hbar; padding: 3px 8px; margin: 0; flex-wrap: nowrap; }
   .gl   { grid-area: log; min-height: 0; margin: 0; padding: 6px 10px; overflow-y: auto; }
-  .ctrls{ grid-area: ctrls; display: grid; grid-template-columns: repeat(5, minmax(0,1fr));
+  .ctrls{ grid-area: ctrls; display: flex; flex-direction: column;
           gap: 2px; padding: 3px 6px max(3px, env(safe-area-inset-bottom)); margin: 0; }
+  .ctrls-main { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 2px; }
   .ctrls button { padding: 5px 2px; font-size: .6em; white-space: nowrap; }
+  .ctrls-more { position: relative; }
+  .ctrls-more > summary { padding: 3px 7px; font-size: .58em; }
+  .ctrls-more[open] .ctrls-more-grid {
+    position: absolute; z-index: 20; right: 0; bottom: calc(100% + 3px);
+    width: min(430px, calc(100vw - 90px)); padding: 6px;
+    background: rgba(15,13,27,.98); border: 1px solid rgba(136,136,204,.25);
+    border-radius: var(--r); box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+  }
 
   /* 横屏隐藏这些占高度的东西，右列全给战报 */
   .speak-order-summary, .cfg, .mobile-secondary, .mtog { display: none !important; }
@@ -1625,6 +1667,11 @@ body.has-wp::after {
       <button class="cloud-btn danger" id="cloud-logout" style="display:none">退出</button>
     </div>
   </div>
+  <button id="btn-demo" class="lobby-demo" type="button" title="无需任何 API key，本地脚本自动播放一局，供路人观战">
+    <span class="lobby-demo-icon">🎬</span>
+    <span class="lobby-demo-copy"><strong>先看一局 Demo</strong><small>无需 API Key · 点击即自动观战</small></span>
+    <span class="lobby-demo-arrow">›</span>
+  </button>
   <div class="mc" id="mode-cards">
     <div class="mcd" data-mode="standard"><h3>十人局</h3><div class="pl">🎮</div><div class="desc">经典局<br>3狼(含狼王)+预女猎守+魔术+2民</div></div>
     <div class="mcd" data-mode="super"><h3>十二人局</h3><div class="pl">⚔️</div><div class="desc">经典局<br>3狼(含狼美)+预女猎守骑魔+3民</div></div>
@@ -2233,20 +2280,26 @@ body.has-wp::after {
     <div class="gl" id="gl"><div class="le system">── 准备就绪 ──</div></div>
     <button id="gl-jump-bottom" class="scroll-jump-bottom" type="button">↓ 回到最新</button>
     <div class="ctrls">
-      <button class="bs" id="bst">🎮 开局</button>
-      <button class="bs" id="btn-demo" title="无需任何 API key，本地脚本自动放一局，供路人观战">🎬 观战Demo</button>
-      <button class="bs" id="btn-share" title="把观战链接分享给朋友">🔗 分享</button>
-      <button class="bn" id="bne" disabled>▶ 继续</button>
-      <button class="ba" id="bau">🔄 自动</button>
-      <button class="be" id="btn-ask">💬 提问</button>
-      <button class="be" id="btn-mvp">🏆 MVP</button>
-      <button class="be" id="btn-export">📄 导出</button>
-      <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
-      <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
-      <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
-      <button class="be" id="btn-tts" title="用系统语音朗读AI发言（免费，无需API）">🔇 朗读</button>
-      <button class="be" id="btn-tts-cfg" title="朗读设置：切换系统语音/自定义TTS接口">🎚️</button>
-      <button class="br" id="btn-reset">🔁 重置</button>
+      <div class="ctrls-main">
+        <button class="bs" id="bst">🎮 开局</button>
+        <button class="bn" id="bne" disabled>▶ 继续</button>
+        <button class="ba" id="bau">🔄 自动</button>
+      </div>
+      <details class="ctrls-more">
+        <summary><span>••• 更多功能</span><span class="ctrls-more-chevron">⌄</span></summary>
+        <div class="ctrls-more-grid">
+          <button class="be" id="btn-ask">💬 提问</button>
+          <button class="be" id="btn-share" title="把观战链接分享给朋友">🔗 分享</button>
+          <button class="be" id="btn-mvp">🏆 MVP</button>
+          <button class="be" id="btn-export">📄 导出</button>
+          <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
+          <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
+          <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
+          <button class="be" id="btn-tts" title="用系统语音朗读AI发言（免费，无需API）">🔇 朗读</button>
+          <button class="be" id="btn-tts-cfg" title="朗读设置：切换系统语音/自定义TTS接口">🎚️ 设置</button>
+          <button class="br" id="btn-reset">🔁 重置本局</button>
+        </div>
+      </details>
     </div>
   </div>
   <div class="side right" id="sr"><div class="side-title">─ 右 席 ─</div></div>
