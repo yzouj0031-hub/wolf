@@ -5652,6 +5652,7 @@ const CloudSave = (() => {
       // 换设备免重输：本机没配 API key 时，登录后自动拉取云端配置
       try { if (!(el('g-key') && el('g-key').value)) await downloadConfig(true); } catch (e) {}
       showMessage('✅ 登录成功，存档与配置会自动同步');
+      await offerResumeGame();   // 🎮 登录后：云端有进行中的对局则问是否续玩
     } catch (error) { setBusy(false); showMessage('登录失败：' + error.message); }
   }
 
@@ -5716,6 +5717,29 @@ const CloudSave = (() => {
     showMessage(ok ? '✅ 配置(含 API key)已上传到云端' : '上传失败，或本机还没有可上传的配置');
   }
 
+  // 🎮 回来续玩：云端有一局"进行中"、且与本机存档不是同一份时，提示是否接着玩
+  let _resumeOffered = false;
+  async function offerResumeGame() {
+    if (!client || !user || _resumeOffered) return;
+    try {
+      const { data, error } = await client.from('game_saves')
+        .select('snapshot').eq('user_id', user.id).eq('slot', 'main').maybeSingle();
+      if (error || !data || !data.snapshot) return;
+      const snap = data.snapshot, st = snap && snap.S;
+      if (!st || st.gameOver || !(st.round > 0)) return;   // 只在有"进行中"对局时提示
+      // 本机已是这份存档 → 不打扰（同设备刷新场景）
+      let localTime = 0; try { localTime = JSON.parse(SaveStore.get('auto') || 'null')?._time || 0; } catch (_) {}
+      if (snap._time && snap._time === localTime) return;
+      _resumeOffered = true;
+      const when = snap._time ? new Date(snap._time).toLocaleString('zh-CN') : '';
+      const phaseName = ({night:'夜晚', day:'白天', vote:'投票', sheriff:'警长竞选'})[st.phase] || st.phase || '';
+      if (confirm('☁️ 云端有一局进行中的对局：第 ' + st.round + ' 回 · ' + phaseName + (when ? '（存档于 ' + when + '）' : '') + '。\n要接着这局玩吗？')) {
+        SaveStore.set('auto', JSON.stringify(snap));
+        loadGame('auto');
+      }
+    } catch (e) { console.error('[续玩] 检查失败', e); }
+  }
+
   async function init() {
     if (!client) { setStatus('云存档组件加载失败，请检查网络'); return; }
     el('cloud-account-open')?.addEventListener('click', () => el('cloud-pop')?.classList.add('show'));
@@ -5733,6 +5757,7 @@ const CloudSave = (() => {
     render();
     // 已登录且本机没 key（换了设备/清了缓存）→ 自动拉云端配置
     try { if (user && !(el('g-key') && el('g-key').value)) await downloadConfig(true); } catch (e) {}
+    try { if (user) await offerResumeGame(); } catch (e) {}   // 🎮 已登录打开：云端有进行中的对局则问是否续玩
   }
 
   return {init, schedule, uploadNow, download};
