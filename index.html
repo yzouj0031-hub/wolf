@@ -5677,13 +5677,18 @@ const CloudSave = (() => {
 
   // ☁️ API 配置(含所有 key)云同步：复用 game_saves 表的 slot='config'，与存档共用同一套 RLS。
   //   wg_gufeng 本身就是完整配置 blob，下载后写回并 loadCfg() 即可一键应用。
+  // 同步的配置类本地键：主配置 + API 存储库(从库选) + 名字库
+  const CFG_KEYS = ['wg_gufeng', 'wg_apivault', 'wg_namepool'];
   async function uploadConfig() {
     if (!client || !user) return false;
-    const raw = localStorage.getItem('wg_gufeng');
-    if (!raw) return false;
-    let cfg; try { cfg = JSON.parse(raw); } catch (_) { return false; }
+    if (!localStorage.getItem('wg_gufeng')) return false;   // 没主配置就不传
+    const bundle = { _cfgv: 2 };
+    for (const k of CFG_KEYS) {
+      const v = localStorage.getItem(k);
+      if (v != null) { try { bundle[k] = JSON.parse(v); } catch (_) {} }
+    }
     const { error } = await client.from('game_saves').upsert({
-      user_id: user.id, slot: 'config', snapshot: cfg, client_updated_at: new Date().toISOString()
+      user_id: user.id, slot: 'config', snapshot: bundle, client_updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,slot' });
     if (error) { console.error('[云配置] 上传失败', error); return false; }
     return true;
@@ -5693,9 +5698,17 @@ const CloudSave = (() => {
     const { data, error } = await client.from('game_saves')
       .select('snapshot').eq('user_id', user.id).eq('slot', 'config').maybeSingle();
     if (error || !data || !data.snapshot) { if (!silent) showMessage('云端还没有配置。请先在有 key 的设备上点「上传配置」。'); return false; }
-    localStorage.setItem('wg_gufeng', JSON.stringify(data.snapshot));
+    const snap = data.snapshot;
+    if (snap && snap._cfgv === 2) {
+      // 新格式：多个配置键
+      for (const k of CFG_KEYS) { if (snap[k] !== undefined) localStorage.setItem(k, JSON.stringify(snap[k])); }
+    } else {
+      // 兼容旧格式：snapshot 直接就是 wg_gufeng 对象
+      localStorage.setItem('wg_gufeng', JSON.stringify(snap));
+    }
     try { if (typeof loadCfg === 'function') loadCfg(); } catch (e) {}
-    if (!silent) showMessage('✅ 已从云端下载配置(含 API key)并应用');
+    try { if (typeof NamePoolManager !== 'undefined' && NamePoolManager.restore) NamePoolManager.restore(); } catch (e) {}
+    if (!silent) showMessage('✅ 已从云端下载配置(含 API 库/名字库)并应用');
     return true;
   }
   async function uploadConfigNow() {
