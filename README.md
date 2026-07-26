@@ -67,5 +67,5 @@ npx cap sync android
 
 ## 致谢
 
-感谢 Allen、Claude 和 Codex 对项目的设计、开发与维护贡献。
+感谢 Allen、小克 和 小柴 对项目的设计、开发与维护贡献。
 
