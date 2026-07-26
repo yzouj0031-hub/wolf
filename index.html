@@ -2623,7 +2623,7 @@ body.has-wp::after {
 
 <div class="epop" id="epop"><div class="ebox"><h3 id="ebox-title">── 导出记录 ──</h3><label id="e-th-label" style="font-size:.72em;color:#8a7e6a;display:flex;align-items:center;gap:4px;margin-bottom:6px"><input type="checkbox" id="e-th" style="width:auto;min-width:auto">含内心独白</label><textarea id="etxt"></textarea><div class="btns"><button id="btn-copye" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 复制</button><button id="btn-dle" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 下载</button><button id="btn-importcfg-go" style="display:none;background:rgba(200,168,76,0.2);color:var(--gold);border:1px solid var(--gold)">📥 导入</button><label id="btn-importcfg-file" style="display:none;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:0.85em;text-align:center">📁 从文件导入<input type="file" accept=".json,.txt" id="importcfg-file" style="display:none"></label><button id="btn-closee" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button></div></div></div>
 
-<div class="epop" id="rulepop"><div class="ebox"><h3>── 本局规则（可复制给外部AI）──</h3><div style="font-size:.72em;color:#8a7e6a;margin-bottom:6px">把下面内容整段复制，贴给你在用的网页端 AI，让它按本局规则来玩。胜负规则会随「屠边/屠城」开关自动切换。</div><textarea id="ruletxt" readonly></textarea><div class="btns"><button id="btn-copyrule" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 复制</button><button id="btn-dlrule" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 下载</button><button id="btn-closerule" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button></div></div></div>
+<div class="epop" id="rulepop"><div class="ebox"><h3 id="rulepop-title">── 本局规则（可复制给外部AI）──</h3><div id="rulepop-hint" style="font-size:.72em;color:#8a7e6a;margin-bottom:6px">只包含当前对局实际生效的角色和交互，适合直接复制给网页端 AI。</div><textarea id="ruletxt" readonly></textarea><div class="btns"><button id="btn-rulebook" style="background:rgba(200,168,76,0.12);color:var(--gold);border:1px solid var(--gold)">📚 完整角色百科</button><button id="btn-copyrule" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 复制</button><button id="btn-dlrule" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 下载</button><button id="btn-closerule" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button></div></div></div>
 
 <div class="epop" id="savepop"><div class="ebox"><h3>── 存档管理 ──</h3>
   <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">存档保存在设备数据库中，容量远大于旧版的5MB上限，AI记忆不再被压缩。「导出」可存为文件，在浏览器与APK之间互传。</div>
@@ -4652,13 +4652,13 @@ function getFullRoleBrief(p) {
 // ★ 生成"本局规则"导出文本：供外部 AI（网页端 ChatGPT/Claude 等）理解本局的实际规则。
 //   胜负规则随「屠边/屠城」开关动态切换，和游戏内 AI 实际使用的规则保持一致。
 //   只导出技能与流程规则，不导出狼队内部策略（guide），避免泄露打法、也让 AI 抓住重点。
-function buildRulesExportLegacy() {
+function buildRulesExportLegacy(includeAllRoles = false) {
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
   const isEdge = !!(S && S.killEdgeMode);
 
   // 当前在场角色（已开局用实际配置；未开局则按角色面板勾选/默认全部已注册角色）
   let roleIds = [];
-  if (S && S.players && S.players.length) {
+  if (!includeAllRoles && S && S.players && S.players.length) {
     const seen = {};
     S.players.forEach(p => { if (p.role && !seen[p.role.id]) { seen[p.role.id] = true; roleIds.push(p.role.id); } });
   } else {
@@ -19035,14 +19035,25 @@ function bindEvents() {
     menu.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
     menu.classList.add('show');
   });
-  // ★ 规则导出：弹窗显示本局规则（随屠边/屠城开关切换），可复制/下载
-  $('btn-rules').addEventListener('click', () => {
+  // 规则分成两个入口：默认给 AI 的“本局精简规则”，以及供查阅下一局角色的“完整百科”。
+  const openRulesPopup = (mode = 'game') => {
     try {
-      $('ruletxt').value = buildRulesExport();
+      const full = mode === 'book';
+      $('rulepop').dataset.mode = full ? 'book' : 'game';
+      $('rulepop-title').textContent = full ? '── 完整角色与规则百科 ──' : '── 本局规则（可复制给外部AI）──';
+      $('rulepop-hint').textContent = full
+        ? '包含全部可用角色，供查阅或准备下一场使用；正常网页端 AI 接力不需要复制这一整本。'
+        : '只包含当前对局实际生效的角色和交互，适合直接复制给网页端 AI。';
+      $('btn-rulebook').textContent = full ? '🎯 返回本局规则' : '📚 完整角色百科';
+      $('ruletxt').value = full ? buildRulesExportLegacy(true) : buildRulesExport();
       $('rulepop').classList.add('show');
     } catch (err) {
       alert('生成规则失败：' + (err && err.message ? err.message : err));
     }
+  };
+  $('btn-rules').addEventListener('click', () => openRulesPopup('game'));
+  $('btn-rulebook').addEventListener('click', () => {
+    openRulesPopup($('rulepop').dataset.mode === 'book' ? 'game' : 'book');
   });
   $('btn-copyrule').addEventListener('click', () => {
     const t = $('ruletxt').value;
@@ -19058,7 +19069,7 @@ function bindEvents() {
     const blob = new Blob([$('ruletxt').value], {type:'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = '本局狼人杀规则.txt';
+    a.href = url; a.download = $('rulepop').dataset.mode === 'book' ? '狼人杀完整角色百科.txt' : '本局狼人杀规则.txt';
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
   });
