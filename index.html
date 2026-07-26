@@ -4732,6 +4732,54 @@ function buildRulesExport() {
   return lines.join('\n');
 }
 
+// 网页端 AI 接力专用：只给当前真正需要的规则，不再复制整本规则百科。
+// 完整规则导出按钮仍使用 buildRulesExport()，便于人工查阅。
+function buildWebRulesExport(viewerP) {
+  const isEdge = !!(S && S.killEdgeMode);
+  const hdeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
+  const ids = [...new Set((S.players || []).filter(x => x.role).map(x => x.role.id))];
+  const has = id => ids.includes(id);
+  const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
+  const roleLines = ids.filter(id => ALL_ROLES[id]).map(id => {
+    const r = ALL_ROLES[id];
+    return `· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${r.desc}`;
+  });
+
+  const lines = [
+    '【网页端接力·精简规则】',
+    isEdge
+      ? '胜负：屠边局。狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
+      : '胜负：屠城局。狼人仅在存活狼数≥存活好人数时获胜；杀光神职或村民不会单独提前获胜；好人需清除全部狼人。',
+    `流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。只有系统明确宣布平票时才有PK追加发言；退选没有额外发言。`,
+    '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
+    hdeath
+      ? '隐死亡：普通夜间死亡不公开身份和具体死因；只有系统明确标注的公开技能事件/公开验证可以当事实。'
+      : '公开死亡：系统翻出的身份是真实身份。',
+    '',
+    '【推理证据等级】',
+    'S：系统公开验证、必然技能结算。可以直接当事实。',
+    'A：自己的私密行动记录；完整报记录且经过充分机会仍无人对跳的单边神职。高度可信，但不是100%验明。',
+    'B：关键票型、持续行为、前后动机、阵营收益和多条真正独立的线索。日常推理以这些为主。',
+    'C：单次口误、记错规则、措辞过满、改口、语气强弱、发言长短。只能留疑，不能单独定狼、放逐或发动致命技能。',
+    '规则冲突：公开摘要可能比角色私密说明简略。玩家声称收到系统反馈时，其他人不能只凭摘要断言“该反馈不可能存在”；没有公开结果或确定私密记录硬冲突时，最多记C级疑点。',
+    '视角漏洞：只有玩家说出了按其身份和当时时点绝不可能知道的具体私密事实，且排除公开信息、技能和系统提示后，才是强证据。把一种可能说得过满，首先要求澄清，不自动等于狼人共享视野。',
+    '独立判断：多人复读同一个理由仍只有一条证据。跟票前必须给出自己的观察；好人判断错误也可能客观帮到狼，不能只凭结果反推动机。',
+    '',
+    '【本局实际在场角色】',
+    ...roleLines
+  ];
+
+  if (viewerP && viewerP.role) {
+    lines.push('', `【你的能力】${viewerP.role.emoji}${viewerP.role.name}：${viewerP.role.desc}`);
+  }
+  if (has('guard') && has('witch')) lines.push('· 守卫不能连续守同一人；守护与女巫解药同时作用于同一刀口会奶穿死亡。');
+  if (has('magician')) lines.push('· 魔术师最先行动；换号只重定向当夜狼刀，不影响查验、用药、守护或魅惑；不能连续两夜换完全相同的一对。');
+  if (has('wolfbeauty')) lines.push('· 狼美人每晚仍正常参与狼刀；魅惑不是即时击杀。她出局时才连带当前魅惑目标，具体公开信息以系统公告为准。');
+  if (has('wolfconcubine')) lines.push('· 蚀时狼妃每晚锁一人；当夜首个查验/守护/毒命中该目标时反弹给施术者本人。查验/守护反弹不致死，毒药反弹会毒死女巫。');
+  if (has('magician') || has('witch')) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
+  return lines.join('\n');
+}
+
 function buildNames(n) {
   const cv = ($('cnames').value||'').trim();
   const gn = cv ? cv.split(/[,，]/).map(s=>s.trim()).filter(Boolean) : [];
@@ -9553,7 +9601,7 @@ function _openInputModal(ctx, hint, resolve, currentPlayer) {
       // ★ 修复：喂给网页端Claude的内容里补上 buildRulesExport()（本局完整流程与“本局没有的环节”）。
       //   过去只发角色设定+近期发言，外部AI不知道本局有哪些环节，会脑补退水/退选/投票前发言/PK发言
       //   等本局不存在的环节，然后基于幻觉发言、抱怨自己发言被忽视。补上规则块即可根治。
-      const rulesText = (typeof buildRulesExport === 'function') ? buildRulesExport() : '';
+      const rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(currentPlayer) : '';
       const rulesBlock = rulesText
         ? '【本局规则·先读这一段，尤其“本局没有的环节”一节】\n' + '═'.repeat(40) + '\n' + rulesText + '\n\n' + '═'.repeat(40) + '\n'
         : '';
@@ -18346,7 +18394,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   //   进而基于幻觉发言、抱怨“我的发言被忽视”。这里补齐规则块。
   if (opts.feedClaude && viewerP) {
     const sysprompt = buildSystemPrompt(viewerP);
-    const rulesText = (typeof buildRulesExport === 'function') ? buildRulesExport() : '';
+    const rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(viewerP) : '';
     const rulesBlock = rulesText
       ? '【本局规则·务必先读，尤其是流程与“本局没有的环节”一节】\n' + '═'.repeat(40) + '\n' + rulesText + '\n\n' + '═'.repeat(40) + '\n\n'
       : '';
@@ -21671,21 +21719,21 @@ function buildWebPrompt(p) {
   if (S.phase === 'night') {
     // 夜晚：根据角色给出具体行动指引
     const webMagicWolfHint = S.players.some(x => x.alive && x.role && x.role.id === 'magician')
-      ? `\n魔术师仍存活：先定真正想杀的V，再预测魔术师会不会换V↔D。比较直刀V（换位后落D）与反刀D（换位后落回V）的预期收益，并考虑魔术师可能反向识破。最后明确区分“真正想杀的人”和“名义刀口”。`
+      ? `\n魔术师仍存活，狼刀可能被换位；把它作为风险考虑，但不要为了反套路而机械套公式。`
       : '';
     const nightTask = {
-      werewolf: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出提议和理由，不超过140字。`,
-      wolfking: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出提议和理由，不超过140字。`,
-      wolfbeauty: `现在是狼人密谈阶段。你和队友要商量今晚刀谁，以及你打算魅惑谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出意见，不超过140字。`,
-      whitewolf: `现在是狼人密谈阶段。你和队友要商量今晚刀谁。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露；不能只因“预言家能查验”就默认刀他。直接说出提议和理由，不超过140字。`,
+      werewolf: `现在是狼人密谈阶段。结合当前发言、身份威胁和保护风险，直接提出今晚刀口及最关键理由。${webMagicWolfHint}\n不超过140字。`,
+      wolfking: `现在是狼人密谈阶段。结合当前发言、身份威胁和保护风险，直接提出今晚刀口及最关键理由。${webMagicWolfHint}\n不超过140字。`,
+      wolfbeauty: `现在是狼人密谈阶段。直接提出今晚刀口、魅惑目标及最关键理由；魅惑不代替狼刀。${webMagicWolfHint}\n不超过140字。`,
+      whitewolf: `现在是狼人密谈阶段。结合当前发言、身份威胁和保护风险，直接提出今晚刀口及最关键理由。${webMagicWolfHint}\n不超过140字。`,
       seer: `现在是预言家查验阶段。你需要选择今晚查验谁。\n直接说出你要查验的目标和理由，一句话即可。`,
       witch: `现在是女巫行动阶段。主持人会告诉你今晚的刀口。\n你需要决定：救还是不救？要不要用毒药毒人？直接说你的决定。`,
       guard: `现在是守卫行动阶段。你需要选择今晚守护谁（不能和上次一样）。\n直接说出你要守护的目标，一句话即可。`,
-      magician: `现在是魔术师行动阶段。先推断狼真正想杀的V，再反推狼人是否会预判你换V↔D而故意刀D。至少比较直刀、反刀、改刀/空过三条路线，最后选择一对交换对象或空过。`,
+      magician: `现在是魔术师行动阶段。结合当前局势选择一对交换对象或空过，并用一句话说明你主要想保护谁或防哪种刀口。`,
     }[p.role.id]
       // 自创/样板狼系角色（如蚀时狼妃）也参与狼人密谈：给和普通狼一致的刀口讨论任务
       || ((p.role.team === 'bad' && p.role.id !== 'mechwolf')
-        ? `现在是狼人密谈阶段。你和队友要商量今晚刀谁${(p.role.customAbilities && p.role.customAbilities.length) || p.role.id==='wolfconcubine' ? '；你另有自己的夜间额外技能，其目标会在密谈后由主持人在屏幕上引导你选择' : ''}。${webMagicWolfHint}\n至少比较刀预言家、刀其他神职/逻辑位、留预言家继续被推三条路线，并计算刀后队友会不会因查杀或对跳暴露。直接说出提议和理由，不超过140字。`
+        ? `现在是狼人密谈阶段。直接提出今晚刀口和最关键理由${(p.role.customAbilities && p.role.customAbilities.length) || p.role.id==='wolfconcubine' ? '；你的额外技能目标随后由主持人引导选择' : ''}。${webMagicWolfHint}\n不超过140字。`
         // 好人/第三方的夜间主动技（自创神职等）：技能目标由屏幕选择器引导，无需在此发言
         : `现在是夜晚阶段。你若有夜间主动技能，主持人会在屏幕上引导你选择目标（不需要在这里长篇发言）；没有则安心过夜、等待天亮。`);
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n${nightTask}`;
@@ -21693,7 +21741,7 @@ function buildWebPrompt(p) {
   } else if (S.phase === 'sheriff') {
     // 警长竞选
     const candidates = (S._sheriffCandidates||[]).map(c=>c.name).join('、') || '待定';
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是警长竞选阶段。\n当前候选人：${candidates}\n\n请进行你的竞选演讲（如果你是候选人），或表态支持谁（如果你是投票者）。直接发言，想说多少说多少。该详细就详细——把你的号位、上警动机、对局势的判断、上警后的打法都说清楚；没东西讲也别硬凑。`;
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是警长竞选阶段。\n当前候选人：${candidates}\n\n像真人一样竞选或表态。优先说你自己的一个观察、竞选动机和当前倾向；可以不确定，不要复述前置位的完整论证。`;
 
   } else if (S.phase === 'day') {
     // 白天发言
@@ -21703,10 +21751,10 @@ function buildWebPrompt(p) {
     const deathAnnounce = S._lastNightDeaths && S._lastNightDeaths.length
       ? `\n昨晚死亡：${S._lastNightDeaths.map(id => S.players[id] ? S.players[id].name : '未知').join('、')}`
       : '\n昨晚：平安夜';
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}\n\n轮到你发言了。根据目前的信息分析局势，推理狼人，或者为自己辩护。\n直接开口说话，想说多少说多少。该盘逻辑就盘逻辑，该报查验就报全，该悍跳就抢戏——别因为字数限制把推理简化掉；但也别废话凑字数。像真人桌游一样自然。`;
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}\n\n轮到你发言。给出你自己的观察、当前可信度/怀疑度和投票倾向；有身份信息就报清记录。不要把单次口误包装成唯一答案，也不要重复前置位已经说完的整套逻辑。自然发言，长短按你真正拥有的信息决定。`;
 
   } else if (S.phase === 'vote') {
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段。\n存活玩家：${aliveList}\n\n你要投谁出局？说出你的投票目标和完整理由——这是你最后说服别人的机会，想说多少说多少。`;
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段。\n存活玩家：${aliveList}\n\n给出投票目标和最关键的一至两个理由。允许按概率下注；不要把C级口误或多数共识伪装成铁证。`;
 
   } else if (S.phase === 'duel') {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n系统正在进行投票前的私密技能确认。尚未公开发动任何技能，不得据此推断场上身份，也不需要公开发言。`;
@@ -21719,11 +21767,11 @@ function buildWebPrompt(p) {
   let _configBlock = '';
   try {
     const _roleList = (typeof getRoleList === 'function') ? getRoleList() : '';
-    const _rulesText = (typeof buildRulesExport === 'function') ? buildRulesExport() : '';
+    const _rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(p) : '';
     _configBlock =
 `━━━━ 📋 本局配置（这是公开信息，所有玩家一开始就知道）━━━━
 本局共 ${S.players.length} 人，身份构成：${_roleList}
-⚠️ 把这份配置当武器用：你知道全场总共有几只狼、有没有狼王(死亡开枪)/狼美人(死亡连带)/白狼王(自爆)。随时可以数“狼还剩几只、带死亡技能的狼亮过没有”来反推局势。
+配置用于核对人数和可能技能，不代表任何具体玩家身份；不要为了“用上配置”而强行制造结论。
 
 ${_rulesText}
 `;
@@ -21731,7 +21779,7 @@ ${_rulesText}
 
   return `你正在扮演一个狼人杀游戏的玩家。请完全代入角色，直接用第一人称说话，不要有助手口吻。
 
-⚠️ 提示：以下战报是本局完整经过，可能较长，但每一段都是你需要的记忆。请直接发送给 AI，不要自行删减。
+以下战报用于恢复记忆。系统公开结果和你的私密记录优先级最高；旧发言只是当时观点，可能错误，不要把每一句都当成同等重要的规则或事实。
 
 ${_configBlock}
 ━━━━ 你是谁 ━━━━
@@ -21743,10 +21791,10 @@ ${secretBlock}
 存活（${S.players.filter(x=>x.alive).length}人）：${aliveList}
 ${deadList ? `已出局：${deadList}` : '目前无人出局'}
 ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${_publicEventReadingNote()}
-${hdeathOn ? '⚠️ 本局规则：死者身份不公开（隐死亡模式）。系统不会告诉你狼刀、女巫毒药这类私密夜间死因；但公开触发的死因（狼美人魅惑连带、恋人殉情、猎人开枪、狼王咬人、骑士/机械狼决斗、白狼王自爆、白天投票/审判）仍会照常显示。特别注意：魅惑连带触发时，全场可以确认“已有一名狼美人出局”，但系统不会指出哪名死者是狼美人，也不会因此翻开她的身份；恋人殉情只公开恋人关系，不验证两人的原身份或阵营。【关键：任何人的口头发言（包括出局遗言、临死自报）都不能证明他自己的身份——有人生前说"我是预言家/守卫/平民"，那只是他单方面的声称，不等于他真的是。狼临死前装平民、装好神是这游戏最廉价的操作。这种声称必须靠你自己的逻辑去验证，绝不能因为"他说了"或"人都死了"就直接采信。】你能真正确认一个死者身份的途径只有两条：① 铁视角信息（预言家的查验结果、女巫/守卫的夜间行动记录这类客观事实）；② 你本身就是有视角的角色、亲眼所见。除此之外，所有出局玩家的身份对你都是未知的。' : '死者身份公开（出局后翻牌，翻牌结果是真实身份，可信）。'}
+${hdeathOn ? '隐死亡模式：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。玩家自报身份属于声明，结合无人对跳、记录吻合、票型和行为评估可信度；不要因“自报不能验明”就无差别怀疑，也不要因遗言而自动相信。' : '死者身份公开：系统翻牌结果是真实身份。'}
 
-━━━━ 本局完整战报（按「第几天」逐日重放，每个事件都标了发生时间）━━━━
-说明：下面先给「死亡时间线」（谁、第几天、白天还是夜晚、怎么死的），再按 第1天→第2天… 逐日展开，每天分「🌙夜晚」和「☀️白天」两段。你要分析谁是狼时，务必结合每件事【发生在第几天】来推理（例如"某人是第2天夜里被狼刀的"和"某人是第3天白天被投出去的"是完全不同的信息）。
+━━━━ 本局战报（事实与玩家观点混合记录）━━━━
+按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。
 ${battleReport}${endingSpeechBlock}${wolfChatBlock}${memoryBlock}
 
 ${phaseBlock}
