@@ -16339,8 +16339,8 @@ function startGame() {
   Render.log('night','🌙 第一夜…');
 gameRecord.push({type:'system',text:'开局'});
 Render.stats(); Render.modes(); Render.phaseClass();
-// ★ 新增：开局后锁定设置开关
-['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled = true; });
+// 运行时开关（隐死亡/审判/匿名/遗言等）整局保持可调：开局忘了开可中途补上，实时生效（不会追溯已公布的信息）
+['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled = false; });
 }
 
 async function nextStep() {
