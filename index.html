@@ -4652,7 +4652,7 @@ function getFullRoleBrief(p) {
 // ★ 生成"本局规则"导出文本：供外部 AI（网页端 ChatGPT/Claude 等）理解本局的实际规则。
 //   胜负规则随「屠边/屠城」开关动态切换，和游戏内 AI 实际使用的规则保持一致。
 //   只导出技能与流程规则，不导出狼队内部策略（guide），避免泄露打法、也让 AI 抓住重点。
-function buildRulesExport() {
+function buildRulesExportLegacy() {
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
   const isEdge = !!(S && S.killEdgeMode);
 
@@ -4743,6 +4743,74 @@ function buildRulesExport() {
   lines.push('· 【机械狼判定】（仅当本局配置了机械狼时生效）机械狼属狼人阵营，但与狼队【互不相认】、不参与狼队夜刀讨论、不能自爆。① 学习：整局可在任意一夜学习一名其他玩家，仅一次，得知其真实身份并复制强化技能，从下一夜生效。学预言家→每晚查验一人的【准确角色名】（如女巫、白狼王），不只是阵营；学魔术师→每晚在魔术师行动后得知真实换位A↔B或空过，带刀时可据此反算名义刀口，但刀仍按换位正常重定向；学平民→获得身份伪装，生效后真正的预言家验机械狼显示为好人（此前查验不追溯改变）；学女巫→每晚可毒且被机械毒者不能发动死亡技能；学守卫→每晚守护且机械盾同时免疫狼刀与女巫毒；学猎人→出局时开枪；学骑士→一次性机械决斗；学狼系→带刀后为无视守护/解药的破盾刀。② 带刀：仅当除机械狼外的其他狼系角色全部出局后，机械狼才获得狼刀；每晚可刀一名其他玩家，也可选择【空刀】且系统不得随机补目标；不能主动自刀，但魔术师交换可能把刀间接转回机械狼。③ 默认伪装：未学平民或平民伪装尚未生效时，预言家查验机械狼仍显示狼人。');
   lines.push('');
   lines.push('（提示：以上为本局规则框架，具体身份能力以"在场角色及技能"一节为准。请以本局规则进行推理与发言。）');
+
+  return lines.join('\n');
+}
+
+// 面向实际对局的规则导出：只写本局存在的角色与真正会生效的交互。
+// 旧版完整百科保留在 buildRulesExportLegacy 便于维护核对，但不再直接喂给外部 AI。
+function buildRulesExport() {
+  const players = (S && Array.isArray(S.players)) ? S.players : [];
+  if (!players.length) return '尚未开局。请在角色配置完成并开局后导出，系统将只生成本局实际生效的规则。';
+
+  const ids = [...new Set(players.filter(p => p.role).map(p => p.role.id))];
+  const has = id => ids.includes(id);
+  const hasAny = list => list.some(has);
+  const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
+  const isEdge = !!S.killEdgeMode;
+  const hiddenDeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
+  const counts = {};
+  players.forEach(p => { if (p.role) counts[p.role.name] = (counts[p.role.name] || 0) + 1; });
+  const config = Object.entries(counts).map(([name, count]) => count > 1 ? `${count}${name}` : name).join(' + ');
+
+  const lines = [
+    '【本局实际规则·精简导出】',
+    `配置：${players.length}人｜${config}`,
+    '',
+    '━━ 胜负与流程 ━━',
+    isEdge
+      ? '· 屠边局：狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
+      : '· 屠城局：狼人仅在存活狼数≥存活好人数时获胜；杀光某一身份类别不会单独获胜；好人需清除全部狼人。',
+    `· 流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。只有系统明确宣布平票时才有PK追加发言；退选本身没有额外发言。`,
+    S.sheriffDailyOrderMode
+      ? '· 警长存活时每天指定发言起点与方向，并最后归票。'
+      : '· 首日由警长定序；后续按夜间死者位置或默认座位顺序发言，警长最后归票。',
+    hiddenDeath
+      ? '· 隐死亡：普通夜间死亡不翻身份，也不公开狼刀、毒药等私密死因；公开技能事件仍以系统公告为准。'
+      : '· 身份公开：系统翻出的死亡身份与公开技能结果可以直接作为事实。',
+    '· 夜间行动只能依据行动前已有的信息；警徽流等未来计划不等于已经执行。',
+    '',
+    '━━ 本局在场角色 ━━'
+  ];
+
+  ids.filter(id => ALL_ROLES[id]).forEach(id => {
+    const r = ALL_ROLES[id];
+    lines.push(`· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${r.desc}`);
+  });
+
+  const interactions = [];
+  if (hasAny(['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine'])) {
+    interactions.push('除机械狼外，本局狼系角色每晚共同参与狼刀；额外技能不会替代狼刀。');
+  }
+  if (has('mechwolf')) interactions.push('机械狼与狼队互不相认且前期不参加狼刀，但仍与狼人共享胜负；其学习与带刀按角色说明结算。');
+  if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
+  if (has('magician')) interactions.push('魔术师最先行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
+  if (has('wolfconcubine')) interactions.push('蚀时狼妃的锁每夜只反弹首个命中的查验、守护或毒；查验和守护反弹不致死，毒药反弹可能毒死施术女巫。');
+  if (has('wolfbeauty')) interactions.push('狼美人出局时通常连带当夜魅惑目标；若该次死亡已经让某阵营即时达成胜利，则以后续系统终局判定为准。');
+  if (hasAny(['hunter','wolfking','whitewolf','wolfbeauty'])) interactions.push('带死亡效果的角色是否继续发动技能，以死亡当刻的系统胜负判定为准；不要只套用“任何死因必触发”的单句规则。');
+  if (has('knight')) interactions.push(S.knightChainMode
+    ? '骑士每天最多决斗一次：命中狼人则狼死、骑士存活且下一天仍可再决斗；点到好人则仅骑士牺牲。'
+    : '骑士整局只能决斗一次：命中狼人则狼死、骑士存活；点到好人则仅骑士牺牲。');
+  if (interactions.length) {
+    lines.push('', '━━ 本局会发生的关键交互 ━━');
+    interactions.forEach(x => lines.push('· ' + x));
+  }
+
+  lines.push('', '━━ 阅读与推理 ━━');
+  lines.push('· 系统公开验证和本人明确收到的私密行动记录优先；玩家发言、自报身份和遗言只是声明。');
+  lines.push('· 单次口误、记错摘要、措辞过满或语气强弱只能形成疑点，不能单独当成身份铁证。');
+  lines.push('· 多人复读同一理由仍只是一条证据；结合票型、持续行为、信息来源与阵营收益判断。');
+  lines.push('· 公开摘要可能比角色私密说明简略；若玩家声称收到系统反馈，应先核对实际结算，不能仅凭摘要判定其“必然说谎”。');
 
   return lines.join('\n');
 }
