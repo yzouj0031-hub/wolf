@@ -31,20 +31,34 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js"></script>
 <script src="./native-http.js"></script>
 <script>
-// 🌐 网页端 CORS 代理：非 APK(浏览器)环境下，把发往白名单 AI API 的请求自动转经 wolf-api worker，绕过 CORS。
-//   用户只需填自己正常的 API 地址，游戏在网页端自动代理；APK 走 native-http，不经此处。
+// 🌐 网页端 CORS 代理：非 APK(浏览器)环境下，把发往任意 AI API/中转站 的跨域请求自动转经 wolf-api worker，绕过 CORS。
+//   用户只需填自己正常的 API 地址（任意 provider / 中转站均可），游戏在网页端自动代理；APK 走 native-http，不经此处。
+//   采用"排除法"：只有同源 / Supabase / GitHub / 字体 / 代理自身这些不走代理，其余跨域请求一律代理。
 (function () {
   var isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
   if (isNative) return;
   var PROXY = 'https://wolf-api.yzouj0031.workers.dev/';
-  var PROXY_HOSTS = { 'api.openai.com':1, 'api.anthropic.com':1, 'api.deepseek.com':1, 'generativelanguage.googleapis.com':1, 'api.siliconflow.cn':1, 'openrouter.ai':1 };
+  var PROXY_HOST = 'wolf-api.yzouj0031.workers.dev';
+  // 不走代理的目标（与 native-http.js 的排除表一致，另加代理自身，避免二次代理）
+  function skipProxy(u) {
+    var host = u.hostname.toLowerCase();
+    return u.origin === location.origin ||
+      host === PROXY_HOST ||
+      host.endsWith('.supabase.co') ||
+      host === 'api.github.com' ||
+      host === 'github.com' ||
+      host.endsWith('.githubusercontent.com') ||
+      host === 'cdn.jsdelivr.net' ||
+      host === 'fonts.googleapis.com' ||
+      host === 'fonts.gstatic.com';
+  }
   var _fetch = window.fetch.bind(window);
   window.fetch = function (input, init) {
     try {
       if (typeof input === 'string' || input instanceof URL) {
         var s = String(input);
         var u = new URL(s, location.href);
-        if (PROXY_HOSTS[u.hostname] && s.indexOf(PROXY) !== 0) return _fetch(PROXY + u.href, init);
+        if (!skipProxy(u) && s.indexOf(PROXY) !== 0) return _fetch(PROXY + u.href, init);
       }
     } catch (e) {}
     return _fetch(input, init);
