@@ -5463,7 +5463,15 @@ function saveGame(options = {}) {
       }))
     })),
     gameRecord: gameRecord,
-    playerConfigs: playerConfigs
+    playerConfigs: playerConfigs,
+    // ★ 本局的界面开关（隐死亡/审判/匿名/遗言等在运行时直接读复选框）——一并存进存档，
+    //   读档续玩时按本局设置还原，避免续玩后这些开关变回全局默认值（如隐死亡被关掉）。
+    uiSettings: {
+      hdeath: $('m-hdeath')?.checked, trial: $('m-trial')?.checked, anon: $('m-anon')?.checked,
+      mbti: $('m-mbti')?.checked, cosplay: $('m-cosplay')?.checked,
+      blindnames: $('m-blindnames')?.checked, hardcore: $('m-hardcore')?.checked,
+      lastwill: $('m-lastwill')?.value
+    }
   });
 
   // 逐级降级:40 → 20 → 10 → 5 → 0(放弃memory)
@@ -5505,7 +5513,8 @@ function saveGame(options = {}) {
   return false;
 }
 
-function loadGame(slotArg) {
+function loadGame(slotArg, opts) {
+  opts = opts || {};
   const slot = (typeof slotArg === 'string' && slotArg) ? slotArg : 'auto';
   try {
     const raw = SaveStore.get(slot);
@@ -5513,8 +5522,11 @@ function loadGame(slotArg) {
     const snap = JSON.parse(raw);
     if (!snap || !snap.S || !snap.S.players) { alert('存档格式无效'); return; }
 
-    const t = new Date(snap._time).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-    if (!confirm(`读取存档？\n保存于：${t}\n第${snap.S.round}回·${snap.S.phase}\n存活：${snap.S.players.filter(p=>p.alive).length}人`)) return;
+    // 从「重回游戏」进来时已经确认过一次，这里不再二次确认（opts.skipConfirm）
+    if (!opts.skipConfirm) {
+      const t = new Date(snap._time).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      if (!confirm(`读取存档？\n保存于：${t}\n第${snap.S.round}回·${snap.S.phase}\n存活：${snap.S.players.filter(p=>p.alive).length}人`)) return;
+    }
 
     // 中止当前游戏
     TTS.stop();
@@ -5590,7 +5602,17 @@ function loadGame(slotArg) {
     S.players.forEach(p => { Render.card(p); const pn=$('pn-'+p.id); if(pn) pn.textContent=publicPlayerLabel(p); });
     if (S.gameOver && S.blindReviewMode) updateBlindReviewUI();
     Render.stats(); Render.modes(); Render.phaseClass();
-    ['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled=true; });
+    // ★ 还原本局的界面开关（隐死亡/审判/匿名/遗言等），让续玩后设置和存档时一致，而不是变回全局默认。
+    const _us = snap.uiSettings;
+    if (_us) {
+      const setChk = (id, v) => { const el=$(id); if (el && v !== undefined) el.checked = !!v; };
+      setChk('m-hdeath', _us.hdeath); setChk('m-trial', _us.trial); setChk('m-anon', _us.anon);
+      setChk('m-mbti', _us.mbti); setChk('m-cosplay', _us.cosplay);
+      setChk('m-blindnames', _us.blindnames); setChk('m-hardcore', _us.hardcore);
+      if (_us.lastwill !== undefined && $('m-lastwill')) $('m-lastwill').value = _us.lastwill;
+    }
+    // 这些是运行时开关（隐死亡/审判/匿名/遗言等），续玩后保持【可调】——有时续玩需要临时改设置，不再一律灰掉。
+    ['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled=false; });
     Render.log('system', `📂 存档已读取（第${S.round}回·${S.phase}，存活${S.players.filter(p=>p.alive).length}人）`);
     Render.log('system', '▶ 点「继续」接着玩');
   } catch(e) {
@@ -5835,7 +5857,7 @@ const CloudSave = (() => {
       const phaseName = ({night:'夜晚', day:'白天', vote:'投票', sheriff:'警长竞选'})[st.phase] || st.phase || '';
       if (confirm('☁️ 云端有一局进行中的对局：第 ' + st.round + ' 回 · ' + phaseName + (when ? '（存档于 ' + when + '）' : '') + '。\n要接着这局玩吗？')) {
         SaveStore.set('auto', JSON.stringify(snap));
-        loadGame('auto');
+        loadGame('auto', {skipConfirm:true});  // 已经确认过一次，直接回到对局（保持暂停，等玩家点继续）
       }
     } catch (e) { console.error('[续玩] 检查失败', e); }
   }
