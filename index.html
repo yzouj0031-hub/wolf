@@ -58,7 +58,15 @@
       if (typeof input === 'string' || input instanceof URL) {
         var s = String(input);
         var u = new URL(s, location.href);
-        if (!skipProxy(u) && s.indexOf(PROXY) !== 0) return _fetch(PROXY + u.href, init);
+        if (!skipProxy(u)) {
+          // worker 从请求头 X-Target-URL 读取真实目标地址；请求发往 worker 根路径。
+          var opt = {};
+          for (var k in (init || {})) opt[k] = init[k];
+          var h = new Headers((init && init.headers) || {});
+          h.set('X-Target-URL', u.href);
+          opt.headers = h;
+          return _fetch(PROXY, opt);
+        }
       }
     } catch (e) {}
     return _fetch(input, init);
