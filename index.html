@@ -6830,6 +6830,20 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
   const ctype = (res.headers.get('content-type') || '').toLowerCase();
   const looksLikeSSE = ctype.includes('event-stream') || /^\s*data:\s*[\{\[]/.test(rawText);
 
+  // ★ 返回的是网页(HTML)而非 API 数据 → 给人话提示,别甩 "Unexpected token '<'"
+  //   最常见:网页端经 worker 代理访问的中转站自己套了 Cloudflare 防护,弹了验证页。
+  {
+    const head = rawText.slice(0, 600);
+    const isHtml = ctype.includes('text/html') || /^\s*<(?:!doctype|html|head|body)\b/i.test(head);
+    if (isHtml) {
+      const isCfChallenge = /Attention Required|cf[-_]wrapper|cf[-_]browser-verification|cf[-_]styles|Just a moment|Checking your browser|__cf_chl/i.test(head);
+      if (isCfChallenge) {
+        throw new Error('⚠️ 该中转站返回了 Cloudflare 人机验证页（网页端经代理访问被目标站拦截）。此站在网页端天生过不去，请改用其它中转站或官方直连地址；它可以在 APK 端正常直连使用。');
+      }
+      throw new Error('⚠️ 该地址返回的是网页而非 API 数据（可能是 API 地址填错、或该站需要验证/有防护）。请检查 API 地址是否正确，或换一个中转站。');
+    }
+  }
+
   if (!looksLikeSSE) {
     // 正常 JSON 路径
     try {
