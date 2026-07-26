@@ -5900,7 +5900,7 @@ function saveCfg() {
     fbUrl:$('fb-url')?$('fb-url').value:'', fbKey:$('fb-key')?$('fb-key').value:'', fbModel:$('fb-model')?$('fb-model').value:'', fbType:$('fb-type')?$('fb-type').value:'openai',
     sumUrl:$('sum-url')?$('sum-url').value:'', sumKey:$('sum-key')?$('sum-key').value:'', sumModel:$('sum-model')?$('sum-model').value:'', sumType:$('sum-type')?$('sum-type').value:'openai', memCompress:$('mem-compress-enable')?$('mem-compress-enable').checked:true,
     spd:$('g-spd').value, anon:$('m-anon').checked, trial:$('m-trial').checked,
-    hdeath:$('m-hdeath').checked, mbti:$('m-mbti').checked, cosplay:$('m-cosplay').checked, blindNames:$('m-blindnames')?$('m-blindnames').checked:false, hardcore:$('m-hardcore')?$('m-hardcore').checked:false, cnames:$('cnames').value, lastwill:$('m-lastwill')?$('m-lastwill').value:'first', killEdge:$('m-kill-edge')?$('m-kill-edge').checked:false, knightChain:$('m-knight-chain')?$('m-knight-chain').checked:false, sheriffDailyOrder:$('m-sheriff-daily-order')?$('m-sheriff-daily-order').checked:false,
+    hdeath:$('m-hdeath').checked, mbti:$('m-mbti').checked, cosplay:$('m-cosplay').checked, blindNames:$('m-blindnames')?$('m-blindnames').checked:false, hardcore:$('m-hardcore')?$('m-hardcore').checked:false, cnames:$('cnames').value, lastwill:$('m-lastwill')?$('m-lastwill').value:'first', killEdge:$('m-kill-edge')?$('m-kill-edge').checked:false, singleRound:$('m-single-round')?$('m-single-round').checked:false, knightChain:$('m-knight-chain')?$('m-knight-chain').checked:false, sheriffDailyOrder:$('m-sheriff-daily-order')?$('m-sheriff-daily-order').checked:false,
     modeltag:$('m-modeltag')?$('m-modeltag').checked:true,
     thinking:$('m-thinking')?$('m-thinking').checked:true,
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
@@ -5941,6 +5941,7 @@ function loadCfg() {
     if (d.litefx !== undefined && $('m-litefx')) $('m-litefx').checked = d.litefx;
     applyLiteFx();
     if (d.killEdge !== undefined && $('m-kill-edge')) { $('m-kill-edge').checked = d.killEdge; S.killEdgeMode = d.killEdge; }
+    if (d.singleRound !== undefined && $('m-single-round')) { $('m-single-round').checked = d.singleRound; S.singleRound = d.singleRound; }
     if (d.knightChain !== undefined && $('m-knight-chain')) { $('m-knight-chain').checked = d.knightChain; S.knightChainMode = d.knightChain; }
     if (d.sheriffDailyOrder !== undefined && $('m-sheriff-daily-order')) { $('m-sheriff-daily-order').checked = d.sheriffDailyOrder; S.sheriffDailyOrderMode = !!d.sheriffDailyOrder; }
     if (d.lastwill !== undefined && $('m-lastwill')) $('m-lastwill').value = d.lastwill;
@@ -19133,6 +19134,9 @@ function bindEvents() {
   { const f = $('m-free-output'); if (f) f.addEventListener('change', saveCfg); }
   { const m = $('m-manual-retry'); if (m) m.addEventListener('change', saveCfg); }
   { const s = $('m-sheriff-daily-order'); if (s) s.addEventListener('change', saveCfg); }
+  { const ke = $('m-kill-edge'); if (ke) ke.addEventListener('change', saveCfg); }
+  { const sr = $('m-single-round'); if (sr) sr.addEventListener('change', saveCfg); }
+  { const kc = $('m-knight-chain'); if (kc) kc.addEventListener('change', saveCfg); }
 
   ['c-speak','c-vote','c-wolf','c-wvote','c-trial','c-end'].forEach(id => {
     $(id).addEventListener('change', saveCfg);
