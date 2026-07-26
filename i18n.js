@@ -157,7 +157,7 @@
     const wrap = document.createElement('label');
     wrap.id = 'wolf-language-picker';
     wrap.innerHTML = '<span>🌐</span><select aria-label="Language"><option value="zh-CN">简体中文</option><option value="en">English</option></select>';
-    Object.assign(wrap.style, {position:'fixed',right:'10px',top:'10px',zIndex:'1200',display:'flex',alignItems:'center',gap:'4px',padding:'4px 7px',border:'1px solid rgba(245,160,184,.22)',borderRadius:'8px',background:'rgba(15,13,27,.9)',color:'#d8d0e8',fontSize:'12px',backdropFilter:'blur(8px)'});
+    Object.assign(wrap.style, {position:'fixed',left:'10px',right:'auto',top:'auto',bottom:'max(8px, env(safe-area-inset-bottom))',zIndex:'1200',display:'flex',alignItems:'center',gap:'4px',padding:'4px 7px',border:'1px solid rgba(245,160,184,.22)',borderRadius:'8px',background:'rgba(15,13,27,.9)',color:'#d8d0e8',fontSize:'12px',backdropFilter:'blur(8px)'});
     const select = wrap.querySelector('select');
     Object.assign(select.style, {background:'transparent',border:'0',color:'inherit',font:'inherit',outline:'none'});
     select.value = lang;

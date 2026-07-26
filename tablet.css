@@ -60,7 +60,14 @@ html.capacitor-native .apivault-overlay {
   .side .pc { width: 100%; min-width: 0; padding: 5px 6px; }
   .side .ch { flex-direction: row; gap: 5px; text-align: left; }
   .side .av { width: 23px; height: 23px; font-size: .68em; }
-  .side .pn { font-size: .68em; }
+  .side .pn {
+    font-size: clamp(.58em, 1.25vw, .68em);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.12;
+  }
   .side .rt { font-size: .52em; }
   .side .ptag, .side .mbtitag { font-size: .46em; }
 
@@ -104,7 +111,14 @@ html.capacitor-native .apivault-overlay {
   .side .ch { flex-direction: row; gap: 6px; text-align: left; }
   .side .pc { padding: 6px 8px; }
   .side .av { width: 26px; height: 26px; font-size: .8em; }
-  .side .pn { font-size: .8em; }
+  .side .pn {
+    font-size: clamp(.66em, 1.05vw, .8em);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.12;
+  }
   .side .rt { font-size: .6em; }
   .side .ptag { font-size: .55em; }
   .side .mbtitag { font-size: .5em; }
