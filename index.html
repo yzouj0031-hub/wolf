@@ -904,8 +904,24 @@ body.blind-review .le.ending { display:none !important; }
 .seat-item.drag-over { border-color: var(--gold); box-shadow: 0 0 8px rgba(245,160,184,0.3); transform: scale(1.05); }
 .seat-item .seat-num { color: #6860a0; font-size: 0.85em; min-width: 22px; }
 .seat-item .seat-name { color: var(--gold-light); }
-.mobile-secondary { border: 0; margin: 0; padding: 0; min-width: 0; }
-.mobile-secondary > summary { display: none; }
+.mobile-secondary {
+  border: 1px solid rgba(245,160,184,.1); border-radius: var(--r);
+  margin: 0 0 5px; padding: 0; min-width: 0; overflow: hidden;
+  background: rgba(16,14,28,.58);
+}
+.mobile-secondary > summary {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+  padding: 5px 9px; color: #9a90b0; font-size: .68em; user-select: none;
+}
+.mobile-secondary > summary::-webkit-details-marker { display: none; }
+.mobile-secondary > summary::after {
+  content: '展开'; margin-left: auto; color: #706884; font-size: .9em;
+}
+.mobile-secondary[open] > summary { border-bottom: 1px solid rgba(245,160,184,.08); }
+.mobile-secondary[open] > summary::after { content: '收起'; }
+.mobile-secondary > .mtog { margin: 0; padding: 6px 7px 3px; }
+.mobile-secondary > .bgm-controls { padding: 3px 7px 6px !important; }
+.mobile-secondary > .cosplay-presets:not(:empty) { margin: 0 7px 6px; }
 @media (max-width: 900px) and (orientation: portrait) {
   .gc.active { flex-direction: column; height: 100vh; overflow: hidden; }
   .side { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; padding: 4px; gap: 3px; flex-shrink: 0; max-height: 15vh; overflow-y: auto; border-right: none !important; border-left: none !important; border-bottom: 1px solid rgba(245,160,184,0.08); }
@@ -967,10 +983,9 @@ body.blind-review .le.ending { display:none !important; }
   .cfg[open] { max-height: 48dvh; overflow-y: auto; }
   .cfg[open] > summary { top: -5px; margin: -5px -6px 5px; padding: 6px 6px 5px; }
   .mobile-secondary { flex-shrink: 0; margin-bottom: 3px; }
-  .mobile-secondary > summary { display: block; cursor: pointer; list-style: none; padding: 4px 7px; border: 1px solid rgba(245,160,184,.1); border-radius: var(--r); background: var(--bg-panel); color: #9a90b0; font-size: .66em; }
-  .mobile-secondary > summary::-webkit-details-marker { display: none; }
-  .mobile-secondary[open] { max-height: 42dvh; overflow-y: auto; padding: 4px; background: rgba(10,10,20,.96); border-radius: var(--r); }
-  .mobile-secondary[open] > summary { position: sticky; top: -4px; z-index: 2; margin: -4px -4px 4px; }
+  .mobile-secondary > summary { padding: 4px 7px; font-size: .66em; }
+  .mobile-secondary[open] { max-height: 42dvh; overflow-y: auto; background: rgba(10,10,20,.96); }
+  .mobile-secondary[open] > summary { position: sticky; top: 0; z-index: 2; background: rgba(10,10,20,.98); }
   .mtog { gap: 3px; margin-bottom: 3px; }
   .mti { padding: 2px 5px; font-size: .62em; }
   .bgm-controls { font-size: .66em !important; gap: 3px !important; padding: 2px 0 !important; }
@@ -2266,8 +2281,8 @@ body.has-wp::after {
         </div>
       </details>
     </details>
-    <details class="mobile-secondary" id="mobile-secondary" open>
-      <summary>⚙ 更多设置与音效</summary>
+    <details class="mobile-secondary" id="mobile-secondary">
+      <summary>⚙ 对局、显示与音效设置</summary>
     <div class="mtog">
       <label class="mti"><input type="checkbox" id="m-anon" checked>🎭 匿名</label>
       <label class="mti"><input type="checkbox" id="m-trial" checked>⚠️ 审判</label>
