@@ -1,7 +1,8 @@
-const CACHE_NAME = 'wolf-pwa-v9';
+const CACHE_NAME = 'wolf-pwa-v10-i18n';
 const APP_SHELL = [
   './',
   './index.html',
+  './i18n.js',
   './manifest.webmanifest',
   './tablet.css',
   './icons/icon-192.png',

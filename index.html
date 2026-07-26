@@ -29,6 +29,7 @@
 <meta name="twitter:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner.png">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js"></script>
+<script src="./i18n.js"></script>
 <script src="./native-http.js"></script>
 <script>
 // 🌐 网页端 CORS 代理：非 APK(浏览器)环境下，把发往任意 AI API/中转站 的跨域请求自动转经 wolf-api worker，绕过 CORS。
@@ -4511,7 +4512,7 @@ function extractTargetName(text, pool) {
     candidates.push({ player: p, names });
   }
   // 动词锚定优先：扫描文本所有"刀|杀|带走|咬|投|出|选|票|推 + 名字"的出现
-  const VERB = /(?:刀|杀|带走|咬|投|出|选|票|推|目标[是为]?)\s*[:：]?\s*/g;
+  const VERB = /(?:刀|杀|带走|咬|投|出|选|票|推|目标[是为]?|kill|attack|bite|vote(?:\s+for)?|eliminate|choose|target(?:\s+is)?)\s*[:：]?\s*/gi;
   const hits = []; // {player, pos, isVerb}
   let m;
   while ((m = VERB.exec(text)) !== null) {
@@ -4548,26 +4549,26 @@ function extractSkillTarget(text, pool, skillType) {
   if (!text || !pool || !pool.length) return null;
   // ① 否定表态排除：AI 明确表示"不用这个技能"时，直接返回 null（绝不执行）
   const NEG = {
-    guard:   /(?:不守|空守|放弃守护|谁都?不守|不进行守护)/,
+    guard:   /(?:不守|空守|放弃守护|谁都?不守|不进行守护|no\s+guard|do\s+not\s+(?:guard|protect)|skip\s+(?:guard|protection)|pass)/i,
     seer:    null, // 查验是强制的，没有"不验"
-    duel:    /(?:不决斗|不挑战|放弃决斗|暂(?:时)?不决斗|先不决斗|不出手|这轮?不决斗|本轮?不决斗|PASS|pass|保留决斗|不跳骑士)/,
-    explode: /(?:不自爆|暂(?:时)?不自爆|先不自爆|不会自爆|继续观望|按兵不动|保留(?:技能|底牌)|不(?:亮|揭)底牌|不引爆|不起爆)/,
-    poison:  /(?:不毒|不下毒|不用毒|放弃毒|留毒|暂(?:时)?不毒|先不毒|毒药留着|保留毒药)/,
-    charm:   /(?:不魅惑|不迷惑|放弃魅惑|暂(?:时)?不魅惑|先不魅惑|不用魅惑|跳过魅惑)/,
-    bite:    /(?:不咬|放弃咬|不带走|暂(?:时)?不咬)/,
-    shoot:   /(?:不开枪|不开|放弃开枪|不射|留枪|带枪进棺材|不带走|暂(?:时)?不开枪|先不开枪|PASS|pass)/,
+    duel:    /(?:不决斗|不挑战|放弃决斗|暂(?:时)?不决斗|先不决斗|不出手|这轮?不决斗|本轮?不决斗|PASS|保留决斗|不跳骑士|no\s+duel|do\s+not\s+(?:duel|challenge)|skip\s+duel)/i,
+    explode: /(?:不自爆|暂(?:时)?不自爆|先不自爆|不会自爆|继续观望|按兵不动|保留(?:技能|底牌)|不(?:亮|揭)底牌|不引爆|不起爆|do\s+not\s+(?:explode|self-destruct)|no\s+self-destruct|hold\s+(?:my\s+)?ability)/i,
+    poison:  /(?:不毒|不下毒|不用毒|放弃毒|留毒|暂(?:时)?不毒|先不毒|毒药留着|保留毒药|no\s+poison|do\s+not\s+poison|skip\s+poison|save\s+(?:the\s+)?poison)/i,
+    charm:   /(?:不魅惑|不迷惑|放弃魅惑|暂(?:时)?不魅惑|先不魅惑|不用魅惑|跳过魅惑|no\s+charm|do\s+not\s+charm|skip\s+charm)/i,
+    bite:    /(?:不咬|放弃咬|不带走|暂(?:时)?不咬|no\s+bite|do\s+not\s+bite|skip\s+bite)/i,
+    shoot:   /(?:不开枪|不开|放弃开枪|不射|留枪|带枪进棺材|不带走|暂(?:时)?不开枪|先不开枪|PASS|no\s+shot|do\s+not\s+shoot|skip\s+shot|hold\s+(?:my\s+)?fire)/i,
   };
   // 否定检测：取 action 风格的短文本优先；若整段都是否定语境则返回 null
   if (NEG[skillType] && NEG[skillType].test(text)) {
     // 但要避免"我本来不想决斗，但还是决斗P5"这种——若否定词后面又出现了肯定的"决斗X名字"，则不算否定
     const POS_VERB = {
-      guard: /(?:守护|保护|守|护住)(?:目标)?(?:是|为|:|：)?\s*(?:[Pp]\d{1,2}号?\s*)?/,
-      duel: /(?:决斗|挑战|斩)\s*(?:[Pp]\d{1,2}号?\s*)?/,
-      explode: /(?:自爆带走|引爆.*带|现在自爆|立即自爆|当场自爆|马上自爆)\s*/,
-      poison: /(?:毒杀|毒死|毒掉|下毒给|毒\s*(?:[Pp]\d{1,2}号?\s*)?)/,
-      charm: /(?:魅惑|迷惑|魅)\s*(?:[Pp]\d{1,2}号?\s*)?/,
-      bite: /(?:咬死|咬掉|咬\s*(?:[Pp]\d{1,2}号?\s*)?|带走)/,
-      shoot: /(?:开枪带走|开枪打|射杀|带走|开枪\s*(?:[Pp]\d{1,2}号?\s*)?)/,
+      guard: /(?:守护|保护|守|护住|guard|protect)(?:目标|\s+target)?(?:是|为|:|：)?\s*(?:[Pp]\d{1,2}号?\s*)?/i,
+      duel: /(?:决斗|挑战|斩|duel|challenge)\s*(?:[Pp]\d{1,2}号?\s*)?/i,
+      explode: /(?:自爆带走|引爆.*带|现在自爆|立即自爆|当场自爆|马上自爆|self-destruct|explode)\s*/i,
+      poison: /(?:毒杀|毒死|毒掉|下毒给|毒|poison)\s*(?:[Pp]\d{1,2}号?\s*)?/i,
+      charm: /(?:魅惑|迷惑|魅|charm|bewitch)\s*(?:[Pp]\d{1,2}号?\s*)?/i,
+      bite: /(?:咬死|咬掉|咬|带走|bite)\s*(?:[Pp]\d{1,2}号?\s*)?/i,
+      shoot: /(?:开枪带走|开枪打|射杀|带走|开枪|shoot|fire\s+at)\s*(?:[Pp]\d{1,2}号?\s*)?/i,
     };
     // 找否定词后面有没有"肯定动词+名字"，有则继续走提取，没有则确认是否定→null
     const negMatch = text.match(NEG[skillType]);
@@ -4592,14 +4593,14 @@ function extractSkillTarget(text, pool, skillType) {
   }
   // ② 按技能类型用对口动词锚定提取目标
   const VERBS = {
-    guard:   /(?:守护|保护|守|护住|盯|罩)(?:目标)?(?:是|为|:|：)?\s*(?:[Pp]\d{1,2}号?\s*)?/g,
-    seer:    /(?:查验|验|查|看)\s*(?:[Pp]\d{1,2}号?\s*)?/g,
-    duel:    /(?:决斗|挑战|斩|戳|捅)\s*(?:[Pp]\d{1,2}号?\s*)?/g,
-    explode: /(?:自爆带走|引爆.*?带走|带走|炸)\s*(?:[Pp]\d{1,2}号?\s*)?/g,
-    poison:  /(?:毒杀|毒死|毒掉|下毒给|毒)\s*(?:[Pp]\d{1,2}号?\s*)?/g,
-    charm:   /(?:魅惑|迷惑|魅)\s*(?:[Pp]\d{1,2}号?\s*)?/g,
-    bite:    /(?:咬死|咬掉|咬|带走)\s*(?:[Pp]\d{1,2}号?\s*)?/g,
-    shoot:   /(?:开枪带走|开枪打|射杀|开枪|射|带走)\s*(?:[Pp]\d{1,2}号?\s*)?/g,
+    guard:   /(?:守护|保护|守|护住|盯|罩|guard|protect)(?:目标|\s+target)?(?:是|为|:|：)?\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
+    seer:    /(?:查验|验|查|看|inspect|check|investigate)\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
+    duel:    /(?:决斗|挑战|斩|戳|捅|duel|challenge)\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
+    explode: /(?:自爆带走|引爆.*?带走|带走|炸|self-destruct|explode)\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
+    poison:  /(?:毒杀|毒死|毒掉|下毒给|毒|poison)\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
+    charm:   /(?:魅惑|迷惑|魅|charm|bewitch)\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
+    bite:    /(?:咬死|咬掉|咬|带走|bite)\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
+    shoot:   /(?:开枪带走|开枪打|射杀|开枪|射|带走|shoot|fire\s+at)\s*(?:[Pp]\d{1,2}号?\s*)?/gi,
   };
   const V = VERBS[skillType];
   if (V) {
@@ -4628,7 +4629,11 @@ function extractSkillTarget(text, pool, skillType) {
 
 function getRoleList() {
   const c = {};
-  S.players.forEach(p => { c[p.role.name] = (c[p.role.name]||0) + 1; });
+  S.players.forEach(p => {
+    const localized = window.WolfI18n ? WolfI18n.role(p.role.id, p.role) : p.role;
+    const name = localized.name || p.role.name;
+    c[name] = (c[name]||0) + 1;
+  });
   return Object.entries(c).map(([n,v]) => v > 1 ? v + n : n).join('+');
 }
 function getFullRoleBrief(p) {
@@ -4641,11 +4646,19 @@ function getFullRoleBrief(p) {
     .filter(id => ALL_ROLES[id])
     .map(id => {
       const r = ALL_ROLES[id];
+      const shown = window.WolfI18n ? WolfI18n.role(id, r) : r;
       // ★ fix: 让"你的角色"标记更显眼,防止AI在同阵营多个角色中混淆自己的能力
       // 例如普通狼人不能在死前误以为自己是狼王/白狼王并开枪/自爆
       const isSelf = p && r.id === p.role.id;
-      const selfMark = isSelf ? ' 👈【这就是你！你只有这个角色的能力，不是同阵营其他角色】' : '';
-      return `${r.emoji}${r.name}(${teamNames[r.team]}): ${r.desc}${selfMark}`;
+      const selfMark = isSelf
+        ? (window.WolfI18n && WolfI18n.isEnglish()
+          ? ' 👈 [THIS IS YOU. You have only this role\'s abilities, not those of other roles on your team.]'
+          : ' 👈【这就是你！你只有这个角色的能力，不是同阵营其他角色】')
+        : '';
+      const team = window.WolfI18n && WolfI18n.isEnglish()
+        ? ({bad:'Wolf team', good:'Good team', third:'Independent'}[r.team] || r.team)
+        : teamNames[r.team];
+      return `${r.emoji}${shown.name}(${team}): ${shown.desc}${selfMark}`;
     }).join('\n');
 }
 
@@ -4655,6 +4668,13 @@ function getFullRoleBrief(p) {
 function buildRulesExportLegacy(includeAllRoles = false) {
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
   const isEdge = !!(S && S.killEdgeMode);
+
+  if (window.WolfI18n && WolfI18n.isEnglish()) {
+    const roleIds = includeAllRoles
+      ? Object.keys(ALL_ROLES)
+      : [...new Set((S.players || []).filter(p => p.role).map(p => p.role.id))];
+    return WolfI18n.buildEnglishRulebook(roleIds);
+  }
 
   // 当前在场角色（已开局用实际配置；未开局则按角色面板勾选/默认全部已注册角色）
   let roleIds = [];
@@ -4753,6 +4773,11 @@ function buildRulesExport() {
   const players = (S && Array.isArray(S.players)) ? S.players : [];
   if (!players.length) return '尚未开局。请在角色配置完成并开局后导出，系统将只生成本局实际生效的规则。';
 
+  if (window.WolfI18n && WolfI18n.isEnglish()) {
+    const hiddenDeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
+    return WolfI18n.buildEnglishRules({players, edge:!!S.killEdgeMode, singleRound:!!S.singleRound, hiddenDeath});
+  }
+
   const ids = [...new Set(players.filter(p => p.role).map(p => p.role.id))];
   const has = id => ids.includes(id);
   const hasAny = list => list.some(has);
@@ -4820,6 +4845,9 @@ function buildRulesExport() {
 function buildWebRulesExport(viewerP) {
   const isEdge = !!(S && S.killEdgeMode);
   const hdeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
+  if (window.WolfI18n && WolfI18n.isEnglish()) {
+    return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath});
+  }
   const ids = [...new Set((S.players || []).filter(x => x.role).map(x => x.role.id))];
   const has = id => ids.includes(id);
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
@@ -19055,6 +19083,9 @@ function bindEvents() {
   $('btn-rulebook').addEventListener('click', () => {
     openRulesPopup($('rulepop').dataset.mode === 'book' ? 'game' : 'book');
   });
+  document.addEventListener('wolf-language-change', () => {
+    if ($('rulepop').classList.contains('show')) openRulesPopup($('rulepop').dataset.mode || 'game');
+  });
   $('btn-copyrule').addEventListener('click', () => {
     const t = $('ruletxt').value;
     navigator.clipboard.writeText(t).then(() => {
@@ -21470,7 +21501,11 @@ buildSystemPrompt = function(p) {
 // 只在最前面给当前AI一份“仅你可见”的自身Cosplay人格锚点。
 const _origBuildSysPromptBeforeBlindNames = buildSystemPrompt;
 buildSystemPrompt = function(p) {
-  return blindForAI(_origBuildSysPromptBeforeBlindNames(p), p);
+  const base = blindForAI(_origBuildSysPromptBeforeBlindNames(p), p);
+  if (window.WolfI18n && WolfI18n.isEnglish()) {
+    return '【OUTPUT LANGUAGE: ENGLISH】\nSpeak and reason entirely in natural English. Chinese names may remain unchanged, but all narration, decisions, explanations, and in-character dialogue must be English. Treat any Chinese text below as source data, not as the required response language.\n\n' + base;
+  }
+  return base;
 };
 
 // ── 拦截游戏结束，自动保存永久记忆 ──
@@ -21498,6 +21533,7 @@ if (_origEndingSpeeches) {
 // ── 生成适配网页端 Claude/ChatGPT 的对话式 prompt（按阶段动态生成）──
 function buildWebPrompt(p) {
   if (!p) return '';
+  const webRole = window.WolfI18n ? WolfI18n.role(p.role.id, p.role) : p.role;
 
   // ── 基础信息（每个阶段都有）──
   const aliveList = S.players.filter(x => x.alive).map(x => {
@@ -21523,7 +21559,9 @@ function buildWebPrompt(p) {
   const loverPublicNote = _formatLoverPublicNote(loverVictimsForPrompt);
 
   const isCrossTeamLover = !!(S.loverCrossTeam && Array.isArray(S.loverPair) && S.loverPair.includes(p.id));
-  const teamLabel = isCrossTeamLover ? '隐藏情侣阵营' : (p.role.team === 'bad' ? '狼人阵营' : p.role.team === 'good' ? '好人阵营' : '第三方');
+  const teamLabel = window.WolfI18n && WolfI18n.isEnglish()
+    ? (isCrossTeamLover ? 'Hidden lovers faction' : (p.role.team === 'bad' ? 'Wolf team' : p.role.team === 'good' ? 'Good team' : 'Independent'))
+    : (isCrossTeamLover ? '隐藏情侣阵营' : (p.role.team === 'bad' ? '狼人阵营' : p.role.team === 'good' ? '好人阵营' : '第三方'));
   const sheriff = S.sheriff >= 0 && S.players[S.sheriff] ? S.players[S.sheriff].name : '无';
 
   // ── 私密信息块 ──
@@ -21877,7 +21915,7 @@ ${_rulesText}
 
 ${_configBlock}
 ━━━━ 你是谁 ━━━━
-${p.name}（P${p.id+1}）· ${p.role.emoji}${p.role.name} · ${teamLabel}
+${p.name}（P${p.id+1}）· ${p.role.emoji}${webRole.name} · ${teamLabel}
 ${secretBlock}
 
 ━━━━ 场上局势 ━━━━
@@ -21900,7 +21938,11 @@ ${phaseBlock}
 // 网页端AI与API端使用完全相同的盲名边界，避免复制出去的完整战报泄露角色名。
 const _origBuildWebPromptBeforeBlindNames = buildWebPrompt;
 buildWebPrompt = function(p) {
-  return blindForAI(_origBuildWebPromptBeforeBlindNames(p), p);
+  const base = blindForAI(_origBuildWebPromptBeforeBlindNames(p), p);
+  if (window.WolfI18n && WolfI18n.isEnglish()) {
+    return 'You are playing a Werewolf game in character. Respond entirely in natural English. Chinese player names may stay unchanged. The Chinese battle history below is source data; do not answer in Chinese. Output only the requested in-game speech or action, without an assistant-style preface.\n\n' + base;
+  }
+  return base;
 };
 
 // ── 智能解析粘贴内容：处理网页端各种非标准格式 ──

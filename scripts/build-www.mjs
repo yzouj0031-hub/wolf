@@ -10,6 +10,7 @@ fs.mkdirSync(OUT, { recursive: true });
 // 单文件资源
 const FILES = [
   'index.html',
+  'i18n.js',
   'manifest.webmanifest',
   'sw.js',
   'tablet.css',
