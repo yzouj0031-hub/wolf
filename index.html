@@ -5620,6 +5620,10 @@ const AutoSave = (() => {
 
   function save(reason, force = false) {
     if (!canSave()) return false;
+    // ★ 阶段处理进行中(S.running)时状态不一致：夜晚 handler 会先重置 nightData 再逐个重跑夜间行动，
+    //   若此刻存档，读档续玩会把这一夜从头重跑一遍——魔术师交换、"第N夜"标题、各夜间行动都会出现两次，
+    //   且重跑时 nightData 被清空会覆盖掉真实的交换/守护结果。只在阶段边界(!running)落盘，读档才安全。
+    if (S && S.running) return false;
     const now = Date.now();
     if (!force && now - lastSavedAt < 1500) return false;
     const ok = saveGame({silent:true, reason});
