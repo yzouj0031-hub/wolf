@@ -2286,10 +2286,10 @@ body.has-wp::after {
       <label class="mti" title="开启后AI会输出思维过程（更耗token但可观察推理）；关闭则直接输出发言和操作（省token，速度更快）"><input type="checkbox" id="m-thinking" checked>💭 思维链</label>
       <label class="mti" title="开启后AI自然说话，思考可写在[草稿]里自动过滤；关闭则用XML标签格式（可能导致发言过短）。推荐保持开启。可在命牌弹窗里针对单个AI关闭。"><input type="checkbox" id="m-free-output" checked>🗣️ 自由输出</label>
       <label class="mti" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>🛠️ 手动重试</label>
-      <label class="mti" title="开启=屠边局：狼人只要把神职全杀光、或把平民全杀光，就立刻获胜（即使总人数还没到屠城线）。关闭=屠城局：狼人需把好人杀到≤狼人数才赢（默认）。屠边对狼更有利、节奏更快。"><input type="checkbox" id="m-kill-edge" onchange="S.killEdgeMode=this.checked">🗡️ 屠边</label>
+      <label class="mti" title="开启=屠边局（默认）：狼人只要把神职全杀光、或把平民全杀光，就立刻获胜（即使总人数还没到屠城线）。关闭=屠城局：狼人需把好人杀到≤狼人数才赢。屠边对狼更有利、节奏更快。"><input type="checkbox" id="m-kill-edge" onchange="S.killEdgeMode=this.checked" checked>🗡️ 屠边</label>
       <label class="mti" title="开启=骑士连斩模式：骑士每天可决斗一次，决斗命中狼→狼死、骑士存活、下一天还能继续决斗；决斗指向好人→骑士当场牺牲。推理越准的骑士能连续清狼。关闭=经典模式（默认）：骑士一局只能决斗一次，不论输赢用完即止。"><input type="checkbox" id="m-knight-chain" onchange="S.knightChainMode=this.checked">⚔️ 骑士连斩</label>
-      <label class="mti" title="开启=传统单轮发言：白天每人只发言一次，发完直接投票（更接近线下标准狼人杀，节奏快）。关闭=双轮发言：每人发言两轮，第二轮可反驳/改票/总结（默认，AI交锋更充分）。"><input type="checkbox" id="m-single-round" onchange="S.singleRound=this.checked">🗣️ 单轮发言</label>
-      <label class="mti" title="开启后，只要警长仍在场，无论昨夜平安夜还是有人死亡，每天都由警长指定起始玩家和顺/逆时针方向；警长最后归票。关闭则仅第一天由警长定序，之后按昨夜死者下家或默认座位顺序。"><input type="checkbox" id="m-sheriff-daily-order" onchange="S.sheriffDailyOrderMode=this.checked">👑 警长每日定序</label>
+      <label class="mti" title="开启=传统单轮发言（默认）：白天每人只发言一次，发完直接投票（更接近线下标准狼人杀，节奏快）。关闭=双轮发言：每人发言两轮，第二轮可反驳/改票/总结（AI交锋更充分）。"><input type="checkbox" id="m-single-round" onchange="S.singleRound=this.checked" checked>🗣️ 单轮发言</label>
+      <label class="mti" title="开启后，只要警长仍在场，无论昨夜平安夜还是有人死亡，每天都由警长指定起始玩家和顺/逆时针方向；警长最后归票。关闭则仅第一天由警长定序，之后按昨夜死者下家或默认座位顺序。"><input type="checkbox" id="m-sheriff-daily-order" onchange="S.sheriffDailyOrderMode=this.checked" checked>👑 警长每日定序</label>
       <label class="mti" title="开启后：每次开局会从「🎭 人设库」里随机抽取人设，分配给没有手动配置人设的 AI。每局阵容自动不同。需要先在主菜单的人设库里建好人设。"><input type="checkbox" id="m-persona-pool">🎲 人设随机池</label>
     </div>
     <div class="bgm-controls" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 0;font-size:0.75em;align-items:center">
@@ -3640,10 +3640,10 @@ function freshState(prev) {
     mode: prev ? prev.mode : 'standard',
     round: 0, phase: 'waiting', players: [], playerId: -1,
     auto: false, gameOver: false, history: [], nightData: {},
-    killEdgeMode: prev ? prev.killEdgeMode : false,  // ★ 修复：继承上一局/开关设置，不再每次 freshState 强制归零成屠城
+    killEdgeMode: prev ? prev.killEdgeMode : true,  // ★ 修复：继承上一局/开关设置，不再每次 freshState 强制归零成屠城
     knightChainMode: prev ? prev.knightChainMode : false,  // ★ 骑士连斩模式：决斗成功可继续决斗（每天一次），失败则骑士死
-    singleRound: prev ? prev.singleRound : false,    // ★ 白天发言轮数：false=双轮(默认)，true=传统单轮发言
-    sheriffDailyOrderMode: prev ? !!prev.sheriffDailyOrderMode : false, // ★ 警长每日决定发言起点与方向
+    singleRound: prev ? prev.singleRound : true,    // ★ 白天发言轮数：true=传统单轮发言(默认)，false=双轮
+    sheriffDailyOrderMode: prev ? !!prev.sheriffDailyOrderMode : true, // ★ 警长每日决定发言起点与方向
     witchPotions: {save:true,poison:true}, sheriff: -1,
     pendingReport: null,
     abortCtrl: new AbortController(), running: false,
