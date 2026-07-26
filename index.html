@@ -14451,6 +14451,10 @@ const PhaseHandlers = {
     // 存储并展示当天发言顺序，供AI位置学、网页接力和玩家摘要共同使用。
     S._daySpeakOrder = speakOrder.slice();
     S._daySpeakOrderMeta = speakOrderMeta;
+    // 📋 复盘：把当天权威发言顺序（含警长定下的起点与方向）记进战报，供摘要展示
+    if (speakOrder && speakOrderMeta && typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) {
+      gameRecord.push({type:'speak_order', round:S.round, title:speakOrderMeta.title, names:speakOrder.map(p=>p.name)});
+    }
     renderSpeakOrderSummary(speakOrder, speakOrderMeta);
     Render.log('system', '📋 今日发言顺序：' + speakOrder.map((p, i) => `${i + 1}.${p.name}${p.id === S.sheriff ? '👑' : ''}`).join(' → '));
 
@@ -18191,7 +18195,9 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
 
   // 📋 复盘：预算每天的白天发言顺序（首次出现顺序=发言先后），供各天标题下展示
   const _dayOrder = {};
+  const _hasSpeakOrder = {};
   gameRecord.forEach(r => {
+    if (r.type === 'speak_order' && r.round) _hasSpeakOrder[r.round] = true;
     if (r.type === 'speech' && !r.wolfChat && r.phase === 'day' && r.round) {
       (_dayOrder[r.round] = _dayOrder[r.round] || []);
       if (!_dayOrder[r.round].includes(r.name)) _dayOrder[r.round].push(r.name);
@@ -18217,11 +18223,15 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
     if (r.type === 'system') {
       // ★ 轮次分隔符直接使用底层标号（第1夜起），与局内叫法及导出选择器统一，不再做 -1 换算
       txt += '\n── ' + r.text + ' ──\n';
-      // 📋 复盘：白天标题下列出本日发言顺序（谁第几个说的）
+      // 📋 复盘：白天标题下列发言顺序。有权威记录(speak_order)则以其为准，这里只作老存档回退
       const _dm = r.text.match(/^第(\d+)天/);
-      if (_dm && _dayOrder[+_dm[1]] && _dayOrder[+_dm[1]].length) {
-        txt += '📋 发言顺序：' + _dayOrder[+_dm[1]].map((n,i)=>(i+1)+'.'+n).join(' → ') + '\n';
+      if (_dm && !_hasSpeakOrder[+_dm[1]] && _dayOrder[+_dm[1]] && _dayOrder[+_dm[1]].length) {
+        txt += '📋 发言顺序（据发言推导）：' + _dayOrder[+_dm[1]].map((n,i)=>(i+1)+'.'+n).join(' → ') + '\n';
       }
+
+    } else if (r.type === 'speak_order') {
+      // 📋 复盘：权威发言顺序（含警长定下的起点与方向）
+      txt += (r.title ? r.title + '\n' : '') + '   发言顺序：' + (r.names||[]).map((n,i)=>(i+1)+'.'+n).join(' → ') + '\n';
 
     } else if (r.type === 'speech') {
       // 正式胜负感言统一放到末尾“终局感言”区块；赛后互动不混入对局时间线。
