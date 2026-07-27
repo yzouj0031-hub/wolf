@@ -7145,8 +7145,20 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
     if (choice) {
       const d = choice.delta || choice.message || {};
       if (typeof d.content === 'string') mergedContent += d.content;
-      const rc = d.reasoning_content || d.reasoning || d.thinking;
-      if (typeof rc === 'string') mergedReasoning += rc;
+      const reasoningDetails = d.reasoning_details;
+      const reasoningDetailsText = Array.isArray(reasoningDetails)
+        ? reasoningDetails.map(x => typeof x === 'string' ? x : (x && (x.text || x.content)) || '').join('')
+        : '';
+      // MiniMax reasoning_details is commonly a cumulative snapshot rather than a delta.
+      // Replacing the existing prefix prevents the same thought text being duplicated
+      // on every SSE event; other providers' reasoning fields remain normal deltas.
+      if (reasoningDetailsText) {
+        if (reasoningDetailsText.startsWith(mergedReasoning)) mergedReasoning = reasoningDetailsText;
+        else if (!mergedReasoning.endsWith(reasoningDetailsText)) mergedReasoning += reasoningDetailsText;
+      } else {
+        const rc = d.reasoning_content || d.reasoning || d.thinking;
+        if (typeof rc === 'string') mergedReasoning += rc;
+      }
       if (choice.finish_reason) lastFinish = choice.finish_reason;
     }
     // 2) OpenAI Responses API 流式:type=response.output_text.delta / .done
@@ -8088,6 +8100,7 @@ async function callAI(p, prompt, opts) {
     ? memSlice.map(m => ({...m, content: typeof m.content === 'string' ? blindMaskPublic(m.content) : m.content}))
     : memSlice;
   const msgs = [{role:'system',content:sys}].concat(safeMemSlice, [{role:'user',content:finalPrompt}]);
+  let forceFinalOnlyRetry = false;
 
   // 备选API由 getFallbacks() 动态获取（支持多个）
 
@@ -8350,12 +8363,16 @@ async function callAI(p, prompt, opts) {
       const isKimiK2 = mn.includes('kimi-k2') || mn.includes('kimi_k2');
       // ★ fix: DeepSeek V4 系列（deepseek-v4-pro / deepseek-v4-flash 等）
       const isDeepSeekV4 = mn.includes('deepseek-v4') || mn.includes('deepseek_v4');
+      // MiniMax M2/M3: official and relay endpoints may expose thinking in content,
+      // reasoning_content, or reasoning_details. Model names on relays are not always canonical,
+      // so also inspect the endpoint URL.
+      const isMiniMaxThinking = mn.includes('minimax') || /(?:^|[\/_-])m[23](?:\.|[-_]|$)/.test(mn) || (useApi.url||'').toLowerCase().includes('minimax');
       // 通用后缀兜底：带 -thinking / -reasoning 后缀且未被上述规则识别的模型
       //   仅排除走原生独立字段的旧版 DeepSeek-reasoner 和标准 Claude
       const isExcludedThinking = mn.includes('claude') || mn.includes('deepseek-reasoner') || mn.includes('deepseek-r1') || mn.includes('k2-thinking');
       const hasGenericSuffix = !isExcludedThinking && (mn.includes('-thinking') || mn.includes('-reasoning') || mn.endsWith('thinking') || mn.endsWith('reasoning'));
       // 综合判定：是否需要 thinking 预算保护
-      const needsThinkingBudgetFix = isGemini3Compat || isGPT5Thinking || isQwen3Thinking || isGrokReasoning || isGLMThinking || isKimiK2 || isDeepSeekV4 || hasGenericSuffix;
+      const needsThinkingBudgetFix = isGemini3Compat || isGPT5Thinking || isQwen3Thinking || isGrokReasoning || isGLMThinking || isKimiK2 || isDeepSeekV4 || isMiniMaxThinking || hasGenericSuffix;
 
       // ① 保护：max_tokens 下限抬到 8192，保证可见输出充足
       //   Gemini 3 单独抬到 16384——它的 thinking 和输出共享预算，狼人杀场景下 8K 仍易被烧光
@@ -8368,14 +8385,26 @@ async function callAI(p, prompt, opts) {
 
       // 开发日志：识别到 thinking 模型时输出，方便调试
       if (needsThinkingBudgetFix) {
-        const tag = isGPT5Thinking ? 'GPT-5' : isGemini3Compat ? 'Gemini3' : isQwen3Thinking ? 'Qwen3-Think' : isGrokReasoning ? 'Grok-R' : isGLMThinking ? 'GLM-Think' : isKimiK2 ? 'Kimi-K2' : isDeepSeekV4 ? 'DeepSeek-V4' : 'Generic-Think';
+        const tag = isGPT5Thinking ? 'GPT-5' : isGemini3Compat ? 'Gemini3' : isQwen3Thinking ? 'Qwen3-Think' : isGrokReasoning ? 'Grok-R' : isGLMThinking ? 'GLM-Think' : isKimiK2 ? 'Kimi-K2' : isDeepSeekV4 ? 'DeepSeek-V4' : isMiniMaxThinking ? 'MiniMax' : 'Generic-Think';
         Render.devLog('req', `[P${p.id+1}] 🧠 thinking模型保护已启用 [${tag}] max_tokens=${compatMaxTk}`);
       }
 
       // ★ Gemini3(含 pro-high 等高推理档)在 OpenAI 兼容端常拒绝 temperature/top_p，传了会 400 INVALID_ARGUMENT，故不传
+      const requestMsgs = forceFinalOnlyRetry
+        ? msgs.concat([{role:'user',content:'【技术补发·最高优先级】上一份回复把输出额度耗在思考中，正式发言没有完成。不要重新分析、不要复述推理、不要写草稿或 thinking。立即只输出本轮最终公开发言和必要的 action；发言控制在300字以内，必须完整收尾。'}])
+        : msgs;
       const body = isGemini3Compat
-        ? {model:useApi.model, messages:msgs}
-        : {model:useApi.model, messages:msgs, temperature:pTemp, top_p:pTopP, max_tokens:compatMaxTk, stream: true};
+        ? {model:useApi.model, messages:requestMsgs}
+        : {model:useApi.model, messages:requestMsgs, temperature:pTemp, top_p:pTopP, max_tokens:compatMaxTk, stream: true};
+      if (isMiniMaxThinking) {
+        body.reasoning_split = true;
+        body.max_completion_tokens = Math.min(compatMaxTk, 2048);
+        delete body.max_tokens;
+        // M3 can truly disable thinking for short game dialogue. M2.x accepts this but may ignore it.
+        if (/(?:minimax[-_]?m?3|(?:^|[\/_-])m3(?:\.|[-_]|$))/.test(mn)) body.thinking = {type:'disabled'};
+        delete body.frequency_penalty;
+        delete body.presence_penalty;
+      }
       // ★ v9.7: 主动启用 stream:true。
       //   背景:某些中转(如 codex/gpt-5.x)对非流式请求会"非流转流"内部处理出 bug——
       //        协议层强返 SSE,但内容生成不正确(返回空 chunk + [DONE])。
@@ -8396,6 +8425,7 @@ async function callAI(p, prompt, opts) {
       //   - DeepSeek-Reasoner / R1 推理模型也不支持
       if (mn.includes('gemini')) { delete body.frequency_penalty; delete body.presence_penalty; }
       if (mn.includes('deepseek-reasoner') || mn.includes('deepseek-r1')) { delete body.frequency_penalty; delete body.presence_penalty; }
+      if (isMiniMaxThinking) { delete body.frequency_penalty; delete body.presence_penalty; }
       // GPT-5.x 推理模型不支持 top_p / temperature / frequency_penalty / presence_penalty
       if (isGPT5Thinking) { delete body.top_p; delete body.temperature; delete body.frequency_penalty; delete body.presence_penalty; }
 
@@ -8430,7 +8460,17 @@ async function callAI(p, prompt, opts) {
         const t = await res.text().catch(()=>'');
         Render.devLog('err', `[P${p.id+1}] HTTP ${res.status}: ${t.slice(0,200)}`);
         // ★ 如果是 400 错误且包含 reasoning_effort 关键词，说明端点不支持此参数——去掉重试一次
-        if (res.status === 400 && body.reasoning_effort && t.toLowerCase().includes('reasoning_effort')) {
+        if (res.status === 400 && isMiniMaxThinking && (body.reasoning_split || body.max_completion_tokens)) {
+          Render.devLog('err', `[P${p.id+1}] 中转不支持MiniMax新参数，自动退回通用OpenAI格式`);
+          delete body.reasoning_split; delete body.max_completion_tokens; delete body.thinking;
+          body.max_tokens = compatMaxTk;
+          res = await fetch(useApi.url+'/chat/completions', {
+            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
+            body:JSON.stringify(body), signal:combinedSignal
+          });
+          if (!res.ok) { const t2=await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t2.slice(0,100)); }
+        }
+        else if (res.status === 400 && body.reasoning_effort && t.toLowerCase().includes('reasoning_effort')) {
           Render.devLog('err', `[P${p.id+1}] 端点不支持 reasoning_effort，去除后重试`);
           delete body.reasoning_effort;
           res = await fetch(useApi.url+'/chat/completions', {
@@ -8471,6 +8511,9 @@ async function callAI(p, prompt, opts) {
       const nativeThinking = data.choices?.[0]?.message?.reasoning_content
         || data.choices?.[0]?.message?.reasoning
         || data.choices?.[0]?.message?.thinking
+        || (Array.isArray(data.choices?.[0]?.message?.reasoning_details)
+          ? data.choices[0].message.reasoning_details.map(x => typeof x === 'string' ? x : (x && (x.text || x.content)) || '').join('')
+          : '')
         || '';
       if (!content && !nativeThinking) {
         const inTk = data.usage?.prompt_tokens || data.usage?.input_tokens || 0;
@@ -8493,7 +8536,10 @@ async function callAI(p, prompt, opts) {
       //   若 finish_reason=stop（模型正常说完了），即使标签没闭合，也只是格式不规范，
       //   内容大概率能用——交给 parseAI 的兜底解析救回，绝不在这里整条丢弃（避免白扣钱判沉默）。
       const finishedByLength = (finishReasonCompat === 'length');
-      const isTruncated = finishedByLength && (
+      const miniThinkOpen = isMiniMaxThinking && /<think>/i.test(finalContent) && !/<\/think>/i.test(finalContent);
+      const miniDraftOpen = isMiniMaxThinking && /\[草稿\]/.test(finalContent) && !/\[\/草稿\]/.test(finalContent);
+      const miniNoFinal = isMiniMaxThinking && !!nativeThinking && !finalContent.trim();
+      const isTruncated = miniThinkOpen || miniDraftOpen || miniNoFinal || (finishedByLength && (
         // 情况A：<game>开了但没闭合
         (hasGameTag && !finalContent.includes('</game>') && finalContent.length < 80)
         // 情况B：有<thinking>但没闭合且没到<game>阶段——thinking内容需>150字才算真截断，防止极短thinking误判
@@ -8502,7 +8548,7 @@ async function callAI(p, prompt, opts) {
         || (!hasActionTag && hasThinkingOpen && !hasThinkingClose && finalContent.length > 150)
         // thinking 模型 finish=length 真截断检测
         || (needsThinkingBudgetFix && finalContent.trim().length < 15 && !nativeThinking)
-      );
+      ));
       if (isTruncated) {
         // ★ 关键修复：在游戏日志里也暴露截断原因，方便排查
         const inTk = data.usage?.prompt_tokens || data.usage?.input_tokens || 0;
@@ -8646,6 +8692,19 @@ async function callAI(p, prompt, opts) {
         }
         Render.devLog('err', `[P${p.id+1}] 主API尝试${att}: ${e.message}`);
         mainErr = e.message;
+        // MiniMax M2.x cannot reliably disable thinking. If it spent the whole response
+        // budget on reasoning, retry once on the same relay with a final-answer-only turn.
+        // This is deliberately protocol-agnostic and does not require the user to know
+        // whether their relay is backed by MiniMax's OpenAI or Anthropic endpoint.
+        const primaryLooksMiniMax = String(api.model || '').toLowerCase().includes('minimax')
+          || /(?:^|[\/_-])m[23](?:\.|[-_]|$)/.test(String(api.model || '').toLowerCase())
+          || String(api.url || '').toLowerCase().includes('minimax');
+        if (e.message.includes('响应截断') && primaryLooksMiniMax && !forceFinalOnlyRetry && att < maxRetries) {
+          forceFinalOnlyRetry = true;
+          Render.log('system', `🧩 ${p.name} 的 MiniMax 思考被截断，正在自动补全正式发言…`);
+          await sleep(300);
+          continue;
+        }
         // ★ fix：复读/拒绝/元指令/截断/异常过短 均直接跳备用API，不在同一模型上浪费重试
         if ((e.message.includes('复读沉默') || e.message.includes('内容过滤拒绝') || e.message.includes('元指令输出') || e.message.includes('响应截断') || e.message.includes('异常过短')) && getFallbacks().length > 0) {
           silentDetected = true;
