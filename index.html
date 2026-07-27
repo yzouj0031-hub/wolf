@@ -2638,10 +2638,21 @@ body.has-wp::after {
   <button id="em-record">📄 导出记录</button>
   <button id="em-chat">💬 聊天摘要</button>
   <button id="em-replay">📊 复盘页面</button>
+  <button id="em-webai-help">❓ 网页端AI玩法</button>
   <button id="em-exportcfg">📤 导出配置</button>
   <button id="em-importcfg">📥 导入配置</button>
   <button id="em-leaderboard" onclick="showLeaderboard()">🏆 排行榜</button>
 </div>
+
+<div class="epop" id="webai-help-pop"><div class="ebox" style="max-width:560px"><h3>── 网页端 AI 使用指南 ──</h3>
+  <div style="font-size:.78em;line-height:1.75;color:#c8bed8;max-height:65vh;overflow-y:auto;padding-right:4px">
+    <div style="padding:9px 10px;margin-bottom:9px;background:rgba(104,184,232,.08);border-left:3px solid #68b8e8;border-radius:6px"><b style="color:#8ed0f0">方法一：让任意 AI 帮你盘局或复盘</b><br>打开「导出 → 聊天摘要」，选择一名玩家的个人视角和需要的轮次，然后复制内容，粘贴给 ChatGPT、Claude、Gemini 或其他 AI。它只会获得该玩家当时有权知道的信息。</div>
+    <div style="padding:9px 10px;margin-bottom:9px;background:rgba(160,128,224,.08);border-left:3px solid #9070d0;border-radius:6px"><b style="color:#b8a0e8">方法二：让网页端 AI 直接替角色发言</b><br>开启手动模式。轮到该角色时，点击「复制给网页端 AI」，把完整提示粘贴到你想使用的 AI；再把 AI 返回的发言复制回游戏输入框并提交。每一轮重复即可。</div>
+    <div style="padding:9px 10px;margin-bottom:9px;background:rgba(232,200,72,.07);border-left:3px solid #c8a840;border-radius:6px"><b style="color:#e0c060">视角选择很重要</b><br>进行中的游戏应选择对应玩家的个人视角。不要把「上帝视角」发给正在扮演玩家的 AI，否则所有身份、狼队密谈和夜间行动都会泄露。上帝视角只适合游戏结束后的完整复盘。</div>
+    <div style="padding:9px 10px;background:rgba(92,138,111,.08);border-left:3px solid #5c8a6f;border-radius:6px"><b style="color:#82bd98">小提示</b><br>角色姓名可能是中文或英文，都不要让 AI 翻译操作目标的名字；复制功能已经包含本局规则、角色身份、私密记录、公开战报和当前任务，一般不需要自己删减。</div>
+  </div>
+  <div class="btns"><button id="btn-close-webai-help">明白了</button></div>
+</div></div>
 
 <div class="epop" id="epop"><div class="ebox"><h3 id="ebox-title">── 导出记录 ──</h3><label id="e-th-label" style="font-size:.72em;color:#8a7e6a;display:flex;align-items:center;gap:4px;margin-bottom:6px"><input type="checkbox" id="e-th" style="width:auto;min-width:auto">含内心独白</label><textarea id="etxt"></textarea><div class="btns"><button id="btn-copye" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 复制</button><button id="btn-dle" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 下载</button><button id="btn-importcfg-go" style="display:none;background:rgba(200,168,76,0.2);color:var(--gold);border:1px solid var(--gold)">📥 导入</button><label id="btn-importcfg-file" style="display:none;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:0.85em;text-align:center">📁 从文件导入<input type="file" accept=".json,.txt" id="importcfg-file" style="display:none"></label><button id="btn-closee" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button></div></div></div>
 
@@ -19236,6 +19247,8 @@ function bindEvents() {
   $('em-blindreview').addEventListener('click', () => { $('exportMenu').classList.remove('show'); toggleBlindReviewMode(); });
   $('em-exportcfg').addEventListener('click', () => { $('exportMenu').classList.remove('show'); exportConfig(); });
   $('em-replay').addEventListener('click', () => { $('exportMenu').classList.remove('show'); generateReplay(); });
+  $('em-webai-help').addEventListener('click', () => { $('exportMenu').classList.remove('show'); $('webai-help-pop').classList.add('show'); });
+  $('btn-close-webai-help').addEventListener('click', () => $('webai-help-pop').classList.remove('show'));
   // 赛后聊天
   $('pg-close').addEventListener('click', () => $('o-postgame').classList.remove('show'));
   $('pg-replay').addEventListener('click', openMatchReplay);
