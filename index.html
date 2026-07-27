@@ -2579,9 +2579,30 @@ body.has-wp::after {
     </div>
 
     <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button id="pg-replay" style="flex:2;padding:8px;background:rgba(112,96,176,.18);border:1px solid #7060b0;color:#b8a8e8;border-radius:var(--r);font-size:.82em;cursor:pointer">🎬 对局回放</button>
       <button id="pg-start" style="flex:2;padding:8px;background:rgba(80,160,80,.2);border:1px solid #50a060;color:#80d090;border-radius:var(--r);font-size:.82em;cursor:pointer">💬 开始互动</button>
       <button id="pg-user-speak" style="flex:2;padding:8px;background:rgba(80,160,200,.15);border:1px solid #50a0c0;color:#80c8e8;border-radius:var(--r);font-size:.82em;cursor:pointer">🙋 我来插话</button>
       <button id="pg-close" style="flex:1;padding:8px;background:rgba(100,100,100,.15);border:1px solid rgba(200,200,200,.2);color:#8a8a8a;border-radius:var(--r);font-size:.82em;cursor:pointer">结束</button>
+    </div>
+  </div>
+</div>
+
+<!-- 终局只读录像：按夜晚/警长竞选/白天逐段查看，不改变存档和游戏状态 -->
+<div class="overlay" id="o-match-replay">
+  <div class="pbox" style="max-width:720px;border-color:#7060b0">
+    <h3 style="color:#b8a8e8">🎬 对局回放</h3>
+    <div style="font-size:.7em;color:#8a809e;margin:-2px 0 8px">只读录像 · 按真实事件顺序播放，不调用 AI，也不会改变对局</div>
+    <div id="mr-roster" style="display:flex;gap:5px;overflow-x:auto;padding:5px 1px 8px"></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+      <button id="mr-prev" style="width:auto;min-width:42px">◀</button>
+      <select id="mr-scene" style="flex:1;background:#161326;color:#d8d0e8;border:1px solid rgba(112,96,176,.55);border-radius:6px;padding:7px"></select>
+      <button id="mr-next" style="width:auto;min-width:42px">▶</button>
+    </div>
+    <div id="mr-events" style="height:min(54vh,520px);overflow-y:auto;padding:8px;background:rgba(0,0,0,.24);border:1px solid rgba(112,96,176,.25);border-radius:8px"></div>
+    <div style="display:flex;gap:6px;margin-top:9px">
+      <button id="mr-play" style="flex:2;border-color:#7060b0;color:#b8a8e8">▶ 自动播放</button>
+      <button id="mr-all" style="flex:1">显示本段全部</button>
+      <button id="mr-close" style="flex:1">关闭</button>
     </div>
   </div>
 </div>
@@ -16156,6 +16177,101 @@ function openPostGame() {
   $('o-postgame').classList.add('show');
 }
 
+const MatchReplay = { scenes:[], index:0, visible:Infinity, timer:null };
+
+function buildMatchReplayScenes() {
+  const scenes = [];
+  let cur = {label:'开局', phase:'opening', events:[]};
+  const push = () => { if (cur.events.length || !scenes.length) scenes.push(cur); };
+  for (const ev of (gameRecord || [])) {
+    let next = null;
+    if (ev.type === 'system' && /^第\d+夜$/.test(ev.text || '')) next = {label:ev.text, phase:'night', events:[]};
+    else if (ev.type === 'system' && /^第\d+天$/.test(ev.text || '')) next = {label:ev.text, phase:'day', events:[]};
+    else if (ev.type === 'system' && /^警长候选人/.test(ev.text || '') && cur.phase !== 'sheriff') next = {label:'警长竞选', phase:'sheriff', events:[]};
+    else if (ev.type === 'speech' && ev.phase === 'end' && cur.phase !== 'end') next = {label:'终局感言', phase:'end', events:[]};
+    if (next) { push(); cur = next; if (ev.type !== 'system' || !/^第\d+[夜天]$/.test(ev.text || '')) cur.events.push(ev); }
+    else cur.events.push(ev);
+  }
+  push();
+  return scenes.filter(s => s.events.length || s.phase === 'opening');
+}
+
+function matchReplayPrivate(ev) {
+  if (!blindReviewOn()) return false;
+  if (ev.type === 'night_action' || ev.godOnly) return true;
+  if (ev.type === 'speech' && /密谈|私密|内心/.test((ev.label||'') + (ev.phase||''))) return true;
+  return false;
+}
+
+function matchReplayEventHtml(ev) {
+  if (!ev || matchReplayPrivate(ev)) return '';
+  if (ev.type === 'speech') {
+    const p = S.players.find(x => x.name === ev.name);
+    const who = p ? publicPlayerLabel(p) : ev.name;
+    return `<div style="padding:9px 10px;margin-bottom:7px;background:rgba(245,160,184,.055);border-left:3px solid rgba(245,160,184,.35);border-radius:6px"><div style="display:flex;gap:7px;align-items:center;margin-bottom:4px"><b style="color:#f0c8dc">${escapeHtml(who||'未知')}</b><span style="font-size:.72em;color:#80758e">${escapeHtml(ev.label||'发言')}</span></div><div style="white-space:pre-wrap;word-break:break-word;font-size:.84em;line-height:1.65">${escapeHtml(ev.game||'')}</div></div>`;
+  }
+  let text = '', icon = '•';
+  if (ev.type === 'system') { text = ev.text || ''; icon = '📢'; }
+  else if (ev.type === 'death') { text = `${ev.name} — ${_formatPublicDeathCause(ev,{compact:false,hiddenNight:!!($('m-hdeath')&&$('m-hdeath').checked),canSeePrivateNight:!blindReviewOn()})}`; icon='💀'; }
+  else if (ev.type === 'vote') { text = _formatPublicVoteEvent(ev); icon='🗳️'; }
+  else if (ev.type === 'duel') { text = _formatPublicDuelEvent(ev); icon='⚔️'; }
+  else if (ev.type === 'shoot') { text = _formatPublicShootEvent(ev); icon='🔫'; }
+  else if (ev.type === 'bite') { text = _formatPublicBiteEvent(ev); icon='🐺'; }
+  else if (ev.type === 'whitewolf_explode') { text = _formatPublicWhitewolfExplodeEvent(ev); icon='💥'; }
+  else if (ev.type === 'trial') { text = _formatPublicTrialEvent(ev); icon='⚖️'; }
+  else if (ev.type === 'sheriff_transfer') { text = _formatPublicSheriffTransfer(ev); icon='👑'; }
+  else if (ev.type === 'foolImmune' || ev.type === 'reprieve' || ev.type === 'skillConsumed') { text = _formatPublicRevealEvent(ev); icon=ev.type==='reprieve'?'🐈‍⬛':ev.type==='skillConsumed'?'🛡️':'🃏'; }
+  else if (ev.type === 'night_action') {
+    text = _formatCustomNightAction(ev) || `${ev.name ? ev.name+' · ' : ''}${ev.role||'夜间行动'} → ${ev.target ?? ev.saved ?? ev.poisoned ?? '无'}`;
+    icon = {wolf:'🐺',seer:'🔮',witch:'🧪',guard:'🛡️',wolfbeauty:'🌹',magician:'🎩'}[ev.role] || '🌙';
+  } else if (ev.type === 'speak_order') { text = `${ev.title||'发言顺序'}：${(ev.names||[]).join(' → ')}`; icon='📋'; }
+  if (!text) return '';
+  return `<div style="display:flex;gap:8px;padding:7px 9px;margin-bottom:5px;background:rgba(255,255,255,.035);border-radius:6px;font-size:.8em;line-height:1.55"><span>${icon}</span><span style="white-space:pre-wrap;word-break:break-word">${escapeHtml(String(text))}</span></div>`;
+}
+
+function renderMatchReplay() {
+  const scene = MatchReplay.scenes[MatchReplay.index];
+  if (!scene) return;
+  $('mr-scene').value = String(MatchReplay.index);
+  const shown = Number.isFinite(MatchReplay.visible) ? scene.events.slice(0, MatchReplay.visible) : scene.events;
+  $('mr-events').innerHTML = shown.map(matchReplayEventHtml).filter(Boolean).join('') || '<div style="padding:20px;text-align:center;color:#706880">本阶段暂无可显示事件</div>';
+  $('mr-events').scrollTop = $('mr-events').scrollHeight;
+  const seenDeaths = new Set();
+  for (let i=0;i<=MatchReplay.index;i++) {
+    const limit = i===MatchReplay.index && Number.isFinite(MatchReplay.visible) ? MatchReplay.visible : Infinity;
+    MatchReplay.scenes[i].events.slice(0,limit).forEach(e => { if (e.type==='death' && e.name) seenDeaths.add(e.name); });
+  }
+  $('mr-roster').innerHTML = S.players.map(p => `<span style="flex:0 0 auto;padding:4px 7px;border-radius:12px;border:1px solid rgba(255,255,255,.1);font-size:.67em;opacity:${seenDeaths.has(p.name)?'.38':'1'}">P${p.id+1} ${escapeHtml(p.name)}${blindReviewOn()?'':' · '+p.role.emoji}</span>`).join('');
+  $('mr-prev').disabled = MatchReplay.index <= 0;
+  $('mr-next').disabled = MatchReplay.index >= MatchReplay.scenes.length-1;
+}
+
+function stopMatchReplay() {
+  if (MatchReplay.timer) clearInterval(MatchReplay.timer);
+  MatchReplay.timer = null;
+  if ($('mr-play')) $('mr-play').textContent = '▶ 自动播放';
+}
+
+function openMatchReplay() {
+  if (!S || !S.gameOver) return alert('对局结束后才能观看完整回放');
+  stopMatchReplay();
+  MatchReplay.scenes = buildMatchReplayScenes(); MatchReplay.index = 0; MatchReplay.visible = Infinity;
+  $('mr-scene').innerHTML = MatchReplay.scenes.map((s,i)=>`<option value="${i}">${i+1}. ${escapeHtml(s.label)}</option>`).join('');
+  $('o-postgame').classList.remove('show'); $('o-match-replay').classList.add('show'); renderMatchReplay();
+}
+
+function toggleMatchReplayAuto() {
+  if (MatchReplay.timer) { stopMatchReplay(); return; }
+  MatchReplay.visible = 0; $('mr-play').textContent = '⏸ 暂停'; renderMatchReplay();
+  MatchReplay.timer = setInterval(() => {
+    const scene = MatchReplay.scenes[MatchReplay.index];
+    if (MatchReplay.visible < scene.events.length) MatchReplay.visible++;
+    else if (MatchReplay.index < MatchReplay.scenes.length-1) { MatchReplay.index++; MatchReplay.visible=0; }
+    else { stopMatchReplay(); MatchReplay.visible=Infinity; }
+    renderMatchReplay();
+  }, 1200);
+}
+
 async function runPostGame(speakerFilter, targetId) {
   $('o-postgame').classList.remove('show');
   const blind = blindReviewOn();
@@ -19122,6 +19238,13 @@ function bindEvents() {
   $('em-replay').addEventListener('click', () => { $('exportMenu').classList.remove('show'); generateReplay(); });
   // 赛后聊天
   $('pg-close').addEventListener('click', () => $('o-postgame').classList.remove('show'));
+  $('pg-replay').addEventListener('click', openMatchReplay);
+  $('mr-close').addEventListener('click', () => { stopMatchReplay(); $('o-match-replay').classList.remove('show'); openPostGame(); });
+  $('mr-prev').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index>0) MatchReplay.index--; MatchReplay.visible=Infinity; renderMatchReplay(); });
+  $('mr-next').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index<MatchReplay.scenes.length-1) MatchReplay.index++; MatchReplay.visible=Infinity; renderMatchReplay(); });
+  $('mr-scene').addEventListener('change', e => { stopMatchReplay(); MatchReplay.index=parseInt(e.target.value)||0; MatchReplay.visible=Infinity; renderMatchReplay(); });
+  $('mr-play').addEventListener('click', toggleMatchReplayAuto);
+  $('mr-all').addEventListener('click', () => { stopMatchReplay(); MatchReplay.visible=Infinity; renderMatchReplay(); });
   $('pg-blind-review').addEventListener('click', toggleBlindReviewMode);
   $('pg-start').addEventListener('click', () => {
     const speaker = $('pg-speaker').value;
