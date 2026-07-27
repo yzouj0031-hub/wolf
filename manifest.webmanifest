@@ -1,8 +1,8 @@
 {
-  "name": "AI狼人杀",
-  "short_name": "狼人杀",
-  "description": "AI 驱动的狼人杀游戏",
-  "lang": "zh-CN",
+  "name": "AI Werewolf / AI狼人杀",
+  "short_name": "AI Werewolf",
+  "description": "Multilingual AI-powered Werewolf game / 多语言 AI 狼人杀",
+  "lang": "mul",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
