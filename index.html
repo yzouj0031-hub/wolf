@@ -16624,7 +16624,7 @@ function renderCR() {
       const mx = MAX_COUNT[o.id]||1;
       const item = document.createElement('div');
       item.className = 'cri '+team;
-      item.innerHTML = `<span style="font-size:.85em">${o.r.emoji}</span><div class="crl">${o.r.name}${mx===1?' <span style="color:#6a6050;font-size:.8em">(唯一)</span>':''}<div style="font-size:.75em;color:#5a5040">${o.r.desc}</div></div><div class="crc"><button data-adj="${o.id}" data-dir="-1">−</button><span id="cc-${o.id}">${customCounts[o.id]||0}</span><button data-adj="${o.id}" data-dir="1">+</button></div>`;
+      item.innerHTML = `<span style="font-size:.85em">${o.r.emoji}</span><div class="crl">${o.r.name}${mx===1?' <span style="color:#6a6050;font-size:.8em">(唯一)</span>':''}<div style="font-size:.75em;color:#5a5040">${(window.WolfI18n&&window.WolfI18n.isEnglish&&window.WolfI18n.isEnglish()&&window.WolfI18n.roles&&window.WolfI18n.roles[o.id])?window.WolfI18n.roles[o.id].desc:o.r.desc}</div></div><div class="crc"><button data-adj="${o.id}" data-dir="-1">−</button><span id="cc-${o.id}">${customCounts[o.id]||0}</span><button data-adj="${o.id}" data-dir="1">+</button></div>`;
       inner.appendChild(item);
     });
     det.appendChild(inner);
@@ -20078,9 +20078,12 @@ function initRoles() {
   for (const id in ALL_ROLES) {
     const r = ALL_ROLES[id];
     const tc = r.team==='bad'?'bad':r.team==='third'?'third':'good';
-    g.innerHTML += `<div class="ri0 ${tc}"><span class="emo">${r.emoji}</span><div class="rii"><div class="rin">${r.name}</div><div class="rid">${{bad:'狼人阵营',good:'好人阵营',third:'第三方'}[r.team]} · ${r.desc}</div></div></div>`;
+    g.innerHTML += `<div class="ri0 ${tc}"><span class="emo">${r.emoji}</span><div class="rii"><div class="rin">${r.name}</div><div class="rid">${{bad:'狼人阵营',good:'好人阵营',third:'第三方'}[r.team]} · ${(window.WolfI18n&&window.WolfI18n.isEnglish&&window.WolfI18n.isEnglish()&&window.WolfI18n.roles&&window.WolfI18n.roles[id])?window.WolfI18n.roles[id].desc:r.desc}</div></div></div>`;
   }
 }
+
+// 🌐 语言切换后，重渲染带角色描述的面板（英文用 ROLE_EN 完整描述，而非逐词替换）
+document.addEventListener('wolf-language-change', function(){ try{ if(typeof renderCR==='function') renderCR(); }catch(e){} try{ if(typeof initRoles==='function') initRoles(); }catch(e){} });
 
 // ★ 屏幕常亮（防止息屏中断游戏）
 (async function keepScreenOn() {
