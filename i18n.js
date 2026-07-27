@@ -85,10 +85,20 @@
     '轮到你':'Your turn','落笔此处...':'Type here…','呈上':'Submit','身份':'Role','存活':'Alive','已出局':'Eliminated','警长':'Sheriff',
     '白天':'Day','夜晚':'Night','投票':'Vote','平安夜':'No deaths','候选人':'Candidates','退选':'Withdraw','最终陈词':'Final statement',
     '慢':'Slow','中':'Normal','快':'Fast','疾':'Very fast','书写速度':'Typing speed','回复上限':'Response limit','记忆':'Memory',
-    'API 地址':'API URL','API 密钥':'API key','模型名称':'Model name','留空随机 | 逗号分隔':'Leave blank for random · comma separated'
+    'API 地址':'API URL','API 密钥':'API key','模型名称':'Model name','留空随机 | 逗号分隔':'Leave blank for random · comma separated',
+    '退':'Back','未知':'Unknown','观战':'Spectate','喂Claude':'Feed Claude','全部':'All','聊天摘要导出':'Chat Summary Export',
+    '选择视角（决定哪些信息可见）':'Select viewpoint (controls what is visible)',
+    '上帝视角（全公开，含狼队密谈）':'God view (all revealed, incl. wolf chat)',
+    '选择要导出的轮次（不选＝全部）':'Rounds to export (none = all)',
+    '可多选，点击高亮表示选中':'Multi-select; tap to highlight',
+    '本局开启隐死亡：玩家视角已强制隐藏死者身份':'Hidden deaths on: player view hides dead roles',
+    'キャラクター図鑑':'Character Encyclopedia','角色图鉴':'Character Encyclopedia','角色百科':'Role Encyclopedia',
+    '导出记录':'Export Log','复盘用':'For review','当前游戏状态':'Current game state','玩家列表':'Players','导出范围':'Export range'
   };
 
   const PHRASES = [
+    [/第(\d+)回(?!合)/g, 'Round $1'], [/存活[:：]\s*(\d+)人/g, '$1 alive'], [/存活[:：]\s*(\d+)/g, 'Alive: $1'],
+    [/命牌\s*(\d+)人/g, 'Roles · $1'], [/横滑查看/g, 'swipe to view'], [/收起命牌/g, 'Hide role cards'], [/展开命牌/g, 'Show role cards'], [/未知/g, 'Unknown'],
     [/第(\d+)回合/g, 'Round $1'], [/第(\d+)夜/g, 'Night $1'], [/第(\d+)天/g, 'Day $1'],
     [/存活：(\d+)人/g, '$1 alive'], [/已出局：/g, 'Eliminated: '], [/警长：/g, 'Sheriff: '],
     [/白天/g, 'Day'], [/夜晚/g, 'Night'], [/投票/g, 'Vote'], [/平安夜/g, 'No deaths'],
@@ -112,9 +122,10 @@
     const raw = String(input);
     const lead = raw.match(/^\s*/)[0], tail = raw.match(/\s*$/)[0], core = raw.trim();
     if (EXACT[core]) return lead + EXACT[core] + tail;
-    const decorated = core.match(/^([^A-Za-z0-9\u3400-\u9fff]*)([\s\S]+)$/);
-    if (decorated && decorated[1] && EXACT[decorated[2].trim()]) {
-      return lead + decorated[1] + EXACT[decorated[2].trim()] + tail;
+    // \u53bb\u6389\u9996\u5c3e\u7684\u88c5\u9970\u7b26\uff08\u2014\u2014 \u25b2 \u25bc \u2460 \u3010 \u3011 \u00b7 \u7b49\u975e\u5b57\u6bcd/\u6570\u5b57/\u6c49\u5b57\uff09\u518d\u67e5\u8bcd\u5178\uff0c\u547d\u4e2d\u5219\u539f\u6837\u4fdd\u7559\u88c5\u9970
+    const dm = core.match(/^([^0-9A-Za-z\u3400-\u9fff\u3040-\u30ff]*)([0-9A-Za-z\u3400-\u9fff\u3040-\u30ff][\s\S]*?[0-9A-Za-z\u3400-\u9fff\u3040-\u30ff]|[0-9A-Za-z\u3400-\u9fff\u3040-\u30ff])([^0-9A-Za-z\u3400-\u9fff\u3040-\u30ff]*)$/);
+    if (dm && (dm[1] || dm[3]) && EXACT[dm[2].trim()]) {
+      return lead + dm[1] + EXACT[dm[2].trim()] + dm[3] + tail;
     }
     let out = core;
     for (const [id, info] of Object.entries(ROLE_EN).sort((a,b) => ROLE_ZH[b[0]].length - ROLE_ZH[a[0]].length)) {
