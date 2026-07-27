@@ -7162,6 +7162,10 @@ function buildSystemPrompt(p) {
   const trialOn = $('m-trial').checked;
   const isHardcore = $('m-hardcore') && $('m-hardcore').checked;
   const wb = buildWorldBook(p) + WB_STRATEGY_AUTONOMY + buildSheriffOrderRuleBlock();
+  // 🌐 英文模式：让 AI 用英文思考与发言（世界书保持中文，模型照样看得懂）
+  const langOutBlock = (window.WolfI18n && window.WolfI18n.isEnglish && window.WolfI18n.isEnglish())
+    ? "\n\n[LANGUAGE — HIGHEST PRIORITY] This match is played in English. Write ALL of your output in natural, fluent English — your <thinking>/<draft> reasoning and especially your spoken <game> statement. Do NOT write in Chinese. Keep every tag (<draft>/<game>/<action>/<interrupt>/<plan>) exactly as specified. In <action>, copy the target player's name EXACTLY as shown in the roster (names may be non-English — reproduce them verbatim, do not translate them)."
+    : "";
   const trialBlock = (!S.pureAI && trialOn) ? TRIAL_BOOK : '';
   const guide = ALL_ROLES[p.role.id] ? ALL_ROLES[p.role.id].guide : '';
 
@@ -7744,7 +7748,7 @@ ${userPersona}
   }
   wolfPrivateBlock = planBlock + loverPrivateBlock + wolfPrivateBlock;
 
-  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${duelLogBlock}${hunterLogBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}`;
+  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${duelLogBlock}${hunterLogBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
