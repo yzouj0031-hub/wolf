@@ -7164,7 +7164,7 @@ function buildSystemPrompt(p) {
   const wb = buildWorldBook(p) + WB_STRATEGY_AUTONOMY + buildSheriffOrderRuleBlock();
   // 🌐 英文模式：让 AI 用英文思考与发言（世界书保持中文，模型照样看得懂）
   const langOutBlock = (window.WolfI18n && window.WolfI18n.isEnglish && window.WolfI18n.isEnglish())
-    ? "\n\n[LANGUAGE — HIGHEST PRIORITY] This match is played in English. Write ALL of your output in natural, fluent English — your <thinking>/<draft> reasoning and especially your spoken <game> statement. Do NOT write in Chinese. Keep every tag (<draft>/<game>/<action>/<interrupt>/<plan>) exactly as specified. In <action>, copy the target player's name EXACTLY as shown in the roster (names may be non-English — reproduce them verbatim, do not translate them)."
+    ? "\n\n[LANGUAGE — HIGHEST PRIORITY] This match is played in English. Write ALL of your output in natural, fluent English — your <thinking>/<draft> reasoning and especially your spoken <game> statement. Do NOT write in Chinese. Keep every tag (<draft>/<game>/<action>/<interrupt>/<plan>) exactly as specified. In <action>, copy the target player's name EXACTLY as shown in the roster (names may be non-English — reproduce them verbatim, do not translate them).\n\n" + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() : '')
     : "";
   const trialBlock = (!S.pureAI && trialOn) ? TRIAL_BOOK : '';
   const guide = ALL_ROLES[p.role.id] ? ALL_ROLES[p.role.id].guide : '';
@@ -21510,7 +21510,7 @@ const _origBuildSysPromptBeforeBlindNames = buildSystemPrompt;
 buildSystemPrompt = function(p) {
   const base = blindForAI(_origBuildSysPromptBeforeBlindNames(p), p);
   if (window.WolfI18n && WolfI18n.isEnglish()) {
-    return '【OUTPUT LANGUAGE: ENGLISH】\nSpeak and reason entirely in natural English. Chinese names may remain unchanged, but all narration, decisions, explanations, and in-character dialogue must be English. Treat any Chinese text below as source data, not as the required response language.\n\n' + base;
+    return '【OUTPUT LANGUAGE: ENGLISH】\nSpeak and reason entirely in natural English. Chinese names may remain unchanged, but all narration, decisions, explanations, and in-character dialogue must be English. Treat any Chinese text below as source data, not as the required response language.\n\n' + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() + '\n\n' : '') + base;
   }
   return base;
 };
@@ -21947,7 +21947,7 @@ const _origBuildWebPromptBeforeBlindNames = buildWebPrompt;
 buildWebPrompt = function(p) {
   const base = blindForAI(_origBuildWebPromptBeforeBlindNames(p), p);
   if (window.WolfI18n && WolfI18n.isEnglish()) {
-    return 'You are playing a Werewolf game in character. Respond entirely in natural English. Chinese player names may stay unchanged. The Chinese battle history below is source data; do not answer in Chinese. Output only the requested in-game speech or action, without an assistant-style preface.\n\n' + base;
+    return 'You are playing a Werewolf game in character. Respond entirely in natural English. Chinese player names may stay unchanged. The Chinese battle history below is source data; do not answer in Chinese. Output only the requested in-game speech or action, without an assistant-style preface.\n\n' + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() + '\n\n' : '') + base;
   }
   return base;
 };

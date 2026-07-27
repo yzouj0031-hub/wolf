@@ -211,6 +211,14 @@
   };
 
   const PHRASES = [
+    // Werewolf terms: keep these before generic words such as 狼人/好人 so compounds are not split.
+    [/警徽流/g, 'planned investigation order'], [/金水/g, 'confirmed-town result'], [/查杀/g, 'wolf result'],
+    [/银水/g, 'Witch-saved player'], [/悍跳/g, 'fake claim'], [/对跳/g, 'counterclaim'], [/退水/g, 'withdraw'],
+    [/倒钩/g, 'bussing'], [/深水狼/g, 'deep wolf'], [/抗推位?/g, 'miselimination target'], [/狼坑/g, 'wolf pool'],
+    [/表水/g, 'self-defense'], [/归票/g, 'call the vote'], [/冲票/g, 'coordinated vote push'], [/绑票/g, 'pressure a vote'],
+    [/自刀/g, 'self-targeted wolf attack'], [/骗药/g, 'bait the Witch’s antidote'], [/守中/g, 'successful protection'],
+    [/刀口/g, 'night-kill target'], [/屠神/g, 'eliminate all power roles'], [/屠民/g, 'eliminate all Villagers'],
+    [/铁好人/g, 'confirmed town'], [/狼面/g, 'wolf equity'], [/好人面/g, 'town equity'], [/票型/g, 'voting pattern'],
     [/第(\d+)回(?!合)/g, 'Round $1'], [/存活[:：]\s*(\d+)人/g, '$1 alive'], [/存活[:：]\s*(\d+)/g, 'Alive: $1'],
     [/命牌\s*(\d+)人/g, 'Roles · $1'], [/横滑查看/g, 'swipe to view'], [/收起命牌/g, 'Hide role cards'], [/展开命牌/g, 'Show role cards'], [/未知/g, 'Unknown'],
     [/第(\d+)回合/g, 'Round $1'], [/第(\d+)夜/g, 'Night $1'], [/第(\d+)天/g, 'Day $1'],
@@ -219,7 +227,7 @@
     [/被投票放逐/g, 'was exiled by vote'], [/被放逐/g, 'was exiled'], [/已死亡/g, 'is dead'], [/死亡/g, 'death'], [/出局/g, 'eliminated'],
     [/守护/g, 'protect'], [/查验/g, 'inspect'], [/毒药/g, 'poison'], [/解药/g, 'antidote'], [/魅惑/g, 'charm'], [/决斗/g, 'duel'],
     [/狼人刀口/g, 'wolf attack target'], [/狼队夜刀/g, 'wolf attack'], [/自爆/g, 'self-destruct'], [/开枪/g, 'shoot'], [/平票/g, 'tie'],
-    [/好人/g, 'good'], [/狼人/g, 'wolf'], [/阵营/g, 'team'], [/技能/g, 'ability'], [/目标/g, 'target'], [/结果/g, 'result'],
+    [/好人/g, 'town'], [/狼人/g, 'wolf'], [/阵营/g, 'team'], [/技能/g, 'ability'], [/目标/g, 'target'], [/结果/g, 'result'],
     [/确定要/g, 'Are you sure you want to '], [/是否继续/g, 'Continue?'], [/不可恢复/g, 'This cannot be undone'], [/覆盖当前/g, 'overwrite the current '],
     [/读档失败：/g, 'Load failed: '], [/导入失败：/g, 'Import failed: '], [/JSON 解析失败：/g, 'JSON parsing failed: '], [/解析失败：/g, 'Parsing failed: '], [/生成规则失败：/g, 'Rule generation failed: '],
     [/观战链接已复制到剪贴板：/g, 'Spectator link copied: '], [/观战链接（长按复制）：/g, 'Spectator link (press and hold to copy): '],
@@ -241,6 +249,18 @@
   const originalMeta = new Map();
   document.querySelectorAll('meta[name="description"],meta[property="og:title"],meta[property="og:description"],meta[name="twitter:title"],meta[name="twitter:description"]').forEach(meta => originalMeta.set(meta, meta.content));
   function isEnglish() { return lang === 'en'; }
+  const TERMINOLOGY_GUIDE = `[WEREWOLF TERMINOLOGY]
+Use natural English Werewolf/Mafia vocabulary; never transliterate Chinese jargon literally.
+• 好人/好人阵营 = town/town team; 狼人/狼队 = wolf/wolf team.
+• 金水 = confirmed-town result (an investigation clear; say “my town result” in speech), not “golden water”.
+• 查杀 = wolf result (say “I got a wolf result on X”), not “check-kill”.
+• 银水 = Witch-saved player; this does not by itself confirm alignment.
+• 悍跳/对跳 = fake claim/counterclaim. 警徽流 = planned investigation order.
+• 抗推 = miselimination target. 倒钩 = bussing. 深水狼 = deep wolf. 狼坑 = wolf pool.
+• 归票 = call/direct the vote. 票型 = voting pattern. 刀口 = night-kill target. 平安夜 = no-death night.
+• 屠神/屠民 = eliminate all power roles/all Villagers. 表水 = defend oneself or make a town case.
+Prefer the plain-language term when jargon would sound unnatural. Preserve player names exactly.`;
+  function terminologyGuide() { return isEnglish() ? TERMINOLOGY_GUIDE : ''; }
   function role(id, fallback) { return isEnglish() && ROLE_EN[id] ? ROLE_EN[id] : fallback; }
   function translateText(input) {
     if (!isEnglish() || !input || !String(input).trim()) return input;
@@ -342,7 +362,7 @@
       opts.hiddenDeath ? '• Hidden deaths: ordinary night deaths reveal neither identity nor private cause. Public skill events remain public.' : '• Public deaths: identities revealed by the system are factual.',
       '• A night choice may only be explained with information available before that night action. A future plan is not an executed action.', '', '— Roles in this game —'];
     ids.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${r.desc}`); });
-    lines.push('', '— Evidence discipline —','• System verification and your own explicit private action results have highest priority; claims and last words are not automatic proof.','• A single slip, wording issue, rule-summary mismatch, or speaking style is suspicion only—not a standalone conviction.','• Repetition by several players is still one argument. Use voting patterns, sustained behavior, information access, and faction benefit.');
+    lines.push('', '— Terminology —','• Use standard English Werewolf/Mafia terms: town, wolf result, town result, counterclaim, bussing, miselimination, voting pattern, and night-kill target. Never translate Chinese jargon literally.','', '— Evidence discipline —','• System verification and your own explicit private action results have highest priority; claims and last words are not automatic proof.','• A single slip, wording issue, rule-summary mismatch, or speaking style is suspicion only—not a standalone conviction.','• Repetition by several players is still one argument. Use voting patterns, sustained behavior, information access, and faction benefit.');
     return lines.join('\n');
   }
   function buildEnglishRulebook(roleIds) {
@@ -351,7 +371,7 @@
     return lines.join('\n');
   }
 
-  window.WolfI18n = {get lang(){return lang;},isEnglish,role,translateText,apply,setLang,buildEnglishRules,buildEnglishRulebook,roles:ROLE_EN};
+  window.WolfI18n = {get lang(){return lang;},isEnglish,role,translateText,terminologyGuide,apply,setLang,buildEnglishRules,buildEnglishRulebook,roles:ROLE_EN};
   document.addEventListener('DOMContentLoaded', () => {
     const nativeAlert = window.alert.bind(window), nativeConfirm = window.confirm.bind(window), nativePrompt = window.prompt.bind(window);
     window.alert = message => nativeAlert(translateText(String(message ?? '')));
