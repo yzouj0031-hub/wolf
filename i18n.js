@@ -363,6 +363,7 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
     const lines = ['[ACTIVE GAME RULES · CONCISE EXPORT]', `Setup: ${players.length} players | ${config}`, '', '— Victory and flow —',
       opts.edge ? '• Edge victory: wolves win by eliminating every god-role, every Villager, or by reaching parity. Good wins by eliminating every wolf.' : '• City victory: wolves win only at parity. Eliminating one role category alone does not end the game. Good wins by eliminating every wolf.',
       `• Flow: night actions → first-day sheriff election → deaths announced → ${opts.singleRound ? 'one' : 'two'} daytime speech round(s) → vote. Extra speeches occur only when the system explicitly opens a tie/PK stage.`,
+      '• Known packmates are legal wolf-attack targets, but sacrificing one is justified only by concrete net gain (for example baiting the antidote, building cover, triggering a death skill, or sacrificing a wolf almost certain to be exiled). It must be compared against attacking a good player and must not cause an immediate loss.',
       opts.hiddenDeath ? '• Hidden deaths: ordinary night deaths reveal neither identity nor private cause. Public skill events remain public.' : '• Public deaths: identities revealed by the system are factual.',
       '• A night choice may only be explained with information available before that night action. A future plan is not an executed action.', '', '— Roles in this game —'];
     ids.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${r.desc}`); });
@@ -372,6 +373,7 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
   function buildEnglishRulebook(roleIds) {
     const lines=['[WEREWOLF ROLE ENCYCLOPEDIA]','This reference lists every role available in the app. A particular game uses only the roles shown in its setup.',''];
     roleIds.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${r.desc}`); });
+    lines.push('', 'Pack rule: known packmates are legal wolf-attack targets only as a deliberate tactical sacrifice with concrete net benefit; accidental or purposeless friendly fire remains bad play.');
     return lines.join('\n');
   }
 

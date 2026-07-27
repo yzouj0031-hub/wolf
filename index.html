@@ -4740,7 +4740,7 @@ function buildRulesExportLegacy(includeAllRoles = false) {
   lines.push('· 除机械狼外，所有狼系角色都拥有每晚狼刀能力：狼人、狼王、狼美人、白狼王都和普通狼人一样参与狼队夜谈与夜刀投票。');
   lines.push('· 狼王的咬人、狼美人的魅惑、白狼王的自爆，都是【额外技能】，不会替代狼刀；这些角色不是“只有特殊技能、不能刀人”，夜里照样能刀人。尤其是狼美人：魅惑不是即时击杀，绝不能代替夜刀。');
   lines.push('· 机械狼是唯一例外：机械狼与狼队互不相认，不参加狼队夜刀；只有当除机械狼以外的其他狼系角色全部出局后，机械狼才获得自己的狼刀。');
-  lines.push('· ⚠️ 特别澄清：机械狼与其他狼系角色属于【同一个狼人阵营】、共享同一个胜负，"互不相认"仅指不知道彼此是谁，绝不是敌对关系。狼队绝不应把"找出机械狼干掉"当作目标，机械狼也绝不应主动推/毒自己的狼队友——自相残杀等于帮好人干活。');
+  lines.push('· ⚠️ 特别澄清：机械狼与其他狼系角色属于【同一个狼人阵营】、共享同一个胜负，"互不相认"仅指不知道彼此是谁，绝不是敌对关系。狼队不应把"找出机械狼干掉"当作目标，机械狼也不应因敌对误解而主动推/毒狼队友。普通狼队已知彼此身份；本局允许夜刀已知狼队友，但只能用于骗解药、做身份、触发死亡技能、牺牲次日几乎必出的队友等有明确净收益的战术，不能无收益内耗。');
   lines.push('');
   lines.push('━━━ 三、本局回合流程与时间线（重要，注意先后顺序）━━━');
   lines.push('每个回合按以下顺序进行：');
@@ -12728,8 +12728,13 @@ const NightActions = {
     //     · 阶段1：每个狼独立开场(看不到队友),给提议
     //     · 阶段2：有分歧才走,让狼看到队友的发言后再说一次,通过<interrupt>yes</interrupt>显式打断
     //     · 阶段3：独立投票API,只输出名字,零歧义
-    // ★ 机械狼可被普通狼误刀（狼队不知它是狼）：把它加入可选刀口
-    const validWolfTargets = alive.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf');
+    // 普通狼队可以战术性刀已知队友（俗称自刀/卖狼做身份）。机械狼本来就因
+    // 互不相认而在候选内。这里必须把所有存活玩家交给决策层；旧代码只给好人
+    // 与机械狼，导致提示词虽写“自刀选项”，AI 的 action 却永远无法选择普通狼队友。
+    const validWolfTargets = alive.slice();
+    // 解析/API 全部失败时不能“随机战术自刀”；随机兜底仍只从非狼与未知机械狼中选。
+    // 刀已知队友必须来自狼队明确讨论或人工选择，不能由技术故障触发。
+    const safeRandomWolfTargets = alive.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf');
     const wolfLastActions = {}; // 兼容下方导演主控/补漏路径,记录最终投票
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
     const livingMagician = S.players.some(x => x.alive && x.role && x.role.id === 'magician');
@@ -12967,10 +12972,16 @@ const NightActions = {
       const singleWolfHint = isSingleWolf
         ? `\n\n⚠️ 单狼场景：场上只有你一只狼，没有队友讨论。直接给出今晚的决定。\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若有明确战术理由要空刀（制造平安夜嫁祸神职/保留刀口/残局博弈），可填 None 表示今晚不刀，但必须在 thinking 里写清目的，不能因纠结/犹豫而空刀】。\n⚠️ 不要在 <game> 文本里写 "<interrupt>" 标签——那是结构化字段，混在自然语言里会导致解析失败。`
         : `\n\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若主张空刀（制造平安夜嫁祸神职/保留刀口/残局博弈这类明确战术目的），填 None 并在 thinking 里说清理由；纯因纠结拿不定主意不许空刀，那就正常选目标】。`;
+      const tacticalSacrificeHint = `
+
+【战术性自刀/刀队友·允许但必须算净收益】
+【可刀目标】包含你自己和已知狼队友，这不是名单错误。不要仅用“会少一只狼”否决，也不要为了花活随便牺牲。
+若考虑刀狼队友，必须比较：①该队友明天被放逐概率；②正常刀一名好人能减少多少神/民与票；③自刀能否骗解药、制造银水或深水身份、触发狼美人连带/其他死亡收益；④自刀后是否立刻触发好人胜利或让狼队人数崩盘。
+只有“牺牲后的团队预期收益”明确高于“该队友继续存活 + 今晚正常刀好人”时才支持。队友已近乎必出不等于自动该自刀：仍要说明活过今晚概率、女巫是否可能救、谁能靠这刀做成身份。反过来，只要账算得过来，就把它当正常候选，不得以原则性口号拒绝。`;
       const prompt = `【狼队密谈·开场陈述】这是狼队内部,直接说,不用伪装。
 你的队友:${mates}
 可刀目标:${ts}${deadNote}
-⚠️ 自刀选项(${selfNames})仅在有明确战术目的时考虑。⚠️ 空刀选项(填None=今晚不刀、制造平安夜)也仅在有明确战术目的时考虑——典型用途:①嫁祸神职(空刀造平安夜,让好人误以为是守卫守中/女巫救人,甚至怀疑跳女巫的人在说谎);②残局迷惑;③保留刀口。但空刀绝不能是"纠结/拿不定主意"的借口,没有清晰战术目的就正常刀人。${tacticsHint}${singleWolfHint}
+⚠️ 狼队成员(${selfNames})也属于合法刀口，但只在明确的战术牺牲收益成立时考虑。⚠️ 空刀选项(填None=今晚不刀、制造平安夜)也仅在有明确战术目的时考虑——典型用途:①嫁祸神职(空刀造平安夜,让好人误以为是守卫守中/女巫救人,甚至怀疑跳女巫的人在说谎);②残局迷惑;③保留刀口。但空刀绝不能是"纠结/拿不定主意"的借口,没有清晰战术目的就正常刀人。${tacticsHint}${singleWolfHint}${tacticalSacrificeHint}
 
 【先做刀口推演——别凭感觉报名字】
 在 thinking 里依次想清楚，再给提议：
@@ -13038,7 +13049,7 @@ B. 坚持自己原本的提议 → 重申理由,<action> 填你支持的目标
 C. 强烈反驳 → <interrupt>yes</interrupt> + 用台词("等等"/"Wait"/"Hold on"等)开头,说明为什么反对当前讨论的方向
 
 可刀目标:${ts}
-${magicKillDecisionHint}
+${magicKillDecisionHint}${tacticalSacrificeHint}
 
 【格式】
 <thinking>队友说的有道理吗?我要不要改主意?当前名义刀口经守卫/女巫与魔术师交换后，最可能实际落到谁？是否存在更优的直刀/反刀路线？</thinking>
@@ -13076,6 +13087,8 @@ ${magicKillDecisionHint}
           `【狼队·最终投票】讨论已结束。从下列存活玩家里选一个,作为今晚刀口目标。
 存活可刀:${allTs}${magicKillDecisionHint}
 
+狼队友也在合法候选中。若讨论形成了战术性牺牲方案，不得因为目标是队友而拒绝投票；按“正常刀好人的收益”与“牺牲队友后的团队净收益”比较后选择。
+
 【格式·严格】
 只输出一个名字,不要解释。
 <action>名字</action>`,
@@ -13102,8 +13115,8 @@ ${magicKillDecisionHint}
           }
         }
         // ★ v9.9.1: 最终保险——单狼场景必须刀人，没目标就随机
-        if (!finalTarget && validWolfTargets.length > 0) {
-          finalTarget = validWolfTargets[Math.floor(Math.random() * validWolfTargets.length)];
+        if (!finalTarget && safeRandomWolfTargets.length > 0) {
+          finalTarget = safeRandomWolfTargets[Math.floor(Math.random() * safeRandomWolfTargets.length)];
           Render.devLog && Render.devLog('warn', `[${w.name}] 所有目标提取都失败，随机刀口=${finalTarget.name}（防止AI鸽刀）`);
         }
         if (finalTarget) wolfLastActions[w.id] = finalTarget.name;
@@ -13117,8 +13130,8 @@ ${magicKillDecisionHint}
             if (t) { wolfLastActions[w.id] = t; break; }
           }
         }
-        if (!wolfLastActions[w.id] && validWolfTargets.length > 0) {
-          const rand = validWolfTargets[Math.floor(Math.random() * validWolfTargets.length)];
+        if (!wolfLastActions[w.id] && safeRandomWolfTargets.length > 0) {
+          const rand = safeRandomWolfTargets[Math.floor(Math.random() * safeRandomWolfTargets.length)];
           wolfLastActions[w.id] = rand.name;
           Render.devLog && Render.devLog('warn', `[${w.name}] API失败+兜底失败，随机刀口=${rand.name}`);
         }
