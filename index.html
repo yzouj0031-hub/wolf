@@ -2352,6 +2352,7 @@ body.has-wp::after {
           <button class="be" id="btn-ask">💬 提问</button>
           <button class="be" id="btn-share" title="把观战链接分享给朋友">🔗 分享</button>
           <button class="be" id="btn-mvp">🏆 MVP</button>
+          <button class="be" id="btn-match-replay" style="display:none" title="按真实事件顺序观看本局">🎬 对局回放</button>
           <button class="be" id="btn-export">📄 导出</button>
           <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
           <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
@@ -6242,6 +6243,8 @@ const Render = {
     const n = {waiting:'等待中',sheriff:'投票',night:'夜晚',day:'白天',duel:'投票准备',vote:'投票'};
     $('hip').innerText = n[S.phase]||S.phase;
     $('hia').innerText = '存活:'+S.players.filter(p=>p.alive).length;
+    const replayBtn = $('btn-match-replay');
+    if (replayBtn) replayBtn.style.display = S.gameOver ? '' : 'none';
     document.body.classList.toggle('day-phase', S.phase==='day'||S.phase==='vote'||S.phase==='duel'||S.phase==='sheriff');
   },
   modes() {
@@ -19325,6 +19328,7 @@ function bindEvents() {
   // 赛后聊天
   $('pg-close').addEventListener('click', () => $('o-postgame').classList.remove('show'));
   $('pg-replay').addEventListener('click', openMatchReplay);
+  $('btn-match-replay').addEventListener('click', openMatchReplay);
   $('mr-close').addEventListener('click', () => { stopMatchReplay(); $('o-match-replay').classList.remove('show'); openPostGame(); });
   $('mr-prev').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index>0) MatchReplay.index--; MatchReplay.visible=Infinity; renderMatchReplay(); });
   $('mr-next').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index<MatchReplay.scenes.length-1) MatchReplay.index++; MatchReplay.visible=Infinity; renderMatchReplay(); });
