@@ -21,7 +21,7 @@ const FILES = [
   'style-preview.html'
 ];
 // 目录资源
-const DIRS = ['icons'];
+const DIRS = ['icons', 'en'];
 
 let n = 0;
 for (const f of FILES) {

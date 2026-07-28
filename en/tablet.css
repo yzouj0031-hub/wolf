@@ -1,0 +1,239 @@
+/*
+ * Tablet layout and native-app safe-area overrides.
+ * Keeps phone and desktop layouts unchanged unless explicitly scoped.
+ */
+
+/* Android APK: keep tappable UI below the system status bar and above
+   gesture/navigation controls. */
+html.capacitor-native .gc.active {
+  box-sizing: border-box;
+  padding-top: max(env(safe-area-inset-top), 28px);
+  padding-bottom: max(env(safe-area-inset-bottom), 6px);
+}
+html.capacitor-native .mm {
+  box-sizing: border-box;
+  padding-top: max(env(safe-area-inset-top), 28px);
+  padding-bottom: max(env(safe-area-inset-bottom), 10px);
+}
+html.capacitor-native .gchat-view {
+  box-sizing: border-box;
+  padding-top: max(env(safe-area-inset-top), 28px);
+}
+html.capacitor-native .overlay,
+html.capacitor-native .pcpop,
+html.capacitor-native .cpop,
+html.capacitor-native .epop,
+html.capacitor-native .model-list-overlay,
+html.capacitor-native .apivault-overlay {
+  padding-top: max(env(safe-area-inset-top), 28px);
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+
+/* Tablet portrait: restore a roomy three-column game instead of the old
+   601-900px "large phone" stack. */
+@media (min-width: 601px) and (max-width: 1100px) and (orientation: portrait) {
+  .gc.active {
+    flex-direction: row;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .side {
+    display: flex;
+    width: clamp(126px, 18vw, 150px);
+    max-height: none;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    padding: 6px;
+    gap: 4px;
+    overflow-y: auto;
+    border-bottom: 0;
+  }
+  .side:first-child {
+    border-right: 1px solid rgba(245,160,184,.08) !important;
+  }
+  .side.right {
+    border-left: 1px solid rgba(245,160,184,.08) !important;
+  }
+  .side-title { display: block; }
+  .side .pc { width: 100%; min-width: 0; padding: 5px 6px; }
+  .side .ch { flex-direction: row; gap: 5px; text-align: left; }
+  .side .av { width: 23px; height: 23px; font-size: .68em; }
+  .side .pn {
+    font-size: clamp(.58em, 1.25vw, .68em);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.12;
+  }
+  .side .rt { font-size: .52em; }
+  .side .ptag, .side .mbtitag { font-size: .46em; }
+
+  .cen { flex: 1; min-width: 0; padding: 7px; }
+  .hbar { padding: 7px 10px; }
+  .gl { min-width: 0; }
+
+  .mc {
+    width: min(100%, 760px);
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    gap: 10px;
+  }
+  .mcd {
+    width: clamp(160px, 28vw, 220px);
+    max-width: 220px;
+    padding: 18px 14px;
+  }
+  .mm-title { font-size: 2.45em; }
+  .rgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cg-inner { grid-template-columns: 1fr 1fr; }
+  .conc-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* Larger tablet landscape: keep the relaxed desktop structure. */
+@media (min-width: 601px) and (max-width: 1400px) and (orientation: landscape) and (min-height: 501px) {
+  .gc.active { flex-direction: row; height: 100dvh; overflow: hidden; }
+  .side {
+    width: clamp(118px, 12vw, 175px);
+    min-width: 0;
+    max-width: 175px;
+    max-height: none;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-y: auto;
+  }
+  .side-title { display: block; }
+  .side .pc { width: 100%; min-width: 0; }
+  .side .ch { flex-direction: row; gap: 6px; text-align: left; }
+  .side .pc { padding: 6px 8px; }
+  .side .av { width: 26px; height: 26px; font-size: .8em; }
+  .side .pn {
+    font-size: clamp(.66em, 1.05vw, .8em);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.12;
+  }
+  .side .rt { font-size: .6em; }
+  .side .ptag { font-size: .55em; }
+  .side .mbtitag { font-size: .5em; }
+  .cen { flex: 1; min-width: 0; }
+  .mc { flex-direction: row; align-items: stretch; }
+  .mcd { width: 170px; max-width: 200px; }
+}
+
+
+/* Tablet settings drawer: let the browser own the gesture so nested form
+   controls do not make vertical scrolling feel stuck. */
+@media (min-width: 601px) and (max-width: 1100px) {
+  .cfg[open] {
+    max-height: min(64dvh, 640px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: auto;
+    overscroll-behavior-y: auto;
+    scrollbar-gutter: auto;
+    will-change: scroll-position;
+    transform: translateZ(0);
+  }
+  .cfg[open] > summary {
+    touch-action: manipulation;
+  }
+  .cfg[open] .batch-grid,
+  .cfg[open] .conc-grid {
+    overscroll-behavior: auto;
+  }
+}
+
+
+/* Tablet landscape balance: settings take roughly one third of the
+   settings+dialogue area; the live dialogue keeps the remaining space. */
+@media (min-width: 601px) and (max-width: 1100px) and (orientation: landscape) {
+  .cfg[open] {
+    flex: 0 1 auto;
+    max-height: min(30dvh, 300px);
+  }
+  .gl {
+    flex: 1 1 0;
+    min-height: 180px;
+  }
+}
+
+
+/* Tablet controls: keep the speaking area large by showing two compact rows.
+   Less-used actions open in a floating More drawer. */
+@media (min-width: 601px) and (max-width: 1100px) {
+  .ctrls.tablet-controls-ready {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    flex: 0 0 auto;
+    gap: 5px;
+    overflow: visible;
+  }
+  .ctrls.tablet-controls-ready > button,
+  .ctrls.tablet-controls-ready > .tablet-control-more {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+  .ctrls.tablet-controls-ready > button,
+  .tablet-control-more > summary {
+    min-height: 38px;
+  }
+  .tablet-control-more {
+    position: relative;
+    z-index: 30;
+  }
+  .tablet-control-more > summary {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 7px 9px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    color: #ddd6ff;
+    background: rgba(25,20,55,.88);
+    border: 1px solid rgba(151,132,255,.72);
+    border-radius: 8px;
+    font: inherit;
+    white-space: nowrap;
+    touch-action: manipulation;
+  }
+  .tablet-control-more > summary::-webkit-details-marker { display: none; }
+  .tablet-control-more[open] > summary {
+    color: #fff;
+    border-color: #f5a0b8;
+    box-shadow: 0 0 10px rgba(245,160,184,.25);
+  }
+  .tablet-control-more-grid {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 7px);
+    width: min(390px, 76vw);
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid rgba(151,132,255,.62);
+    border-radius: 10px;
+    background: rgba(10,8,28,.97);
+    box-shadow: 0 10px 28px rgba(0,0,0,.55);
+  }
+  .tablet-control-more[open] .tablet-control-more-grid { display: grid; }
+  .tablet-control-more-grid > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    margin: 0;
+  }
+}
