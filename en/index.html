@@ -917,10 +917,10 @@ body.blind-review .le.ending { display:none !important; }
 }
 .mobile-secondary > summary::-webkit-details-marker { display: none; }
 .mobile-secondary > summary::after {
-  content: '展开'; margin-left: auto; color: #706884; font-size: .9em;
+  content: 'Expand'; margin-left: auto; color: #706884; font-size: .9em;
 }
 .mobile-secondary[open] > summary { border-bottom: 1px solid rgba(245,160,184,.08); }
-.mobile-secondary[open] > summary::after { content: '收起'; }
+.mobile-secondary[open] > summary::after { content: 'Collapse'; }
 .mobile-secondary > .mtog { margin: 0; padding: 6px 7px 3px; }
 .mobile-secondary > .bgm-controls { padding: 3px 7px 6px !important; }
 .mobile-secondary > .cosplay-presets:not(:empty) { margin: 0 7px 6px; }
@@ -1081,7 +1081,7 @@ body.blind-review .le.ending { display:none !important; }
 
 /* ══ AI主持人 ══ */
 .le.host { border-left: 3px solid #a0e8d0; background: linear-gradient(90deg, rgba(80,200,160,0.07), rgba(60,160,130,0.03), transparent); position: relative; }
-.le.host::after { content: '司仪'; position: absolute; top: 6px; right: 8px; font-family: var(--font-title); font-size: 0.55em; color: #60c8a8; background: rgba(80,200,160,0.1); border: 1px solid rgba(80,200,160,0.2); border-radius: 3px; padding: 1px 5px; letter-spacing: 0.1em; }
+.le.host::after { content: 'Host'; position: absolute; top: 6px; right: 8px; font-family: var(--font-title); font-size: 0.55em; color: #60c8a8; background: rgba(80,200,160,0.1); border: 1px solid rgba(80,200,160,0.2); border-radius: 3px; padding: 1px 5px; letter-spacing: 0.1em; }
 .le.host .lh .name { color: #a0e8d0; }
 
 /* ══ 观众席 ══ */
@@ -2184,7 +2184,7 @@ body.has-wp::after {
       <button class="bb" id="btn-back">← 退</button>
       <span id="hir">第零回</span><span id="hip">等待中</span><span id="hia">存活:10</span>
       <span id="hmode" style="font-size:.6em;color:#7a5ea6"></span>
-      <span class="apih">▼ 展开设置</span>
+      <span class="apih">▼ Show settings</span>
     </div>
     <div class="speak-order-summary" id="speak-order-summary" aria-live="polite">
       <div class="speak-order-head">
@@ -2193,98 +2193,98 @@ body.has-wp::after {
       </div>
       <div class="speak-order-list" id="speak-order-list"></div>
     </div>
-    <div class="pbar-toggle" id="pbarTog">── 展开命牌 ▼ ──</div>
+    <div class="pbar-toggle" id="pbarTog">── Show role cards ▼ ──</div>
     <div class="pbar" id="pbar"></div>
-    <details class="cfg"><summary>⚙ 设置面板</summary>
-      <div class="cr"><input type="text" id="g-url" placeholder="API 地址"><input type="password" id="g-key" placeholder="API 密钥"></div>
-      <div class="cr"><input type="text" id="g-model" placeholder="模型名称" value="gemini-2.0-flash"><select id="p-sel"></select></div>
+    <details class="cfg"><summary>⚙ Settings</summary>
+      <div class="cr"><input type="text" id="g-url" placeholder="API URL"><input type="password" id="g-key" placeholder="API key"></div>
+      <div class="cr"><input type="text" id="g-model" placeholder="Model name" value="gemini-2.0-flash"><select id="p-sel"></select></div>
       <!-- 导演模式：多角色选择 -->
       <div id="director-panel" style="display:none;background:rgba(112,80,160,0.08);border:1px solid rgba(112,80,160,0.25);border-radius:var(--r);padding:7px 10px;margin-bottom:4px">
-        <div style="font-size:.72em;color:#c0a0e8;font-family:var(--font-title);margin-bottom:5px">🎬 导演模式 — 预选你要操控的角色（可留空，开局后点命牌随时接管/交还）</div>
+        <div style="font-size:.72em;color:#c0a0e8;font-family:var(--font-title);margin-bottom:5px">🎬 Director mode — Preselect roles to control (optional; you can take over or release them during the game)</div>
         <div id="director-grid" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px"></div>
-        <div style="font-size:.62em;color:#7060a0">勾选的角色开局即由你控制；游戏中点命牌右下角 🎬 按钮随时切换</div>
+        <div style="font-size:.62em;color:#7060a0">Selected roles start under your control. Use the 🎬 button on a role card to switch control at any time.</div>
       </div>
       <div style="margin-top:4px">
         <div style="font-size:.7em;color:#8880a8;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
-          <span>🔀 备选API（主API失败时依次尝试）</span>
-          <button id="fb-add" style="padding:1px 8px;background:rgba(245,160,184,0.1);border:1px solid rgba(245,160,184,0.25);border-radius:4px;color:#c8a0d8;font-size:0.85em;cursor:pointer">＋ 添加</button>
+          <span>🔀 Fallback APIs (tried in order after the primary API fails)</span>
+          <button id="fb-add" style="padding:1px 8px;background:rgba(245,160,184,0.1);border:1px solid rgba(245,160,184,0.25);border-radius:4px;color:#c8a0d8;font-size:0.85em;cursor:pointer">＋ Add</button>
         </div>
         <div id="fb-list"></div>
       </div>
-      <details class="conc-det"><summary>🗜️ 摘要模型（记忆压缩专用）</summary>
+      <details class="conc-det"><summary>🗜️ Summary model (memory compression)</summary>
         <div style="padding:6px 0;display:flex;flex-direction:column;gap:5px;">
-          <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="mem-compress-enable" checked style="width:auto;min-width:auto">启用记忆压缩</label>
-          <div style="font-size:0.67em;color:#a08850;line-height:1.5;">超过阈值后用摘要模型把旧发言压成摘要以省 token。<b>关掉</b>则完整保留所有发言原文——上下文够大时更准（不会因摘要串发言/身份错乱），但长局更耗 token。下面的摘要模型仅在"启用"时生效。</div>
-          <div style="font-size:0.67em;color:#a08850;">摘要专用模型：建议填便宜小模型（如 gpt-4o-mini、claude-haiku-4-5）。留空则用玩家自己的模型。</div>
-          <div class="cr"><input type="text" id="sum-url" placeholder="摘要API地址（留空用全局）"><input type="password" id="sum-key" placeholder="摘要密钥（留空用全局）"></div>
+          <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="mem-compress-enable" checked style="width:auto;min-width:auto">Enable memory compression</label>
+          <div style="font-size:0.67em;color:#a08850;line-height:1.5;">After the threshold, older speeches are compressed to save tokens. <b>Disable this</b> to retain every original speech for better accuracy with large context windows, at a higher token cost.</div>
+          <div style="font-size:0.67em;color:#a08850;">Use an inexpensive small model such as gpt-4o-mini or claude-haiku-4-5. Leave blank to use each player's model.</div>
+          <div class="cr"><input type="text" id="sum-url" placeholder="Summary API URL (blank = global)"><input type="password" id="sum-key" placeholder="Summary API key (blank = global)"></div>
           <div class="cr">
-            <input type="text" id="sum-model" placeholder="摘要模型名称（留空用玩家模型）" style="flex:2">
+            <input type="text" id="sum-model" placeholder="Summary model (blank = player model)" style="flex:2">
             <select id="sum-type" style="flex:1;font-size:0.75em">
-              <option value="openai">OpenAI兼容</option>
+              <option value="openai">OpenAI compatible</option>
               <option value="anthropic">Anthropic</option>
             </select>
           </div>
         </div>
       </details>
-      <div class="cr"><label>书写速度</label><select id="g-spd"><option value="0.5">慢</option><option value="1" selected>中</option><option value="2">快</option><option value="3">疾</option></select><label>回复上限</label><select id="g-maxtk" onchange="this.nextElementSibling.style.display=this.value==='custom'?'inline-block':'none'"><option value="4096">4K</option><option value="8192">8K</option><option value="16384">16K</option><option value="32768">32K</option><option value="65536">64K</option><option value="131072" selected>128K</option><option value="custom">自定义…</option></select><input type="number" id="g-maxtk-custom" min="512" max="200000" step="512" placeholder="如32768" style="display:none;width:72px;margin-left:4px"><label>记忆</label><select id="g-mem"><option value="16">16条</option><option value="30">30条</option><option value="40" selected>40条</option><option value="0">不限</option></select></div>
-      <details class="conc-det" id="host-det"><summary>🎙️ AI主持人</summary>
+      <div class="cr"><label>Typing speed</label><select id="g-spd"><option value="0.5">Slow</option><option value="1" selected>Normal</option><option value="2">Fast</option><option value="3">Very fast</option></select><label>Response limit</label><select id="g-maxtk" onchange="this.nextElementSibling.style.display=this.value==='custom'?'inline-block':'none'"><option value="4096">4K</option><option value="8192">8K</option><option value="16384">16K</option><option value="32768">32K</option><option value="65536">64K</option><option value="131072" selected>128K</option><option value="custom">Custom…</option></select><input type="number" id="g-maxtk-custom" min="512" max="200000" step="512" placeholder="e.g. 32768" style="display:none;width:72px;margin-left:4px"><label>Memory</label><select id="g-mem"><option value="16">16 entries</option><option value="30">30 entries</option><option value="40" selected>40 entries</option><option value="0">Unlimited</option></select></div>
+      <details class="conc-det" id="host-det"><summary>🎙️ AI host</summary>
         <div style="padding:6px 0;display:flex;flex-direction:column;gap:5px;">
-          <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="host-enable" checked style="width:auto;min-width:auto">启用AI主持人</label>
+          <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="host-enable" checked style="width:auto;min-width:auto">Enable AI host</label>
           <div class="cr" style="align-items:center">
-            <label style="font-size:0.7em;color:#a0e8d0;white-space:nowrap">主持模式</label>
+            <label style="font-size:0.7em;color:#a0e8d0;white-space:nowrap">Host mode</label>
             <select id="host-mode" style="font-size:0.75em;flex:1">
-              <option value="narrator">🎬 解说员（只点评，不参与流程）</option>
-              <option value="emcee" selected>🎙️ 司仪（引导流程+戏剧性宣布）</option>
+              <option value="narrator">🎬 Commentator (comments only)</option>
+              <option value="emcee" selected>🎙️ Emcee (guides flow and announcements)</option>
             </select>
           </div>
-          <div style="font-size:0.67em;color:#508878;" id="host-hint">司仪模式会在关键时刻（如死亡宣布）加入戏剧停顿，剪辑录屏更有张力。每局约多30-50次API调用。</div>
-          <div class="cr"><input type="text" id="h-url" placeholder="主持人API地址（留空用全局）"><input type="password" id="h-key" placeholder="主持人密钥（留空用全局）"></div>
-          <div class="cr"><input type="text" id="h-model" placeholder="主持人模型（留空用全局）" style="flex:2"><select id="host-verbosity" style="flex:1;min-width:60px"><option value="brief">简短</option><option value="normal" selected>适中</option><option value="vivid">详细</option></select></div>
+          <div style="font-size:0.67em;color:#508878;" id="host-hint">Emcee mode adds dramatic pauses to key announcements and uses roughly 30–50 extra API calls per game.</div>
+          <div class="cr"><input type="text" id="h-url" placeholder="Host API URL (blank = global)"><input type="password" id="h-key" placeholder="Host API key (blank = global)"></div>
+          <div class="cr"><input type="text" id="h-model" placeholder="Host model (blank = global)" style="flex:2"><select id="host-verbosity" style="flex:1;min-width:60px"><option value="brief">Brief</option><option value="normal" selected>Balanced</option><option value="vivid">Detailed</option></select></div>
         </div>
       </details>
-      <details class="conc-det"><summary>⚡ 并发设置</summary>
+      <details class="conc-det"><summary>⚡ Concurrency</summary>
         <div class="conc-grid">
-          <div class="conc-item"><label>💬 发言</label><input type="number" id="c-speak" value="1" min="1" max="10"></div>
-          <div class="conc-item"><label>🗳️ 投票</label><input type="number" id="c-vote" value="5" min="1" max="20"></div>
-          <div class="conc-item"><label>🐺 狼议</label><input type="number" id="c-wolf" value="2" min="1" max="5"></div>
-          <div class="conc-item"><label>🐺 狼票</label><input type="number" id="c-wvote" value="3" min="1" max="10"></div>
-          <div class="conc-item"><label>⚖️ 审判票</label><input type="number" id="c-trial" value="5" min="1" max="20"></div>
-          <div class="conc-item"><label>🎤 感言</label><input type="number" id="c-end" value="3" min="1" max="10"></div>
+          <div class="conc-item"><label>💬 Speech</label><input type="number" id="c-speak" value="1" min="1" max="10"></div>
+          <div class="conc-item"><label>🗳️ Vote</label><input type="number" id="c-vote" value="5" min="1" max="20"></div>
+          <div class="conc-item"><label>🐺 Pack talk</label><input type="number" id="c-wolf" value="2" min="1" max="5"></div>
+          <div class="conc-item"><label>🐺 Pack vote</label><input type="number" id="c-wvote" value="3" min="1" max="10"></div>
+          <div class="conc-item"><label>⚖️ Trial vote</label><input type="number" id="c-trial" value="5" min="1" max="20"></div>
+          <div class="conc-item"><label>🎤 Closing remarks</label><input type="number" id="c-end" value="3" min="1" max="10"></div>
         </div>
       </details>
-      <details class="conc-det"><summary>⏱️ AI 思考时间（秒）</summary>
+      <details class="conc-det"><summary>⏱️ AI thinking time (seconds)</summary>
         <div class="conc-grid">
-          <div class="conc-item"><label>💬 单次请求上限</label><input type="number" id="t-single" value="600" min="30" max="1800"></div>
-          <div class="conc-item"><label>🐺 密约·提案</label><input type="number" id="t-wprop" value="240" min="30" max="900"></div>
-          <div class="conc-item"><label>🐺 密约·投票</label><input type="number" id="t-wvote" value="90" min="20" max="600"></div>
+          <div class="conc-item"><label>💬 Request timeout</label><input type="number" id="t-single" value="600" min="30" max="1800"></div>
+          <div class="conc-item"><label>🐺 Pact proposal</label><input type="number" id="t-wprop" value="240" min="30" max="900"></div>
+          <div class="conc-item"><label>🐺 Pact vote</label><input type="number" id="t-wvote" value="90" min="20" max="600"></div>
         </div>
-        <div style="font-size:0.62em;color:#7068a0;padding:4px 6px;line-height:1.5">慢思考模型(Kimi/GLM/Gemini)若常被掐断，调大「单次请求」和「密约·提案」。值越大越能容纳长思考，但卡住时等待也越久。</div>
+        <div style="font-size:0.62em;color:#7068a0;padding:4px 6px;line-height:1.5">If slower reasoning models are frequently cut off, increase Request timeout and Pact proposal. Larger values allow longer reasoning but also wait longer when a request stalls.</div>
       </details>
-      <div class="cr"><label>名讳</label><input type="text" id="cnames" placeholder="留空随机 | 逗号分隔"></div>
-      <div class="nhint">点击命牌可单独设名字和API</div>
-      <details class="conc-det" id="seat-det"><summary>💺 座位排序（拖拽调整）</summary>
+      <div class="cr"><label>Names</label><input type="text" id="cnames" placeholder="Leave blank for random | comma-separated"></div>
+      <div class="nhint">Click a role card to set its name and API</div>
+      <details class="conc-det" id="seat-det"><summary>💺 Seat order (drag to reorder)</summary>
         <div id="seat-list" style="display:flex;flex-wrap:wrap;gap:4px;padding:6px 0;min-height:36px;"></div>
         <div style="display:flex;gap:4px;margin-top:4px;">
-          <button id="seat-shuffle" style="flex:1;padding:4px 8px;font-size:.7em;background:rgba(245,160,184,0.1);color:var(--gold);border:1px solid rgba(245,160,184,0.2);border-radius:var(--r);cursor:pointer">🎲 随机打乱</button>
-          <button id="seat-reset" style="flex:1;padding:4px 8px;font-size:.7em;background:rgba(136,136,204,0.1);color:var(--indigo);border:1px solid rgba(136,136,204,0.2);border-radius:var(--r);cursor:pointer">↩️ 恢复默认</button>
+          <button id="seat-shuffle" style="flex:1;padding:4px 8px;font-size:.7em;background:rgba(245,160,184,0.1);color:var(--gold);border:1px solid rgba(245,160,184,0.2);border-radius:var(--r);cursor:pointer">🎲 Shuffle</button>
+          <button id="seat-reset" style="flex:1;padding:4px 8px;font-size:.7em;background:rgba(136,136,204,0.1);color:var(--indigo);border:1px solid rgba(136,136,204,0.2);border-radius:var(--r);cursor:pointer">↩️ Restore default</button>
         </div>
       </details>
       <div class="cr">
-        <button class="bm" id="btn-fetch" style="background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo)">📡 拉取</button>
-        <button class="bm" id="btn-test" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">🧪 测试</button>
-        <button class="bm" id="btn-applyall" style="background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold)">⚡ 全部应用</button>
+        <button class="bm" id="btn-fetch" style="background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo)">📡 Fetch</button>
+        <button class="bm" id="btn-test" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">🧪 Test</button>
+        <button class="bm" id="btn-applyall" style="background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold)">⚡ Apply all</button>
       </div>
-      <details class="batch-det"><summary>📋 批量分配</summary>
+      <details class="batch-det"><summary>📋 Batch assign</summary>
         <div id="batch-grid" class="batch-grid"></div>
         <div class="cr">
-          <button class="bm" id="btn-bsel" style="background:rgba(255,255,255,0.06);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">全选</button>
-          <button class="bm" id="btn-binv" style="background:rgba(255,255,255,0.06);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">反选</button>
-          <button class="bm" id="btn-bapply" style="background:rgba(120,90,160,0.2);color:#a08aaa;border:1px solid #7a5ea6">应用</button>
+          <button class="bm" id="btn-bsel" style="background:rgba(255,255,255,0.06);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">Select all</button>
+          <button class="bm" id="btn-binv" style="background:rgba(255,255,255,0.06);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">Invert</button>
+          <button class="bm" id="btn-bapply" style="background:rgba(120,90,160,0.2);color:#a08aaa;border:1px solid #7a5ea6">Apply</button>
         </div>
       </details>
     </details>
     <details class="mobile-secondary" id="mobile-secondary">
-      <summary>⚙ 对局、显示与音效设置</summary>
+      <summary>⚙ Game, display & audio</summary>
     <div class="mtog">
       <label class="mti"><input type="checkbox" id="m-anon" checked>🎭 匿名</label>
       <label class="mti"><input type="checkbox" id="m-trial" checked>⚠️ 审判</label>
@@ -3663,19 +3663,27 @@ function resolveRoleForPlay(rid) {
 
 const MODE_CONFIGS = {
   // ── 经典板：纯好人 vs 狼人，无第三方；新增魔术师丰富神职，全部默认屠城 ──
-  standard: {name:'十人局',count:10,roles:['werewolf','werewolf','wolfking','seer','witch','hunter','guard','magician','villager','villager']},
-  super:    {name:'十二人局',count:12,roles:['werewolf','werewolf','wolfbeauty','seer','witch','hunter','guard','knight','magician','villager','villager','villager']},
-  mega:     {name:'十四人局',count:14,roles:['werewolf','werewolf','werewolf','wolfking','seer','witch','hunter','guard','knight','magician','villager','villager','villager','villager']},
+  standard: {name:'10-player game',count:10,roles:['werewolf','werewolf','wolfking','seer','witch','hunter','guard','magician','villager','villager']},
+  super:    {name:'12-player game',count:12,roles:['werewolf','werewolf','wolfbeauty','seer','witch','hunter','guard','knight','magician','villager','villager','villager']},
+  mega:     {name:'14-player game',count:14,roles:['werewolf','werewolf','werewolf','wolfking','seer','witch','hunter','guard','knight','magician','villager','villager','villager','villager']},
   // ── 进阶花活板：引入第三方(小丑/杀手/丘比特)与机械狼；同样默认屠城 ──
-  chaos12:  {name:'诡术·十二人',count:12,roles:['werewolf','werewolf','mechwolf','seer','witch','guard','magician','jester','villager','villager','villager','villager']},
-  chaos14:  {name:'血案·十四人',count:14,roles:['werewolf','werewolf','wolfbeauty','seer','witch','hunter','guard','knight','magician','serialkiller','villager','villager','villager','villager']},
-  cupid14:  {name:'红线·十四人',count:14,roles:['werewolf','werewolf','wolfking','mechwolf','seer','witch','hunter','guard','knight','cupid','villager','villager','villager','villager']}
+  chaos12:  {name:'Trickster · 12 players',count:12,roles:['werewolf','werewolf','mechwolf','seer','witch','guard','magician','jester','villager','villager','villager','villager']},
+  chaos14:  {name:'Bloodbath · 14 players',count:14,roles:['werewolf','werewolf','wolfbeauty','seer','witch','hunter','guard','knight','magician','serialkiller','villager','villager','villager','villager']},
+  cupid14:  {name:'Red Thread · 14 players',count:14,roles:['werewolf','werewolf','wolfking','mechwolf','seer','witch','hunter','guard','knight','cupid','villager','villager','villager','villager']}
 };
 const NAME_POOL = {
-  cn:['夜神月','L','Near','Mello','Misa','魅上觉','怪盗基德','五条悟','艾伦·耶格尔','利威尔','涂山苏苏','花城'],
+  cn:['Light Yagami','L','Near','Mello','Misa Amane','Teru Mikami','Kaito Kid','Satoru Gojo','Eren Yeager','Levi Ackerman','Tushan Susu','Hua Cheng'],
   us:[],
   jp:[]
 };
+const EN_NAME_ALIASES = {
+  '夜神月':'Light Yagami','魅上觉':'Teru Mikami','怪盗基德':'Kaito Kid','黑羽快斗':'Kaito Kuroba',
+  '五条悟':'Satoru Gojo','艾伦·耶格尔':'Eren Yeager','艾伦':'Eren Yeager','利威尔':'Levi Ackerman',
+  '涂山苏苏':'Tushan Susu','花城':'Hua Cheng','工藤新一':'Shinichi Kudo','宫野志保':'Shiho Miyano',
+  '安室透':'Toru Amuro','服部平次':'Heiji Hattori','赤井秀一':'Shuichi Akai','白马探':'Saguru Hakuba',
+  '毛利小五郎':'Kogoro Mouri','中森青子':'Aoko Nakamori','灰原哀':'Ai Haibara','江户川柯南':'Conan Edogawa'
+};
+function englishPlayerName(name) { return EN_NAME_ALIASES[name] || name; }
 
 /* (已移除硬编码人格库，改为用户自定义人设) */
 
@@ -4934,9 +4942,9 @@ function buildNames(n) {
   const r = [];
   for (let i=0;i<n;i++) {
     const pc = playerConfigs[i];
-    if (pc && pc.name) r.push(pc.name);
-    else if (gn[i]) r.push(gn[i]);
-    else { let nm=pool.shift()||'P'+(i+1); while(r.includes(nm)) nm=pool.shift()||'玩家'+(i+1); r.push(nm); }
+    if (pc && pc.name) r.push(englishPlayerName(pc.name));
+    else if (gn[i]) r.push(englishPlayerName(gn[i]));
+    else { let nm=pool.shift()||'P'+(i+1); while(r.includes(nm)) nm=pool.shift()||'Player '+(i+1); r.push(nm); }
   }
   return r;
 }
@@ -17047,14 +17055,14 @@ function syncResponsivePlayerLayout() {
     cards.forEach(card => B.appendChild(card));
     L.classList.add('hidden'); R.classList.add('hidden');
     B.classList.add('active'); T.classList.add('active');
-    T.textContent = B.classList.contains('expanded') ? '── 收起命牌 ▲ ──' : `── 命牌 ${cards.length}人 · 横滑查看 ▼ ──`;
+    T.textContent = B.classList.contains('expanded') ? '── Hide role cards ▲ ──' : `── Roles · ${cards.length} · swipe to view ▼ ──`;
     if (secondary) secondary.removeAttribute('open');
   } else {
     const h = Math.ceil(cards.length/2);
     cards.forEach((card,i) => (i<h?L:R).appendChild(card));
     L.classList.remove('hidden'); R.classList.remove('hidden');
     B.classList.remove('active','expanded'); T.classList.remove('active');
-    T.textContent = '── 展开命牌 ▼ ──';
+    T.textContent = '── Show role cards ▼ ──';
     if (secondary) secondary.setAttribute('open','');
   }
 }
@@ -17151,8 +17159,8 @@ function updatePanelNames() {
 function initSel() {
   const s = $('p-sel');
   s.innerHTML = S.pureAI
-    ? '<option value="-1">🤖 观战</option><option value="-3">🎬 导演</option>'
-    : '<option value="-1">🤖 观战</option><option value="-2">👤 入局</option><option value="-3">🎬 导演</option>';
+    ? '<option value="-1">🤖 Spectate</option><option value="-3">🎬 Director</option>'
+    : '<option value="-1">🤖 Spectate</option><option value="-2">👤 Join game</option><option value="-3">🎬 Director</option>';
   // 初始化时隐藏导演面板
   const dp = $('director-panel');
   if (dp) dp.style.display = 'none';
@@ -17234,7 +17242,7 @@ function renderCosplayPresets() {
   for (const pid in playerConfigs) { if (playerConfigs[pid].persona) cnt++; }
   box.innerHTML = cnt > 0
     ? '<span style="font-size:0.65em;color:var(--gold);font-family:var(--font-title)">🎭 已配置 '+cnt+' 个角色人设（点击命牌编辑）</span>'
-    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">🎭 点击命牌可为角色配置自定义人设</span>';
+    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">🎭 Click a role card to customize its persona</span>';
 }
 function applyAll() {
   const u=$('g-url').value, k=$('g-key').value, m=$('g-model').value;
@@ -19286,8 +19294,8 @@ function bindEvents() {
     const b = $('pbar');
     b.classList.toggle('expanded');
     $('pbarTog').textContent = b.classList.contains('expanded')
-      ? '── 收起命牌 ▲ ──'
-      : (phoneLayoutMq.matches ? `── 命牌 ${b.querySelectorAll('.pc').length}人 · 横滑查看 ▼ ──` : '── 展开命牌 ▼ ──');
+      ? '── Hide role cards ▲ ──'
+      : (phoneLayoutMq.matches ? `── Roles · ${b.querySelectorAll('.pc').length} · swipe to view ▼ ──` : '── Show role cards ▼ ──');
   });
   $('bst').addEventListener('click', startGame);
   { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', startDemo); }   // 🎬 观战Demo

@@ -204,7 +204,7 @@
     '白天':'Day','夜晚':'Night','投票':'Vote','平安夜':'No deaths','候选人':'Candidates','退选':'Withdraw','最终陈词':'Final statement',
     '慢':'Slow','中':'Normal','快':'Fast','疾':'Very fast','书写速度':'Typing speed','回复上限':'Response limit','记忆':'Memory',
     'API 地址':'API URL','API 密钥':'API key','模型名称':'Model name','留空随机 | 逗号分隔':'Leave blank for random · comma separated',
-    '退':'Back','未知':'Unknown','观战':'Spectate','喂Claude':'Feed Claude','全部':'All','聊天摘要导出':'Chat Summary Export',
+    '退':'Back','未知':'Unknown','观战':'Spectate','入局':'Join game','导演':'Director','喂Claude':'Feed Claude','全部':'All','聊天摘要导出':'Chat Summary Export',
     '选择视角（决定哪些信息可见）':'Select viewpoint (controls what is visible)',
     '上帝视角（全公开，含狼队密谈）':'God view (all revealed, incl. wolf chat)',
     '选择要导出的轮次（不选＝全部）':'Rounds to export (none = all)',
@@ -280,6 +280,13 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
       return lead + dm[1] + EXACT[dm[2].trim()] + dm[3] + tail;
     }
     let out = core;
+    // International Edition fallback: translate known UI labels even when
+    // they are wrapped in emoji, counters, punctuation, or mixed markup.
+    // The old decoration matcher only handled a narrow prefix/suffix shape,
+    // which allowed labels such as "🗜️ 摘要模型（记忆压缩专用）" to leak.
+    for (const [source, target] of Object.entries(EXACT).sort((a,b) => b[0].length - a[0].length)) {
+      if (source && out.includes(source)) out = out.split(source).join(target);
+    }
     for (const [id, info] of Object.entries(ROLE_EN).sort((a,b) => ROLE_ZH[b[0]].length - ROLE_ZH[a[0]].length)) {
       const zh = ROLE_ZH[id];
       if (zh) out = out.replace(new RegExp(zh.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), info.name);
