@@ -14226,13 +14226,17 @@ function buildSheriffOrderRuleBlock() {
  * ================================================================ */
 const PhaseHandlers = {
   async night() {
-    hideSpeakOrderSummary();
-    Render.log('night','══ 第'+S.round+'夜 ══');
-    S._duelNextPhase = null;
-    Audio.startBg('night');
-    gameRecord.push({type:'system',text:'第'+S.round+'夜'});
-    callHost('night_start');
-    S.nightData = {kill:null, killChosenByWolf:null, magicSwap:null, lastMagicPair:(S.nightData?.lastMagicPair ?? null), guard:null, lastGuard:(S.nightData?.lastGuard ?? null), witchSave:false, witchPoison:null, wolfBeautyCharm:null, mechGuard:null, mechPoison:null, mechKnifeBreak:false, skKill:null,
+    const nightKey = `${S.gameId}:${S.round}`;
+    const resuming = !!(S._nightRun && S._nightRun.key === nightKey && !S._nightRun.complete);
+    if (!resuming) {
+      hideSpeakOrderSummary();
+      Render.log('night','══ 第'+S.round+'夜 ══');
+      S._duelNextPhase = null;
+      Audio.startBg('night');
+      gameRecord.push({type:'system',text:'第'+S.round+'夜'});
+      callHost('night_start');
+      S._nightRun = {key:nightKey, done:[], complete:false};
+      S.nightData = {kill:null, killChosenByWolf:null, magicSwap:null, lastMagicPair:(S.nightData?.lastMagicPair ?? null), guard:null, lastGuard:(S.nightData?.lastGuard ?? null), witchSave:false, witchPoison:null, wolfBeautyCharm:null, mechGuard:null, mechPoison:null, mechKnifeBreak:false, skKill:null,
       // 🦊 子狐媚惑：foxBlockKill=当晚全狼禁刀；foxMuteIds=当晚被封夜间主动技的好人ID
       foxBlockKill:false, foxMuteIds:[],
       // 🌒 蚀时狼妃：concubineGuard=被反弹保护的X；_concubineTriggered=本夜是否已触发一次
@@ -14246,50 +14250,60 @@ const PhaseHandlers = {
       // 🧩 积木自创角色的当晚产出：守护/解药挡刀的目标集合、毒杀目标集合
       customProtect:[], customSave:[], customPoison:[],
       // 🧩 积木·可转移护盾(施法者id→护盾目标id) / 赐予误赐给狼→反噬(存"赐福者id"、赐福者本人出局)
-      customShield:{}, customExpose:[]};
-    S.silenced = -1;
-    S.players.forEach(p => Render.card(p));
-    Render.phaseClass(); Render.stats();
+        customShield:{}, customExpose:[]};
+      S.silenced = -1;
+      S.players.forEach(p => Render.card(p));
+      Render.phaseClass(); Render.stats();
+    } else {
+      Render.log('system', `↪️ 第${S.round}夜从中断步骤继续，已完成的夜间行动不会重复执行`);
+      Render.devLog && Render.devLog('info', `[夜间断点恢复] ${nightKey} 已完成：${S._nightRun.done.join(', ') || '无'}`);
+    }
+    const nightStep = async (key, fn) => {
+      if (S._nightRun.done.includes(key)) return;
+      await fn();
+      S._nightRun.done.push(key);
+    };
     const alive = S.players.filter(p => p.alive);
     if (S.round === 1) {
-      await nightAtmo(2);
+      await nightStep('atmo-open', () => nightAtmo(2));
       // 💘 丘比特是首夜第一个身份行动，恋人关系在其它夜间技能前建立。
-      await NightActions.cupid(alive);
+      await nightStep('cupid', () => NightActions.cupid(alive));
       // ★ 机械狼不参与狼盟密约（孤狼、与狼队不相认）
       const ws = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf');
       if (ws.length >= 2) {
         // 狼盟密约：独立提案 → 投票 → 拍板（替代轮流密谈，避免复读）
-        await wolfStrategyDiscuss(ws);
+        await nightStep('wolf-strategy', () => wolfStrategyDiscuss(ws));
       } else if (ws.length === 1) {
         // 只有一只狼时无法投票，记一行日志即可
-        Render.log('night-detail','🐺 独狼局，无需密约。');
+        await nightStep('wolf-strategy', async () => Render.log('night-detail','🐺 独狼局，无需密约。'));
       }
       // 🦊🌒🃏🎪 自创技能角色：须在守卫/女巫/预言家等好人主动技之前行动（子狐封刀封技/蚀时狼妃反弹/愚者护盾/奇迹商人赐予）
-      await NightActions.fox(alive);
-      await NightActions.wolfconcubine(alive);
-      await NightActions.merchant(alive);
-      await NightActions.youshang(alive);
-      await NightActions.pickGift(alive);
-      await NightActions.fool(alive);
+      await nightStep('fox', () => NightActions.fox(alive));
+      await nightStep('wolfconcubine', () => NightActions.wolfconcubine(alive));
+      await nightStep('merchant', () => NightActions.merchant(alive));
+      await nightStep('youshang', () => NightActions.youshang(alive));
+      await nightStep('pick-gift', () => NightActions.pickGift(alive));
+      await nightStep('fool', () => NightActions.fool(alive));
       // 第一夜后续行动（丘比特已先行）：魔术师→守卫→狼人→女巫→预言家→连环杀手→狼美人
-      await NightActions.magician(alive);
-      await NightActions.mechwolf(alive);
-      await NightActions.guard(alive);
-      await nightAtmo(1);
-      await NightActions.wolfKill(alive);
-      await NightActions.mechwolfKill(alive);
-      NightActions.applyMagicSwap();
-      await nightAtmo(1);
-      await NightActions.witch(alive);
-      await NightActions.customGods(alive);
-      await NightActions.seer(alive);
-      await NightActions.grantedSkill(alive);
-      await NightActions.serialKiller(alive);
-      await NightActions.wolfBeauty(alive);
+      await nightStep('magician', () => NightActions.magician(alive));
+      await nightStep('mechwolf', () => NightActions.mechwolf(alive));
+      await nightStep('guard', () => NightActions.guard(alive));
+      await nightStep('atmo-before-wolves', () => nightAtmo(1));
+      await nightStep('wolf-kill', () => NightActions.wolfKill(alive));
+      await nightStep('mechwolf-kill', () => NightActions.mechwolfKill(alive));
+      await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
+      await nightStep('atmo-before-gods', () => nightAtmo(1));
+      await nightStep('witch', () => NightActions.witch(alive));
+      await nightStep('custom-gods', () => NightActions.customGods(alive));
+      await nightStep('seer', () => NightActions.seer(alive));
+      await nightStep('granted-skill', () => NightActions.grantedSkill(alive));
+      await nightStep('serial-killer', () => NightActions.serialKiller(alive));
+      await nightStep('wolf-beauty', () => NightActions.wolfBeauty(alive));
       // 第一夜：12人及以上才有警长竞选
       if (S.players.length >= 12) {
         // resolveNight 延迟到 sheriff 阶段结束后执行
         S.nightData._pendingResolve = true;
+        S._nightRun.complete = true;
         S.phase = 'sheriff';
         Render.stats(); Render.phaseClass();
         return;
@@ -14298,37 +14312,39 @@ const PhaseHandlers = {
         S.sheriff = -1;
         S.players.filter(p=>p.alive).forEach(p=>p.memory.push({role:'system',content:'本局人数不足12人，没有警长。'}));
         Render.log('sheriff','👑 本局人数不足12人，无警长竞选');
-        await resolveNight();
+        await nightStep('resolve', () => resolveNight());
+        S._nightRun.complete = true;
         S.phase = 'day';
         Render.stats(); Render.phaseClass();
         return;
       }
     }
-    await nightAtmo(2);
+    await nightStep('atmo-open', () => nightAtmo(2));
     // 🦊🌒🃏🎪 自创技能角色：须在守卫/女巫/预言家等好人主动技之前行动
-    await NightActions.fox(alive);
-    await NightActions.wolfconcubine(alive);
-    await NightActions.merchant(alive);
-    await NightActions.youshang(alive);
-    await NightActions.pickGift(alive);
-    await NightActions.fool(alive);
+    await nightStep('fox', () => NightActions.fox(alive));
+    await nightStep('wolfconcubine', () => NightActions.wolfconcubine(alive));
+    await nightStep('merchant', () => NightActions.merchant(alive));
+    await nightStep('youshang', () => NightActions.youshang(alive));
+    await nightStep('pick-gift', () => NightActions.pickGift(alive));
+    await nightStep('fool', () => NightActions.fool(alive));
     // 夜间行动顺序：魔术师→守卫→狼人（刀口经魔术师交换重定向）→女巫→预言家→狼美人
-    await NightActions.magician(alive);
-    await NightActions.mechwolf(alive);
-    await NightActions.guard(alive);
-    await nightAtmo(1);
-    await NightActions.wolfKill(alive);
-    await NightActions.mechwolfKill(alive);
-    NightActions.applyMagicSwap();
-    await nightAtmo(1);
-    await NightActions.witch(alive);
-    await NightActions.customGods(alive);
-    await NightActions.seer(alive);
-    await NightActions.grantedSkill(alive);
-    await NightActions.serialKiller(alive);
-    await NightActions.wolfBeauty(alive);
+    await nightStep('magician', () => NightActions.magician(alive));
+    await nightStep('mechwolf', () => NightActions.mechwolf(alive));
+    await nightStep('guard', () => NightActions.guard(alive));
+    await nightStep('atmo-before-wolves', () => nightAtmo(1));
+    await nightStep('wolf-kill', () => NightActions.wolfKill(alive));
+    await nightStep('mechwolf-kill', () => NightActions.mechwolfKill(alive));
+    await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
+    await nightStep('atmo-before-gods', () => nightAtmo(1));
+    await nightStep('witch', () => NightActions.witch(alive));
+    await nightStep('custom-gods', () => NightActions.customGods(alive));
+    await nightStep('seer', () => NightActions.seer(alive));
+    await nightStep('granted-skill', () => NightActions.grantedSkill(alive));
+    await nightStep('serial-killer', () => NightActions.serialKiller(alive));
+    await nightStep('wolf-beauty', () => NightActions.wolfBeauty(alive));
           if (S.gameOver) return;
-          await resolveNight();
+    await nightStep('resolve', () => resolveNight());
+    S._nightRun.complete = true;
   },
   async sheriff() {
     if (S.players.length < 10) {
@@ -16721,6 +16737,7 @@ function startGame() {
   S._duelRound=-1;
   S._duelNextPhase=null;
   S._lastNightDeaths=[];
+  S._nightRun=null;                              // Night-step checkpoint: reset for a new match
   S.duelLog=[];
   S.hunterLog=[];
   S._daySpeakOrder=[];
@@ -16788,7 +16805,11 @@ async function nextStep() {
   // 如果 handler 抛异常、且 phase/round 都没推进(说明这一步没正常完成),不要自动重入同一阶段——
   // 否则会把已经做了一半的夜间行动从头再跑一遍。停下来,提示用户手动点"下一步"继续。
   if (_handlerError && S.phase === _phaseBefore && S.round === _roundBefore) {
-    if (Render.devLog) Render.devLog('err', `[调度] ${_phaseBefore}阶段执行中断(AI异常),已暂停自动推进以防重复执行。请手动点"下一步"继续。`);
+    const resumeHint = _phaseBefore === 'night'
+      ? 'Night checkpoint preserved. Press Continue to resume at the failed step; completed actions will not run again.'
+      : 'Automatic progression paused. Resolve the error, then press Continue.';
+    if (Render.devLog) Render.devLog('err', `[scheduler] ${_phaseBefore} interrupted. ${resumeHint}`);
+    Render.log('system', `🛠️ ${resumeHint}`);
     return; // 不 setTimeout 重入
   }
   if (S.auto && !S.gameOver) setTimeout(nextStep, 300);
