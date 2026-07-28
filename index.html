@@ -14670,6 +14670,9 @@ const PhaseHandlers = {
     Render.stats(); Render.phaseClass();
   },
   async day() {
+    // ★ 防重复白天：与夜晚同理，中断后误点「继续」可能把白天再触发一遍（两个「第N天」、发言跑两遍）。
+    //   本轮「第N天」已在记录里=重复触发：清掉上一次本白天起的残留，再从头干净地跑一遍。
+    { const _dupIdx = gameRecord.findIndex(r => r && r.type === 'system' && r.text === '第' + S.round + '天'); if (_dupIdx >= 0) gameRecord.splice(_dupIdx); }
     Render.log('system','══ 第'+S.round+'日 ══');
     Audio.startBg('day');
     Render.stats();
