@@ -14217,6 +14217,9 @@ function buildSheriffOrderRuleBlock() {
  * ================================================================ */
 const PhaseHandlers = {
   async night() {
+    // ★ 防重复夜晚：导演/网页接力中若夜晚未跑完就误点「继续」，可能把整夜再触发一遍（出现两个「第N夜」、狼盟密约跑两遍）。
+    //   检测到本轮「第N夜」已在记录里=重复触发：清掉上一次本夜起的残留记录，再从头干净地跑一遍。
+    { const _dupIdx = gameRecord.findIndex(r => r && r.type === 'system' && r.text === '第' + S.round + '夜'); if (_dupIdx >= 0) gameRecord.splice(_dupIdx); }
     hideSpeakOrderSummary();
     Render.log('night','══ 第'+S.round+'夜 ══');
     S._duelNextPhase = null;
