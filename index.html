@@ -9808,28 +9808,31 @@ function _openInputModal(ctx, hint, resolve, currentPlayer) {
     thinkWrap.style.display = '';
     thinkTxt.value = '';
     feedBtn.onclick = () => {
+      const feedEnglish = !!(window.WolfI18n && WolfI18n.isEnglish && WolfI18n.isEnglish());
       const sys = buildSystemPrompt(currentPlayer);
       // ★ 修复：喂给网页端Claude的内容里补上 buildRulesExport()（本局完整流程与“本局没有的环节”）。
       //   过去只发角色设定+近期发言，外部AI不知道本局有哪些环节，会脑补退水/退选/投票前发言/PK发言
       //   等本局不存在的环节，然后基于幻觉发言、抱怨自己发言被忽视。补上规则块即可根治。
       const rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(currentPlayer) : '';
       const rulesBlock = rulesText
-        ? '【本局规则·先读这一段，尤其“本局没有的环节”一节】\n' + '═'.repeat(40) + '\n' + rulesText + '\n\n' + '═'.repeat(40) + '\n'
+        ? (feedEnglish ? '[MATCH RULES — READ FIRST]\n' : '【本局规则·先读这一段，尤其“本局没有的环节”一节】\n') + '═'.repeat(40) + '\n' + rulesText + '\n\n' + '═'.repeat(40) + '\n'
         : '';
       const alivePlayers = S.players.filter(p => p.alive);
       const deadPlayers = S.players.filter(p => !p.alive);
-      let situation = '【当前局势】\n';
-      situation += '存活：' + alivePlayers.map(p => p.name + (p.id === currentPlayer.id ? '（你）' : '')).join('、') + '\n';
-      if (deadPlayers.length) situation += '出局：' + deadPlayers.map(p => p.name).join('、') + '\n';
-      if (S.sheriff >= 0 && S.players[S.sheriff]) situation += '警长：' + S.players[S.sheriff].name + '\n';
+      let situation = feedEnglish ? '[CURRENT TABLE STATE]\n' : '【当前局势】\n';
+      situation += (feedEnglish ? 'Alive: ' : '存活：') + alivePlayers.map(p => p.name + (p.id === currentPlayer.id ? (feedEnglish ? ' (you)' : '（你）') : '')).join(feedEnglish ? ', ' : '、') + '\n';
+      if (deadPlayers.length) situation += (feedEnglish ? 'Eliminated: ' : '出局：') + deadPlayers.map(p => p.name).join(feedEnglish ? ', ' : '、') + '\n';
+      if (S.sheriff >= 0 && S.players[S.sheriff]) situation += (feedEnglish ? 'Sheriff: ' : '警长：') + S.players[S.sheriff].name + '\n';
       // 发言窗口从10条放宽到30条，减少“看不到全局→脑补”的诱因。
       const recentHistory = (S.history || []).slice(-30).map(h => h.name + '：' + h.text).join('\n');
-      const full = rulesBlock + '【角色设定】\n' + '═'.repeat(40) + '\n' + sys + '\n\n' + '═'.repeat(40) + '\n' + situation + '\n【近期发言】\n' + (recentHistory || '暂无') + '\n\n【请以' + currentPlayer.name + '的身份发言。\n⚠️ 只能依据上面战报里真实出现过的发言与事件来推理，本局没有的环节（退水/退选/投票前发言/PK发言等，见规则）不要脑补，也不要抱怨自己的发言被忽视。\n⚠️ 必须用简体中文输出，全程保持中文，不要夹杂英文/日文/韩文。\n⚠️ 输出格式：先输出 <thinking>思考过程</thinking>，再输出 <game>当面说出来的发言</game>。\n如需使用技能/投票，再追加 <action>指令</action>（不用则写 <action>None</action>）。\n发言要像真人说话，不要写分析报告、不要用编号列表。】';
+      const full = feedEnglish
+        ? rulesBlock + '[CHARACTER AND SYSTEM INSTRUCTIONS]\n' + '═'.repeat(40) + '\n' + sys + '\n\n' + '═'.repeat(40) + '\n' + situation + '\n[RECENT SPEECHES]\n' + (recentHistory || 'None yet') + '\n\n[PLAY AS ' + currentPlayer.name + ']\nUse only events and speeches that actually appear above. Do not invent extra withdrawal, pre-vote, tie/PK, or other speaking stages. Respond entirely in natural English. Output <thinking>private reasoning</thinking>, then <game>spoken in-game statement</game>, and add <action>exact target or None</action> only when needed. Speak naturally in character; do not write an analyst report or numbered essay.'
+        : rulesBlock + '【角色设定】\n' + '═'.repeat(40) + '\n' + sys + '\n\n' + '═'.repeat(40) + '\n' + situation + '\n【近期发言】\n' + (recentHistory || '暂无') + '\n\n【请以' + currentPlayer.name + '的身份发言。\n⚠️ 只能依据上面战报里真实出现过的发言与事件来推理，本局没有的环节（退水/退选/投票前发言/PK发言等，见规则）不要脑补，也不要抱怨自己的发言被忽视。\n⚠️ 必须用简体中文输出，全程保持中文，不要夹杂英文/日文/韩文。\n⚠️ 输出格式：先输出 <thinking>思考过程</thinking>，再输出 <game>当面说出来的发言</game>。\n如需使用技能/投票，再追加 <action>指令</action>（不用则写 <action>None</action>）。\n发言要像真人说话，不要写分析报告、不要用编号列表。】';
       const safeFull = blindNamesOn() ? blindPrivatePersonaBlock(currentPlayer) + '\n\n' + blindMaskPublic(full) : full;
       navigator.clipboard.writeText(safeFull).then(() => {
-        feedBtn.textContent = '✅ 已复制！去网页端Claude粘贴，把thinking和发言分别粘回来';
+        feedBtn.textContent = feedEnglish ? '✅ Copied! Paste it into your Web AI, then return the response here.' : '✅ 已复制！去网页端Claude粘贴，把thinking和发言分别粘回来';
         feedBtn.style.color = '#68e8a8';
-        setTimeout(() => { feedBtn.textContent = '📋 复制喂Claude的内容（系统prompt+当前局势）'; feedBtn.style.color = '#68b8e8'; }, 3000);
+        setTimeout(() => { feedBtn.textContent = feedEnglish ? '📋 Copy prompt for Web AI' : '📋 复制喂Claude的内容（系统prompt+当前局势）'; feedBtn.style.color = '#68b8e8'; }, 3000);
       }).catch(() => {
         const ta = document.createElement('textarea');
         ta.value = safeFull;
@@ -10941,27 +10944,45 @@ async function wolfStrategyDiscuss(wolves) {
 
   // 2. 人类玩家串行处理 — 每人三选一：自己写 / AI代写 / 跳过
   for (const w of humanWolves) {
-    const mates = aliveWolves.filter(x => x.id !== w.id).map(x => x.name + '(' + x.role.name + ')').join('、');
-    const ctxMsg = '🐺 狼盟密约 — 你是 ' + w.name + '【' + w.role.emoji + w.role.name + '】\n\n'
-      + '队友：' + mates + '\n'
-      + '潜在刀口：' + targetCandidates + '\n\n'
-      + '你要不要为狼队提一个本局战术方案？\n'
-      + '（方案会和队友们各自的提案一起投票，最后选出胜出方案）';
+    const pactEnglish = !!(window.WolfI18n && WolfI18n.isEnglish && WolfI18n.isEnglish());
+    const pactRoleName = x => (window.WolfI18n ? WolfI18n.role(x.role.id, x.role).name : x.role.name);
+    const mates = aliveWolves.filter(x => x.id !== w.id).map(x => x.name + '(' + pactRoleName(x) + ')').join(pactEnglish ? ', ' : '、');
+    const localizedTargets = S.players.filter(x => x.alive && x.role.team !== 'bad').map(x => x.name + '(P' + (x.id+1) + ')').join(pactEnglish ? ', ' : '、');
+    const ctxMsg = pactEnglish
+      ? '🐺 Wolf Pact — You are ' + w.name + ' [' + w.role.emoji + ' ' + pactRoleName(w) + ']\n\n'
+        + 'Teammates: ' + mates + '\nPotential night-kill targets: ' + localizedTargets + '\n\n'
+        + 'Would you like to propose a match-specific wolf strategy?\n(The pack will vote on all independently submitted proposals.)'
+      : '🐺 狼盟密约 — 你是 ' + w.name + '【' + w.role.emoji + w.role.name + '】\n\n'
+        + '队友：' + mates + '\n潜在刀口：' + localizedTargets + '\n\n'
+        + '你要不要为狼队提一个本局战术方案？\n（方案会和队友们各自的提案一起投票，最后选出胜出方案）';
     // ★ 构造"喂给网页端AI"的完整提示词（一键复制用）
     const buildPactWebPrompt = () => {
       const alive = S.players.filter(x => x.alive).map(x => x.name + '(P' + (x.id+1) + ')').join('、');
       const dead = S.players.filter(x => !x.alive).map(x => x.name).join('、');
       const recentHistory = (S.history || []).slice(-30).map(h => h.name + '：' + h.text).join('\n');
+      if (pactEnglish) return '[AI WEREWOLF · WOLF PACT PROPOSAL]\n'
+        + 'You are playing ' + w.name + ' as ' + pactRoleName(w) + ' on the wolf team. It is night. Every wolf independently proposes a strategy, then the pack votes for one plan to use as its operating guideline.\n\n'
+        + '[WOLF INFORMATION]\nTeammates: ' + mates + '\nPotential night-kill targets (living good/third-party players): ' + localizedTargets + '\n\n'
+        + '[TABLE STATE]\nAlive: ' + alive + (dead ? '\nEliminated: ' + dead : '') + '\n\n'
+        + '[RECENT SPEECHES]\n' + (recentHistory || '(Night 1: no speeches yet)') + '\n\n'
+        + '[PROPOSAL REQUIREMENTS]\n• Give the plan a distinctive 2–5 word English name.\n• State tonight\'s kill target and the daytime plan: who counterclaims, who stays under the radar, who creates an opposing pair, and why.\n• Write 80–160 words based on these specific players and seats; do not use a generic template.\n\n'
+        + '[OUTPUT FORMAT — STRICT] Output exactly one line as Plan name|Plan content using the ASCII | separator. No reasoning, Markdown, labels, or extra text.\n'
+        + 'Example: Split Pressure|Attack P5 tonight because their opening position makes a power role plausible. Tomorrow Tom counterclaims Seer while Yamato stays neutral and I quietly build a miselimination on P8.';
       return '【AI狼人杀·狼盟密约提案】\n'
         + '你在一局狼人杀中扮演狼人阵营的玩家「' + w.name + '」（身份：' + w.role.name + '）。现在是夜晚，狼队每人独立提出一个本局战术方案，之后队友投票选出胜出方案作为狼队行动纲领。\n\n'
-        + '【狼队信息】\n队友：' + mates + '\n潜在刀口（存活的好人/第三方）：' + targetCandidates + mechPactNote + '\n\n'
+        + '【狼队信息】\n队友：' + mates + '\n潜在刀口（存活的好人/第三方）：' + localizedTargets + mechPactNote + '\n\n'
         + '【场上局势】\n存活：' + alive + (dead ? '\n出局：' + dead : '') + '\n\n'
         + '【近期发言】\n' + (recentHistory || '（第一夜，还没有发言）') + '\n\n'
         + '【方案要求】\n· 方案名 4-8 字（比如「明暗双线」「深海潜航」）\n· 内容包含：今晚刀谁、白天怎么打（谁悍跳/谁潜水/谁做对子）、为什么\n· 100-200 字，必须基于本局具体玩家来想，不要套模板\n\n'
         + '【⚠️ 输出格式】只输出一行，格式为「方案名|方案内容」，用半角竖线 | 分隔，不要输出任何其他内容（不要思考过程、不要markdown、不要解释）。\n'
         + '例：明暗双线|让汤姆前排带节奏装鲁莽好人吸引神职，我和大和中立观察找机会刀神。今晚先刀P5（首发位最像预言家），明天大和悍跳。';
     };
-    const choice = await waitChoice(ctxMsg, '🐺 ' + w.name + ' 提案', [
+    const choice = await waitChoice(ctxMsg, '🐺 ' + w.name + (pactEnglish ? ' · Proposal' : ' 提案'), pactEnglish ? [
+      {label:'✍️ Write it myself', value:'write'},
+      {label:'📋 Copy prompt for Web AI', value:'webai'},
+      {label:'🤖 Let AI write it', value:'ai'},
+      {label:'⏭️ Skip my proposal', value:'skip', abs:true}
+    ] : [
       {label:'✍️ 我自己写方案', value:'write'},
       {label:'📋 复制提示词给网页AI（粘贴它的回答提交）', value:'webai'},
       {label:'🤖 让 AI 替我写', value:'ai'},
@@ -10984,7 +11005,10 @@ async function wolfStrategyDiscuss(wolves) {
         document.body.appendChild(closeBtn);
         await new Promise(r => { const t = setInterval(() => { if (!document.body.contains(ta)) { clearInterval(t); r(); } }, 300); });
       }
-      const pasted = await waitInput('📋 提示词已复制到剪贴板。\n去网页端 AI（ChatGPT/Claude/Gemini 等）粘贴，把它输出的「方案名|方案内容」整行粘贴到下面。\n（留空 = 跳过提案）', '🐺 ' + w.name + ' 粘贴方案', w);
+      const pasted = await waitInput(pactEnglish
+        ? '📋 Prompt copied. Paste it into ChatGPT, Claude, Gemini, or another Web AI, then paste its complete “Plan name|Plan content” line below.\n(Leave blank to skip.)'
+        : '📋 提示词已复制到剪贴板。\n去网页端 AI（ChatGPT/Claude/Gemini 等）粘贴，把它输出的「方案名|方案内容」整行粘贴到下面。\n（留空 = 跳过提案）',
+        '🐺 ' + w.name + (pactEnglish ? ' · Paste proposal' : ' 粘贴方案'), w);
       if (pasted && pasted.trim()) {
         let txt = pasted.trim()
           .replace(/<\/?(?:thinking|game|action|strategy)[^>]*>/gi, ' ')  // 顺手清掉可能带回来的标签
@@ -11160,23 +11184,32 @@ async function wolfStrategyDiscuss(wolves) {
   // ★ 人类玩家串行投票 — 弹窗点选方案
   for (const w of humanWolves) {
     if (!aliveWolves.some(x => x.id === w.id)) continue;
-    const voteCtx = '🐺 你是 ' + w.name + '【' + w.role.emoji + w.role.name + '】\n\n'
+    const voteEnglish = !!(window.WolfI18n && WolfI18n.isEnglish && WolfI18n.isEnglish());
+    const voteRoleName = window.WolfI18n ? WolfI18n.role(w.role.id, w.role).name : w.role.name;
+    const voteCtx = voteEnglish ? '🐺 You are ' + w.name + ' [' + w.role.emoji + ' ' + voteRoleName + ']\n\n'
+      + 'Choose the strongest pack strategy below (you may vote for your own):\n\n'
+      + stratList.map((s, i) => (i+1) + '. “' + s.name + '” by ' + s.proposer + '\n   ' + s.content).join('\n\n')
+      : '🐺 你是 ' + w.name + '【' + w.role.emoji + w.role.name + '】\n\n'
       + '队友们的战术方案如下，选一个你认为最好的（可以投自己的）：\n\n'
       + stratList.map((s, i) =>
           (i+1) + '. ' + s.proposer + '的「' + s.name + '」\n   ' + s.content
         ).join('\n\n');
     const voteOpts = stratList.map(s => ({
-      label: '「' + s.name + '」 ' + (s.proposerId === w.id ? '（你的）' : '— ' + s.proposer),
+      label: (voteEnglish ? '“' + s.name + '” ' + (s.proposerId === w.id ? '(yours)' : '— ' + s.proposer) : '「' + s.name + '」 ' + (s.proposerId === w.id ? '（你的）' : '— ' + s.proposer)),
       value: s.name
     }));
-    voteOpts.push({label:'📋 复制方案列表给网页AI（复制后回来选）', value:'__COPY__'});
-    voteOpts.push({label:'🤖 让 AI 替我决定', value:'__AI__', abs:true});
+    voteOpts.push({label:voteEnglish ? '📋 Copy candidates for Web AI' : '📋 复制方案列表给网页AI（复制后回来选）', value:'__COPY__'});
+    voteOpts.push({label:voteEnglish ? '🤖 Let AI decide' : '🤖 让 AI 替我决定', value:'__AI__', abs:true});
     // ★ 选了"复制"后重新弹出投票框，直到选出真正的选项
     let choice;
     while (true) {
-      choice = await waitChoice(voteCtx, '🐺 ' + w.name + ' 投票', voteOpts);
+      choice = await waitChoice(voteCtx, '🐺 ' + w.name + (voteEnglish ? ' · Vote' : ' 投票'), voteOpts);
       if (choice !== '__COPY__') break;
-      const rawVotePrompt = '【AI狼人杀·狼盟密约投票】\n'
+      const rawVotePrompt = voteEnglish ? '[AI WEREWOLF · WOLF PACT VOTE]\n'
+        + 'You are playing ' + w.name + ' as ' + voteRoleName + ' on the wolf team. Each wolf independently proposed a strategy. Choose the plan that gives the pack the best overall chance.\n\n'
+        + '[CANDIDATE PLANS]\n' + stratDisplay + '\n\n'
+        + '[OUTPUT]\nOn the first line, write only the exact plan name (not its number). Starting on line two, briefly explain your choice in natural English.'
+        : '【AI狼人杀·狼盟密约投票】\n'
         + '你在一局狼人杀中扮演狼人阵营的玩家「' + w.name + '」（身份：' + w.role.name + '）。狼队每人独立提了战术方案，现在要投票选出一个作为狼队行动纲领。\n\n'
         + '【候选方案】\n' + stratDisplay + '\n\n'
         + '【要求】比较各方案对狼队整体的利弊，告诉我你会投哪个方案、为什么。第一行只写你投的【方案名】（精确照抄，不要写编号），从第二行开始写理由。';
