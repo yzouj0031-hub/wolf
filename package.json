@@ -5,7 +5,8 @@
   "description": "把 AI 狼人杀 PWA 用 Capacitor 打包成安卓 APK",
   "scripts": {
     "build:www": "node scripts/build-www.mjs",
-    "render:icon": "node scripts/render-icon.mjs"
+    "render:icon": "node scripts/render-icon.mjs",
+    "test:actions": "node scripts/test-action-protocol.mjs"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

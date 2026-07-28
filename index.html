@@ -10168,8 +10168,7 @@ async function execWhitewolfExplodeIfAny(p, r) {
     let gameText = r.game.replace(/(?:如果|要是|万一|除非|不然|否则|要不然|假如|倘若|宁愿|宁可|早就|要不是|大不了|本来想|差点|险些)[^。！？\n]*[。！？\n]/g, '');
     // ★ 收紧：只认"明确宣告执行自爆"的硬动作词，去掉"我炸了/我爆了/带走XX"等极易被发言或演戏误触发的宽松模式，
     //   防止 AI 把 thinking 里的犹豫/复述/假设带进发言而被误判为真自爆。
-    const explodePattern = /(?:技能发动|发动技能|现在(?:就)?自爆|立即自爆|马上自爆|当场自爆|我(?:现在|这就|就此)?(?:宣布)?自爆|按下(?:了)?起爆|引爆自己)/;
-    if (explodePattern.test(gameText)) {
+    if (_hasExplicitExplodeIntent(gameText)) {
       const aliveCandidates = S.players.filter(x => x.alive && x.id !== p.id);
       const tn = extractTargetName(gameText, aliveCandidates);
       target = tn ? findPlayer(tn, aliveCandidates) : null;
@@ -10713,8 +10712,7 @@ async function proc(players, promptFn, label, opts) {
           // 移除条件分句：从"如果/要是/万一/除非/不然/否则"开始到句号/感叹号之间的内容
           gameText = gameText.replace(/(?:如果|要是|万一|除非|不然|否则|要不然|假如|倘若|宁愿|宁可|早就|要不是|大不了|本来想|差点|险些)[^。！？\n]*[。！？\n]/g, '');
           // ★ 收紧：只认"明确宣告执行自爆"的硬动作词，去掉"我炸了/我爆了/带走XX"等极易被发言或演戏误触发的宽松模式。
-          const explodePattern = /(?:技能发动|发动技能|现在(?:就)?自爆|立即自爆|马上自爆|当场自爆|我(?:现在|这就|就此)?(?:宣布)?自爆|按下(?:了)?起爆|引爆自己)/;
-          if (explodePattern.test(gameText)) {
+          if (_hasExplicitExplodeIntent(gameText)) {
             // 找候选目标（取最后出现的玩家名，符合 AI 说话习惯）
             const aliveCandidates = S.players.filter(x => x.alive && x.id !== p.id);
             const targetName = extractTargetName(gameText, aliveCandidates);
@@ -11348,6 +11346,21 @@ function _cleanMachineAction(value) {
     .replace(/<\/?action[^>]*>/gi, '')
     .replace(/^[\s"'“”‘’`]+|[\s"'“”‘’`。.!！]+$/g, '')
     .trim();
+}
+
+// Legacy natural-language skill declarations are parsed here only as a strict
+// bilingual fallback. Structured <action> commands always remain authoritative.
+function _stripConditionalActionClauses(value) {
+  return String(value == null ? '' : value).normalize('NFKC')
+    .replace(/(?:如果|要是|万一|除非|不然|否则|要不然|假如|倘若|宁愿|宁可|早就|要不是|大不了|本来想|差点|险些)[^。！？\n]*[。！？\n]?/g, '')
+    .replace(/(?:if|unless|otherwise|or else|would rather|almost|nearly|was going to|planned to)\b[^.!?\n]*[.!?\n]?/gi, '');
+}
+
+function _hasExplicitExplodeIntent(value) {
+  const text = _stripConditionalActionClauses(value);
+  if (!text.trim()) return false;
+  if (/(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝)\s*(?:现在|这就|立即|马上|当场)?\s*(?:自爆|引爆|起爆)|\b(?:do\s+not|don't|won't|will\s+not|not\s+going\s+to|refuse\s+to|save|hold|keep)\b[^.!?\n]{0,40}\b(?:self[- ]?destruct|detonate|explode)\b/i.test(text)) return false;
+  return /(?:技能发动|发动技能|现在(?:就)?自爆|立即自爆|马上自爆|当场自爆|我(?:现在|这就|就此)?(?:宣布)?自爆|按下(?:了)?起爆|引爆自己)|\b(?:i\s+(?:will|shall|now|am\s+going\s+to)\s+(?:activate\s+(?:my\s+)?skill\s+and\s+)?(?:self[- ]?destruct|detonate|explode)|(?:self[- ]?destruct|explode)\s+now|detonate\s+myself)\b/i.test(text);
 }
 
 function _isExplicitMachinePass(value, extraPassRe) {
