@@ -116,6 +116,11 @@
     "内置 L's Theme":"Built-in L's Theme",'内置 WAKE UP!':'Built-in WAKE UP!','── 准备就绪 ──':'— Ready —','─ 右 席 ─':'— Right table —',
     '角色会以自己的身份和记忆来回答你（上帝视角对话）':'The character answers using its role and memories (omniscient conversation).',
     '点击开始后，全体AI将基于上帝视角战报，为每位玩家的🧠推理力/🎭演技/⭐影响力/📝发言完整度四维打分，综合最高者当选MVP并计入排行榜':'All AI judges score every player on deduction, roleplay, impact, and speech quality using the omniscient report. The highest total becomes MVP.',
+    '点击开始后，全体AI将基于上帝视角战报，为每位玩家四维打分（推理/演技/影响/发言），综合最高者当选MVP并计入排行榜':'After voting starts, every AI judge scores each player on deduction, roleplay, impact, and speech quality using the omniscient report. The highest overall score wins MVP and is added to the leaderboard.',
+    '尚未开局。请在角色配置完成并开局后导出，系统将只生成本局实际生效的规则。':'The game has not started. Finish the role setup and start the game first; this export will include only the rules active in this match.',
+    '⚠️ 游戏尚未开始':'⚠️ The game has not started','⚠️ 本局没有AI玩家':'⚠️ This game has no AI players','⏳ 评选中…':'⏳ Voting…','🏆 重新评选':'🏆 Vote again','🔄 重新评选':'🔄 Vote again',
+    '还没有检查点。开局后每次阶段变化会自动记录。':'No checkpoints yet. A checkpoint is created whenever the phase changes after the game starts.','⏪ 回到这里':'⏪ Return here',
+    '── 完整角色与规则百科 ──':'— Full role and rules encyclopedia —','🎯 返回本局规则':'🎯 Back to active rules',
     '针对此 AI 关闭自由输出（默认跟随全局）':'Disable natural output for this AI (otherwise follows global setting)','高级：CoT 模板（一般不需要）':'Advanced: CoT template (usually unnecessary)',
     '该字段会追加到 prompt 末尾。':'This field is appended to the prompt.','会被替换成实际的标签说明。':'It is replaced with the actual tag instructions.',
     '死板 0':'Rigid 0','2 疯狂':'2 Wild','窄 0':'Narrow 0','1 宽':'1 Wide','无 0':'None 0','2 强':'2 Strong','（留空用全局）':'(blank = global)',
@@ -386,7 +391,13 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
     window.confirm = message => nativeConfirm(translateText(String(message ?? '')));
     window.prompt = (message, value) => nativePrompt(translateText(String(message ?? '')), value);
     apply();
-    const observer = new MutationObserver(list => { if (!isEnglish()) return; list.forEach(m => m.addedNodes.forEach(translateNode)); });
-    observer.observe(document.body, {subtree:true,childList:true});
+    const observer = new MutationObserver(list => {
+      if (!isEnglish()) return;
+      list.forEach(m => {
+        m.addedNodes.forEach(translateNode);
+        if (m.type === 'characterData') translateNode(m.target);
+      });
+    });
+    observer.observe(document.body, {subtree:true,childList:true,characterData:true});
   });
 })();

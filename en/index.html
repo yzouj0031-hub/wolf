@@ -2389,13 +2389,13 @@ body.has-wp::after {
 <!-- ══════ MVP评选弹窗 ══════ -->
 <div class="overlay" id="mvpOverlay">
   <div class="pbox" style="max-width:480px">
-    <h3>🏆 全员互评 · MVP</h3>
-    <div id="mvp-status" style="text-align:center;font-size:.8em;color:#a098b8;margin-bottom:8px">点击开始后，全体AI将基于上帝视角战报，为每位玩家的🧠推理力/🎭演技/⭐影响力/📝发言完整度四维打分，综合最高者当选MVP并计入排行榜</div>
+    <h3>🏆 All-player review · MVP</h3>
+    <div id="mvp-status" style="text-align:center;font-size:.8em;color:#a098b8;margin-bottom:8px">After voting starts, every AI judge scores each player on deduction, roleplay, impact, and speech quality using the omniscient report. The highest overall score wins MVP and is added to the leaderboard.</div>
     <div id="mvp-progress" style="display:none;font-size:.75em;color:#8880a8;text-align:center;margin-bottom:6px"></div>
     <div id="mvp-results" style="display:none;max-height:55vh;overflow-y:auto"></div>
     <div style="display:flex;gap:6px;margin-top:10px">
-      <button id="mvp-start" style="flex:2;padding:10px;background:linear-gradient(135deg,rgba(245,160,184,0.2),rgba(192,104,136,0.12));border:1px solid var(--gold);border-radius:var(--r);color:var(--gold);font-size:.85em;font-weight:600">🏆 开始评选</button>
-      <button id="mvp-close" style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(245,160,184,0.1);border-radius:var(--r);color:#8880a8;font-size:.85em">关闭</button>
+      <button id="mvp-start" style="flex:2;padding:10px;background:linear-gradient(135deg,rgba(245,160,184,0.2),rgba(192,104,136,0.12));border:1px solid var(--gold);border-radius:var(--r);color:var(--gold);font-size:.85em;font-weight:600">🏆 Start voting</button>
+      <button id="mvp-close" style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(245,160,184,0.1);border-radius:var(--r);color:#8880a8;font-size:.85em">Close</button>
     </div>
   </div>
 </div>
@@ -2657,17 +2657,17 @@ body.has-wp::after {
   <div class="btns"><button id="btn-close-webai-help">明白了</button></div>
 </div></div>
 
-<div class="epop" id="epop"><div class="ebox"><h3 id="ebox-title">── 导出记录 ──</h3><label id="e-th-label" style="font-size:.72em;color:#8a7e6a;display:flex;align-items:center;gap:4px;margin-bottom:6px"><input type="checkbox" id="e-th" style="width:auto;min-width:auto">含内心独白</label><textarea id="etxt"></textarea><div class="btns"><button id="btn-copye" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 复制</button><button id="btn-dle" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 下载</button><button id="btn-importcfg-go" style="display:none;background:rgba(200,168,76,0.2);color:var(--gold);border:1px solid var(--gold)">📥 导入</button><label id="btn-importcfg-file" style="display:none;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:0.85em;text-align:center">📁 从文件导入<input type="file" accept=".json,.txt" id="importcfg-file" style="display:none"></label><button id="btn-closee" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button></div></div></div>
+<div class="epop" id="epop"><div class="ebox"><h3 id="ebox-title">— Export record —</h3><label id="e-th-label" style="font-size:.72em;color:#8a7e6a;display:flex;align-items:center;gap:4px;margin-bottom:6px"><input type="checkbox" id="e-th" style="width:auto;min-width:auto">Include inner thoughts</label><textarea id="etxt"></textarea><div class="btns"><button id="btn-copye" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 Copy</button><button id="btn-dle" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 Download</button><button id="btn-importcfg-go" style="display:none;background:rgba(200,168,76,0.2);color:var(--gold);border:1px solid var(--gold)">📥 Import</button><label id="btn-importcfg-file" style="display:none;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:0.85em;text-align:center">📁 Import from file<input type="file" accept=".json,.txt" id="importcfg-file" style="display:none"></label><button id="btn-closee" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">Close</button></div></div></div>
 
-<div class="epop" id="rulepop"><div class="ebox"><h3 id="rulepop-title">── 本局规则（可复制给外部AI）──</h3><div id="rulepop-hint" style="font-size:.72em;color:#8a7e6a;margin-bottom:6px">只包含当前对局实际生效的角色和交互，适合直接复制给网页端 AI。</div><textarea id="ruletxt" readonly></textarea><div class="btns"><button id="btn-rulebook" style="background:rgba(200,168,76,0.12);color:var(--gold);border:1px solid var(--gold)">📚 完整角色百科</button><button id="btn-copyrule" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 复制</button><button id="btn-dlrule" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 下载</button><button id="btn-closerule" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button></div></div></div>
+<div class="epop" id="rulepop"><div class="ebox"><h3 id="rulepop-title">— Active game rules (for external AI) —</h3><div id="rulepop-hint" style="font-size:.72em;color:#8a7e6a;margin-bottom:6px">Contains only roles and interactions active in this game; suitable for web AI.</div><textarea id="ruletxt" readonly></textarea><div class="btns"><button id="btn-rulebook" style="background:rgba(200,168,76,0.12);color:var(--gold);border:1px solid var(--gold)">📚 Full role encyclopedia</button><button id="btn-copyrule" style="background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)">📋 Copy</button><button id="btn-dlrule" style="background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)">💾 Download</button><button id="btn-closerule" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">Close</button></div></div></div>
 
-<div class="epop" id="savepop"><div class="ebox"><h3>── 存档管理 ──</h3>
-  <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">存档保存在设备数据库中，容量远大于旧版的5MB上限，AI记忆不再被压缩。「导出」可存为文件，在浏览器与APK之间互传。</div>
-  <button id="btn-open-timeline" style="width:100%;margin-bottom:8px;padding:8px;background:rgba(200,168,76,0.12);color:var(--gold);border:1px solid var(--gold);border-radius:var(--r);cursor:pointer;font-size:.85em">⏪ 对局回溯（自动时间线）</button>
+<div class="epop" id="savepop"><div class="ebox"><h3>— Save manager —</h3>
+  <div style="font-size:.7em;color:#8a7e6a;margin-bottom:8px;line-height:1.5">Saves are stored in the device database without the old 5 MB limit. Export files can move between browser and APK.</div>
+  <button id="btn-open-timeline" style="width:100%;margin-bottom:8px;padding:8px;background:rgba(200,168,76,0.12);color:var(--gold);border:1px solid var(--gold);border-radius:var(--r);cursor:pointer;font-size:.85em">⏪ Game rewind (automatic timeline)</button>
   <div id="save-slot-list" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto"></div>
   <div class="btns" style="margin-top:10px">
-    <label style="flex:1;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:.85em;text-align:center">📁 从文件导入<input type="file" accept=".json,application/json" id="save-import-file" style="display:none"></label>
-    <button id="btn-close-savepop" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button>
+    <label style="flex:1;padding:6px 12px;background:rgba(96,168,240,0.15);color:var(--indigo);border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;font-size:.85em;text-align:center">📁 Import from file<input type="file" accept=".json,application/json" id="save-import-file" style="display:none"></label>
+    <button id="btn-close-savepop" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">Close</button>
   </div>
 </div></div>
 
@@ -2868,6 +2868,7 @@ const SOCIAL_GAME_COGNITION_RULES_LEGACY = `
  * ================================================================ */
 const $ = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
+const uiEnglish = () => !!(window.WolfI18n && WolfI18n.isEnglish && WolfI18n.isEnglish());
 
 /* ================================================================
  *  § 1. MBTI 数据
@@ -4815,7 +4816,9 @@ function buildRulesExportLegacy(includeAllRoles = false) {
 // 旧版完整百科保留在 buildRulesExportLegacy 便于维护核对，但不再直接喂给外部 AI。
 function buildRulesExport() {
   const players = (S && Array.isArray(S.players)) ? S.players : [];
-  if (!players.length) return '尚未开局。请在角色配置完成并开局后导出，系统将只生成本局实际生效的规则。';
+  if (!players.length) return uiEnglish()
+    ? 'The game has not started. Finish the role setup and start the game first; this export will include only the rules active in this match.'
+    : '尚未开局。请在角色配置完成并开局后导出，系统将只生成本局实际生效的规则。';
 
   if (window.WolfI18n && WolfI18n.isEnglish()) {
     const hiddenDeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
@@ -5226,7 +5229,9 @@ const SaveStore = (() => {
 const SaveUI = (() => {
   const MANUAL_SLOTS = ['slot1','slot2','slot3','slot4','slot5','slot6'];
   const SLOTS = ['auto'].concat(MANUAL_SLOTS);
-  const label = (s) => s === 'auto' ? '⚡ 自动槽' : '📦 槽位' + s.replace('slot', '');
+  const label = (s) => s === 'auto'
+    ? (uiEnglish() ? '⚡ Autosave' : '⚡ 自动槽')
+    : (uiEnglish() ? '📦 Slot ' : '📦 槽位') + s.replace('slot', '');
 
   function render() {
     const list = document.getElementById('save-slot-list');
@@ -5241,11 +5246,13 @@ const SaveUI = (() => {
       const info = document.createElement('div');
       info.style.cssText = 'font-size:.78em;margin-bottom:6px;line-height:1.5';
       if (hasSave) {
-        const t = new Date(m.time).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+        const t = new Date(m.time).toLocaleString(uiEnglish() ? 'en-US' : 'zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
         info.innerHTML = '<b style="color:var(--gold)">' + label(slot) + '</b> · ' + t +
-          '<br><span style="color:#8a7e6a">第' + m.round + '回·' + m.phase + ' · 存活' + m.alive + '/' + m.total + ' · ' + m.sizeKB + 'KB</span>';
+          (uiEnglish()
+            ? '<br><span style="color:#8a7e6a">Round ' + m.round + ' · ' + ({night:'Night',day:'Day',vote:'Vote',sheriff:'Sheriff election',duel:'Duel',waiting:'Waiting'}[m.phase] || m.phase) + ' · Alive ' + m.alive + '/' + m.total + ' · ' + m.sizeKB + 'KB</span>'
+            : '<br><span style="color:#8a7e6a">第' + m.round + '回·' + m.phase + ' · 存活' + m.alive + '/' + m.total + ' · ' + m.sizeKB + 'KB</span>');
       } else {
-        info.innerHTML = '<b style="color:#8a7e6a">' + label(slot) + '</b> · <span style="color:#5a5348">' + (m && m.broken ? '存档损坏' : '空') + '</span>';
+        info.innerHTML = '<b style="color:#8a7e6a">' + label(slot) + '</b> · <span style="color:#5a5348">' + (m && m.broken ? (uiEnglish() ? 'Corrupted save' : '存档损坏') : (uiEnglish() ? 'Empty' : '空')) + '</span>';
       }
       const btns = document.createElement('div');
       btns.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
@@ -5257,16 +5264,16 @@ const SaveUI = (() => {
         else b.addEventListener('click', fn);
         return b;
       };
-      btns.appendChild(mk('💾 存入', 'background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)', () => {
-        if (hasSave && !confirm('覆盖「' + label(slot) + '」里的存档？')) return;
+      btns.appendChild(mk(uiEnglish() ? '💾 Save' : '💾 存入', 'background:rgba(92,138,111,0.2);color:var(--jade);border:1px solid var(--jade)', () => {
+        if (hasSave && !confirm(uiEnglish() ? 'Overwrite the save in “' + label(slot) + '”?' : '覆盖「' + label(slot) + '」里的存档？')) return;
         if (saveGame({slot})) render();
       }, !canWrite));
-      btns.appendChild(mk('📂 读取', 'background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold)', () => {
+      btns.appendChild(mk(uiEnglish() ? '📂 Load' : '📂 读取', 'background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold)', () => {
         close(); loadGame(slot);
       }, !hasSave && !(m && m.broken)));
-      btns.appendChild(mk('📤 导出', 'background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)', () => exportSlot(slot), !hasSave));
-      btns.appendChild(mk('🗑 删除', 'background:rgba(180,80,80,0.12);color:#c88880;border:1px solid rgba(180,80,80,0.4)', () => {
-        if (!confirm('删除「' + label(slot) + '」的存档？不可恢复。')) return;
+      btns.appendChild(mk(uiEnglish() ? '📤 Export' : '📤 导出', 'background:rgba(74,96,116,0.2);color:#8aa0b0;border:1px solid var(--indigo)', () => exportSlot(slot), !hasSave));
+      btns.appendChild(mk(uiEnglish() ? '🗑 Delete' : '🗑 删除', 'background:rgba(180,80,80,0.12);color:#c88880;border:1px solid rgba(180,80,80,0.4)', () => {
+        if (!confirm(uiEnglish() ? 'Delete the save in “' + label(slot) + '”? This cannot be undone.' : '删除「' + label(slot) + '」的存档？不可恢复。')) return;
         SaveStore.remove(slot); render();
       }, !hasSave && !(m && m.broken)));
       row.appendChild(info); row.appendChild(btns);
@@ -5281,7 +5288,7 @@ const SaveUI = (() => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     const d = new Date(), pad = n => String(n).padStart(2, '0');
-    a.download = '狼人杀存档-' + slot + '-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
+    a.download = (uiEnglish() ? 'werewolf-save-' : '狼人杀存档-') + slot + '-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.json';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   }
@@ -5291,14 +5298,14 @@ const SaveUI = (() => {
     reader.onload = () => {
       try {
         const snap = JSON.parse(reader.result);
-        if (!snap || !snap.S || !snap.S.players) throw new Error('不是有效的存档文件');
+        if (!snap || !snap.S || !snap.S.players) throw new Error(uiEnglish() ? 'Not a valid save file' : '不是有效的存档文件');
         const target = MANUAL_SLOTS.find(s => !SaveStore.get(s)) || 'auto';
         SaveStore.set(target, JSON.stringify(snap));
         render();
-        if (confirm('✅ 已导入到「' + label(target) + '」。\n立即读取这个存档？')) { close(); loadGame(target); }
-      } catch (e) { alert('导入失败：' + e.message); }
+        if (confirm(uiEnglish() ? '✅ Imported to “' + label(target) + '”.\nLoad this save now?' : '✅ 已导入到「' + label(target) + '」。\n立即读取这个存档？')) { close(); loadGame(target); }
+      } catch (e) { alert((uiEnglish() ? 'Import failed: ' : '导入失败：') + e.message); }
     };
-    reader.onerror = () => alert('导入失败：文件读取出错');
+    reader.onerror = () => alert(uiEnglish() ? 'Import failed: could not read the file' : '导入失败：文件读取出错');
     reader.readAsText(file);
   }
 
@@ -5597,19 +5604,24 @@ const TimelineUI = (() => {
     box.innerHTML = '';
     const items = Timeline.list();
     if (!items.length) {
-      box.innerHTML = '<div style="font-size:.78em;color:#5a5348;text-align:center;padding:14px 0">还没有检查点。开局后每次阶段变化会自动记录。</div>';
+      box.innerHTML = uiEnglish()
+        ? '<div style="font-size:.78em;color:#5a5348;text-align:center;padding:14px 0">No checkpoints yet. A checkpoint is created whenever the phase changes after the game starts.</div>'
+        : '<div style="font-size:.78em;color:#5a5348;text-align:center;padding:14px 0">还没有检查点。开局后每次阶段变化会自动记录。</div>';
       return;
     }
     items.forEach(it => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;border:1px solid rgba(200,180,140,0.18);border-radius:var(--r);padding:7px 10px;background:rgba(255,255,255,0.03)';
-      const t = new Date(it.t).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+      const t = new Date(it.t).toLocaleTimeString(uiEnglish() ? 'en-US' : 'zh-CN', {hour:'2-digit', minute:'2-digit'});
       const info = document.createElement('div');
       info.style.cssText = 'flex:1;font-size:.78em;line-height:1.45';
-      info.innerHTML = '<b style="color:var(--gold)">第' + it.round + '回 · ' + Timeline.phaseName(it.phase) + '</b>' +
-        '<br><span style="color:#8a7e6a">' + t + ' · 存活' + it.alive + '/' + it.total + ' · ' + it.sizeKB + 'KB</span>';
+      info.innerHTML = uiEnglish()
+        ? '<b style="color:var(--gold)">Round ' + it.round + ' · ' + ({night:'Night',day:'Day',vote:'Vote',sheriff:'Sheriff election',duel:'Duel',waiting:'Waiting'}[it.phase] || it.phase) + '</b>' +
+          '<br><span style="color:#8a7e6a">' + t + ' · Alive ' + it.alive + '/' + it.total + ' · ' + it.sizeKB + 'KB</span>'
+        : '<b style="color:var(--gold)">第' + it.round + '回 · ' + Timeline.phaseName(it.phase) + '</b>' +
+          '<br><span style="color:#8a7e6a">' + t + ' · 存活' + it.alive + '/' + it.total + ' · ' + it.sizeKB + 'KB</span>';
       const btn = document.createElement('button');
-      btn.textContent = '⏪ 回到这里';
+      btn.textContent = uiEnglish() ? '⏪ Return here' : '⏪ 回到这里';
       btn.style.cssText = 'padding:6px 10px;font-size:.75em;border-radius:var(--r);cursor:pointer;background:rgba(200,168,76,0.15);color:var(--gold);border:1px solid var(--gold);white-space:nowrap';
       btn.addEventListener('click', () => { close(); Timeline.restore(it.k); });
       row.appendChild(info); row.appendChild(btn);
@@ -17505,13 +17517,15 @@ ${replayScript}
  * ================================================================ */
 function openMVP() {
   // 重置弹窗状态
-  $('mvp-status').textContent = '点击开始后，全体AI将基于上帝视角战报，为每位玩家四维打分（推理/演技/影响/发言），综合最高者当选MVP并计入排行榜';
+  $('mvp-status').textContent = uiEnglish()
+    ? 'After voting starts, every AI judge scores each player on deduction, roleplay, impact, and speech quality using the omniscient report. The highest overall score wins MVP and is added to the leaderboard.'
+    : '点击开始后，全体AI将基于上帝视角战报，为每位玩家四维打分（推理/演技/影响/发言），综合最高者当选MVP并计入排行榜';
   $('mvp-status').style.display = '';
   $('mvp-progress').style.display = 'none';
   $('mvp-results').style.display = 'none';
   $('mvp-results').innerHTML = '';
   $('mvp-start').disabled = false;
-  $('mvp-start').textContent = '🏆 开始评选';
+  $('mvp-start').textContent = uiEnglish() ? '🏆 Start voting' : '🏆 开始评选';
   $('mvpOverlay').classList.add('show');
 }
 
@@ -17624,12 +17638,13 @@ function recordScores(scoreAgg) {
 }
 
 async function runMVP() {
+  const mvpEnglish = uiEnglish();
   if (!S.players || S.players.length === 0) {
-    $('mvp-status').textContent = '⚠️ 游戏尚未开始';
+    $('mvp-status').textContent = mvpEnglish ? '⚠️ The game has not started' : '⚠️ 游戏尚未开始';
     return;
   }
   $('mvp-start').disabled = true;
-  $('mvp-start').textContent = '⏳ 评选中…';
+  $('mvp-start').textContent = mvpEnglish ? '⏳ Voting…' : '⏳ 评选中…';
   $('mvp-status').style.display = 'none';
   $('mvp-progress').style.display = '';
   $('mvp-results').style.display = 'none';
@@ -17638,9 +17653,9 @@ async function runMVP() {
   // 获取所有AI玩家（不管存活/死亡都参与投票）
   const aiPlayers = S.players.filter(p => !p.isPlayer);
   if (aiPlayers.length === 0) {
-    $('mvp-progress').textContent = '⚠️ 本局没有AI玩家';
+    $('mvp-progress').textContent = mvpEnglish ? '⚠️ This game has no AI players' : '⚠️ 本局没有AI玩家';
     $('mvp-start').disabled = false;
-    $('mvp-start').textContent = '🏆 重新评选';
+    $('mvp-start').textContent = mvpEnglish ? '🏆 Vote again' : '🏆 重新评选';
     return;
   }
 
@@ -17660,7 +17675,7 @@ async function runMVP() {
   const results = []; // 按发言顺序收集
 
   let done = 0;
-  $('mvp-progress').textContent = `0 / ${aiPlayers.length} 人已投票`;
+  $('mvp-progress').textContent = mvpEnglish ? `0 / ${aiPlayers.length} judges finished` : `0 / ${aiPlayers.length} 人已投票`;
 
   // 并发调用所有AI（复用全局并发设置）
   const conc = getC('c-vote');
@@ -17727,10 +17742,10 @@ ${godReport}
         results.push({ voter: p, comment: r.game || '' });
 
         done++;
-        $('mvp-progress').textContent = `${done} / ${aiPlayers.length} 人已评分`;
+        $('mvp-progress').textContent = mvpEnglish ? `${done} / ${aiPlayers.length} judges finished` : `${done} / ${aiPlayers.length} 人已评分`;
       } catch(e) {
         done++;
-        $('mvp-progress').textContent = `${done} / ${aiPlayers.length} 人已投票`;
+        $('mvp-progress').textContent = mvpEnglish ? `${done} / ${aiPlayers.length} judges finished` : `${done} / ${aiPlayers.length} 人已投票`;
       }
     }));
     idx += batch.length;
@@ -17758,11 +17773,14 @@ ${godReport}
   let replacedPreviousScore = false;
 
   if (ranked.length === 0) {
-    html = '<div style="text-align:center;color:#8880a8;padding:16px">没有有效评分结果（可能AI未按格式输出，可重试）</div>';
+    html = mvpEnglish
+      ? '<div style="text-align:center;color:#8880a8;padding:16px">No valid scores were returned. The AI may not have followed the required format; please try again.</div>'
+      : '<div style="text-align:center;color:#8880a8;padding:16px">没有有效评分结果（可能AI未按格式输出，可重试）</div>';
   } else {
     const [mvpName, mvpSc] = ranked[0];
     const mvpPlayer = S.players.find(p => p.name === mvpName);
     const mvpEmoji = mvpPlayer ? mvpPlayer.role.emoji : '🌟';
+    const mvpRole = mvpPlayer && mvpEnglish && window.WolfI18n ? WolfI18n.role(mvpPlayer.role.id, mvpPlayer.role) : (mvpPlayer ? mvpPlayer.role : null);
     // 标记 MVP 并入榜
     scoreAgg[mvpName].isMVP = true;
     replacedPreviousScore = recordScores(scoreAgg);
@@ -17770,11 +17788,11 @@ ${godReport}
     html += `<div style="text-align:center;padding:12px 8px 8px;background:linear-gradient(135deg,rgba(245,160,184,0.1),rgba(192,104,136,0.06));border:1px solid rgba(245,160,184,0.3);border-radius:var(--r-lg);margin-bottom:12px">
       <div style="font-size:1.6em;margin-bottom:4px">🏆</div>
       <div style="font-family:var(--font-title);font-size:1.15em;color:var(--gold-light);font-weight:900;letter-spacing:.1em">${mvpName}</div>
-      <div style="font-size:.78em;color:#a090b0;margin-top:2px">${mvpEmoji}${mvpPlayer?mvpPlayer.role.name:''} · 综合 ${mvpSc.avg.toFixed(2)} / 5</div>
+      <div style="font-size:.78em;color:#a090b0;margin-top:2px">${mvpEmoji}${mvpRole?mvpRole.name:''} · ${mvpEnglish?'Overall':'综合'} ${mvpSc.avg.toFixed(2)} / 5</div>
     </div>`;
 
     // 四维评分总表（按综合分降序）
-    html += `<div style="font-size:.78em;color:#a090b0;margin-bottom:6px;padding-left:2px">── 四维评分榜（本局）──</div>`;
+    html += `<div style="font-size:.78em;color:#a090b0;margin-bottom:6px;padding-left:2px">${mvpEnglish?'— Four-category scores (this game) —':'── 四维评分榜（本局）──'}</div>`;
     const bar = v => { const pct = (v/5*100).toFixed(0); return `<span style="display:inline-block;width:26px;color:#c8a0e8;font-weight:600">${v.toFixed(1)}</span>`; };
     ranked.forEach(([name, sc], i) => {
       const pl = S.players.find(p => p.name === name);
@@ -17795,7 +17813,7 @@ ${godReport}
 
     // 各评委的一句话点评
     if (results.some(r => r.comment)) {
-      html += `<div style="font-size:.78em;color:#a090b0;margin:10px 0 6px;padding-left:2px">── 评委点评 ──</div>`;
+      html += `<div style="font-size:.78em;color:#a090b0;margin:10px 0 6px;padding-left:2px">${mvpEnglish?'— Judge comments —':'── 评委点评 ──'}</div>`;
       results.forEach(entry => {
         if (!entry.comment) return;
         html += `<div style="margin-bottom:6px;padding:6px 9px;background:rgba(255,255,255,0.02);border-radius:var(--r);border-left:2px solid rgba(200,160,232,0.15)">
@@ -17808,10 +17826,12 @@ ${godReport}
 
   res.innerHTML = html;
   $('mvp-start').disabled = false;
-  $('mvp-start').textContent = '🔄 重新评选';
+  $('mvp-start').textContent = mvpEnglish ? '🔄 Vote again' : '🔄 重新评选';
 
   if (ranked.length > 0) {
-    Render.log('system', `🏆 全员互评结果：<b style="color:var(--gold)">${ranked[0][0]}</b> 综合 ${ranked[0][1].avg.toFixed(2)}/5 当选 MVP！（${replacedPreviousScore?'已替换本局旧评分，不重复累计':'已计入历史排行榜'}）`);
+    Render.log('system', mvpEnglish
+      ? `🏆 All-player review: <b style="color:var(--gold)">${ranked[0][0]}</b> wins MVP with an overall score of ${ranked[0][1].avg.toFixed(2)}/5! (${replacedPreviousScore?'This game’s previous score was replaced.':'Added to the historical leaderboard.'})`
+      : `🏆 全员互评结果：<b style="color:var(--gold)">${ranked[0][0]}</b> 综合 ${ranked[0][1].avg.toFixed(2)}/5 当选 MVP！（${replacedPreviousScore?'已替换本局旧评分，不重复累计':'已计入历史排行榜'}）`);
   }
 }
 
@@ -18174,7 +18194,9 @@ function _publicRecordPlayer(name) {
 }
 
 function _publicEventReadingNote() {
-  return '【事件阅读说明】技能结算记录与紧随其后的死亡记录可能是在描述同一次死亡，不是同一玩家死了两次；请按“回合+玩家名”对应阅读。在玩家有限视角中，只有明确写着“公开身份/公开验证”或列在“你的私密信息”里的铁视角结果才可当作身份事实（上帝视角标题下明确列出的全员真实身份除外）。中枪者、被咬者、自爆被带走者、魅惑殉情者、恋人殉情者、机械决斗死者，都不会仅凭该死因自动变成技能发动者，也不会自动验证原身份或阵营。';
+  return uiEnglish()
+    ? '[EVENT READING NOTE] A skill-resolution entry followed by a death entry may describe the same elimination, not two deaths. Match entries by round and player name. From a player-limited perspective, only explicit “public role/public verification” results or facts listed in “your private information” prove identity. Being shot, bitten, taken by a self-destruct, charmed, love-linked, or killed by a Mechanical Wolf duel does not by itself identify the skill user or verify the victim’s original role or team.'
+    : '【事件阅读说明】技能结算记录与紧随其后的死亡记录可能是在描述同一次死亡，不是同一玩家死了两次；请按“回合+玩家名”对应阅读。在玩家有限视角中，只有明确写着“公开身份/公开验证”或列在“你的私密信息”里的铁视角结果才可当作身份事实（上帝视角标题下明确列出的全员真实身份除外）。中枪者、被咬者、自爆被带走者、魅惑殉情者、恋人殉情者、机械决斗死者，都不会仅凭该死因自动变成技能发动者，也不会自动验证原身份或阵营。';
 }
 
 function _publicRecordSameRound(rec, round) {
@@ -18815,7 +18837,9 @@ function openExport() {
     return;
   }
   // 恢复导出记录模式的 UI
-  $('ebox-title').innerText = '── 导出记录 ──';
+  const exportEnglish = uiEnglish();
+  const localizeExport = value => exportEnglish && window.WolfI18n ? WolfI18n.translateText(String(value || '')) : String(value || '');
+  $('ebox-title').innerText = exportEnglish ? '— Export record —' : '── 导出记录 ──';
   $('e-th-label').style.display = '';
   $('btn-copye').style.display = '';
   $('btn-dle').style.display = '';
@@ -18823,30 +18847,57 @@ function openExport() {
   $('btn-importcfg-file').style.display = 'none';
   $('etxt').placeholder = '';
   const inc = $('e-th').checked;
-  let txt = `【狼人杀·上帝视角完整记录】\n（复盘用：下方会列出全部真实身份和私密事件，不能当作任何一名局中玩家的有限视角。）\n${_publicEventReadingNote()}\n板型：${(MODE_CONFIGS[S.mode]||{}).name||'自定义'}${S.pureAI?' [天机]':''}\n${'═'.repeat(40)}\n`;
+  let txt = exportEnglish
+    ? `[WEREWOLF · COMPLETE OMNISCIENT RECORD]\n(For review: this record contains every real role and private event. It must not be treated as any in-game player's limited perspective.)\n${_publicEventReadingNote()}\nSetup: ${localizeExport((MODE_CONFIGS[S.mode]||{}).name||'Custom')}${S.pureAI?' [Director]':''}\n${'═'.repeat(40)}\n`
+    : `【狼人杀·上帝视角完整记录】\n（复盘用：下方会列出全部真实身份和私密事件，不能当作任何一名局中玩家的有限视角。）\n${_publicEventReadingNote()}\n板型：${(MODE_CONFIGS[S.mode]||{}).name||'自定义'}${S.pureAI?' [天机]':''}\n${'═'.repeat(40)}\n`;
   const showMbti = !$('m-cosplay').checked;
-  S.players.forEach(p => { txt += `P${p.id+1} ${p.name} ${p.role.emoji}${p.role.name}${showMbti&&p.mbti?' '+p.mbti.name:''} [${p.alive?'存活':'死亡'}]\n`; });
+  S.players.forEach(p => {
+    const shownRole = exportEnglish && window.WolfI18n ? WolfI18n.role(p.role.id, p.role) : p.role;
+    txt += `P${p.id+1} ${p.name} ${p.role.emoji}${shownRole.name}${showMbti&&p.mbti?' '+p.mbti.name:''} [${p.alive?(exportEnglish?'Alive':'存活'):(exportEnglish?'Eliminated':'死亡')}]\n`;
+  });
   txt += '═'.repeat(40)+'\n\n';
   gameRecord.forEach(r => {
-    if (r.type==='system') txt += '─── '+r.text+' ───\n\n';
+    if (r.type==='system') txt += '─── '+localizeExport(r.text)+' ───\n\n';
     else if (r.type==='death') {
       const hid = $('m-hdeath').checked;
       const desc = _formatPublicDeathCause(r, {hiddenNight:hid, canSeePrivateNight:!hid});
       const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
-      txt += '💀 '+r.name+(hid?'':'【'+r.role+'】')+' 出局 — '+desc+voteSuffix+'\n\n';
+      txt += '💀 '+r.name+(hid?'':'【'+localizeExport(r.role)+'】')+(exportEnglish?' eliminated — ':' 出局 — ')+localizeExport(desc+voteSuffix)+'\n\n';
     }
-    else if (r.type==='foolImmune' || r.type==='reprieve' || r.type==='skillConsumed') { txt += _formatPublicRevealEvent(r)+'\n\n'; }
-    else if (r.type==='speech') { txt += '['+r.label+'] '+r.name+':\n'; if(inc&&r.thinking) txt+='  ('+r.thinking+')\n'; txt += '  '+r.game+'\n\n'; }
+    else if (r.type==='foolImmune' || r.type==='reprieve' || r.type==='skillConsumed') { txt += localizeExport(_formatPublicRevealEvent(r))+'\n\n'; }
+    else if (r.type==='speech') { txt += '['+localizeExport(r.label)+'] '+r.name+':\n'; if(inc&&r.thinking) txt+='  ('+r.thinking+')\n'; txt += '  '+r.game+'\n\n'; }
     else if (r.type==='night_action') {
       // ★ 夜间行动本身属于上帝视角完整记录，始终导出；“含内心独白”只控制 thinking，
       //   不能因为未勾选内心独白就把整段夜间行动一起删掉。
-      const roleEmoji = {
+      const roleEmoji = (exportEnglish ? {
+        guard:'🛡️ Guard', witch:'🧙 Witch', seer:'🔮 Seer', wolfbeauty:'🌹 Wolf Beauty', wolf:'🐺 Wolf team', cupid:'💘 Cupid', serialkiller:'🔪 Serial Killer',
+        magician:'🎩 Magician', mechwolf:'🤖 Mechanical Wolf learning', mechwolf_seer:'🤖🔮 Mechanical Wolf inspection',
+        mechwolf_guard:'🤖🛡️ Mechanical Wolf protection', mechwolf_poison:'🤖☠️ Mechanical Wolf poison', mechwolf_magician:'🤖🎩 Mechanical Wolf swap intel', mechwolf_kill:'🤖🔪 Mechanical Wolf attack'
+      } : {
         guard:'🛡️守卫', witch:'🧙女巫', seer:'🔮预言家', wolfbeauty:'🌹狼美人', wolf:'🐺狼队', cupid:'💘丘比特', serialkiller:'🔪连环杀手',
         magician:'🎩魔术师', mechwolf:'🤖机械狼学习', mechwolf_seer:'🤖🔮机械狼查验',
         mechwolf_guard:'🤖🛡️机械狼守护', mechwolf_poison:'🤖☠️机械狼毒杀', mechwolf_magician:'🤖🎩机械狼魔术情报', mechwolf_kill:'🤖🔪机械狼带刀'
-      }[r.role] || r.role;
+      })[r.role] || r.role;
       let actionDesc = '';
-      if (r.technical) actionDesc = '⚠️ 行动指令技术解析失败，未执行（非主动空过）';
+      if (exportEnglish) {
+        if (r.technical) actionDesc = '⚠️ The action instruction could not be parsed and was not executed (not a voluntary pass)';
+        else if (r.role === 'guard') actionDesc = r.target ? `protected ${r.target}` : 'passed';
+        else if (r.role === 'witch') actionDesc = `${r.saved ? 'saved '+r.saved : 'did not save'}${r.poisoned ? ', poisoned '+r.poisoned : ''}`;
+        else if (r.role === 'seer') actionDesc = `inspected ${r.target} → ${r.result === 'wolf' ? '🐺 Wolf' : '✅ Town'}`;
+        else if (r.role === 'wolfbeauty') actionDesc = r.target ? `charmed ${r.target}` : 'did not charm';
+        else if (r.role === 'wolf') actionDesc = `attacked ${r.target}`;
+        else if (r.role === 'cupid') actionDesc = `linked ${r.target || 'unrecorded'} as lovers`;
+        else if (r.role === 'serialkiller') actionDesc = r.target ? `attacked ${r.target}` : 'passed';
+        else if (r.role === 'magician') actionDesc = r.target ? `swapped ${r.target} (redirects only the wolf attack; roles and other abilities do not move)` : 'passed (no swap)';
+        else if (r.role === 'mechwolf') actionDesc = r.target ? localizeExport(mechLearnSummaryText()) : 'did not learn tonight';
+        else if (r.role === 'mechwolf_seer') actionDesc = `precisely inspected ${r.target} → [${localizeExport(r.roleName || (r.result === 'wolf' ? 'Werewolf' : 'Town'))}]`;
+        else if (r.role === 'mechwolf_guard') actionDesc = r.target ? `protected ${r.target}` : 'passed';
+        else if (r.role === 'mechwolf_poison') actionDesc = r.target ? `poisoned ${r.target}` : 'did not poison';
+        else if (r.role === 'mechwolf_magician') actionDesc = r.target ? `learned the real swap ${r.target}` : 'learned that the Magician passed';
+        else if (r.role === 'mechwolf_kill') actionDesc = r.target ? `attacked ${r.target}` : 'passed';
+        else { const _cl = _formatCustomNightAction(r); if (_cl) { txt += localizeExport(_cl) + '\n'; if (inc && r.thinking) txt += '  ('+r.thinking+')\n'; txt += '\n'; return; } }
+      }
+      else if (r.technical) actionDesc = '⚠️ 行动指令技术解析失败，未执行（非主动空过）';
       else if (r.role === 'guard') actionDesc = `守护了${r.target || '空守'}`;
       else if (r.role === 'witch') actionDesc = `${r.saved ? '救了'+r.saved : '未救'}${r.poisoned ? '，毒了'+r.poisoned : ''}`;
       else if (r.role === 'seer') actionDesc = `查验${r.target}→${r.result === 'wolf' ? '🐺坏人' : '✅好人'}`;
@@ -18861,20 +18912,20 @@ function openExport() {
       else if (r.role === 'mechwolf_poison') actionDesc = r.target ? `毒了${r.target}` : '未毒';
       else if (r.role === 'mechwolf_magician') actionDesc = r.target ? `得知真实换位${r.target}` : '得知魔术师空过';
       else if (r.role === 'mechwolf_kill') actionDesc = r.target ? `刀${r.target}` : '选择空刀';
-      else { const _cl = _formatCustomNightAction(r); if (_cl) { txt += _cl + '\n'; if (inc && r.thinking) txt += '  ('+r.thinking+')\n'; txt += '\n'; return; } }
-      txt += `[第${r.round}夜·${roleEmoji}] ${actionDesc}\n`;
+      else { const _cl = _formatCustomNightAction(r); if (_cl) { txt += localizeExport(_cl) + '\n'; if (inc && r.thinking) txt += '  ('+r.thinking+')\n'; txt += '\n'; return; } }
+      txt += exportEnglish ? `[Night ${r.round} · ${roleEmoji}] ${actionDesc}\n` : `[第${r.round}夜·${roleEmoji}] ${actionDesc}\n`;
       if (inc && r.thinking) txt += '  ('+r.thinking+')\n';
       if (r.gameText) txt += '  '+r.gameText+'\n';
       txt += '\n';
     }
-    else if (r.type==='lover_death') txt += `💘 恋人连带：${r.trigger}死亡，${r.lover}随之殉情（不验证原身份/阵营）\n\n`;
-    else if (r.type==='duel') txt += _formatPublicDuelEvent(r)+'\n\n';
-    else if (r.type==='shoot') txt += _formatPublicShootEvent(r)+'\n\n';
-    else if (r.type==='bite') txt += _formatPublicBiteEvent(r)+'\n\n';
-    else if (r.type==='whitewolf_explode') txt += _formatPublicWhitewolfExplodeEvent(r)+'\n\n';
-    else if (r.type==='trial') txt += _formatPublicTrialEvent(r)+'\n\n';
-    else if (r.type==='vote') txt += _formatPublicVoteEvent(r)+'\n\n';
-    else if (r.type==='sheriff_transfer') txt += _formatPublicSheriffTransfer(r)+'\n\n';
+    else if (r.type==='lover_death') txt += exportEnglish ? `💘 Lovers: ${r.trigger} died, and ${r.lover} died of heartbreak (does not verify either original role/team)\n\n` : `💘 恋人连带：${r.trigger}死亡，${r.lover}随之殉情（不验证原身份/阵营）\n\n`;
+    else if (r.type==='duel') txt += localizeExport(_formatPublicDuelEvent(r))+'\n\n';
+    else if (r.type==='shoot') txt += localizeExport(_formatPublicShootEvent(r))+'\n\n';
+    else if (r.type==='bite') txt += localizeExport(_formatPublicBiteEvent(r))+'\n\n';
+    else if (r.type==='whitewolf_explode') txt += localizeExport(_formatPublicWhitewolfExplodeEvent(r))+'\n\n';
+    else if (r.type==='trial') txt += localizeExport(_formatPublicTrialEvent(r))+'\n\n';
+    else if (r.type==='vote') txt += localizeExport(_formatPublicVoteEvent(r))+'\n\n';
+    else if (r.type==='sheriff_transfer') txt += localizeExport(_formatPublicSheriffTransfer(r))+'\n\n';
   });
   $('etxt').value = blindNamesOn() ? blindMaskPublic(txt) : txt;
   $('epop').classList.add('show');
@@ -19354,11 +19405,13 @@ function bindEvents() {
     try {
       const full = mode === 'book';
       $('rulepop').dataset.mode = full ? 'book' : 'game';
-      $('rulepop-title').textContent = full ? '── 完整角色与规则百科 ──' : '── 本局规则（可复制给外部AI）──';
-      $('rulepop-hint').textContent = full
-        ? '包含全部可用角色，供查阅或准备下一场使用；正常网页端 AI 接力不需要复制这一整本。'
-        : '只包含当前对局实际生效的角色和交互，适合直接复制给网页端 AI。';
-      $('btn-rulebook').textContent = full ? '🎯 返回本局规则' : '📚 完整角色百科';
+      $('rulepop-title').textContent = uiEnglish()
+        ? (full ? '— Full role and rules encyclopedia —' : '— Active game rules (for external AI) —')
+        : (full ? '── 完整角色与规则百科 ──' : '── 本局规则（可复制给外部AI）──');
+      $('rulepop-hint').textContent = uiEnglish()
+        ? (full ? 'Includes every available role for reference or future games. Normal web-AI relay does not need the full encyclopedia.' : 'Contains only roles and interactions active in this game; suitable for web AI.')
+        : (full ? '包含全部可用角色，供查阅或准备下一场使用；正常网页端 AI 接力不需要复制这一整本。' : '只包含当前对局实际生效的角色和交互，适合直接复制给网页端 AI。');
+      $('btn-rulebook').textContent = uiEnglish() ? (full ? '🎯 Back to active rules' : '📚 Full role encyclopedia') : (full ? '🎯 返回本局规则' : '📚 完整角色百科');
       $('ruletxt').value = full ? buildRulesExportLegacy(true) : buildRulesExport();
       $('rulepop').classList.add('show');
     } catch (err) {

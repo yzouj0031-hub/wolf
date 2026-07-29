@@ -7,7 +7,8 @@
     "build:www": "node scripts/build-www.mjs",
     "render:icon": "node scripts/render-icon.mjs",
     "test:actions": "node scripts/test-action-protocol.mjs",
-    "test:night-resume": "node scripts/test-night-resume.mjs"
+    "test:night-resume": "node scripts/test-night-resume.mjs",
+    "test:english-ui": "node scripts/test-english-ui.mjs"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
