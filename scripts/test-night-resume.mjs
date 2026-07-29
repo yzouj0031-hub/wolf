@@ -31,6 +31,11 @@ for (const path of ['../index.html', '../en/index.html']) {
 
   const keys = [...block.matchAll(/nightStep\('([^']+)'/g)].map(match => match[1]);
   if (keys.length < 20) throw new Error(`${path} unexpectedly has only ${keys.length} checkpointed calls`);
+
+  const html = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+  for (const marker of ['discussionFailed: true', '发言调用失败，已跳过本轮']) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks wolf-discussion recovery marker: ${marker}`);
+  }
 }
 
 console.log('night resume: both clients checkpoint every built-in night action');

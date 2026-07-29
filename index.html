@@ -12927,9 +12927,20 @@ const NightActions = {
       }
       Render.setSpeaking(p.id, true);
       // 狼队密谈属于需要真正说出口的关键协商：强制结构化输出，并拒收“只有thinking、没有game”。
-      // 旧版这里没有传 wolfOnly，开启全局自由输出时会剥掉本段要求的XML格式；空game又会直接显示成“(沉默)”。
-      let r = factCheck(p, await callAI(p, prompt, {wolfOnly:true, requireGame:true, maxRetries:2}));
-      Render.setSpeaking(p.id, false);
+      // 单个模型超时/接口异常只跳过该狼本轮发言，不能把整段狼队讨论和整夜流程一起打断。
+      // 旧版异常会一路抛到 nextStep，触发夜间断点；手动继续后整段刀口讨论又从开场重跑。
+      let r;
+      try {
+        r = factCheck(p, await callAI(p, prompt, {wolfOnly:true, requireGame:true, maxRetries:2}));
+      } catch (e) {
+        Render.setSpeaking(p.id, false);
+        Render.devLog && Render.devLog('warn', `[狼队密谈] ${p.name} 发言调用失败，已跳过本轮：${e && e.message ? e.message : e}`);
+        Render.log('night-detail', `⚠️ ${p.name} 本轮密谈连接异常，狼队将按其他成员的有效意见继续`);
+        return {
+          game: '', action: '', targetId: null, emptyKill: false,
+          interrupt: false, isPlayer: false, raw: null, discussionFailed: true
+        };
+      }
       // 所有API最终仍失败时，不把隐藏thinking原样泄给队友；只把能安全恢复的结构化刀口改写成一句公开表态。
       if (!r || isAISilentFailure(r.game)) {
         let recoveredTarget = parseWolfTarget((r && r.action) || '', validWolfTargets);
@@ -12944,10 +12955,16 @@ const NightActions = {
         r = {...(r || {thinking:'', action:''}), game:safeLine, action: recoveredTarget ? recoveredTarget.name : ((r && r.action) || '')};
       }
       if (r && r.game) {
-        await ftp();
-        await streamSpeak(p, '🐺密谈', r, true); // streamSpeak 内部会写入 wolfChatHistory
-        await sleep((40 + Math.random() * 60) / getSpd());
+        try {
+          await ftp();
+          await streamSpeak(p, '🐺密谈', r, true); // streamSpeak 内部会写入 wolfChatHistory
+          await sleep((40 + Math.random() * 60) / getSpd());
+        } catch (e) {
+          // 文本已经拿到时，即使打字机/渲染偶发失败，也保留结构化刀口继续投票。
+          Render.devLog && Render.devLog('warn', `[狼队密谈] ${p.name} 展示发言失败，保留其结构化选择继续：${e && e.message ? e.message : e}`);
+        }
       }
+      Render.setSpeaking(p.id, false);
       const target = parseWolfTarget((r && r.action) || '', validWolfTargets);
       // ★ 空刀意图检测：区分"AI明确要空刀(制造平安夜)"和"纯解析失败"。
       //   只有 action 明确是 None/空 且 game/thinking 里出现明确空刀措辞时，才认定为"故意空刀"，
