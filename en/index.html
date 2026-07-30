@@ -3539,8 +3539,8 @@ ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
   + '\n\n【带刀补充规则】其他狼系全部出局后，你每晚可以正常刀一名其他玩家，也可以选择【空刀】制造平安夜；系统必须尊重空刀，不能随机补目标。你不能主动把自己选作刀口，但魔术师交换仍可能把刀间接转移到你身上。';
 
 // 子狐与机械狼的交互：机械狼始终属于狼阵营；平民伪装只欺骗真正的预言家，不欺骗子狐。
-ALL_ROLES.fox.desc = '好人神职。第2夜起每晚媚惑一人：若他是狼（含机械狼）→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营；技能确实被封者知道遭到子狐媚惑，但不知道子狐是谁。';
-ALL_ROLES.fox.guide += '\n\n【机械狼交互】机械狼无论是否已经带刀，真实阵营始终是狼；媚惑命中机械狼会确认狼阵营并让当晚全部狼人禁刀。机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定。\n【目标提示】好人目标的主动技能确实被封时，他会知道自己遭到子狐媚惑、该技能没有生效，但不会知道哪位玩家是子狐。没有主动技能或本夜没有实际发动技能的人不会凭空收到行动失败记录。';
+ALL_ROLES.fox.desc = '好人神职。第2夜起每晚媚惑一人：若他是狼（含机械狼）→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营；目标知道自己被媚惑，但不知道子狐是谁。';
+ALL_ROLES.fox.guide += '\n\n【机械狼交互】机械狼无论是否已经带刀，真实阵营始终是狼；媚惑命中机械狼会确认狼阵营并让当晚全部狼人禁刀。机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定。\n【目标提示】任何目标都会私下知道本夜遭到子狐媚惑，但不会知道哪位玩家是子狐。若好人目标的主动技能确实被封，他还会得到该技能没有生效的明确记录；没有主动技能或本夜没有实际发动技能的人只知道被媚惑，不会凭空得到行动失败记录。';
 ALL_ROLES.mechwolf.guide += '\n\n【子狐交互】你始终属于狼阵营；被子狐媚惑时会触发当晚全体狼人禁刀。即使已经学到平民并获得好人查验伪装，也只能骗过真正的预言家，不能免疫或欺骗子狐的阵营判定。';
 
 // ★ 机械狼学习映射：学到某角色 → 实际获得的技能类型
@@ -7513,7 +7513,16 @@ ${userPersona}
     }
   }
 
-  // 被封技能者：本人只知道自己的技能未生效，不知道封锁来源，更不会因此知道子狐是谁。
+  // 被子狐选中的玩家会永久知道“本夜遭到子狐媚惑”，但不知道子狐是谁。
+  // 这条提示独立于是否真的发动主动技能；具体的技能失败仍由 skill-muted 记录说明。
+  const foxTargetHistory = (gameRecord || [])
+    .filter(r => r && r.type === 'night_action' && r.role === 'fox' && (r.targetId === p.id || (!Number.isInteger(r.targetId) && r.target === p.name)))
+    .map(r => `第${r.round}夜：你被子狐媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道哪名玩家是子狐）`);
+  if (foxTargetHistory.length) {
+    keyParts.push('【你遭到子狐媚惑的完整永久记录】\n' + foxTargetHistory.join('\n'));
+  }
+
+  // 被封技能者：本人知道技能未生效；若来源是子狐则知道能力类型，但不知道子狐是谁。
   // 同样从 gameRecord 重建，防止普通 memory 被截断后把失败行动误报成成功。
   const mutedHistory = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
@@ -13861,9 +13870,10 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         if (!S.nightData.skillMuteSources) S.nightData.skillMuteSources = {};
         S.nightData.skillMuteSources[t.id] = 'fox';
       }
+      t.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你被子狐媚惑了。'+(isWolf?'本夜狼人阵营的狼刀因此被禁止。':'如果你本夜发动夜间主动技能，该技能会被封锁、不会生效。')+'你知道能力来源是子狐，但不知道哪名玩家是子狐。'});
       fo.memory.push({role:'system', content:'【媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')+' ⚠️只有你知道这条信息。'});
       if (!isAnon()) Render.log('night-result','🦊 子狐媚惑了'+t.name+'（'+(isWolf?'狼·禁刀':'好人·封技')+'）');
-      gameRecord.push({type:'night_action', role:'fox', round:S.round, target:t.name, result:isWolf?'blockKill':'mute'});
+      gameRecord.push({type:'night_action', role:'fox', round:S.round, targetId:t.id, target:t.name, result:isWolf?'blockKill':'mute'});
     }
     Render.setSpeaking(fo.id, false);
   },
@@ -18292,7 +18302,14 @@ function _buildPrivateInfoLines(p) {
   if (!p || !p.role) return [];
   const lines = [];
 
-  // 技能封锁只向被封者本人公开：知道该夜主动技能没有生效，但不知道来源或施法者。
+  const foxTargetActs = (gameRecord || [])
+    .filter(r => r && r.type === 'night_action' && r.role === 'fox' && (r.targetId === p.id || (!Number.isInteger(r.targetId) && r.target === p.name)))
+    .map(r => `第${r.round}夜：你被子狐媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道哪名玩家是子狐）`);
+  if (foxTargetActs.length) {
+    lines.push(`你遭到子狐媚惑的记录：\n  ${foxTargetActs.join('\n  ')}`);
+  }
+
+  // 技能封锁只向被封者本人公开；子狐封技会公开能力来源，但不公开施法者身份。
   const mutedActs = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
     .map(r => `第${r.round}夜：${r.source === 'fox' ? '遭到子狐媚惑，' : ''}${r.ability || '夜间主动技能'}被封锁，没有生效`);

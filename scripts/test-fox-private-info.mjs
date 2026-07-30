@@ -4,7 +4,9 @@ for (const path of ['../index.html', '../en/index.html']) {
   const html = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
   const required = [
     '【子狐媚惑结果·完整永久记录】',
+    '【你遭到子狐媚惑的完整永久记录】',
     "r.role === 'fox'",
+    'targetId:t.id',
     '这些是你亲自得到的阵营铁信息，但不等于知道目标的精确角色',
     'function recordNightSkillMuted(p, ability)',
     "role:'skill-muted'",
@@ -14,6 +16,7 @@ for (const path of ['../index.html', '../en/index.html']) {
     "S.nightData.skillMuteSources[t.id] = 'fox'",
     '机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定',
     '被子狐媚惑时会触发当晚全体狼人禁刀',
+    '任何目标都会私下知道本夜遭到子狐媚惑',
     "recordNightSkillMuted(se, '查验')",
     "recordNightSkillMuted(sk, '独立袭击')",
     "recordNightSkillMuted(magP, '号码交换')",
