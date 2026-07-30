@@ -830,6 +830,23 @@ body.blind-review .le.ending { display:none !important; }
 
 .overlay#orp .pbox { border-color: #e0a060; }
 
+/* Match replay: continuous timeline with streamed dialogue */
+#mr-events { scroll-behavior:smooth; overscroll-behavior:contain; }
+.mr-scene-divider { display:flex;align-items:center;gap:9px;margin:10px 2px;color:#9a8bc8;font-size:.7em;letter-spacing:.08em; }
+.mr-scene-divider::before,.mr-scene-divider::after { content:'';height:1px;flex:1;background:linear-gradient(90deg,transparent,rgba(112,96,176,.55)); }
+.mr-scene-divider::after { transform:scaleX(-1); }
+.mr-event { animation:mr-event-in .32s ease both; }
+.mr-event.is-typing { border-color:rgba(216,179,106,.58)!important;box-shadow:0 0 18px -10px rgba(216,179,106,.8); }
+.mr-event-text { white-space:pre-wrap;word-break:break-word; }
+.mr-type-cursor { display:inline-block;width:.52em;height:1.05em;margin-left:2px;vertical-align:-.12em;background:#b8a8e8;border-radius:1px;animation:mr-cursor .72s steps(1,end) infinite; }
+.mr-seat { transition:opacity .25s ease,border-color .25s ease,box-shadow .25s ease,background .25s ease; }
+.mr-seat.is-speaking { border-color:#d8b36a!important;background:rgba(216,179,106,.12);box-shadow:0 0 16px -7px rgba(216,179,106,.85); }
+#mr-progress-track { height:3px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden; }
+#mr-progress-bar { height:100%;width:0;background:linear-gradient(90deg,#7060b0,#d8b36a);transition:width .25s ease; }
+@keyframes mr-event-in { from { opacity:0;transform:translateY(7px); } to { opacity:1;transform:none; } }
+@keyframes mr-cursor { 0%,48% { opacity:1; } 49%,100% { opacity:0; } }
+@media (prefers-reduced-motion:reduce) { .mr-event,.mr-type-cursor { animation:none!important; } #mr-events { scroll-behavior:auto; } }
+
 /* 开发者面板 */
 .devc { position: fixed; bottom: 0; left: 0; right: 0; height: 220px; background: #0a0a14; border-top: 2px solid #2a2040; transform: translateY(100%); transition: 0.3s; z-index: 1000; display: flex; flex-direction: column; }
 .devc.open { transform: translateY(0); }
@@ -2259,6 +2276,18 @@ body.has-wp::after {
           <div class="conc-item"><label>🐺 Pact vote</label><input type="number" id="t-wvote" value="90" min="20" max="600"></div>
         </div>
         <div style="font-size:0.62em;color:#7068a0;padding:4px 6px;line-height:1.5">If slower reasoning models are frequently cut off, increase Request timeout and Pact proposal. Larger values allow longer reasoning but also wait longer when a request stalls.</div>
+        <div class="cr" style="margin-top:6px;align-items:center">
+          <label style="font-size:.7em;color:#a8a0c8;white-space:nowrap">🌙 SiliconFlow Kimi reasoning</label>
+          <select id="kimi-thinking-mode" style="font-size:.72em;flex:1">
+            <option value="smart" selected>Smart routing (recommended)</option>
+            <option value="instant">Instant (disable deep reasoning)</option>
+            <option value="light">Light reasoning (1024)</option>
+            <option value="standard">Standard reasoning (4096)</option>
+            <option value="deep">Deep reasoning (16384)</option>
+            <option value="auto">Provider default (no override)</option>
+          </select>
+        </div>
+        <div style="font-size:0.62em;color:#7068a0;padding:2px 6px 4px;line-height:1.5">Smart routing uses Instant mode for checks, guards, votes, and other explicit actions, while keeping Standard reasoning for public speeches. Applies only to Kimi-K2.x over OpenAI-compatible APIs; unsupported endpoints automatically retry without these parameters.</div>
       </details>
       <div class="cr"><label>Names</label><input type="text" id="cnames" placeholder="Leave blank for random | comma-separated"></div>
       <div class="nhint">Click a role card to set its name and API</div>
@@ -2600,12 +2629,18 @@ body.has-wp::after {
       <select id="mr-scene" style="flex:1;background:#161326;color:#d8d0e8;border:1px solid rgba(112,96,176,.55);border-radius:6px;padding:7px"></select>
       <button id="mr-next" style="width:auto;min-width:42px">▶</button>
     </div>
-    <div id="mr-events" style="height:min(54vh,520px);overflow-y:auto;padding:8px;background:rgba(0,0,0,.24);border:1px solid rgba(112,96,176,.25);border-radius:8px"></div>
-    <div style="display:flex;gap:6px;margin-top:9px">
-      <button id="mr-play" style="flex:2;border-color:#7060b0;color:#b8a8e8">▶ 自动播放</button>
-      <button id="mr-all" style="flex:1">显示本段全部</button>
-      <button id="mr-expand" style="flex:0 0 auto;width:auto;min-width:42px" title="放大 / 还原">⛶</button>
-      <button id="mr-close" style="flex:1">关闭</button>
+    <div id="mr-events" aria-live="polite" style="height:min(54vh,520px);overflow-y:auto;padding:8px;background:rgba(0,0,0,.24);border:1px solid rgba(112,96,176,.25);border-radius:8px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:.65em;color:#80758e">
+      <span id="mr-progress-text">0 / 0</span><span id="mr-now">Ready</span>
+    </div>
+    <div id="mr-progress-track"><div id="mr-progress-bar"></div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+      <button id="mr-play" style="flex:2;border-color:#7060b0;color:#b8a8e8">▶ Auto play</button>
+      <button id="mr-skip" style="flex:1" disabled>⏭ Show line</button>
+      <button id="mr-all" style="flex:1">Show scene</button>
+      <select id="mr-speed" title="Playback speed" style="flex:0 0 74px;background:#161326;color:#d8d0e8;border:1px solid rgba(112,96,176,.55);border-radius:6px;padding:7px"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option></select>
+      <button id="mr-expand" style="flex:0 0 auto;width:auto;min-width:42px" title="Expand / restore">⛶</button>
+      <button id="mr-close" style="flex:1">Close</button>
     </div>
   </div>
 </div>
@@ -6118,6 +6153,7 @@ function saveCfg() {
     hdeath:$('m-hdeath').checked, mbti:$('m-mbti').checked, cosplay:$('m-cosplay').checked, blindNames:$('m-blindnames')?$('m-blindnames').checked:false, hardcore:$('m-hardcore')?$('m-hardcore').checked:false, cnames:$('cnames').value, lastwill:$('m-lastwill')?$('m-lastwill').value:'first', killEdge:$('m-kill-edge')?$('m-kill-edge').checked:false, singleRound:$('m-single-round')?$('m-single-round').checked:false, knightChain:$('m-knight-chain')?$('m-knight-chain').checked:false, sheriffDailyOrder:$('m-sheriff-daily-order')?$('m-sheriff-daily-order').checked:false,
     modeltag:$('m-modeltag')?$('m-modeltag').checked:true,
     thinking:$('m-thinking')?$('m-thinking').checked:true,
+    kimiThinkingMode:$('kimi-thinking-mode')?$('kimi-thinking-mode').value:'smart',
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     pconfigs:playerConfigs,
@@ -6166,6 +6202,7 @@ function loadCfg() {
     if (d.hardcore !== undefined && $('m-hardcore')) $('m-hardcore').checked = d.hardcore;
     if (d.modeltag !== undefined && $('m-modeltag')) $('m-modeltag').checked = d.modeltag;
     if (d.thinking !== undefined && $('m-thinking')) $('m-thinking').checked = d.thinking;
+    if (d.kimiThinkingMode && $('kimi-thinking-mode')) $('kimi-thinking-mode').value = d.kimiThinkingMode;
     if (d.freeOutput !== undefined && $('m-free-output')) $('m-free-output').checked = d.freeOutput;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
     if (d.cnames) $('cnames').value = d.cnames;
@@ -8052,6 +8089,26 @@ async function demoResponder(p, prompt) {
   return { thinking: '', game: say(isWolf ? DEMO_WOLF_LINES : DEMO_TOWN_LINES), action };   // thinking 留空→演示里不刷"💭想法"
 }
 
+// Kimi K2.x providers do not share one default reasoning mode. SiliconFlow
+// supports thinking_budget, while Moonshot recommends chat_template_kwargs.thinking
+// for third-party Instant/Thinking switching. Unsupported endpoints are retried
+// without these optional fields by callAI below.
+function applyKimiThinkingControl(body, model, opts) {
+  const mn = String(model || '').toLowerCase();
+  if (!(mn.includes('kimi-k2') || mn.includes('kimi_k2'))) return {applied:false};
+  const selected = $('kimi-thinking-mode') ? $('kimi-thinking-mode').value : 'smart';
+  if (selected === 'auto') return {applied:false, selected};
+  const effective = selected === 'smart' ? (opts && opts.skillConfirm ? 'instant' : 'standard') : selected;
+  body.chat_template_kwargs = Object.assign({}, body.chat_template_kwargs || {}, {thinking: effective !== 'instant'});
+  if (effective === 'instant') delete body.thinking_budget;
+  else body.thinking_budget = ({light:1024, standard:4096, deep:16384})[effective] || 4096;
+  return {applied:true, selected, effective, budget:body.thinking_budget || 0};
+}
+function removeKimiThinkingControl(body) {
+  delete body.chat_template_kwargs;
+  delete body.thinking_budget;
+}
+
 async function callAI(p, prompt, opts) {
   opts = opts || {};
   if (window.__DEMO__) return await demoResponder(p, prompt);   // 🎬 演示模式：本地脚本，无需 key
@@ -8430,6 +8487,11 @@ async function callAI(p, prompt, opts) {
         delete body.frequency_penalty;
         delete body.presence_penalty;
       }
+      const kimiThinkingCtl = applyKimiThinkingControl(body, useApi.model, opts);
+      if (kimiThinkingCtl.applied) {
+        const budgetInfo = kimiThinkingCtl.budget ? ` budget=${kimiThinkingCtl.budget}` : '';
+        Render.devLog('req', `[P${p.id+1}] 🌙 Kimi reasoning=${kimiThinkingCtl.effective}${budgetInfo}`);
+      }
       // ★ v9.7: 主动启用 stream:true。
       //   背景:某些中转(如 codex/gpt-5.x)对非流式请求会"非流转流"内部处理出 bug——
       //        协议层强返 SSE,但内容生成不正确(返回空 chunk + [DONE])。
@@ -8485,7 +8547,16 @@ async function callAI(p, prompt, opts) {
         const t = await res.text().catch(()=>'');
         Render.devLog('err', `[P${p.id+1}] HTTP ${res.status}: ${t.slice(0,200)}`);
         // ★ 如果是 400 错误且包含 reasoning_effort 关键词，说明端点不支持此参数——去掉重试一次
-        if (res.status === 400 && isMiniMaxThinking && (body.reasoning_split || body.max_completion_tokens)) {
+        if (res.status === 400 && kimiThinkingCtl.applied && (body.chat_template_kwargs || body.thinking_budget)) {
+          Render.devLog('err', `[P${p.id+1}] Endpoint rejected Kimi reasoning fields; retrying without them`);
+          removeKimiThinkingControl(body);
+          res = await fetch(useApi.url+'/chat/completions', {
+            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
+            body:JSON.stringify(body), signal:combinedSignal
+          });
+          if (!res.ok) { const t2=await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t2.slice(0,100)); }
+        }
+        else if (res.status === 400 && isMiniMaxThinking && (body.reasoning_split || body.max_completion_tokens)) {
           Render.devLog('err', `[P${p.id+1}] 中转不支持MiniMax新参数，自动退回通用OpenAI格式`);
           delete body.reasoning_split; delete body.max_completion_tokens; delete body.thinking;
           body.max_tokens = compatMaxTk;
@@ -16365,19 +16436,23 @@ function openPostGame() {
   $('o-postgame').classList.add('show');
 }
 
-const MatchReplay = { scenes:[], index:0, visible:Infinity, timer:null };
+const MatchReplay = {
+  scenes:[], index:0, visible:Infinity, timer:null, waitResolve:null,
+  typeTimer:null, typeFinish:null, typing:false, auto:false,
+  runToken:0, continuous:false
+};
 
 function buildMatchReplayScenes() {
   const scenes = [];
-  let cur = {label:'开局', phase:'opening', events:[]};
+  let cur = {label:'Opening', phase:'opening', events:[]};
   const push = () => { if (cur.events.length || !scenes.length) scenes.push(cur); };
   for (const ev of (gameRecord || [])) {
     let next = null;
-    if (ev.type === 'system' && /^第\d+夜$/.test(ev.text || '')) next = {label:ev.text, phase:'night', events:[]};
-    else if (ev.type === 'system' && /^第\d+天$/.test(ev.text || '')) next = {label:ev.text, phase:'day', events:[]};
-    else if (ev.type === 'system' && /^警长候选人/.test(ev.text || '') && cur.phase !== 'sheriff') next = {label:'警长竞选', phase:'sheriff', events:[]};
-    else if (ev.type === 'speech' && ev.phase === 'end' && cur.phase !== 'end') next = {label:'终局感言', phase:'end', events:[]};
-    if (next) { push(); cur = next; if (ev.type !== 'system' || !/^第\d+[夜天]$/.test(ev.text || '')) cur.events.push(ev); }
+    if (ev.type === 'system' && /^(?:第\s*\d+\s*夜|Night\s*\d+)$/i.test(ev.text || '')) next = {label:ev.text, phase:'night', events:[]};
+    else if (ev.type === 'system' && /^(?:第\s*\d+\s*天|Day\s*\d+)$/i.test(ev.text || '')) next = {label:ev.text, phase:'day', events:[]};
+    else if (ev.type === 'system' && /^(?:警长候选人|Sheriff candidates)/i.test(ev.text || '') && cur.phase !== 'sheriff') next = {label:'Sheriff election', phase:'sheriff', events:[]};
+    else if (ev.type === 'speech' && ev.phase === 'end' && cur.phase !== 'end') next = {label:'Final remarks', phase:'end', events:[]};
+    if (next) { push(); cur = next; if (ev.type !== 'system' || !/^(?:第\s*\d+\s*[夜天]|(?:Night|Day)\s*\d+)$/i.test(ev.text || '')) cur.events.push(ev); }
     else cur.events.push(ev);
   }
   push();
@@ -16391,14 +16466,16 @@ function matchReplayPrivate(ev) {
   return false;
 }
 
-function matchReplayEventHtml(ev) {
+function matchReplaySceneEvents(scene) {
+  return (scene?.events || []).filter(ev => ev && !matchReplayPrivate(ev) && !!matchReplayEventData(ev));
+}
+
+function matchReplayEventData(ev) {
   if (!ev || matchReplayPrivate(ev)) return '';
   if (ev.type === 'speech') {
     const p = S.players.find(x => x.name === ev.name);
-    const who = p ? publicPlayerLabel(p) : (ev.name || '未知');
-    const av = p ? getAvatarHtml(p, 24) : '';
-    const tag = p ? getModelTagHtml(p) : '';
-    return `<div class="le speech"><div class="lh"><span>${av}</span><span class="name">${escapeHtml(who)}</span>${tag}<span style="font-size:.72em;color:#80758e;margin-left:auto">${escapeHtml(ev.label||'发言')}</span></div><div class="log-game">${escapeHtml(ev.game||'(沉默)')}</div></div>`;
+    const who = p ? publicPlayerLabel(p) : (ev.name || 'Unknown');
+    return {speech:true, text:String(ev.game||'(silent)'), who, focusName:ev.name||'', label:ev.label||'Speech', player:p};
   }
   let text = '', icon = '•';
   if (ev.type === 'system') { text = ev.text || ''; icon = '📢'; }
@@ -16414,52 +16491,201 @@ function matchReplayEventHtml(ev) {
   else if (ev.type === 'night_action') {
     text = _formatCustomNightAction(ev) || `${ev.name ? ev.name+' · ' : ''}${ev.role||'夜间行动'} → ${ev.target ?? ev.saved ?? ev.poisoned ?? '无'}`;
     icon = {wolf:'🐺',seer:'🔮',witch:'🧪',guard:'🛡️',wolfbeauty:'🌹',magician:'🎩'}[ev.role] || '🌙';
-  } else if (ev.type === 'speak_order') { text = `${ev.title||'发言顺序'}：${(ev.names||[]).join(' → ')}`; icon='📋'; }
-  if (!text) return '';
-  return `<div style="display:flex;gap:8px;padding:7px 9px;margin-bottom:5px;background:rgba(255,255,255,.035);border-radius:6px;font-size:.8em;line-height:1.55"><span>${icon}</span><span style="white-space:pre-wrap;word-break:break-word">${escapeHtml(String(text))}</span></div>`;
+  } else if (ev.type === 'speak_order') { text = `${ev.title||'Speaking order'}: ${(ev.names||[]).join(' → ')}`; icon='📋'; }
+  else if (ev.type === 'spectator') { text = `${ev.name||'Spectator'}: ${ev.text||''}`; icon='🍿'; }
+  if (!text) return null;
+  return {speech:false, text:String(text), icon, who:'System', focusName:'', label:''};
+}
+
+function matchReplayEventHtml(ev, emptyText=false) {
+  const data = matchReplayEventData(ev);
+  if (!data) return '';
+  const text = emptyText ? '' : escapeHtml(data.text);
+  if (data.speech) {
+    const av = data.player ? getAvatarHtml(data.player, 24) : '';
+    const tag = data.player ? getModelTagHtml(data.player) : '';
+    return `<div class="le speech mr-event"><div class="lh"><span>${av}</span><span class="name">${escapeHtml(data.who)}</span>${tag}<span style="font-size:.72em;color:#80758e;margin-left:auto">${escapeHtml(data.label)}</span></div><div class="log-game mr-event-text">${text}</div></div>`;
+  }
+  return `<div class="mr-event" style="display:flex;gap:8px;padding:7px 9px;margin-bottom:5px;background:rgba(255,255,255,.035);border:1px solid transparent;border-radius:6px;font-size:.8em;line-height:1.55"><span>${data.icon}</span><span class="mr-event-text">${text}</span></div>`;
+}
+
+function matchReplaySceneDivider(label) {
+  return `<div class="mr-scene-divider"><span>${escapeHtml(label||'Game phase')}</span></div>`;
+}
+
+function matchReplayScroll(smooth=false) {
+  const box = $('mr-events');
+  if (!box) return;
+  if (smooth && box.scrollTo) box.scrollTo({top:box.scrollHeight, behavior:'smooth'});
+  else box.scrollTop = box.scrollHeight;
+}
+
+function updateMatchReplayChrome(activeName='') {
+  const scene = MatchReplay.scenes[MatchReplay.index];
+  if (!scene) return;
+  const currentEvents = matchReplaySceneEvents(scene);
+  const currentShown = Number.isFinite(MatchReplay.visible) ? Math.min(MatchReplay.visible,currentEvents.length) : currentEvents.length;
+  const total = MatchReplay.scenes.reduce((n,s)=>n+matchReplaySceneEvents(s).length,0);
+  let done = currentShown;
+  for (let i=0;i<MatchReplay.index;i++) done += matchReplaySceneEvents(MatchReplay.scenes[i]).length;
+  $('mr-scene').value = String(MatchReplay.index);
+  $('mr-progress-text').textContent = `${done} / ${total}`;
+  $('mr-progress-bar').style.width = `${total ? Math.min(100,done/total*100) : 0}%`;
+  $('mr-now').textContent = activeName ? `Playing: ${activeName}` : scene.label;
+
+  const seenDeaths = new Set();
+  for (let i=0;i<=MatchReplay.index;i++) {
+    const list = matchReplaySceneEvents(MatchReplay.scenes[i]);
+    const limit = i===MatchReplay.index ? currentShown : list.length;
+    list.slice(0,limit).forEach(e => { if (e.type==='death' && e.name) seenDeaths.add(e.name); });
+  }
+  const active = activeName ? S.players.find(p=>p.name===activeName) : null;
+  $('mr-roster').innerHTML = S.players.map(p => `<span class="mr-seat${active&&active.id===p.id?' is-speaking':''}" data-player-id="${p.id}" style="flex:0 0 auto;padding:4px 7px;border-radius:12px;border:1px solid rgba(255,255,255,.1);font-size:.67em;opacity:${seenDeaths.has(p.name)?'.38':'1'}">P${p.id+1} ${escapeHtml(p.name)}${blindReviewOn()?'':' · '+p.role.emoji}</span>`).join('');
+  $('mr-prev').disabled = MatchReplay.index <= 0;
+  $('mr-next').disabled = MatchReplay.index >= MatchReplay.scenes.length-1;
+  $('mr-skip').disabled = !MatchReplay.typing;
 }
 
 function renderMatchReplay() {
   const scene = MatchReplay.scenes[MatchReplay.index];
   if (!scene) return;
-  $('mr-scene').value = String(MatchReplay.index);
-  const shown = Number.isFinite(MatchReplay.visible) ? scene.events.slice(0, MatchReplay.visible) : scene.events;
-  $('mr-events').innerHTML = shown.map(matchReplayEventHtml).filter(Boolean).join('') || '<div style="padding:20px;text-align:center;color:#706880">本阶段暂无可显示事件</div>';
+  const events = matchReplaySceneEvents(scene);
+  const shown = Number.isFinite(MatchReplay.visible) ? events.slice(0, MatchReplay.visible) : events;
+  $('mr-events').innerHTML = matchReplaySceneDivider(scene.label) + (shown.map(ev=>matchReplayEventHtml(ev)).filter(Boolean).join('') || '<div style="padding:20px;text-align:center;color:#706880">No replay events in this phase</div>');
   $('mr-events').scrollTop = $('mr-events').scrollHeight;
-  const seenDeaths = new Set();
-  for (let i=0;i<=MatchReplay.index;i++) {
-    const limit = i===MatchReplay.index && Number.isFinite(MatchReplay.visible) ? MatchReplay.visible : Infinity;
-    MatchReplay.scenes[i].events.slice(0,limit).forEach(e => { if (e.type==='death' && e.name) seenDeaths.add(e.name); });
-  }
-  $('mr-roster').innerHTML = S.players.map(p => `<span style="flex:0 0 auto;padding:4px 7px;border-radius:12px;border:1px solid rgba(255,255,255,.1);font-size:.67em;opacity:${seenDeaths.has(p.name)?'.38':'1'}">P${p.id+1} ${escapeHtml(p.name)}${blindReviewOn()?'':' · '+p.role.emoji}</span>`).join('');
-  $('mr-prev').disabled = MatchReplay.index <= 0;
-  $('mr-next').disabled = MatchReplay.index >= MatchReplay.scenes.length-1;
+  updateMatchReplayChrome();
 }
 
-function stopMatchReplay() {
-  if (MatchReplay.timer) clearInterval(MatchReplay.timer);
+function finishMatchReplayTyping() {
+  if (typeof MatchReplay.typeFinish === 'function') MatchReplay.typeFinish();
+}
+
+function stopMatchReplay(completeCurrent=true) {
+  MatchReplay.auto = false;
+  MatchReplay.runToken++;
+  if (MatchReplay.timer) clearTimeout(MatchReplay.timer);
   MatchReplay.timer = null;
-  if ($('mr-play')) $('mr-play').textContent = '▶ 自动播放';
+  if (MatchReplay.waitResolve) { const done=MatchReplay.waitResolve; MatchReplay.waitResolve=null; done(); }
+  if (completeCurrent) finishMatchReplayTyping();
+  else if (MatchReplay.typeTimer) clearTimeout(MatchReplay.typeTimer);
+  MatchReplay.typeTimer = null;
+  if ($('mr-play')) $('mr-play').textContent = '▶ Auto play';
+  if ($('mr-skip')) $('mr-skip').disabled = true;
+}
+
+function waitMatchReplay(ms, token) {
+  return new Promise(resolve => {
+    if (!MatchReplay.auto || token!==MatchReplay.runToken) return resolve();
+    MatchReplay.waitResolve = resolve;
+    MatchReplay.timer = setTimeout(() => { MatchReplay.timer=null; MatchReplay.waitResolve=null; resolve(); }, ms);
+  });
+}
+
+function streamMatchReplayEvent(ev, token) {
+  return new Promise(resolve => {
+    const data = matchReplayEventData(ev);
+    if (!data) return resolve();
+    const wrap = document.createElement('div');
+    wrap.innerHTML = matchReplayEventHtml(ev, true);
+    const node = wrap.firstElementChild;
+    const body = node?.querySelector('.mr-event-text');
+    if (!node || !body) return resolve();
+    node.classList.add('is-typing');
+    $('mr-events').appendChild(node);
+    const cursor = document.createElement('span');
+    cursor.className = 'mr-type-cursor';
+    body.appendChild(cursor);
+    matchReplayScroll(true);
+
+    const displayText = window.WolfI18n?.translateText ? window.WolfI18n.translateText(data.text) : data.text;
+    const chars = Array.from(displayText);
+    const eventIndex = MatchReplay.visible;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    let pos = 0, settled = false;
+    MatchReplay.typing = true;
+    MatchReplay.typeFinish = () => {
+      if (settled) return;
+      settled = true;
+      if (MatchReplay.typeTimer) clearTimeout(MatchReplay.typeTimer);
+      MatchReplay.typeTimer = null;
+      body.textContent = displayText;
+      node.classList.remove('is-typing');
+      MatchReplay.typing = false;
+      MatchReplay.typeFinish = null;
+      MatchReplay.visible = Math.max(Number.isFinite(MatchReplay.visible)?MatchReplay.visible:0, eventIndex+1);
+      updateMatchReplayChrome();
+      matchReplayScroll(true);
+      resolve();
+    };
+    updateMatchReplayChrome(data.focusName || 'System');
+    if (reduced || !chars.length) return MatchReplay.typeFinish();
+
+    const tick = () => {
+      if (settled) return;
+      if (!MatchReplay.auto || token!==MatchReplay.runToken) return MatchReplay.typeFinish();
+      const speed = Math.max(.5, Number($('mr-speed')?.value)||1);
+      const chunkSize = speed>=3 ? 4 : speed>=2 ? 2 : 1;
+      const chunk = chars.slice(pos,pos+chunkSize).join('');
+      pos += chunkSize;
+      body.insertBefore(document.createTextNode(chunk), cursor);
+      matchReplayScroll(false);
+      if (pos >= chars.length) return MatchReplay.typeFinish();
+      const last = chunk.slice(-1);
+      const punctuationPause = /[，。！？；：,.!?;:\n]/.test(last) ? 105 : 0;
+      MatchReplay.typeTimer = setTimeout(tick, Math.max(8,(26+punctuationPause)/speed));
+    };
+    tick();
+  });
+}
+
+async function runMatchReplayAuto(token) {
+  while (MatchReplay.auto && token===MatchReplay.runToken) {
+    const scene = MatchReplay.scenes[MatchReplay.index];
+    const events = matchReplaySceneEvents(scene);
+    if (MatchReplay.visible < events.length) {
+      const eventType = events[MatchReplay.visible]?.type;
+      await streamMatchReplayEvent(events[MatchReplay.visible], token);
+      if (!MatchReplay.auto || token!==MatchReplay.runToken) return;
+      const speed = Math.max(.5, Number($('mr-speed')?.value)||1);
+      await waitMatchReplay(eventType==='speech' ? 460/speed : 280/speed, token);
+      continue;
+    }
+    if (MatchReplay.index < MatchReplay.scenes.length-1) {
+      MatchReplay.index++;
+      MatchReplay.visible = 0;
+      $('mr-events').insertAdjacentHTML('beforeend', matchReplaySceneDivider(MatchReplay.scenes[MatchReplay.index].label));
+      updateMatchReplayChrome();
+      matchReplayScroll(true);
+      await waitMatchReplay(420/(Number($('mr-speed')?.value)||1), token);
+      continue;
+    }
+    stopMatchReplay(false);
+    updateMatchReplayChrome();
+    return;
+  }
 }
 
 function openMatchReplay() {
-  if (!S || !S.gameOver) return alert('对局结束后才能观看完整回放');
-  stopMatchReplay();
+  if (!S || !S.gameOver) return alert('Full replay is available after the game ends');
+  stopMatchReplay(false);
   MatchReplay.scenes = buildMatchReplayScenes(); MatchReplay.index = 0; MatchReplay.visible = Infinity;
+  MatchReplay.continuous = false;
   $('mr-scene').innerHTML = MatchReplay.scenes.map((s,i)=>`<option value="${i}">${i+1}. ${escapeHtml(s.label)}</option>`).join('');
   $('o-postgame').classList.remove('show'); $('o-match-replay').classList.add('show'); renderMatchReplay();
 }
 
 function toggleMatchReplayAuto() {
-  if (MatchReplay.timer) { stopMatchReplay(); return; }
-  MatchReplay.visible = 0; $('mr-play').textContent = '⏸ 暂停'; renderMatchReplay();
-  MatchReplay.timer = setInterval(() => {
-    const scene = MatchReplay.scenes[MatchReplay.index];
-    if (MatchReplay.visible < scene.events.length) MatchReplay.visible++;
-    else if (MatchReplay.index < MatchReplay.scenes.length-1) { MatchReplay.index++; MatchReplay.visible=0; }
-    else { stopMatchReplay(); MatchReplay.visible=Infinity; }
-    renderMatchReplay();
-  }, 1200);
+  if (MatchReplay.auto) { stopMatchReplay(true); updateMatchReplayChrome(); return; }
+  if (!MatchReplay.continuous || !Number.isFinite(MatchReplay.visible)) {
+    MatchReplay.visible = 0;
+    MatchReplay.continuous = true;
+    $('mr-events').innerHTML = matchReplaySceneDivider(MatchReplay.scenes[MatchReplay.index]?.label);
+  }
+  MatchReplay.auto = true;
+  const token = ++MatchReplay.runToken;
+  $('mr-play').textContent = '⏸ Pause';
+  updateMatchReplayChrome();
+  runMatchReplayAuto(token);
 }
 
 async function runPostGame(speakerFilter, targetId) {
@@ -19135,14 +19361,22 @@ async function testAPIForPC() {
         if (isGPT5Reasoning) { delete b.top_p; delete b.temperature; delete b.frequency_penalty; delete b.presence_penalty; }
         // ★ fix: Claude 系列经 OpenAI 兼容端点调用时，temperature 和 top_p 不能同传，否则 400
         if (mnLower.includes('claude')) { delete b.top_p; }
+        applyKimiThinkingControl(b, m, {skillConfirm:true});
         return b;
       };
       const tryCall = async (testPrompt) => {
-        const r = await fetch(u+'/chat/completions', {
+        const b = buildBody(testPrompt);
+        let r = await fetch(u+'/chat/completions', {
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},
-          body:JSON.stringify(buildBody(testPrompt))
+          body:JSON.stringify(b)
         });
+        if (r.status === 400 && (b.chat_template_kwargs || b.thinking_budget)) {
+          removeKimiThinkingControl(b);
+          r = await fetch(u+'/chat/completions', {
+            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+k}, body:JSON.stringify(b)
+          });
+        }
         // ★ v9.6: 用 SSE 容错解析,兼容强返流式的中转端点(如 codex/gpt-5.5)
         //   失败时降级为原 .json() 让错误处理路径不变
         let d;
@@ -19479,15 +19713,16 @@ function bindEvents() {
   $('pg-replay').addEventListener('click', openMatchReplay);
   $('btn-match-replay').addEventListener('click', openMatchReplay);
   $('mr-close').addEventListener('click', () => { stopMatchReplay(); $('o-match-replay').classList.remove('show'); openPostGame(); });
-  $('mr-prev').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index>0) MatchReplay.index--; MatchReplay.visible=Infinity; renderMatchReplay(); });
-  $('mr-next').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index<MatchReplay.scenes.length-1) MatchReplay.index++; MatchReplay.visible=Infinity; renderMatchReplay(); });
-  $('mr-scene').addEventListener('change', e => { stopMatchReplay(); MatchReplay.index=parseInt(e.target.value)||0; MatchReplay.visible=Infinity; renderMatchReplay(); });
+  $('mr-prev').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index>0) MatchReplay.index--; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
+  $('mr-next').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index<MatchReplay.scenes.length-1) MatchReplay.index++; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
+  $('mr-scene').addEventListener('change', e => { stopMatchReplay(); MatchReplay.index=parseInt(e.target.value)||0; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-play').addEventListener('click', toggleMatchReplayAuto);
-  $('mr-all').addEventListener('click', () => { stopMatchReplay(); MatchReplay.visible=Infinity; renderMatchReplay(); });
+  $('mr-skip').addEventListener('click', finishMatchReplayTyping);
+  $('mr-all').addEventListener('click', () => { stopMatchReplay(); MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-expand').addEventListener('click', () => {
     const box = $('o-match-replay').querySelector('.pbox');
     const full = box.classList.toggle('mr-full');
-    if (full) { box.style.maxWidth='100%'; box.style.width='96vw'; box.style.height='94vh'; box.style.maxHeight='94vh'; $('mr-events').style.height='calc(94vh - 200px)'; $('mr-expand').textContent='🗗'; }
+    if (full) { box.style.maxWidth='100%'; box.style.width='96vw'; box.style.height='94vh'; box.style.maxHeight='94vh'; $('mr-events').style.height='calc(94vh - 238px)'; $('mr-expand').textContent='🗗'; }
     else { box.style.maxWidth='720px'; box.style.width=''; box.style.height=''; box.style.maxHeight=''; $('mr-events').style.height='min(54vh,520px)'; $('mr-expand').textContent='⛶'; }
   });
   $('pg-blind-review').addEventListener('click', toggleBlindReviewMode);
@@ -19700,6 +19935,7 @@ function bindEvents() {
   $('m-trial').addEventListener('change', saveCfg);
   // ★ 思维链 / 自由输出 全局开关也需要持久化
   { const t = $('m-thinking'); if (t) t.addEventListener('change', saveCfg); }
+  { const k = $('kimi-thinking-mode'); if (k) k.addEventListener('change', saveCfg); }
   { const f = $('m-free-output'); if (f) f.addEventListener('change', saveCfg); }
   { const m = $('m-manual-retry'); if (m) m.addEventListener('change', saveCfg); }
   { const s = $('m-sheriff-daily-order'); if (s) s.addEventListener('change', saveCfg); }
