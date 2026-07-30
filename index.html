@@ -3537,6 +3537,11 @@ ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
   .replace('学早了信息少、容易学到平民（白学）', '学早了信息少、可能拿到不适合当前局势的补偿技能')
   + '\n\n【带刀补充规则】其他狼系全部出局后，你每晚可以正常刀一名其他玩家，也可以选择【空刀】制造平安夜；系统必须尊重空刀，不能随机补目标。你不能主动把自己选作刀口，但魔术师交换仍可能把刀间接转移到你身上。';
 
+// 子狐与机械狼的交互：机械狼始终属于狼阵营；平民伪装只欺骗真正的预言家，不欺骗子狐。
+ALL_ROLES.fox.desc = '好人神职。第2夜起每晚媚惑一人：若他是狼（含机械狼）→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营；技能确实被封者知道遭到子狐媚惑，但不知道子狐是谁。';
+ALL_ROLES.fox.guide += '\n\n【机械狼交互】机械狼无论是否已经带刀，真实阵营始终是狼；媚惑命中机械狼会确认狼阵营并让当晚全部狼人禁刀。机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定。\n【目标提示】好人目标的主动技能确实被封时，他会知道自己遭到子狐媚惑、该技能没有生效，但不会知道哪位玩家是子狐。没有主动技能或本夜没有实际发动技能的人不会凭空收到行动失败记录。';
+ALL_ROLES.mechwolf.guide += '\n\n【子狐交互】你始终属于狼阵营；被子狐媚惑时会触发当晚全体狼人禁刀。即使已经学到平民并获得好人查验伪装，也只能骗过真正的预言家，不能免疫或欺骗子狐的阵营判定。';
+
 // ★ 机械狼学习映射：学到某角色 → 实际获得的技能类型
 function mechSkillOf(roleId) {
   switch (roleId) {
@@ -7503,9 +7508,9 @@ ${userPersona}
   // 同样从 gameRecord 重建，防止普通 memory 被截断后把失败行动误报成成功。
   const mutedHistory = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
-    .map(r => `第${r.round}夜：${r.ability || '夜间主动技能'}被封锁，没有生效`);
+    .map(r => `第${r.round}夜：${r.source === 'fox' ? '遭到子狐媚惑，' : ''}${r.ability || '夜间主动技能'}被封锁，没有生效`);
   if (mutedHistory.length) {
-    keyParts.push('【你的技能封锁结果·完整永久记录】\n' + mutedHistory.join('\n') + '\n⚠️这些行动没有生效，不得声称自己成功守护、交换、查验、用药或袭击；你不知道是谁造成的。');
+    keyParts.push('【你的技能封锁结果·完整永久记录】\n' + mutedHistory.join('\n') + '\n⚠️这些行动没有生效，不得声称自己成功守护、交换、查验、用药或袭击。若记录写明子狐媚惑，你只知道能力来源，不知道哪名玩家是子狐。');
   }
 
   // 其他角色：从memory捞剩余关键信息（守卫、骑士等）
@@ -13842,7 +13847,11 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     if (t) {
       const isWolf = t.role.team==='bad';
       if (isWolf) S.nightData.foxBlockKill = true;
-      else if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id);
+      else {
+        if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id);
+        if (!S.nightData.skillMuteSources) S.nightData.skillMuteSources = {};
+        S.nightData.skillMuteSources[t.id] = 'fox';
+      }
       fo.memory.push({role:'system', content:'【媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')+' ⚠️只有你知道这条信息。'});
       if (!isAnon()) Render.log('night-result','🦊 子狐媚惑了'+t.name+'（'+(isWolf?'狼·禁刀':'好人·封技')+'）');
       gameRecord.push({type:'night_action', role:'fox', round:S.round, target:t.name, result:isWolf?'blockKill':'mute'});
@@ -14160,7 +14169,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'mute'), others));
         }
-        if (t) { if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id); p.memory.push({role:'system', content:'【封技能·私密】你封锁了'+t.name+'今晚的夜间主动技。'}); if (!isAnon()) Render.log('night-result','🔇 '+p.name+'封锁了'+t.name+'的技能'); gameRecord.push({type:'night_action', role:'custom-mute', round:S.round, name:p.name, custom:p.role.name, target:t.name}); }
+        if (t) { if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id); if (!S.nightData.skillMuteSources) S.nightData.skillMuteSources = {}; if (!S.nightData.skillMuteSources[t.id]) S.nightData.skillMuteSources[t.id] = 'custom'; p.memory.push({role:'system', content:'【封技能·私密】你封锁了'+t.name+'今晚的夜间主动技。'}); if (!isAnon()) Render.log('night-result','🔇 '+p.name+'封锁了'+t.name+'的技能'); gameRecord.push({type:'night_action', role:'custom-mute', round:S.round, name:p.name, custom:p.role.name, target:t.name}); }
       }
       // 🌒 反弹（复用蚀时狼妃 concubineGuard）；目标含自己（锁自己=谁查/守/毒你就反噬谁，一次性防身）
       if (ab.includes('reflect')) {
@@ -14385,7 +14394,7 @@ const PhaseHandlers = {
       S._nightRun = {key:nightKey, done:[], complete:false};
       S.nightData = {kill:null, killChosenByWolf:null, magicSwap:null, lastMagicPair:(S.nightData?.lastMagicPair ?? null), guard:null, lastGuard:(S.nightData?.lastGuard ?? null), witchSave:false, witchPoison:null, wolfBeautyCharm:null, mechGuard:null, mechPoison:null, mechKnifeBreak:false, skKill:null,
       // 🦊 子狐媚惑：foxBlockKill=当晚全狼禁刀；foxMuteIds=当晚被封夜间主动技的好人ID
-      foxBlockKill:false, foxMuteIds:[],
+      foxBlockKill:false, foxMuteIds:[], skillMuteSources:{},
       // 🌒 蚀时狼妃：concubineGuard=被反弹保护的X；_concubineTriggered=本夜是否已触发一次
       concubineGuard:null, _concubineTriggered:false,
       // 🃏 愚者护盾本夜目标
@@ -15658,11 +15667,15 @@ function nightSkillMuted(p){
 function recordNightSkillMuted(p, ability){
   if (!p) return;
   const label = ability || '夜间主动技能';
+  const source = S.nightData && S.nightData.skillMuteSources ? (S.nightData.skillMuteSources[p.id] || 'unknown') : 'unknown';
   const exists = (gameRecord || []).some(r => r && r.type === 'night_action' && r.role === 'skill-muted' &&
     r.round === S.round && (r.playerId === p.id || r.name === p.name) && r.ability === label);
   if (exists) return;
-  p.memory.push({role:'system', content:`【技能封锁·私密】第${S.round}夜，你的${label}被某种神秘力量封锁，没有生效。你只知道技能失败，不知道是谁造成的；不得把本夜尝试当作成功行动或编造结果。`});
-  gameRecord.push({type:'night_action', role:'skill-muted', round:S.round, playerId:p.id, name:p.name, ability:label});
+  const causeText = source === 'fox'
+    ? `你遭到【子狐媚惑】，${label}被封锁、没有生效。你知道是子狐能力造成的，但不知道哪名玩家是子狐`
+    : `你的${label}被某种神秘力量封锁，没有生效。你不知道是谁造成的`;
+  p.memory.push({role:'system', content:`【技能封锁·私密】第${S.round}夜，${causeText}；不得把本夜尝试当作成功行动或编造结果。`});
+  gameRecord.push({type:'night_action', role:'skill-muted', round:S.round, playerId:p.id, name:p.name, ability:label, source});
 }
 // 🌒 蚀时狼妃·反弹（用于预言家查验）：若施法者今晚的查验目标正是被锁的 X，则静默改为查验施法者自己
 //   （施法者不知情，仍以为查的是 X → 得到的是"自己阵营"的结果，从而被误导）。当晚首个命中 X 者触发、本夜仅一次（_concubineTriggered 每夜随 nightData 重置，狼妃每晚可重新锁定）。
@@ -18276,9 +18289,9 @@ function _buildPrivateInfoLines(p) {
   // 技能封锁只向被封者本人公开：知道该夜主动技能没有生效，但不知道来源或施法者。
   const mutedActs = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
-    .map(r => `第${r.round}夜：${r.ability || '夜间主动技能'}被封锁，没有生效`);
+    .map(r => `第${r.round}夜：${r.source === 'fox' ? '遭到子狐媚惑，' : ''}${r.ability || '夜间主动技能'}被封锁，没有生效`);
   if (mutedActs.length) {
-    lines.push(`你的技能封锁记录：\n  ${mutedActs.join('\n  ')}\n  ⚠️你只知道技能失败，不知道是谁造成的；这些行动不能当作成功记录。`);
+    lines.push(`你的技能封锁记录：\n  ${mutedActs.join('\n  ')}\n  ⚠️这些行动不能当作成功记录；即使知道是子狐能力，也不知道哪名玩家是子狐。`);
   }
 
   // 💘 丘比特与恋人的私密信息。恋人互知，但不泄露对方具体角色。
@@ -18805,7 +18818,7 @@ function _formatCustomNightAction(r) {
   const wg = res => res === 'wolf' ? '🐺狼人' : '✅好人';
   const who = r.custom || '自创角色';   // 积木自创角色用玩家自定义的角色名
   switch (r.role) {
-    case 'skill-muted':   return '🔇 ' + (r.name || t) + '的' + (r.ability || '夜间主动技能') + '被封锁、没有生效（本人不知道来源）';
+    case 'skill-muted':   return '🔇 ' + (r.name || t) + (r.source === 'fox' ? '遭到子狐媚惑，' : '的') + (r.ability || '夜间主动技能') + '被封锁、没有生效（不公开施法玩家）';
     case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（凡查/守/毒他的神职反噬其自身，仅首个命中触发）';
     case 'fool':           return '🃏 愚者护盾：护住 ' + t + '（他若没挨刀，盾自动转护愚者本人）';
