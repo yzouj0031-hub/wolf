@@ -38,4 +38,22 @@ for (const path of ['../index.html', '../en/index.html']) {
   }
 }
 
-console.log('night resume: both clients checkpoint every built-in night action');
+for (const path of ['../index.html', '../en/index.html']) {
+  const html = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+  for (const marker of [
+    '_wolfKillRun',
+    'wolfRun.openingDone.includes',
+    'wolfRun.echoDone.includes',
+    'wolfRun.phase2Required',
+    'Object.prototype.hasOwnProperty.call(wolfLastActions, w.id)',
+    'wolfRun.complete = true'
+  ]) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks wolf-discussion checkpoint marker: ${marker}`);
+  }
+
+  if (/从失败步骤恢复|resume at the failed step/.test(html)) {
+    throw new Error(`${path} still labels a resumable interruption as a failed step`);
+  }
+}
+
+console.log('night resume: both clients checkpoint night actions and wolf discussion substeps');

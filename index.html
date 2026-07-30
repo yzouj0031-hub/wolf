@@ -3767,6 +3767,7 @@ function freshState(prev) {
     loverCrossTeam: false,
     _loverChainResolving: false,
     wolfChatHistory: [], // ★ 狼队密谈记录，供玩家弹窗查看
+    _wolfKillRun: null,  // 狼队复合讨论内部断点：开场/回响/投票分别记进度
     wolfStrategy: '',     // ★ 狼盟密约：胜出方案的内容
     wolfStrategyName: '', // ★ 狼盟密约：胜出方案的名字
     wolfStrategyRevised: false,    // ★ 主方案是否被夜间修订过
@@ -12850,6 +12851,16 @@ const NightActions = {
     // ★ 机械狼不参与狼队密谈/夜刀（孤狼、与狼队不相认）——普通狼全死后由 mechwolfKill 单独行凶
     const ws = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf');
     if (!ws.length) return;
+    const wolfRunKey = `${S.gameId}:${S.round}`;
+    if (S._wolfKillRun && S._wolfKillRun.key === wolfRunKey && S._wolfKillRun.complete) return;
+    if (!S._wolfKillRun || S._wolfKillRun.key !== wolfRunKey) {
+      S._wolfKillRun = {key:wolfRunKey, openingRecords:{}, openingDone:[], echoDone:[], wolfLastActions:{}, phase2Required:null, complete:false};
+    }
+    const wolfRun = S._wolfKillRun;
+    wolfRun.openingRecords ||= {};
+    wolfRun.openingDone = Array.isArray(wolfRun.openingDone) ? wolfRun.openingDone : [];
+    wolfRun.echoDone = Array.isArray(wolfRun.echoDone) ? wolfRun.echoDone : [];
+    wolfRun.wolfLastActions ||= {};
     if (!isAnon()) Render.log('night-detail','🐺 狼人密谈…');
 
     // ★ v9.2 重构：狼队讨论改为三阶段架构（开场陈述 → 回响 → 投票）
@@ -12868,7 +12879,7 @@ const NightActions = {
     // 解析/API 全部失败时不能“随机战术自刀”；随机兜底仍只从非狼与未知机械狼中选。
     // 刀已知队友必须来自狼队明确讨论或人工选择，不能由技术故障触发。
     const safeRandomWolfTargets = alive.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf');
-    const wolfLastActions = {}; // 兼容下方导演主控/补漏路径,记录最终投票
+    const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // 可恢复的最终投票
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
     const livingMagician = S.players.some(x => x.alive && x.role && x.role.id === 'magician');
     const magicKillDecisionHint = livingMagician ? `
@@ -13092,10 +13103,13 @@ const NightActions = {
     }
 
     // === 阶段 1:开场陈述(每狼独立,看不到队友) ===
-    Render.log('night-detail', '🐺 狼队·开场陈述');
     const speakOrder = shuffle(ws.slice());
-    const openingRecords = {}; // {id: {game, action, targetId, interrupt, isPlayer}}
+    const openingRecords = wolfRun.openingRecords || (wolfRun.openingRecords = {}); // {id: {game, action, targetId, interrupt, isPlayer}}
+    if (speakOrder.some(p => !(wolfRun.openingDone.includes(p.id) && openingRecords[p.id]))) {
+      Render.log('night-detail', '🐺 狼队·开场陈述');
+    }
     for (const p of speakOrder) {
+      if (wolfRun.openingDone.includes(p.id) && openingRecords[p.id]) continue;
       if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
       const mates = ws.filter(w => w.id !== p.id).map(w => w.name + '(' + w.role.name + ')').join(',');
       const ts = validWolfTargets.map(x => x.name).join(',');
@@ -13155,25 +13169,37 @@ ${magicKillDecisionHint}
 <interrupt>no</interrupt>`;
       const result = await speakOneWolf(p, prompt, true);
       openingRecords[p.id] = result;
+      if (!wolfRun.openingDone.includes(p.id)) wolfRun.openingDone.push(p.id);
     }
 
     // === 代码判定:有没有分歧 ===
     const proposedTargets = ws.map(w => openingRecords[w.id] && openingRecords[w.id].targetId).filter(id => id != null);
     const uniqueTargets = new Set(proposedTargets);
-    const hasDisagreement = uniqueTargets.size > 1;
+    const computedDisagreement = uniqueTargets.size > 1;
     const anyOpeningInterrupt = ws.some(w => openingRecords[w.id] && openingRecords[w.id].interrupt);
-    const needPhase2 = hasDisagreement || anyOpeningInterrupt;
+    if (typeof wolfRun.phase2Required !== 'boolean') {
+      wolfRun.phase2Required = computedDisagreement || anyOpeningInterrupt;
+      wolfRun.hadOpeningDisagreement = computedDisagreement;
+    }
+    const needPhase2 = wolfRun.phase2Required;
+    const hasDisagreement = wolfRun.hadOpeningDisagreement === true;
 
-    Render.log('night-detail',
+    if (!wolfRun.summaryLogged) {
+      Render.log('night-detail',
       `🐺 提议汇总:${[...uniqueTargets].map(id => S.players[id].name).join('、') || '无'} ` +
       `(${hasDisagreement ? '有分歧' : '一致'})`
-    );
+      );
+      wolfRun.summaryLogged = true;
+    }
 
     // === 阶段 2:回响轮(可选,有分歧才走) ===
     if (needPhase2) {
-      Render.log('night-detail', '🐺 狼队·回响轮(有分歧,继续讨论)');
       const phase2Order = shuffle(ws.slice());
+      if (phase2Order.some(p => !wolfRun.echoDone.includes(p.id))) {
+        Render.log('night-detail', '🐺 狼队·回响轮(有分歧,继续讨论)');
+      }
       for (const p of phase2Order) {
+        if (wolfRun.echoDone.includes(p.id)) continue;
         if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
         // 把所有队友的开场拼成上下文
         const mateOpenings = ws.filter(w => w.id !== p.id)
@@ -13209,15 +13235,18 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         const result = await speakOneWolf(p, prompt, false);
         // 阶段 2 的回响覆盖开场记录(以最新表态为准)
         openingRecords[p.id] = result;
+        if (!wolfRun.echoDone.includes(p.id)) wolfRun.echoDone.push(p.id);
       }
-    } else {
+    } else if (!wolfRun.skipEchoLogged) {
       Render.log('night-detail', '🐺 狼队提议一致,跳过回响轮');
+      wolfRun.skipEchoLogged = true;
     }
 
     // === 阶段 3:独立投票(单独 API 调用,零歧义) ===
     if (!isAnon()) Render.log('night-detail', '🐺 狼人投票…');
     for (const w of ws) {
       if (w.isPlayer) continue; // 人类玩家走下方现成的弹窗选择
+      if (Object.prototype.hasOwnProperty.call(wolfLastActions, w.id)) continue;
       // 用最新的 openingRecords(经过阶段 2 覆盖)作为投票依据,直接从结构化字段取
       const rec = openingRecords[w.id];
       if (rec && rec.targetId != null) {
@@ -13448,6 +13477,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       }
       gameRecord.push({type:'night_action', role:'wolf', round:S.round, target:S.nightData.kill!==null?S.players[S.nightData.kill].name:'无', voters: Object.fromEntries(Object.entries(wolfVotes).map(([id,names])=>[S.players[parseInt(id)].name, names]))});
     }
+    wolfRun.complete = true;
   },
   async wolfBeauty(alive) {
     const wb = alive.find(p => p.role.id==='wolfbeauty');
@@ -16987,6 +17017,7 @@ function startGame() {
   S._duelNextPhase=null;
   S._lastNightDeaths=[];
   S._nightRun=null;                              // 夜间断点状态：新局必须清空
+  S._wolfKillRun=null;                           // 狼队讨论内部断点：新局必须清空
   S.duelLog=[];
   S.hunterLog=[];
   S._daySpeakOrder=[];
@@ -17055,9 +17086,9 @@ async function nextStep() {
   // 否则会把已经做了一半的夜间行动从头再跑一遍。停下来,提示用户手动点"下一步"继续。
   if (_handlerError && S.phase === _phaseBefore && S.round === _roundBefore) {
     const resumeHint = _phaseBefore === 'night'
-      ? '已保留夜间断点；请手动点“继续”，系统会从失败步骤恢复，不会重跑已完成行动。'
+      ? '已保留夜间断点；请手动点“继续”，系统会从中断位置恢复，不会重跑已完成行动。'
       : '已暂停自动推进；请处理异常后手动点“继续”。';
-    if (Render.devLog) Render.devLog('err', `[调度] ${_phaseBefore}阶段执行中断(AI异常)。${resumeHint}`);
+    if (Render.devLog) Render.devLog('err', `[调度] ${_phaseBefore}阶段执行中断。${resumeHint}`);
     Render.log('system', `🛠️ ${resumeHint}`);
     return; // 不 setTimeout 重入
   }
