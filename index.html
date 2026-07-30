@@ -7489,6 +7489,25 @@ ${userPersona}
     keyParts.push('【女巫药水状态（实时·绝对准确）】\n' + potionLines.join('\n'));
   }
 
+  // 子狐：从未截断的结构化战报重建全部媚惑结果，避免长局、压缩记忆或读档后忘记铁视角。
+  if (p.role.id === 'fox') {
+    const foxHistory = (gameRecord || [])
+      .filter(r => r && r.type === 'night_action' && r.role === 'fox')
+      .map(r => `第${r.round}夜：媚惑${r.target} → ${r.result === 'blockKill' ? '🐺狼阵营（当晚全狼禁刀）' : '✅好人阵营（其当晚主动夜间技能被封）'}`);
+    if (foxHistory.length) {
+      keyParts.push('【子狐媚惑结果·完整永久记录】\n' + foxHistory.join('\n') + '\n这些是你亲自得到的阵营铁信息，但不等于知道目标的精确角色。');
+    }
+  }
+
+  // 被封技能者：本人只知道自己的技能未生效，不知道封锁来源，更不会因此知道子狐是谁。
+  // 同样从 gameRecord 重建，防止普通 memory 被截断后把失败行动误报成成功。
+  const mutedHistory = (gameRecord || [])
+    .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
+    .map(r => `第${r.round}夜：${r.ability || '夜间主动技能'}被封锁，没有生效`);
+  if (mutedHistory.length) {
+    keyParts.push('【你的技能封锁结果·完整永久记录】\n' + mutedHistory.join('\n') + '\n⚠️这些行动没有生效，不得声称自己成功守护、交换、查验、用药或袭击；你不知道是谁造成的。');
+  }
+
   // 其他角色：从memory捞剩余关键信息（守卫、骑士等）
   const otherKeyInfo = p.memory.filter(m => m.role==='system' && !m.content.includes('【查验结果') && !m.content.includes('【女巫】') && (m.content.includes('【关键') || m.content.includes('【私密'))).map(m => m.content).join('\n');
   if (otherKeyInfo) keyParts.push(otherKeyInfo);
@@ -13687,6 +13706,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
   async serialKiller(alive) {
     const sk = alive.find(p => p.role.id==='serialkiller');
     if (!sk) return;
+    if (nightSkillMuted(sk)) { recordNightSkillMuted(sk, '独立袭击'); return; }
     if (!isAnon()) Render.log('night-detail','🔪 连环杀手行动…');
     Render.setSpeaking(sk.id, true);
     const ts = alive.filter(p => p.id !== sk.id);
@@ -13738,7 +13758,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     // 🦊 子狐媚惑·封技能：预言家今晚被封 → 跳过查验、无结果
     if (nightSkillMuted(se)) {
       if (!isAnon()) Render.log('night-result','🔮 预言家今晚的能力被封锁，未能查验');
-      se.memory.push({role:'system',content:'【异常】你今晚的查验能力被某种神秘力量封锁了，这一夜没有得到任何查验结果。'});
+      recordNightSkillMuted(se, '查验');
       return;
     }
     if (!isAnon()) Render.log('night-detail','🔮 预言家行动…');
@@ -13803,7 +13823,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     const fo = alive.find(p => p.role.id==='fox');
     if (!fo) return;
     if (S.round < 2) { if (!isAnon()) Render.log('night-detail','🦊 子狐第一夜蛰伏，媚惑从第二夜起生效'); return; }
-    if (nightSkillMuted(fo)) { fo.memory.push({role:'system',content:'【异常】你今晚的媚惑被某种力量封锁了。'}); return; }
+    if (nightSkillMuted(fo)) { recordNightSkillMuted(fo, '媚惑'); return; }
     if (!isAnon()) Render.log('night-detail','🦊 子狐行动…');
     Render.setSpeaking(fo.id, true);
     const ts = alive.filter(p => p.id!==fo.id);
@@ -13834,7 +13854,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
   async wolfconcubine(alive) {
     const wc = alive.find(p => p.role.id==='wolfconcubine');
     if (!wc) return;
-    if (nightSkillMuted(wc)) { wc.memory.push({role:'system',content:'【异常】你今晚的反弹锁定被封锁了。'}); return; }
+    if (nightSkillMuted(wc)) { recordNightSkillMuted(wc, '反弹锁定'); return; }
     if (!isAnon()) Render.log('night-detail','🌒 蚀时狼妃行动…');
     Render.setSpeaking(wc.id, true);
     const ts = alive.slice();  // 含自己：锁自己=谁查/守/毒你就反噬谁，一次性护身
@@ -13865,7 +13885,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     const fl = alive.find(p => p.role.id==='fool');
     if (!fl) return;
     if (fl._foolUsed) return;                  // 保命已用掉，无技能
-    if (nightSkillMuted(fl)) { fl.memory.push({role:'system',content:'【异常】你今晚的护盾被封锁了。'}); return; }
+    if (nightSkillMuted(fl)) { recordNightSkillMuted(fl, '愚者护盾'); return; }
     if (!isAnon()) Render.log('night-detail','🃏 愚者行动…');
     Render.setSpeaking(fl.id, true);
     const ts = alive.slice();
@@ -13894,7 +13914,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
   async _grantSelect(me, alive, cfg) {
     if (!me) return;
     if (cfg.once && me._grantUsed) return;                 // 一次性商人：整局只赐一次
-    if (nightSkillMuted(me)) { me.memory.push({role:'system',content:'【异常】你今晚的赐予被封锁了。'}); return; }
+    if (nightSkillMuted(me)) { recordNightSkillMuted(me, '赐予'); return; }
     if (!isAnon()) Render.log('night-detail', cfg.emoji+' '+cfg.roleName+'行动…');
     Render.setSpeaking(me.id, true);
     let ts = alive.filter(p => p.id!==me.id);              // 不能赐自己
@@ -13993,6 +14013,11 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     for (const p of alive) {
       // 🎁 游商盾仅当晚有效：过期清理
       if (p._grantShield && p._grantShieldExpire != null && S.round > p._grantShieldExpire) p._grantShield = false;
+      // 被动盾不受封锁；只有本夜已经可用的主动查验/毒药会被封，且不消耗次数。
+      const hasReadyGrantedActive =
+        (p._grantedSeer && (p._grantedSeerReady || 0) <= S.round) ||
+        (p._grant && p._grant.ready <= S.round && (p._grant.expire == null || S.round <= p._grant.expire));
+      if (hasReadyGrantedActive && nightSkillMuted(p)) { recordNightSkillMuted(p, '获赐的主动技能'); continue; }
       // 🔮 奇迹商人·永久查验：自 _grantedSeerReady 起，每晚可验一人（持久，不消耗）
       if (p._grantedSeer && (p._grantedSeerReady || 0) <= S.round) {
         const ts2 = alive.filter(x => x.id!==p.id);
@@ -14058,6 +14083,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       if (!Array.isArray(ab) || !ab.length) continue;
       const _ACTIVE_BLOCKS = ['protect','inspect','poison','save','muteSkill','reflect','blockKill','shield','grant'];
       if (!_ACTIVE_BLOCKS.some(k => ab.includes(k))) continue;  // 只有被动积木(缓死/免疫)则无需夜间行动
+      if (nightSkillMuted(p)) { recordNightSkillMuted(p, `${p.role.name}的夜间主动技能`); continue; }
       const others = alive.filter(x => x.id !== p.id);
       Render.setSpeaking(p.id, true);
       // 🛡️ 守护（可守自己，不能连守同一人）
@@ -15627,6 +15653,17 @@ async function compressAllMemories() {
 function nightSkillMuted(p){
   return !!(p && S.nightData && Array.isArray(S.nightData.foxMuteIds) && S.nightData.foxMuteIds.includes(p.id));
 }
+// 被封者只获得“自己的技能未生效”这一有限视角，不获知封锁来源或施法者身份。
+// 同时写入结构化战报，供运行时提示、读档和个人视角导出永久重建，避免 AI 把失败行动编成成功记录。
+function recordNightSkillMuted(p, ability){
+  if (!p) return;
+  const label = ability || '夜间主动技能';
+  const exists = (gameRecord || []).some(r => r && r.type === 'night_action' && r.role === 'skill-muted' &&
+    r.round === S.round && (r.playerId === p.id || r.name === p.name) && r.ability === label);
+  if (exists) return;
+  p.memory.push({role:'system', content:`【技能封锁·私密】第${S.round}夜，你的${label}被某种神秘力量封锁，没有生效。你只知道技能失败，不知道是谁造成的；不得把本夜尝试当作成功行动或编造结果。`});
+  gameRecord.push({type:'night_action', role:'skill-muted', round:S.round, playerId:p.id, name:p.name, ability:label});
+}
 // 🌒 蚀时狼妃·反弹（用于预言家查验）：若施法者今晚的查验目标正是被锁的 X，则静默改为查验施法者自己
 //   （施法者不知情，仍以为查的是 X → 得到的是"自己阵营"的结果，从而被误导）。当晚首个命中 X 者触发、本夜仅一次（_concubineTriggered 每夜随 nightData 重置，狼妃每晚可重新锁定）。
 function reflectInspectSubject(caster, t){
@@ -15657,15 +15694,16 @@ function applyCustomNightFx(){
   // 🦊 子狐·封技能：清空被封好人当晚的夜间主动技贡献
   if (Array.isArray(nd.foxMuteIds) && nd.foxMuteIds.length){
     const guardP = S.players.find(p=>p.role.id==='guard');
-    if (guardP && nd.foxMuteIds.includes(guardP.id) && nd.guard!=null){ nd.guard=null; nd.lastGuard=null; guardP.memory.push({role:'system',content:'【异常】你今晚的守护被某种神秘力量封锁了，没有生效。'}); }
+    if (guardP && nd.foxMuteIds.includes(guardP.id) && nd.guard!=null){ nd.guard=null; nd.lastGuard=null; recordNightSkillMuted(guardP, '守护'); }
     const witchP = S.players.find(p=>p.role.id==='witch');
     if (witchP && nd.foxMuteIds.includes(witchP.id)){
+      const witchActed = !!nd.witchSave || nd.witchPoison!=null;
       if (nd.witchSave){ nd.witchSave=false; if(S.witchPotions) S.witchPotions.save=true; }        // 退还解药
       if (nd.witchPoison!=null){ nd.witchPoison=null; if(S.witchPotions) S.witchPotions.poison=true; } // 退还毒药
-      witchP.memory.push({role:'system',content:'【异常】你今晚的用药被某种神秘力量封锁了，药水已退回、没有生效。'});
+      if (witchActed) recordNightSkillMuted(witchP, '用药（药水已退回）');
     }
     const magP = S.players.find(p=>p.role.id==='magician');
-    if (magP && nd.foxMuteIds.includes(magP.id) && nd.magicSwap){ nd.magicSwap=null; magP.memory.push({role:'system',content:'【异常】你今晚的交换被某种神秘力量封锁了，没有生效。'}); }
+    if (magP && nd.foxMuteIds.includes(magP.id) && nd.magicSwap){ nd.magicSwap=null; recordNightSkillMuted(magP, '号码交换'); }
   }
   // 🌒 蚀时狼妃·反弹：守卫守护 / 女巫毒 打到 X → 静默改到施法者自己（首个命中者触发）
   if (nd.concubineGuard != null && !nd._concubineTriggered){
@@ -18235,6 +18273,14 @@ function _buildPrivateInfoLines(p) {
   if (!p || !p.role) return [];
   const lines = [];
 
+  // 技能封锁只向被封者本人公开：知道该夜主动技能没有生效，但不知道来源或施法者。
+  const mutedActs = (gameRecord || [])
+    .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
+    .map(r => `第${r.round}夜：${r.ability || '夜间主动技能'}被封锁，没有生效`);
+  if (mutedActs.length) {
+    lines.push(`你的技能封锁记录：\n  ${mutedActs.join('\n  ')}\n  ⚠️你只知道技能失败，不知道是谁造成的；这些行动不能当作成功记录。`);
+  }
+
   // 💘 丘比特与恋人的私密信息。恋人互知，但不泄露对方具体角色。
   if (Array.isArray(S.loverPair) && S.loverPair.length === 2) {
     const [aId,bId] = S.loverPair;
@@ -18759,6 +18805,7 @@ function _formatCustomNightAction(r) {
   const wg = res => res === 'wolf' ? '🐺狼人' : '✅好人';
   const who = r.custom || '自创角色';   // 积木自创角色用玩家自定义的角色名
   switch (r.role) {
+    case 'skill-muted':   return '🔇 ' + (r.name || t) + '的' + (r.ability || '夜间主动技能') + '被封锁、没有生效（本人不知道来源）';
     case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（凡查/守/毒他的神职反噬其自身，仅首个命中触发）';
     case 'fool':           return '🃏 愚者护盾：护住 ' + t + '（他若没挨刀，盾自动转护愚者本人）';
@@ -18788,7 +18835,7 @@ function _formatCustomNightAction(r) {
 }
 // 判断某条 night_action 是否属于某视角玩家本人（用于自视角摘要显示自己的自创技能行动）
 function _isOwnNightAction(r, viewerP) {
-  return !!(r && viewerP && r.name && r.name === viewerP.name && /^(custom-|granted-|gift-|fox$|fool$|merchant$|youshang$|wolfconcubine$)/.test(r.role || ''));
+  return !!(r && viewerP && r.name && r.name === viewerP.name && /^(skill-muted$|custom-|granted-|gift-|fox$|fool$|merchant$|youshang$|wolfconcubine$)/.test(r.role || ''));
 }
 
 function _buildChatSummary(viewerP, roundFilter, opts) {

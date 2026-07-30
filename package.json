@@ -9,7 +9,8 @@
     "test:actions": "node scripts/test-action-protocol.mjs",
     "test:night-resume": "node scripts/test-night-resume.mjs",
     "test:english-ui": "node scripts/test-english-ui.mjs",
-    "test:match-replay": "node scripts/test-match-replay.mjs"
+    "test:match-replay": "node scripts/test-match-replay.mjs",
+    "test:fox-info": "node scripts/test-fox-private-info.mjs"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
