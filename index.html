@@ -2226,6 +2226,7 @@ body.has-wp::after {
       <button class="be" id="btn-ask">💬 提问</button>
       <button class="be" id="btn-mvp">🏆 MVP</button>
       <button class="be" id="btn-export">📄 导出</button>
+      <button class="be" id="btn-prompt-lib" title="管理模型专属的长篇提示词模板">📚 提示词库</button>
       <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
       <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
       <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
@@ -2389,9 +2390,18 @@ body.has-wp::after {
     <div style="margin-top:8px;font-size:.72em;color:#6a8090;margin-bottom:6px">
       正则规则：对AI的<b style="color:#a0c8e0">&lt;game&gt;</b>发言做查找替换，支持JS正则。预设：追加到系统prompt末尾。
     </div>
+    <!-- 提示词库应用 -->
+    <div style="margin-bottom:8px">
+      <div style="font-size:.72em;color:#8aa0b0;margin-bottom:3px">📚 应用提示词库模板（最高优先级）</div>
+      <div style="display:flex;gap:4px">
+        <select id="pc-prompt-template" style="flex:1;background:rgba(0,0,0,0.3);border:1px solid rgba(104,184,232,0.15);color:#a0c8d8;border-radius:var(--r);padding:4px 6px;font-size:.78em;font-family:var(--font-body)">
+          <option value="">-- 无 --</option>
+        </select>
+      </div>
+    </div>
     <!-- 预设输入 -->
     <div style="margin-bottom:8px">
-      <div style="font-size:.72em;color:#8aa0b0;margin-bottom:3px">📋 预设（追加到人设末尾）</div>
+      <div style="font-size:.72em;color:#8aa0b0;margin-bottom:3px">📋 额外短指令（追加到人设末尾）</div>
       <textarea id="pc-preset" rows="3" placeholder="例：说话时在句末加上「——江户川柯南说」&#10;例：所有感叹号替换为句号，语气更冷静" style="width:100%;resize:vertical;background:rgba(0,0,0,0.3);border:1px solid rgba(104,184,232,0.15);color:#a0c8d8;border-radius:var(--r);padding:6px 8px;font-size:.78em;font-family:var(--font-body)"></textarea>
     </div>
     <!-- 正则列表 -->
@@ -2479,6 +2489,46 @@ body.has-wp::after {
     <div style="display:flex;gap:8px;margin-top:12px">
       <button id="mc-confirm" style="flex:1;background:rgba(245,160,32,0.2);border:1px solid #f5a020;color:#f5c060;padding:8px;border-radius:var(--r);font-size:.85em;cursor:pointer">✅ 确认执行</button>
       <button id="mc-skip" style="flex:1;background:rgba(100,100,100,0.15);border:1px solid rgba(200,200,200,0.2);color:#8a8a8a;padding:8px;border-radius:var(--r);font-size:.85em;cursor:pointer">⏭ 跳过</button>
+    </div>
+  </div>
+</div>
+
+<!-- 提示词库弹窗 -->
+<div class="epop" id="prompt-lib-modal">
+  <div class="ebox" style="max-width: 600px; width: 90%;">
+    <h3 id="ebox-title">
+      <span>📚 模型提示词库</span>
+    </h3>
+    
+    <!-- 列表视图 -->
+    <div id="prompt-lib-list-view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-size:0.8em;color:#8a8090;">管理针对不同模型的自定义提示词</span>
+        <button id="prompt-lib-add-btn" style="padding:4px 8px;font-size:0.8em;background:rgba(160,232,160,0.18);color:#a0e8a0;border:1px solid rgba(160,232,160,0.5);border-radius:var(--r);cursor:pointer">➕ 新增提示词</button>
+      </div>
+      <div id="prompt-lib-list" style="max-height:300px;overflow-y:auto;border:1px solid rgba(200,180,140,0.15);border-radius:var(--r);padding:8px;background:rgba(0,0,0,0.2);">
+        <!-- 列表由 JS 渲染 -->
+      </div>
+      <div class="btns" style="margin-top:10px">
+        <button id="prompt-lib-close" style="background:rgba(255,255,255,0.08);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2)">关闭</button>
+      </div>
+    </div>
+    
+    <!-- 编辑视图 -->
+    <div id="prompt-lib-edit-view" style="display:none;flex-direction:column;gap:10px;">
+      <input type="hidden" id="prompt-edit-id">
+      <div>
+        <label style="font-size:0.8em;color:#8aa0b0;">模板名称：</label>
+        <input type="text" id="prompt-edit-name" placeholder="例如：Claude 3.5 专用指令" style="width:100%;margin-top:4px;">
+      </div>
+      <div>
+        <label style="font-size:0.8em;color:#8aa0b0;">提示词内容（无字数限制）：</label>
+        <textarea id="prompt-edit-content" placeholder="输入超长提示词内容..." style="width:100%;height:300px;margin-top:4px;resize:vertical;background:rgba(0,0,0,0.3);border:1px solid rgba(200,180,140,0.2);color:#c8bfa8;border-radius:var(--r);padding:8px;font-size:0.8em;font-family:var(--font-body);"></textarea>
+      </div>
+      <div class="btns" style="margin-top:10px;">
+        <button id="prompt-edit-save" style="background:rgba(160,232,160,0.18);color:#a0e8a0;border:1px solid rgba(160,232,160,0.5);">💾 保存</button>
+        <button id="prompt-edit-cancel" style="background:rgba(255,255,255,0.05);color:#8a7e6a;border:1px solid rgba(200,180,140,0.2);">取消</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3526,6 +3576,7 @@ function freshState(prev) {
 }
 let S = freshState();
 let playerConfigs = {}, currentCfgP = -1;
+let promptLibrary = {}; // { id: { name, content } }
 function purgeRemovedPronounConfigs(configs) {
   const out = configs && typeof configs === 'object' ? configs : {};
   Object.values(out).forEach(cfg => { if (cfg && typeof cfg === 'object') delete cfg.pronoun; });
@@ -5644,6 +5695,7 @@ function saveCfg() {
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     pconfigs:playerConfigs,
+    promptLibrary: promptLibrary,
     hostEnable:$('host-enable')?$('host-enable').checked:true, hostMode:$('host-mode')?$('host-mode').value:'emcee', hostUrl:$('h-url')?$('h-url').value:'', hostKey:$('h-key')?$('h-key').value:'', hostModel:$('h-model')?$('h-model').value:'', hostVerbosity:$('host-verbosity')?$('host-verbosity').value:'normal',
     spectatorList, specEnable:$('spec-enable')?$('spec-enable').checked:false, specFreq:$('spec-freq')?$('spec-freq').value:'mid',
     conc:{speak:getC('c-speak'),vote:getC('c-vote'),wolf:getC('c-wolf'),wvote:getC('c-wvote'),trial:getC('c-trial'),end:getC('c-end')},
@@ -5699,6 +5751,9 @@ function loadCfg() {
           delete playerConfigs[k].role;
         }
       }
+    }
+    if (d.promptLibrary) {
+      promptLibrary = d.promptLibrary;
     }
     if (d.hostEnable!==undefined&&$('host-enable')) $('host-enable').checked=d.hostEnable;
     if (d.hostMode&&$('host-mode')) $('host-mode').value=d.hostMode;
@@ -7308,7 +7363,12 @@ ${userPersona}
   }
   wolfPrivateBlock = planBlock + loverPrivateBlock + wolfPrivateBlock;
 
-  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${duelLogBlock}${hunterLogBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}`;
+  let customPromptBlock = '';
+  if (playerConfigs[p.id] && playerConfigs[p.id].promptId && promptLibrary[playerConfigs[p.id].promptId]) {
+    customPromptBlock = '\n\n【模型专属指令（最高优先级）】\n' + promptLibrary[playerConfigs[p.id].promptId].content.trim();
+  }
+
+  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${duelLogBlock}${hunterLogBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}${customPromptBlock}\n\n${hasPreset ? '【额外短指令】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}`;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
@@ -18560,6 +18620,23 @@ function bindEvents() {
       alert('生成规则失败：' + (err && err.message ? err.message : err));
     }
   });
+  // ★ 提示词库管理
+  $('btn-prompt-lib').addEventListener('click', () => {
+    $('prompt-lib-modal').classList.add('show');
+    renderPromptLibraryList();
+  });
+  $('prompt-lib-close').addEventListener('click', () => {
+    $('prompt-lib-modal').classList.remove('show');
+  });
+  $('prompt-lib-add-btn').addEventListener('click', () => {
+    openPromptLibEditor('', '', '');
+  });
+  $('prompt-edit-cancel').addEventListener('click', () => {
+    $('prompt-lib-edit-view').style.display = 'none';
+    $('prompt-lib-list-view').style.display = 'block';
+  });
+  $('prompt-edit-save').addEventListener('click', savePromptLibEntry);
+
   $('btn-copyrule').addEventListener('click', () => {
     const t = $('ruletxt').value;
     navigator.clipboard.writeText(t).then(() => {
@@ -19468,6 +19545,8 @@ function openPCfg(i) {
   }
   sel.value = c.role || '';
   // 加载预设和正则
+  populatePromptTemplateDropdown();
+  if ($('pc-prompt-template')) $('pc-prompt-template').value = c.promptId || '';
   $('pc-preset').value = (playerConfigs[i] && playerConfigs[i].preset) || '';
   renderPCRegexList((playerConfigs[i] && playerConfigs[i].regexRules) || []);
   if ($('pc-rx-game'))  $('pc-rx-game').checked  = (playerConfigs[i] && playerConfigs[i].regexApplyGame)  !== false;
@@ -19516,11 +19595,13 @@ function savePCfg() {
   }
   // 保存预设和正则
   const preset = $('pc-preset').value.trim();
+  const promptId = $('pc-prompt-template') ? $('pc-prompt-template').value : '';
   const regexRules = getPCRegexRules();
   const rxGame  = $('pc-rx-game') ? $('pc-rx-game').checked : true;
   const rxThink = $('pc-rx-think') ? $('pc-rx-think').checked : false;
   if (!playerConfigs[currentCfgP]) playerConfigs[currentCfgP] = {};
   if (preset) playerConfigs[currentCfgP].preset = preset; else delete playerConfigs[currentCfgP].preset;
+  if (promptId) playerConfigs[currentCfgP].promptId = promptId; else delete playerConfigs[currentCfgP].promptId;
   if (regexRules.length) {
     playerConfigs[currentCfgP].regexRules = regexRules;
     playerConfigs[currentCfgP].regexApplyGame  = rxGame;
@@ -22086,6 +22167,92 @@ if ('serviceWorker' in navigator) {
       console.warn('Service Worker 注册失败：', err);
     });
   });
+}
+
+// ★ 提示词库管理功能
+function renderPromptLibraryList() {
+  const listEl = $('prompt-lib-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  
+  const ids = Object.keys(promptLibrary);
+  if (ids.length === 0) {
+    listEl.innerHTML = '<div style="color:#8a8090;font-size:0.8em;text-align:center;padding:20px;">还没有保存的提示词模板。</div>';
+    return;
+  }
+  
+  ids.forEach(id => {
+    const entry = promptLibrary[id];
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:4px;border-radius:4px;';
+    div.innerHTML = `
+      <div style="flex:1;overflow:hidden;">
+        <div style="font-size:0.85em;color:#d8d0e8;margin-bottom:2px;font-weight:bold;">${escHtml(entry.name || '未命名模板')}</div>
+        <div style="font-size:0.7em;color:#6a6080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(entry.content || '').substring(0, 100)}...</div>
+      </div>
+      <div style="display:flex;gap:4px;margin-left:8px;">
+        <button class="edit-btn" style="padding:4px 8px;font-size:0.75em;background:rgba(80,160,200,0.15);color:#80c8e8;border:1px solid rgba(80,160,200,0.3);border-radius:var(--r);cursor:pointer">✏️</button>
+        <button class="del-btn" style="padding:4px 8px;font-size:0.75em;background:rgba(200,80,80,0.15);color:#e88080;border:1px solid rgba(200,80,80,0.3);border-radius:var(--r);cursor:pointer">🗑️</button>
+      </div>
+    `;
+    
+    div.querySelector('.edit-btn').onclick = () => openPromptLibEditor(id, entry.name, entry.content);
+    div.querySelector('.del-btn').onclick = () => {
+      if (confirm('确定要删除模板【' + (entry.name||'未命名') + '】吗？')) {
+        delete promptLibrary[id];
+        saveCfg();
+        renderPromptLibraryList();
+        populatePromptTemplateDropdown();
+      }
+    };
+    listEl.appendChild(div);
+  });
+}
+
+function openPromptLibEditor(id, name, content) {
+  $('prompt-edit-id').value = id || '';
+  $('prompt-edit-name').value = name || '';
+  $('prompt-edit-content').value = content || '';
+  $('prompt-lib-list-view').style.display = 'none';
+  $('prompt-lib-edit-view').style.display = 'flex';
+}
+
+function savePromptLibEntry() {
+  let id = $('prompt-edit-id').value;
+  const name = $('prompt-edit-name').value.trim();
+  const content = $('prompt-edit-content').value.trim();
+  
+  if (!name) { alert('请输入模板名称'); return; }
+  
+  if (!id) {
+    id = 'prompt_' + Date.now();
+  }
+  
+  promptLibrary[id] = { name: name, content: content };
+  saveCfg();
+  
+  $('prompt-lib-edit-view').style.display = 'none';
+  $('prompt-lib-list-view').style.display = 'block';
+  
+  renderPromptLibraryList();
+  populatePromptTemplateDropdown();
+}
+
+function populatePromptTemplateDropdown() {
+  const select = $('pc-prompt-template');
+  if (!select) return;
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">-- 无 --</option>';
+  
+  for (const id in promptLibrary) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = promptLibrary[id].name;
+    select.appendChild(opt);
+  }
+  if (promptLibrary[currentVal]) {
+    select.value = currentVal;
+  }
 }
 
 </script>
