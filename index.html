@@ -12538,7 +12538,16 @@ ${magicKillDecisionHint}
 <game>对队友说的话(口语化,30-140字，说清名义刀口、希望的最终落点和理由)。⚠️ 不要在这里写 &lt;interrupt&gt; 等标签。</game>
 <action>提议刀的目标完整名字（从【可刀目标】里选一个）</action>
 <interrupt>no</interrupt>`;
-      const result = await speakOneWolf(p, prompt, true);
+      let result;
+      try {
+        result = await speakOneWolf(p, prompt, true);
+      } catch (e) {
+        if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
+        // ★ 单狼调用失败(绝大多数是网络/中转超时)只影响它自己：跳过其开场，
+        //   最终「独立投票」阶段有随机兜底，不会缺刀，更不会整夜崩溃触发「暂停等继续」。
+        Render.devLog && Render.devLog('warn', `[狼队开场] ${p.name} 调用失败，跳过其开场(后续独立投票兜底)：${e && e.message}`);
+        continue;
+      }
       openingRecords[p.id] = result;
     }
 
@@ -12591,7 +12600,15 @@ ${magicKillDecisionHint}
 <game>你的回应(口语化,可以附议/反驳/补充,30-140字；有魔术师时说清名义刀口与预期落点)</game>
 <action>你最终支持的刀口名字</action>
 <interrupt>yes 或 no</interrupt>`;
-        const result = await speakOneWolf(p, prompt, false);
+        let result;
+        try {
+          result = await speakOneWolf(p, prompt, false);
+        } catch (e) {
+          if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
+          // ★ 回响轮某狼失败只跳过它自己：保留它的开场提议，不崩整夜。
+          Render.devLog && Render.devLog('warn', `[狼队回响] ${p.name} 调用失败，保留其开场提议(后续独立投票兜底)：${e && e.message}`);
+          continue;
+        }
         // 阶段 2 的回响覆盖开场记录(以最新表态为准)
         openingRecords[p.id] = result;
       }
