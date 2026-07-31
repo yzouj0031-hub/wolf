@@ -11650,6 +11650,11 @@ const NightActions = {
   async magician(alive) {
     const mg = alive.find(p => p.role.id==='magician');
     if (!mg) return;
+    if (nightSkillMuted(mg)) {
+      if (!isAnon()) Render.log('night-result','🎩 魔术师今晚的能力被封锁，未能行动');
+      mg.memory.push({role:'system',content:'【异常】你今晚的交换能力被某种神秘力量封锁了，无法行动。'});
+      return;
+    }
     if (!isAnon()) Render.log('night-detail','🎩 魔术师行动…');
     Render.setSpeaking(mg.id, true);
     const pairEq = (x,y) => !!x && !!y && ((x[0]===y[0]&&x[1]===y[1])||(x[0]===y[1]&&x[1]===y[0]));
@@ -12072,6 +12077,11 @@ const NightActions = {
   async guard(alive) {
       const gu = alive.find(p => p.role.id==='guard');
     if (!gu) return;
+    if (nightSkillMuted(gu)) {
+      if (!isAnon()) Render.log('night-result','🛡️ 守卫今晚的能力被封锁，未能守护');
+      gu.memory.push({role:'system',content:'【异常】你今晚的守护能力被某种神秘力量封锁了，无法行动。'});
+      return;
+    }
     if (!isAnon()) Render.log('night-detail','🛡️ 守卫行动…');
     Render.setSpeaking(gu.id,true);
     // ★ fix: lastGuard 用 -1 表示"没有上次"，避免 null !== null 失效
@@ -12822,6 +12832,11 @@ ${magicKillDecisionHint}
   async witch(alive) {
       const wi = alive.find(p => p.role.id==='witch');
     if (!wi) return;
+    if (nightSkillMuted(wi)) {
+      if (!isAnon()) Render.log('night-result','💊 女巫今晚的能力被封锁，未能用药');
+      wi.memory.push({role:'system',content:'【异常】你今晚的用药能力被某种神秘力量封锁了，无法行动。'});
+      return;
+    }
     // ★ 两瓶药都用完，不再叫醒女巫
     if (!S.witchPotions.save && !S.witchPotions.poison) return;
     if (!isAnon()) Render.log('night-detail','🧙‍♀️ 女巫行动…');
@@ -13245,6 +13260,10 @@ ${magicKillDecisionHint}
       const pend = p._giftPending;
       if (!pend) continue;
       p._giftPending = null;
+      if (nightSkillMuted(p)) {
+        p.memory.push({role:'system',content:'【异常】你今晚收到一份神秘赐福，但你的能力被某种力量封锁了，赐福失效且无法自选礼物。'});
+        continue;
+      }
       const perm = pend.permanent;
       const GIFTS = [
         {k:'shield', label:'🛡️ 盾（今晚免一次夜死）'},
@@ -14922,19 +14941,8 @@ function reflectEffectTarget(caster, targetId){
 //   预言家的封技能/反弹在其夜间行动源头即时处理，此处只补足需要按 nightData 结算的三类。
 function applyCustomNightFx(){
   const nd = S.nightData; if (!nd) return;
-  // 🦊 子狐·封技能：清空被封好人当晚的夜间主动技贡献
-  if (Array.isArray(nd.foxMuteIds) && nd.foxMuteIds.length){
-    const guardP = S.players.find(p=>p.role.id==='guard');
-    if (guardP && nd.foxMuteIds.includes(guardP.id) && nd.guard!=null){ nd.guard=null; nd.lastGuard=null; guardP.memory.push({role:'system',content:'【异常】你今晚的守护被某种神秘力量封锁了，没有生效。'}); }
-    const witchP = S.players.find(p=>p.role.id==='witch');
-    if (witchP && nd.foxMuteIds.includes(witchP.id)){
-      if (nd.witchSave){ nd.witchSave=false; if(S.witchPotions) S.witchPotions.save=true; }        // 退还解药
-      if (nd.witchPoison!=null){ nd.witchPoison=null; if(S.witchPotions) S.witchPotions.poison=true; } // 退还毒药
-      witchP.memory.push({role:'system',content:'【异常】你今晚的用药被某种神秘力量封锁了，药水已退回、没有生效。'});
-    }
-    const magP = S.players.find(p=>p.role.id==='magician');
-    if (magP && nd.foxMuteIds.includes(magP.id) && nd.magicSwap){ nd.magicSwap=null; magP.memory.push({role:'system',content:'【异常】你今晚的交换被某种神秘力量封锁了，没有生效。'}); }
-  }
+  // 🦊 子狐·封技能：现在在各个神职的夜间行动开头直接检测 nightSkillMuted() 并跳过，
+  // 因此不需要在这里再做事后的清空和退药处理。
   // 🌒 蚀时狼妃·反弹：守卫守护 / 女巫毒 打到 X → 静默改到施法者自己（首个命中者触发）
   if (nd.concubineGuard != null && !nd._concubineTriggered){
     const guardP = S.players.find(p=>p.role.id==='guard' && p.alive);
