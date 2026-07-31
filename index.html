@@ -14525,7 +14525,17 @@ const PhaseHandlers = {
     }
     const nightStep = async (key, fn) => {
       if (S._nightRun.done.includes(key)) return;
-      await fn();
+      // ★ 单步护栏：任意一步(狼妃/子狐/女巫…)抛异常，不再拖垮整夜、不再弹「夜间断点」卡死。
+      //   尊重手动暂停(abort)照常抛出；否则记录并跳过该步、标记 done 避免重复触发，让夜晚照常走完。
+      //   同时把「哪一步·什么错」打到可见日志，方便定位具体 bug（手机看不到 F12 也能截图）。
+      try {
+        await fn();
+      } catch (e) {
+        if (S.abortCtrl && S.abortCtrl.signal.aborted) throw e;
+        const _msg = (e && (e.message || String(e))) || '未知错误';
+        Render.devLog && Render.devLog('err', `[夜间·${key}] 出错已跳过：${(e && e.stack) || _msg}`);
+        Render.log && Render.log('system', `⚠️ 夜间「${key}」步骤出错，已自动跳过并继续：${_msg.slice(0,100)}`);
+      }
       S._nightRun.done.push(key);
     };
     const alive = S.players.filter(p => p.alive);
