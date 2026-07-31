@@ -5887,7 +5887,6 @@ function loadGame(slotArg, opts) {
     }
 
     gameRecord = snap.gameRecord || [];
-    dedupeRoundSections(gameRecord); // ★ 清掉旧存档里重复的「第N夜/第N天」分段（卡死重跑残留）
     playerConfigs = purgeRemovedPronounConfigs(snap.playerConfigs || {});
 
     // 刷新UI
