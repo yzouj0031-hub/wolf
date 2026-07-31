@@ -8,6 +8,7 @@
 - 支持自定义角色和多种特殊技能
 - 提供存档、复盘与观战体验
 - 支持桌面端、移动端和 PWA 离线访问
+- 支持简体中文 / English 界面切换、英文规则导出与英文 AI 行动指令
 - 可构建为 Capacitor Android 应用
 
 ## 本地运行
@@ -52,6 +53,7 @@ npx cap sync android
 | 路径 | 用途 |
 | --- | --- |
 | `index.html` | 游戏主界面与核心逻辑 |
+| `i18n.js` | 中英界面、角色与规则翻译及语言切换 |
 | `sw.js` | PWA 离线缓存 |
 | `manifest.webmanifest` | PWA 名称、主题与图标配置 |
 | `native-http.js` | Web 与原生 HTTP 访问适配 |
@@ -67,5 +69,5 @@ npx cap sync android
 
 ## 致谢
 
-感谢 Allen、Claude 和 Codex 对项目的设计、开发与维护贡献。
+感谢 Allen、小克 和 小柴 对项目的设计、开发与维护贡献。
 

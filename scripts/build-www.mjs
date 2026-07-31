@@ -10,6 +10,7 @@ fs.mkdirSync(OUT, { recursive: true });
 // 单文件资源
 const FILES = [
   'index.html',
+  'i18n.js',
   'manifest.webmanifest',
   'sw.js',
   'tablet.css',
@@ -20,7 +21,7 @@ const FILES = [
   'style-preview.html'
 ];
 // 目录资源
-const DIRS = ['icons'];
+const DIRS = ['icons', 'en'];
 
 let n = 0;
 for (const f of FILES) {

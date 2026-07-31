@@ -1,7 +1,8 @@
-const CACHE_NAME = 'wolf-pwa-v12-i18n-complete';
+const CACHE_NAME = 'wolf-en-pwa-v2-ui-translation';
 const APP_SHELL = [
   './',
   './index.html',
+  './storage-scope.js',
   './i18n.js',
   './manifest.webmanifest',
   './tablet.css',
@@ -19,7 +20,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(key => key.startsWith('wolf-pwa-') && key !== CACHE_NAME).map(key => caches.delete(key))
+      keys.filter(key => key.startsWith('wolf-en-') && key !== CACHE_NAME).map(key => caches.delete(key))
     ))
   );
   self.clients.claim();
