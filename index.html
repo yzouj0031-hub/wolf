@@ -3812,6 +3812,29 @@ function purgeRemovedPronounConfigs(configs) {
 }
 let piResolve = null, cpResolve = null;
 let gameRecord = [], curNames = [];
+// ★ 分段去重：旧版夜晚重复执行会往 gameRecord 塞两个「第N夜/第N天」分段标题（连同重复内容），
+//   导致导出轮次选择器/摘要/回放里同一轮出现两次。这里把重复的分段整段清掉、只保留最后（完整）那一份。
+//   一个角色每轮至多行动一次，同名分段必为卡死重跑的残留，删早留晚安全。纯清理历史记录，不动对局状态。
+function dedupeRoundSections(rec) {
+  if (!Array.isArray(rec) || rec.length < 3) return rec;
+  const isHeader = r => r && r.type === 'system' && typeof r.text === 'string' && /^第\d+[夜天]$/.test(r.text);
+  const headers = [];
+  for (let i = 0; i < rec.length; i++) if (isHeader(rec[i])) headers.push({ text: rec[i].text, start: i });
+  if (headers.length < 2) return rec;
+  const lastIdx = {};
+  headers.forEach((h, idx) => { lastIdx[h.text] = idx; });
+  const ranges = [];
+  headers.forEach((h, idx) => {
+    if (lastIdx[h.text] !== idx) {
+      const end = (idx + 1 < headers.length) ? headers[idx + 1].start : rec.length;
+      ranges.push([h.start, end]);
+    }
+  });
+  if (!ranges.length) return rec;
+  ranges.sort((a, b) => b[0] - a[0]);
+  for (const [s, e] of ranges) rec.splice(s, e - s);
+  return rec;
+}
 
 /* ================================================================
  *  § 内置BGM资源（GitHub直链）
@@ -5864,6 +5887,7 @@ function loadGame(slotArg, opts) {
     }
 
     gameRecord = snap.gameRecord || [];
+    dedupeRoundSections(gameRecord); // ★ 清掉旧存档里重复的「第N夜/第N天」分段（卡死重跑残留）
     playerConfigs = purgeRemovedPronounConfigs(snap.playerConfigs || {});
 
     // 刷新UI
