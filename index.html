@@ -2383,6 +2383,7 @@ body.has-wp::after {
           <button class="be" id="btn-mvp">🏆 MVP</button>
           <button class="be" id="btn-match-replay" style="display:none" title="按真实事件顺序观看本局">🎬 对局回放</button>
           <button class="be" id="btn-export">📄 导出</button>
+          <button class="be" id="btn-prompt-lib" title="管理可分配给不同模型的长篇提示词模板">📚 提示词库</button>
           <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
           <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
           <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
@@ -2550,7 +2551,9 @@ body.has-wp::after {
     </div>
     <!-- 预设输入 -->
     <div style="margin-bottom:8px">
-      <div style="font-size:.72em;color:#8aa0b0;margin-bottom:3px">📋 预设（追加到人设末尾）</div>
+      <div style="font-size:.72em;color:#8aa0b0;margin-bottom:3px">📚 应用提示词库模板（最高优先级）</div>
+      <select id="pc-prompt-template" style="width:100%;margin-bottom:8px"><option value="">-- 无 --</option></select>
+      <div style="font-size:.72em;color:#8aa0b0;margin-bottom:3px">📋 额外短指令（追加到人设末尾）</div>
       <textarea id="pc-preset" rows="3" placeholder="例：说话时在句末加上「——江户川柯南说」&#10;例：所有感叹号替换为句号，语气更冷静" style="width:100%;resize:vertical;background:rgba(0,0,0,0.3);border:1px solid rgba(104,184,232,0.15);color:#a0c8d8;border-radius:var(--r);padding:6px 8px;font-size:.78em;font-family:var(--font-body)"></textarea>
     </div>
     <!-- 正则列表 -->
@@ -2666,6 +2669,22 @@ body.has-wp::after {
     <div style="display:flex;gap:8px;margin-top:12px">
       <button id="mc-confirm" style="flex:1;background:rgba(245,160,32,0.2);border:1px solid #f5a020;color:#f5c060;padding:8px;border-radius:var(--r);font-size:.85em;cursor:pointer">✅ 确认执行</button>
       <button id="mc-skip" style="flex:1;background:rgba(100,100,100,0.15);border:1px solid rgba(200,200,200,0.2);color:#8a8a8a;padding:8px;border-radius:var(--r);font-size:.85em;cursor:pointer">⏭ 跳过</button>
+    </div>
+  </div>
+</div>
+
+<div class="epop" id="prompt-lib-modal">
+  <div class="ebox" style="max-width:600px;width:90%">
+    <h3>📚 模型提示词库</h3>
+    <div id="prompt-lib-list-view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:.8em;color:#8a8090">管理模型专属长提示词</span><button id="prompt-lib-add-btn">➕ 新增</button></div>
+      <div id="prompt-lib-list" style="max-height:300px;overflow:auto"></div>
+      <div class="btns"><button id="prompt-lib-close">关闭</button></div>
+    </div>
+    <div id="prompt-lib-edit-view" style="display:none;flex-direction:column;gap:10px">
+      <input type="hidden" id="prompt-edit-id"><input id="prompt-edit-name" placeholder="模板名称">
+      <textarea id="prompt-edit-content" placeholder="提示词内容（无字数限制）" style="height:300px;resize:vertical"></textarea>
+      <div class="btns"><button id="prompt-edit-save">💾 保存</button><button id="prompt-edit-cancel">取消</button></div>
     </div>
   </div>
 </div>
@@ -3538,9 +3557,9 @@ ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
   + '\n\n【带刀补充规则】其他狼系全部出局后，你每晚可以正常刀一名其他玩家，也可以选择【空刀】制造平安夜；系统必须尊重空刀，不能随机补目标。你不能主动把自己选作刀口，但魔术师交换仍可能把刀间接转移到你身上。';
 
 // 子狐与机械狼的交互：机械狼始终属于狼阵营；平民伪装只欺骗真正的预言家，不欺骗子狐。
-ALL_ROLES.fox.desc = '好人神职。第2夜起每晚媚惑一人：若他是狼（含机械狼）→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营；目标知道自己被媚惑，但不知道子狐是谁。';
-ALL_ROLES.fox.guide += '\n\n【机械狼交互】机械狼无论是否已经带刀，真实阵营始终是狼；媚惑命中机械狼会确认狼阵营并让当晚全部狼人禁刀。机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定。\n【目标提示】任何目标都会私下知道本夜遭到子狐媚惑，但不会知道哪位玩家是子狐。若好人目标的主动技能确实被封，他还会得到该技能没有生效的明确记录；没有主动技能或本夜没有实际发动技能的人只知道被媚惑，不会凭空得到行动失败记录。';
-ALL_ROLES.mechwolf.guide += '\n\n【子狐交互】你始终属于狼阵营；被子狐媚惑时会触发当晚全体狼人禁刀。即使已经学到平民并获得好人查验伪装，也只能骗过真正的预言家，不能免疫或欺骗子狐的阵营判定。';
+ALL_ROLES.fox.desc = '好人神职。第2夜起每晚媚惑一人：若他是狼（含机械狼）→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营；目标知道自己被媚惑，但不知道子狐是谁。媚惑可被蚀时狼妃反弹。';
+ALL_ROLES.fox.guide += '\n\n【机械狼交互】机械狼无论是否已经带刀，真实阵营始终是狼；媚惑命中机械狼会确认狼阵营并让当晚全部狼人禁刀。机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定。\n【蚀时狼妃交互】如果你选中的玩家正被蚀时狼妃锁定、且该锁本夜尚未触发，媚惑会反弹到你自己：你只能得到自己的好人阵营结果，原目标不受影响也不会收到被媚惑提示。\n【目标提示】任何实际受到媚惑的目标都会私下知道本夜遭到子狐类媚惑，但不会知道施法玩家是谁。若好人目标的主动技能确实被封，他还会得到该技能没有生效的明确记录；没有主动技能或本夜没有实际发动技能的人只知道被媚惑，不会凭空得到行动失败记录。';
+ALL_ROLES.mechwolf.guide += '\n\n【子狐交互】你始终属于狼阵营；被子狐媚惑时会触发当晚全体狼人禁刀。即使已经学到平民并获得好人查验伪装，也只能骗过真正的预言家，不能免疫或欺骗子狐的阵营判定。你也可以学习子狐，从下一夜起每晚发动机械媚惑；它同样会被蚀时狼妃反弹。';
 
 // ★ 机械狼学习映射：学到某角色 → 实际获得的技能类型
 function mechSkillOf(roleId) {
@@ -3552,6 +3571,7 @@ function mechSkillOf(roleId) {
     case 'knight': return 'knight';
     case 'magician': return 'magician';
     case 'villager': return 'villager';
+    case 'fox': return 'fox';
     case 'werewolf': case 'wolfking': case 'wolfbeauty': case 'whitewolf': return 'wolf';
     default: return null; // mechwolf / 自创未映射角色 → 只知道身份
   }
@@ -3609,7 +3629,8 @@ function mechSkillTextForExport(roleId, skill, opts) {
     knight: '一次性决斗——白天可在自己的发言回合或投票前最终确认时指名处死一人（必死、不看阵营），决斗后翻牌暴露但不出局',
     wolf: '带刀后为破盾刀（无视守护/解药）',
     magician: '每晚得知魔术师当夜的真实换位或空过；带刀时可据此反算名义刀口，但狼刀仍受换位影响',
-    villager: '从下一夜起获得平民身份伪装：预言家查验机械狼显示为好人'
+    villager: '从下一夜起获得平民身份伪装：预言家查验机械狼显示为好人',
+    fox: '从下一夜起每晚可发动机械媚惑：狼目标令全狼禁刀，好人目标被封夜间主动技能；你私下得知阵营'
   };
   return map[skill] || '该身份无可复制技能（只知道身份）';
 }
@@ -3783,6 +3804,7 @@ function freshState(prev) {
 }
 let S = freshState();
 let playerConfigs = {}, currentCfgP = -1;
+let promptLibrary = {};
 function purgeRemovedPronounConfigs(configs) {
   const out = configs && typeof configs === 'object' ? configs : {};
   Object.values(out).forEach(cfg => { if (cfg && typeof cfg === 'object') delete cfg.pronoun; });
@@ -4837,7 +4859,7 @@ function buildRulesExportLegacy(includeAllRoles = false) {
   lines.push('· 【小丑判定】（仅当本局配置了小丑时生效）小丑属第三方独立阵营，不与任何一方共享胜负。唯一胜利条件：被白天【投票放逐】或【审判定罪】处决——被处决的瞬间小丑单独获胜、游戏立即结束、好人与狼人皆输。被狼刀死、被毒死、被猎人/狼王带走、被骑士决斗、被白狼王自爆带走均不触发（小丑照常出局且落败）。小丑无任何夜间/白天主动技能；预言家查验小丑显示为好人。小丑存活但游戏被其他阵营终结时，小丑落败。');
   lines.push('· 【连环杀手判定】（仅当本局配置了连环杀手时生效）连环杀手属第三方独立阵营。每晚可独立袭击一名玩家（可空刀），其袭击与狼刀完全独立——同一晚可能死两人。守卫守护可挡下其袭击；女巫的解药只对狼刀有效、救不了被杀手袭击的人；魔术师交换不影响其袭击（交换只重定向狼刀）；被杀手袭击身亡按夜间死亡处理，死亡技能（如猎人开枪）照常可发动。预言家查验连环杀手显示为好人。胜负判定：连环杀手存活期间，狼人阵营与好人阵营的任何胜利条件都不成立（必须先除掉杀手）；当场上只剩连环杀手一人存活时，杀手单独获胜。');
   lines.push('· 【丘比特/爱神判定】（仅当本局配置了丘比特时生效）丘比特本身是好人神职，仅第一夜在其他身份之前行动一次：必须指定两名不同玩家成为恋人，可以把自己列为其中一人。恋人互相知道对方是自己的恋人，但不因此获知对方的具体角色。任何一名恋人以任何死因出局，另一人都会立即以“恋人殉情”死亡，无遗言；殉情是公开关系事件，不验证两人的原身份或阵营。如果恋人原本同阵营，仍按原阵营胜负；如果原本不同阵营，两人转为隐藏情侣阵营，并在两人均存活时阻止原阵营提前宣胜；只有当场上仅剩这两名恋人时，他们才共同获胜。恋人殉情是关系状态的即时结算，先于普通阵营胜负判定，不会因原死亡刚好达成某阵营条件就只死一半。');
-  lines.push('· 【机械狼判定】（仅当本局配置了机械狼时生效）机械狼属狼人阵营，但与狼队【互不相认】、不参与狼队夜刀讨论、不能自爆。① 学习：整局可在任意一夜学习一名其他玩家，仅一次，得知其真实身份并复制强化技能，从下一夜生效。学预言家→每晚查验一人的【准确角色名】（如女巫、白狼王），不只是阵营；学魔术师→每晚在魔术师行动后得知真实换位A↔B或空过，带刀时可据此反算名义刀口，但刀仍按换位正常重定向；学平民→获得身份伪装，生效后真正的预言家验机械狼显示为好人（此前查验不追溯改变）；学女巫→每晚可毒且被机械毒者不能发动死亡技能；学守卫→每晚守护且机械盾同时免疫狼刀与女巫毒；学猎人→出局时开枪；学骑士→一次性机械决斗；学狼系→带刀后为无视守护/解药的破盾刀。② 带刀：仅当除机械狼外的其他狼系角色全部出局后，机械狼才获得狼刀；每晚可刀一名其他玩家，也可选择【空刀】且系统不得随机补目标；不能主动自刀，但魔术师交换可能把刀间接转回机械狼。③ 默认伪装：未学平民或平民伪装尚未生效时，预言家查验机械狼仍显示狼人。');
+  lines.push('· 【机械狼判定】（仅当本局配置了机械狼时生效）机械狼属狼人阵营，但与狼队【互不相认】、不参与狼队夜刀讨论、不能自爆。① 学习：整局可在任意一夜学习一名其他玩家，仅一次，得知其真实身份并复制强化技能，从下一夜生效。学预言家→每晚查验一人的【准确角色名】（如女巫、白狼王），不只是阵营；学魔术师→每晚在魔术师行动后得知真实换位A↔B或空过，带刀时可据此反算名义刀口，但刀仍按换位正常重定向；学平民→获得身份伪装，生效后真正的预言家验机械狼显示为好人（此前查验不追溯改变）；学子狐→每晚发动机械媚惑，狼目标令全狼禁刀、好人目标被封夜间主动技能，并私下得知阵营；机械媚惑也可被蚀时狼妃反弹；学女巫→每晚可毒且被机械毒者不能发动死亡技能；学守卫→每晚守护且机械盾同时免疫狼刀与女巫毒；学猎人→出局时开枪；学骑士→一次性机械决斗；学狼系→带刀后为无视守护/解药的破盾刀。② 带刀：仅当除机械狼外的其他狼系角色全部出局后，机械狼才获得狼刀；每晚可刀一名其他玩家，也可选择【空刀】且系统不得随机补目标；不能主动自刀，但魔术师交换可能把刀间接转回机械狼。③ 默认伪装：未学平民或平民伪装尚未生效时，预言家查验机械狼仍显示狼人。');
   lines.push('');
   lines.push('（提示：以上为本局规则框架，具体身份能力以"在场角色及技能"一节为准。请以本局规则进行推理与发言。）');
 
@@ -6154,6 +6176,7 @@ function saveCfg() {
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     pconfigs:playerConfigs,
+    promptLibrary,
     hostEnable:$('host-enable')?$('host-enable').checked:true, hostMode:$('host-mode')?$('host-mode').value:'emcee', hostUrl:$('h-url')?$('h-url').value:'', hostKey:$('h-key')?$('h-key').value:'', hostModel:$('h-model')?$('h-model').value:'', hostVerbosity:$('host-verbosity')?$('host-verbosity').value:'normal',
     spectatorList, specEnable:$('spec-enable')?$('spec-enable').checked:false, specFreq:$('spec-freq')?$('spec-freq').value:'mid',
     conc:{speak:getC('c-speak'),vote:getC('c-vote'),wolf:getC('c-wolf'),wvote:getC('c-wvote'),trial:getC('c-trial'),end:getC('c-end')},
@@ -6212,6 +6235,7 @@ function loadCfg() {
         }
       }
     }
+    if (d.promptLibrary && typeof d.promptLibrary === 'object') promptLibrary = d.promptLibrary;
     if (d.hostEnable!==undefined&&$('host-enable')) $('host-enable').checked=d.hostEnable;
     if (d.hostMode&&$('host-mode')) $('host-mode').value=d.hostMode;
     if (d.hostUrl&&$('h-url')) $('h-url').value=d.hostUrl;
@@ -7274,7 +7298,7 @@ function buildSystemPrompt(p) {
   const guide = ALL_ROLES[p.role.id] ? ALL_ROLES[p.role.id].guide : '';
 
   // ★ 动态发言风格：硬核模式 vs 自然模式
-  const styleBlock = isHardcore ?
+  let styleBlock = isHardcore ?
     `\n\n【🔥 硬核模式——高阶战术与结构化思考】
 你是一个极具压迫感的狼人杀高阶玩家。
 发言要求：熟练使用专业术语（悍跳、查杀、金水、银水、抗推位、倒钩、深水狼、票型压制、容错率、逻辑闭环、收益论等）来盘人。优先用严密的逻辑论据压制对手，但也可以偶尔使用"我感觉""直觉上"来伪装推理深度或掩饰战术意图——真正的高手知道什么时候该展现逻辑、什么时候该装傻。
@@ -7290,6 +7314,8 @@ function buildSystemPrompt(p) {
   const cosplayOn = $('m-cosplay') && $('m-cosplay').checked;
   const hasPersona = !!(playerConfigs[p.id] && playerConfigs[p.id].persona && playerConfigs[p.id].persona.trim());
   const hasPreset  = !!(playerConfigs[p.id] && playerConfigs[p.id].preset && playerConfigs[p.id].preset.trim());
+  const selectedPrompt = playerConfigs[p.id] && promptLibrary[playerConfigs[p.id].promptId];
+  if (selectedPrompt && selectedPrompt.content) styleBlock += '\n\n【模型专属指令（最高优先级）】\n' + selectedPrompt.content.trim();
   const mbtiBlock = (!S.pureAI && p.mbti && !cosplayOn) ?
     `\n【你是谁——先立住这个人，再开口】你叫「${p.name}」，性格(${p.mbtiKey})：${p.mbti.desc} 优点:${p.mbti.pos} 缺点:${p.mbti.neg}\n在心里把自己当成一个有脾气、有立场、有判断的具体的人来玩，而不是一个中立的分析程序。你有自己的观点，不必附和别人；别人说什么你先用自己的脑子过一遍，觉得不对就反驳，觉得对也要讲出你自己的理由。带点情绪、带点态度地说话，像真人吵架拌嘴，不要写分析报告、不要罗列要点、不要当复读机跟着大流走。\n但记住：推理和博弈才是核心，性格只是你说话的方式，别光顾着演而忘了找狼/藏身份。\n注意：不要在发言中提到你的性格类型(${p.mbtiKey})！` : '';
   // ★ 角色扮演(Cosplay)人格注入 — 从 playerConfigs 读取用户自定义人设
@@ -7498,7 +7524,7 @@ ${userPersona}
   if (p.role.id === 'fox') {
     const foxHistory = (gameRecord || [])
       .filter(r => r && r.type === 'night_action' && r.role === 'fox')
-      .map(r => `第${r.round}夜：媚惑${r.target} → ${r.result === 'blockKill' ? '🐺狼阵营（当晚全狼禁刀）' : '✅好人阵营（其当晚主动夜间技能被封）'}`);
+      .map(r => `第${r.round}夜：媚惑${r.target} → ${r.result === 'rebounded' ? '🌒被反弹到自己（只确认自己是好人；原目标阵营未知、未受影响）' : r.result === 'blockKill' ? '🐺狼阵营（当晚全狼禁刀）' : '✅好人阵营（其当晚主动夜间技能被封）'}`);
     if (foxHistory.length) {
       keyParts.push('【子狐媚惑结果·完整永久记录】\n' + foxHistory.join('\n') + '\n这些是你亲自得到的阵营铁信息，但不等于知道目标的精确角色。');
     }
@@ -7507,8 +7533,8 @@ ${userPersona}
   // 被子狐选中的玩家会永久知道“本夜遭到子狐媚惑”，但不知道子狐是谁。
   // 这条提示独立于是否真的发动主动技能；具体的技能失败仍由 skill-muted 记录说明。
   const foxTargetHistory = (gameRecord || [])
-    .filter(r => r && r.type === 'night_action' && r.role === 'fox' && (r.targetId === p.id || (!Number.isInteger(r.targetId) && r.target === p.name)))
-    .map(r => `第${r.round}夜：你被子狐媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道哪名玩家是子狐）`);
+    .filter(r => r && r.type === 'night_action' && (r.role === 'fox' || r.role === 'mechwolf_fox') && foxCharmActualTargetId(r) === p.id)
+    .map(r => r.result === 'rebounded' ? `第${r.round}夜：一次媚惑被反弹到你自己；原选择目标未受影响，反弹不再产生禁刀或封技效果` : `第${r.round}夜：你被子狐类媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道施法玩家是谁）`);
   if (foxTargetHistory.length) {
     keyParts.push('【你遭到子狐媚惑的完整永久记录】\n' + foxTargetHistory.join('\n'));
   }
@@ -7643,7 +7669,7 @@ ${userPersona}
     const parts = [];
     if (S.mechLearn && S.mechLearn.learned) {
       const currentMechSkill = S.mechLearn.skill || mechSkillOf(S.mechLearn.role);
-      const skillTxt = (S.mechLearn.role==='knight') ? ('一次性决斗——白天可在自己的发言回合或投票前最终确认时指名处死一人（必死、不看阵营），决斗后翻牌暴露但不出局；发言时用 <action>DUEL:P编号</action> 触发，未使用则投票前会再次询问' + (S._mechDuelUsed?'（⚠️已用过，不能再决斗）':'（尚未使用）')) : ({seer:'每晚查验一名玩家的准确身份（具体角色名）',guard:'每晚可守护一名玩家（不能连守同一人）；机械盾守到的人当晚免疫狼刀+女巫毒',witch:'每晚可毒杀一名玩家',hunter:'出局时（被毒除外）可开枪带走一人',wolf:'带刀后为破盾刀（无视守护/解药）',magician:'每晚得知魔术师的真实换位或空过；可据此反算刀口，但刀仍受换位影响',villager:'平民身份伪装已生效后，预言家验你显示好人'}[currentMechSkill] || '该身份无可复制技能（只知道身份）');
+      const skillTxt = (S.mechLearn.role==='knight') ? ('一次性决斗——白天可在自己的发言回合或投票前最终确认时指名处死一人（必死、不看阵营），决斗后翻牌暴露但不出局；发言时用 <action>DUEL:P编号</action> 触发，未使用则投票前会再次询问' + (S._mechDuelUsed?'（⚠️已用过，不能再决斗）':'（尚未使用）')) : ({seer:'每晚查验一名玩家的准确身份（具体角色名）',guard:'每晚可守护一名玩家（不能连守同一人）；机械盾守到的人当晚免疫狼刀+女巫毒',witch:'每晚可毒杀一名玩家',hunter:'出局时（被毒除外）可开枪带走一人',wolf:'带刀后为破盾刀（无视守护/解药）',magician:'每晚得知魔术师的真实换位或空过；可据此反算刀口，但刀仍受换位影响',villager:'平民身份伪装已生效后，预言家验你显示好人',fox:'每晚可媚惑一人：狼目标令全狼禁刀，好人目标被封夜间主动技能；你私下得知阵营'}[currentMechSkill] || '该身份无可复制技能（只知道身份）');
       parts.push('· 你已在第'+S.mechLearn.learnRound+'夜学习了'+S.mechLearn.targetName+'，习得【'+S.mechLearn.roleName+'】→ '+skillTxt+'。'+(S.mechLearn.learnRound===S.round?'（本领效果从下一晚起生效）':''));
       if (S.mechSeerLog && Object.keys(S.mechSeerLog).length > 0) {
         const lines = Object.entries(S.mechSeerLog).map(([r,info])=>'  第'+r+'夜验'+info.target+'→'+info.result);
@@ -12384,6 +12410,7 @@ const NightActions = {
   async magician(alive) {
     const mg = alive.find(p => p.role.id==='magician');
     if (!mg) return;
+    if (nightSkillMuted(mg)) { recordNightSkillMuted(mg, '号码交换'); return; }
     if (!isAnon()) Render.log('night-detail','🎩 魔术师行动…');
     Render.setSpeaking(mg.id, true);
     const pairEq = (x,y) => !!x && !!y && ((x[0]===y[0]&&x[1]===y[1])||(x[0]===y[1]&&x[1]===y[0]));
@@ -12479,7 +12506,7 @@ const NightActions = {
         if (v !== 'None') picked = findPlayer(v, ts);
       } else {
         const targets = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
-        const ctx = '【机械狼·第'+S.round+'夜·学习环节】\n你整局只能学习【一次】，学到的身份会习得强化技能（预言家→每晚验准确角色名；魔术师→每晚看真实换位；平民→生效后预言家验你显示好人；女巫→每晚毒；守卫→每晚强化守护；猎人→死亡开枪；骑士→一次性机械决斗；狼系→破盾刀；机械狼/未映射自创角色→只知身份）。学完从【下一晚】起生效。\n可学习对象：'+targets+
+        const ctx = '【机械狼·第'+S.round+'夜·学习环节】\n你整局只能学习【一次】，学到的身份会习得强化技能（预言家→每晚验准确角色名；魔术师→每晚看真实换位；平民→生效后预言家验你显示好人；女巫→每晚毒；守卫→每晚强化守护；猎人→死亡开枪；骑士→一次性机械决斗；子狐→每晚机械媚惑；狼系→破盾刀；机械狼/未映射自创角色→只知身份）。学完从【下一晚】起生效。\n可学习对象：'+targets+
           '\n先在 thinking 里权衡：现在学能让技能更早生效、增加使用次数并避免自己先出局却没学；继续等能利用之后的发言和票型提高命中所需身份的概率，但可能来不及生效。平民伪装和魔术师情报都不是白学。想学谁、估计他是什么身份、该技能预计还能产生几夜价值？第一夜也不预设答案：收益够高就学，保留机会更值就先不学。';
         const act = '你的决定：\n<action>要学的玩家名字，或 None（今晚先不学）</action>\n只写这一行。';
         const r = await nightTwoStep(mw, ctx, act);
@@ -12512,6 +12539,7 @@ const NightActions = {
           wolf:'你带刀之后，狼刀变为【破盾刀】，无视守卫守护和女巫解药。',
           magician:'从下一晚起，每晚在魔术师行动后得知其真实换位A↔B或空过；带刀时可据此反算名义刀口，但你的刀仍按换位正常重定向。',
           villager:'从下一晚起获得【平民身份伪装】：真正的预言家查验你显示为好人；此前查验记录不改变。',
+          fox:'从下一晚起，每晚可媚惑一人：若对方是狼则当晚全狼禁刀；若对方是好人则封其本夜主动技能。你会私下得知对方阵营。',
           null:'该身份没有可复制的夜间技能，你只知道了他的身份，未获得任何技能（白学）。'
         }[ml.skill];
         const seerMaskNote = ml.skill === 'villager'
@@ -12763,6 +12791,7 @@ const NightActions = {
   async guard(alive) {
       const gu = alive.find(p => p.role.id==='guard');
     if (!gu) return;
+    if (nightSkillMuted(gu)) { recordNightSkillMuted(gu, '守护'); return; }
     if (!isAnon()) Render.log('night-detail','🛡️ 守卫行动…');
     Render.setSpeaking(gu.id,true);
     // ★ fix: lastGuard 用 -1 表示"没有上次"，避免 null !== null 失效
@@ -13200,7 +13229,14 @@ ${magicKillDecisionHint}
 <game>对队友说的话(口语化,30-140字，说清名义刀口、希望的最终落点和理由)。⚠️ 不要在这里写 &lt;interrupt&gt; 等标签。</game>
 <action>提议刀的目标完整名字（从【可刀目标】里选一个）</action>
 <interrupt>no</interrupt>`;
-      const result = await speakOneWolf(p, prompt, true);
+      let result;
+      try {
+        result = await speakOneWolf(p, prompt, true);
+      } catch (e) {
+        if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
+        Render.devLog && Render.devLog('warn', `[狼队开场] ${p.name} 调用失败，跳过其开场（后续独立投票兜底）：${e && e.message}`);
+        continue;
+      }
       openingRecords[p.id] = result;
       if (!wolfRun.openingDone.includes(p.id)) wolfRun.openingDone.push(p.id);
     }
@@ -13265,7 +13301,14 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
 <game>你的回应(口语化,可以附议/反驳/补充,30-140字；有魔术师时说清名义刀口与预期落点)</game>
 <action>你最终支持的刀口名字</action>
 <interrupt>yes 或 no</interrupt>`;
-        const result = await speakOneWolf(p, prompt, false);
+        let result;
+        try {
+          result = await speakOneWolf(p, prompt, false);
+        } catch (e) {
+          if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
+          Render.devLog && Render.devLog('warn', `[狼队回响] ${p.name} 调用失败，保留其开场提议（后续独立投票兜底）：${e && e.message}`);
+          continue;
+        }
         // 阶段 2 的回响覆盖开场记录(以最新表态为准)
         openingRecords[p.id] = result;
         if (!wolfRun.echoDone.includes(p.id)) wolfRun.echoDone.push(p.id);
@@ -13574,6 +13617,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     if (!wi) return;
     // ★ 两瓶药都用完，不再叫醒女巫
     if (!S.witchPotions.save && !S.witchPotions.poison) return;
+    if (nightSkillMuted(wi)) { recordNightSkillMuted(wi, '用药'); return; }
     if (!isAnon()) Render.log('night-detail','🧙‍♀️ 女巫行动…');
     Render.setSpeaking(wi.id,true);
     // ★ 规则修正：有救药就能看到刀口，没救药看不到
@@ -13832,6 +13876,51 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     Render.setSpeaking(se.id,false);
   },
 
+  // 🤖🦊 机械狼学到子狐：从学习后的下一夜起，在真子狐之前发动机械媚惑。
+  async _mechFox(mw, alive) {
+    if (!mw || !mw.alive || !S.mechLearn || !S.mechLearn.learned || S.mechLearn.skill !== 'fox') return;
+    if (S.mechLearn.learnRound >= S.round || S.round < 2) return;
+    if (nightSkillMuted(mw)) { recordNightSkillMuted(mw, '机械媚惑'); return; }
+    if (!isAnon()) Render.log('night-detail','🤖🦊 机械狼·媚惑行动…');
+    Render.setSpeaking(mw.id, true);
+    const ts = alive.filter(p => p.id !== mw.id);
+    let t = null;
+    if (mw.isPlayer) {
+      const v = await waitChoice('🤖🦊 媚惑谁？（是狼→今晚全狼禁刀；是好人→封他今晚的技能）','🤖🦊 媚惑', ts.map(x=>({label:x.name,value:x.name})));
+      t = findPlayer(v, ts);
+    } else {
+      const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
+      const ctx = '【机械狼·学到子狐·第'+S.round+'夜·媚惑】\n可选目标：'+targetList+'\n你每晚媚惑一人并得知阵营：狼目标会令当晚全狼禁刀；好人目标的主动夜间技能会失效。你是狼阵营，优先用它封锁疑似神职，避免命中你已知的狼。';
+      const act = '你决定媚惑谁？\n<action>玩家名（精确复制，不要只写P编号）</action>';
+      const r = await nightTwoStep(mw, ctx, act);
+      logNightThinking(mw, r);
+      t = findPlayer(r.action, ts) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, ts, 'mechfox'), ts)) || ts[Math.floor(Math.random()*ts.length)];
+    }
+    if (t) {
+      const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
+      if (rebounded) {
+        S.nightData._concubineTriggered = true;
+        mw.memory.push({role:'system', content:'【🤖媚惑·私密】你选择媚惑'+t.name+'，但能力被反弹到你自己；你只确认了自己属于【🐺狼阵营】，原目标阵营仍未知且未受影响。'});
+        mw.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你不知道反弹锁定由哪名玩家施放。'});
+        if (!isAnon()) Render.log('night-result','🤖🦊 机械狼媚惑'+t.name+'时被🌒反弹，原目标未受影响');
+        gameRecord.push({type:'night_action', role:'mechwolf_fox', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, actualTargetId:mw.id, actualTarget:mw.name, result:'rebounded'});
+      } else {
+        const isWolf = t.role.team === 'bad';
+        if (isWolf) S.nightData.foxBlockKill = true;
+        else {
+          if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id);
+          if (!S.nightData.skillMuteSources) S.nightData.skillMuteSources = {};
+          S.nightData.skillMuteSources[t.id] = 'fox';
+        }
+        t.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你被媚惑了。'+(isWolf?'本夜狼人阵营的狼刀因此被禁止。':'如果你本夜发动夜间主动技能，该技能会被封锁、不会生效。')+'你知道能力类型，但不知道施法玩家是谁。'});
+        mw.memory.push({role:'system', content:'【🤖媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')});
+        if (!isAnon()) Render.log('night-result','🤖🦊 机械狼媚惑了'+t.name+'（'+(isWolf?'狼·禁刀':'好人·封技')+'）');
+        gameRecord.push({type:'night_action', role:'mechwolf_fox', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, actualTargetId:t.id, actualTarget:t.name, result:isWolf?'blockKill':'mute'});
+      }
+    }
+    Render.setSpeaking(mw.id, false);
+  },
+
   // 🦊 子狐·媚惑（第2夜起，每晚选1人）：目标是狼→当晚全狼禁刀；是好人→封其今晚夜间主动技。私密告知阵营。
   async fox(alive) {
     const fo = alive.find(p => p.role.id==='fox');
@@ -13854,17 +13943,26 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       t = findPlayer(r.action, ts) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, ts, 'fox'), ts)) || ts[Math.floor(Math.random()*ts.length)];
     }
     if (t) {
-      const isWolf = t.role.team==='bad';
-      if (isWolf) S.nightData.foxBlockKill = true;
-      else {
-        if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id);
-        if (!S.nightData.skillMuteSources) S.nightData.skillMuteSources = {};
-        S.nightData.skillMuteSources[t.id] = 'fox';
+      const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
+      if (rebounded) {
+        S.nightData._concubineTriggered = true;
+        fo.memory.push({role:'system', content:'【媚惑·私密】你选择媚惑'+t.name+'，但能力被反弹到你自己；你只确认了自己属于【✅好人阵营】，原目标阵营仍未知且未受影响。'});
+        fo.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你不知道反弹锁定由哪名玩家施放。'});
+        if (!isAnon()) Render.log('night-result','🦊 子狐媚惑'+t.name+'时被🌒反弹，原目标未受影响');
+        gameRecord.push({type:'night_action', role:'fox', round:S.round, casterId:fo.id, targetId:t.id, target:t.name, actualTargetId:fo.id, actualTarget:fo.name, result:'rebounded'});
+      } else {
+        const isWolf = t.role.team==='bad';
+        if (isWolf) S.nightData.foxBlockKill = true;
+        else {
+          if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id);
+          if (!S.nightData.skillMuteSources) S.nightData.skillMuteSources = {};
+          S.nightData.skillMuteSources[t.id] = 'fox';
+        }
+        t.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你被子狐媚惑了。'+(isWolf?'本夜狼人阵营的狼刀因此被禁止。':'如果你本夜发动夜间主动技能，该技能会被封锁、不会生效。')+'你知道能力来源是子狐，但不知道哪名玩家是子狐。'});
+        fo.memory.push({role:'system', content:'【媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')+' ⚠️只有你知道这条信息。'});
+        if (!isAnon()) Render.log('night-result','🦊 子狐媚惑了'+t.name+'（'+(isWolf?'狼·禁刀':'好人·封技')+'）');
+        gameRecord.push({type:'night_action', role:'fox', round:S.round, casterId:fo.id, targetId:t.id, target:t.name, actualTargetId:t.id, actualTarget:t.name, result:isWolf?'blockKill':'mute'});
       }
-      t.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你被子狐媚惑了。'+(isWolf?'本夜狼人阵营的狼刀因此被禁止。':'如果你本夜发动夜间主动技能，该技能会被封锁、不会生效。')+'你知道能力来源是子狐，但不知道哪名玩家是子狐。'});
-      fo.memory.push({role:'system', content:'【媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')+' ⚠️只有你知道这条信息。'});
-      if (!isAnon()) Render.log('night-result','🦊 子狐媚惑了'+t.name+'（'+(isWolf?'狼·禁刀':'好人·封技')+'）');
-      gameRecord.push({type:'night_action', role:'fox', round:S.round, targetId:t.id, target:t.name, result:isWolf?'blockKill':'mute'});
     }
     Render.setSpeaking(fo.id, false);
   },
@@ -13991,6 +14089,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const pend = p._giftPending;
       if (!pend) continue;
       p._giftPending = null;
+      if (nightSkillMuted(p)) { recordNightSkillMuted(p, '获赐礼物选择'); continue; }
       const perm = pend.permanent;
       const GIFTS = [
         {k:'shield', label:'🛡️ 盾（今晚免一次夜死）'},
@@ -14444,8 +14543,9 @@ const PhaseHandlers = {
         await nightStep('wolf-strategy', async () => Render.log('night-detail','🐺 独狼局，无需密约。'));
       }
       // 🦊🌒🃏🎪 自创技能角色：须在守卫/女巫/预言家等好人主动技之前行动（子狐封刀封技/蚀时狼妃反弹/愚者护盾/奇迹商人赐予）
-      await nightStep('fox', () => NightActions.fox(alive));
       await nightStep('wolfconcubine', () => NightActions.wolfconcubine(alive));
+      await nightStep('mechwolf-fox', () => NightActions._mechFox(alive.find(p=>p.role.id==='mechwolf'), alive));
+      await nightStep('fox', () => NightActions.fox(alive));
       await nightStep('merchant', () => NightActions.merchant(alive));
       await nightStep('youshang', () => NightActions.youshang(alive));
       await nightStep('pick-gift', () => NightActions.pickGift(alive));
@@ -14487,8 +14587,9 @@ const PhaseHandlers = {
     }
     await nightStep('atmo-open', () => nightAtmo(2));
     // 🦊🌒🃏🎪 自创技能角色：须在守卫/女巫/预言家等好人主动技之前行动
-    await nightStep('fox', () => NightActions.fox(alive));
     await nightStep('wolfconcubine', () => NightActions.wolfconcubine(alive));
+    await nightStep('mechwolf-fox', () => NightActions._mechFox(alive.find(p=>p.role.id==='mechwolf'), alive));
+    await nightStep('fox', () => NightActions.fox(alive));
     await nightStep('merchant', () => NightActions.merchant(alive));
     await nightStep('youshang', () => NightActions.youshang(alive));
     await nightStep('pick-gift', () => NightActions.pickGift(alive));
@@ -15672,6 +15773,14 @@ async function compressAllMemories() {
 function nightSkillMuted(p){
   return !!(p && S.nightData && Array.isArray(S.nightData.foxMuteIds) && S.nightData.foxMuteIds.includes(p.id));
 }
+// 子狐与机械子狐共享同一套“实际受术目标”判定。反弹时原选择目标没有被媚惑，实际目标是施法者自己。
+function foxCharmActualTargetId(r){
+  if (!r) return null;
+  if (r.result === 'rebounded') return Number.isInteger(r.actualTargetId) ? r.actualTargetId : null;
+  if (Number.isInteger(r.targetId)) return r.targetId;
+  const legacy = S.players.find(p => p.name === r.target);
+  return legacy ? legacy.id : null;
+}
 // 被封者只获得“自己的技能未生效”这一有限视角，不获知封锁来源或施法者身份。
 // 同时写入结构化战报，供运行时提示、读档和个人视角导出永久重建，避免 AI 把失败行动编成成功记录。
 function recordNightSkillMuted(p, ability){
@@ -15710,24 +15819,9 @@ function reflectEffectTarget(caster, targetId){
   }
   return targetId;
 }
-// resolveNight 最前的自创技能预处理：子狐封技能（守卫/女巫/魔术师）、蚀时狼妃反弹（守卫守护/女巫毒）。
-//   预言家的封技能/反弹在其夜间行动源头即时处理，此处只补足需要按 nightData 结算的三类。
+// resolveNight 最前的自创技能预处理：夜间主动技能已在各自行动源头处理子狐封锁；此处只处理蚀时狼妃反弹。
 function applyCustomNightFx(){
   const nd = S.nightData; if (!nd) return;
-  // 🦊 子狐·封技能：清空被封好人当晚的夜间主动技贡献
-  if (Array.isArray(nd.foxMuteIds) && nd.foxMuteIds.length){
-    const guardP = S.players.find(p=>p.role.id==='guard');
-    if (guardP && nd.foxMuteIds.includes(guardP.id) && nd.guard!=null){ nd.guard=null; nd.lastGuard=null; recordNightSkillMuted(guardP, '守护'); }
-    const witchP = S.players.find(p=>p.role.id==='witch');
-    if (witchP && nd.foxMuteIds.includes(witchP.id)){
-      const witchActed = !!nd.witchSave || nd.witchPoison!=null;
-      if (nd.witchSave){ nd.witchSave=false; if(S.witchPotions) S.witchPotions.save=true; }        // 退还解药
-      if (nd.witchPoison!=null){ nd.witchPoison=null; if(S.witchPotions) S.witchPotions.poison=true; } // 退还毒药
-      if (witchActed) recordNightSkillMuted(witchP, '用药（药水已退回）');
-    }
-    const magP = S.players.find(p=>p.role.id==='magician');
-    if (magP && nd.foxMuteIds.includes(magP.id) && nd.magicSwap){ nd.magicSwap=null; recordNightSkillMuted(magP, '号码交换'); }
-  }
   // 🌒 蚀时狼妃·反弹：守卫守护 / 女巫毒 打到 X → 静默改到施法者自己（首个命中者触发）
   if (nd.concubineGuard != null && !nd._concubineTriggered){
     const guardP = S.players.find(p=>p.role.id==='guard' && p.alive);
@@ -18297,8 +18391,8 @@ function _buildPrivateInfoLines(p) {
   const lines = [];
 
   const foxTargetActs = (gameRecord || [])
-    .filter(r => r && r.type === 'night_action' && r.role === 'fox' && (r.targetId === p.id || (!Number.isInteger(r.targetId) && r.target === p.name)))
-    .map(r => `第${r.round}夜：你被子狐媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道哪名玩家是子狐）`);
+    .filter(r => r && r.type === 'night_action' && (r.role === 'fox' || r.role === 'mechwolf_fox') && foxCharmActualTargetId(r) === p.id)
+    .map(r => r.result === 'rebounded' ? `第${r.round}夜：一次媚惑被反弹到你自己；原选择目标未受影响，反弹不再产生禁刀或封技效果` : `第${r.round}夜：你被子狐类媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道施法玩家是谁）`);
   if (foxTargetActs.length) {
     lines.push(`你遭到子狐媚惑的记录：\n  ${foxTargetActs.join('\n  ')}`);
   }
@@ -18452,7 +18546,8 @@ function _buildPrivateInfoLines(p) {
     const mechActs = [];
     (gameRecord || []).forEach(rec => {
       if (rec.type !== 'night_action') return;
-      if (rec.role === 'mechwolf_guard') mechActs.push(`第${rec.round}夜：${rec.technical?'守护指令技术解析失败（非主动空守）':'机械守护'+(rec.target || '空守')}`);
+      if (rec.role === 'mechwolf_fox') mechActs.push(`第${rec.round}夜：机械媚惑${rec.target} → ${rec.result==='rebounded'?'被反弹到自己，原目标未受影响':rec.result==='blockKill'?'狼阵营（全狼禁刀）':'好人阵营（已封技）'}`);
+      else if (rec.role === 'mechwolf_guard') mechActs.push(`第${rec.round}夜：${rec.technical?'守护指令技术解析失败（非主动空守）':'机械守护'+(rec.target || '空守')}`);
       else if (rec.role === 'mechwolf_poison') mechActs.push(`第${rec.round}夜：${rec.technical?'毒药指令技术解析失败（非主动保留）':'机械毒杀'+(rec.target || '未毒')}`);
       else if (rec.role === 'mechwolf_magician') mechActs.push(`第${rec.round}夜：魔术情报${rec.target || '魔术师空过'}`);
       else if (rec.role === 'mechwolf_kill') mechActs.push(`第${rec.round}夜：${rec.technical?'夜刀指令技术解析失败（非主动空刀）':(rec.target ? '带刀'+rec.target : '选择空刀')}`);
@@ -18836,7 +18931,8 @@ function _formatCustomNightAction(r) {
   const who = r.custom || '自创角色';   // 积木自创角色用玩家自定义的角色名
   switch (r.role) {
     case 'skill-muted':   return '🔇 ' + (r.name || t) + (r.source === 'fox' ? '遭到子狐媚惑，' : '的') + (r.ability || '夜间主动技能') + '被封锁、没有生效（不公开施法玩家）';
-    case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
+    case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到子狐本人；原目标未受影响）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
+    case 'mechwolf_fox':   return '🤖🦊 机械媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到机械狼本人；原目标未受影响）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（凡查/守/毒他的神职反噬其自身，仅首个命中触发）';
     case 'fool':           return '🃏 愚者护盾：护住 ' + t + '（他若没挨刀，盾自动转护愚者本人）';
     case 'merchant':
@@ -19102,6 +19198,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         else if (r.role === 'mechwolf_guard') txt += '\n🤖🛡️ 机械狼守护=' + (r.target||'空守') + '\n';
         else if (r.role === 'mechwolf_poison') txt += '\n🤖☠️ 机械狼毒=' + (r.target||'未毒') + '\n';
         else if (r.role === 'mechwolf_magician') txt += '\n🤖🎩 机械狼魔术情报=' + (r.target||'魔术师空过') + '\n';
+        else if (r.role === 'mechwolf_fox') txt += '\n🤖🦊 机械媚惑=' + (r.target||'无') + (r.result==='rebounded'?'（被反弹到自己；原目标未受影响）':r.result==='blockKill'?'（狼→禁刀）':'（好人→封技）') + '\n';
         else if (r.role === 'mechwolf_kill') txt += '\n🤖🔪 ' + (r.target ? '机械狼刀='+r.target : '机械狼选择空刀') + '\n';
         else { const _cl = _formatCustomNightAction(r); if (_cl) txt += '\n' + _cl + '\n'; }
       };
@@ -19696,7 +19793,27 @@ async function sendAsk() {
 /* ================================================================
  *  § 25. 事件绑定
  * ================================================================ */
+function populatePromptTemplateDropdown(selected) {
+  const el = $('pc-prompt-template'); if (!el) return;
+  el.innerHTML = '<option value="">-- 无 --</option>';
+  Object.entries(promptLibrary).forEach(([id,x]) => { const o=document.createElement('option'); o.value=id; o.textContent=x.name||'未命名模板'; el.appendChild(o); });
+  if (selected && promptLibrary[selected]) el.value = selected;
+}
+function renderPromptLibraryList() {
+  const el=$('prompt-lib-list'); if(!el) return; el.innerHTML='';
+  const entries=Object.entries(promptLibrary);
+  if(!entries.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:#8a8090">还没有保存的模板。</div>'; return; }
+  entries.forEach(([id,x])=>{ const row=document.createElement('div'); row.style.cssText='display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid rgba(255,255,255,.08)'; const info=document.createElement('div'); info.style.cssText='flex:1;min-width:0'; const name=document.createElement('b'); name.textContent=x.name||'未命名模板'; const preview=document.createElement('div'); preview.style.cssText='white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#8a8090;font-size:.75em'; preview.textContent=x.content||''; info.append(name,preview); const edit=document.createElement('button'); edit.textContent='✏️'; edit.onclick=()=>openPromptLibEditor(id); const del=document.createElement('button'); del.textContent='🗑️'; del.onclick=()=>{if(confirm('确定删除这个模板吗？')){delete promptLibrary[id];saveCfg();renderPromptLibraryList();}}; row.append(info,edit,del); el.appendChild(row); });
+}
+function openPromptLibEditor(id) { const x=promptLibrary[id]||{}; $('prompt-edit-id').value=id||''; $('prompt-edit-name').value=x.name||''; $('prompt-edit-content').value=x.content||''; $('prompt-lib-list-view').style.display='none'; $('prompt-lib-edit-view').style.display='flex'; }
+function savePromptLibEntry() { const name=$('prompt-edit-name').value.trim(), content=$('prompt-edit-content').value.trim(); if(!name){alert('请输入模板名称');return;} const id=$('prompt-edit-id').value||('prompt_'+Date.now()); promptLibrary[id]={name,content}; saveCfg(); $('prompt-lib-edit-view').style.display='none'; $('prompt-lib-list-view').style.display='block'; renderPromptLibraryList(); populatePromptTemplateDropdown(id); }
+
 function bindEvents() {
+  $('btn-prompt-lib').addEventListener('click',()=>{$('prompt-lib-modal').classList.add('show');renderPromptLibraryList();});
+  $('prompt-lib-close').addEventListener('click',()=>$('prompt-lib-modal').classList.remove('show'));
+  $('prompt-lib-add-btn').addEventListener('click',()=>openPromptLibEditor(''));
+  $('prompt-edit-cancel').addEventListener('click',()=>{$('prompt-lib-edit-view').style.display='none';$('prompt-lib-list-view').style.display='block';});
+  $('prompt-edit-save').addEventListener('click',savePromptLibEntry);
   $('mode-cards').addEventListener('click', e => {
     const card = e.target.closest('[data-mode]');
     if (!card) return;
@@ -20707,6 +20824,7 @@ function openPCfg(i) {
   }
   sel.value = c.role || '';
   // 加载预设和正则
+  populatePromptTemplateDropdown(c.promptId || '');
   $('pc-preset').value = (playerConfigs[i] && playerConfigs[i].preset) || '';
   renderPCRegexList((playerConfigs[i] && playerConfigs[i].regexRules) || []);
   if ($('pc-rx-game'))  $('pc-rx-game').checked  = (playerConfigs[i] && playerConfigs[i].regexApplyGame)  !== false;
@@ -20755,11 +20873,13 @@ function savePCfg() {
   }
   // 保存预设和正则
   const preset = $('pc-preset').value.trim();
+  const promptId = $('pc-prompt-template') ? $('pc-prompt-template').value : '';
   const regexRules = getPCRegexRules();
   const rxGame  = $('pc-rx-game') ? $('pc-rx-game').checked : true;
   const rxThink = $('pc-rx-think') ? $('pc-rx-think').checked : false;
   if (!playerConfigs[currentCfgP]) playerConfigs[currentCfgP] = {};
   if (preset) playerConfigs[currentCfgP].preset = preset; else delete playerConfigs[currentCfgP].preset;
+  if (promptId) playerConfigs[currentCfgP].promptId = promptId; else delete playerConfigs[currentCfgP].promptId;
   if (regexRules.length) {
     playerConfigs[currentCfgP].regexRules = regexRules;
     playerConfigs[currentCfgP].regexApplyGame  = rxGame;
