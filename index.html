@@ -18583,7 +18583,7 @@ function _buildPrivateInfoLines(p) {
   {
     const rid = p.role.id;
     const recs = (gameRecord || []).filter(r => r && r.type === 'night_action');
-    const byRole = tag => recs.filter(r => r.role === tag);              // 唯一样板角色：按 role 取
+    const byRole = tag => { const _seen = new Set(); return recs.filter(r => r.role === tag).filter(r => { const _k = r.round+"|"+(r.target||"")+"|"+(r.result||"")+"|"+(r.name||"")+"|"+(r.casterId!=null?r.casterId:""); if (_seen.has(_k)) return false; _seen.add(_k); return true; }); };  // ★ 去重：同一角色同轮同目标同结果的重复残留(旧双跑遗留)只显示一次              // 唯一样板角色：按 role 取
     const mine   = tag => recs.filter(r => r.role === tag && r.name === p.name); // 赐予/积木：按本人名字取
     const wg = res => res === 'wolf' ? '🐺狼人显示' : '✅好人显示';
 
