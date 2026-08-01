@@ -1673,7 +1673,71 @@ body.blind-review .le.ending { display:none !important; }
 #mode-cards .mcd.has-art h3 { font-size:clamp(.94rem,1.25vw,1.27rem); color:#f1d39a; }
 #mode-cards .mcd.has-art .desc { font-size:clamp(.62rem,.77vw,.77rem); line-height:1.55; color:#d8cfdf; }
 #mode-cards .mcd:hover { transform:translateY(-8px); box-shadow:0 18px 38px rgba(0,0,0,.5),0 0 28px rgba(138,110,207,.20),inset 0 0 0 1px rgba(232,196,106,.15); }
-.isec,.rpan { width:min(1160px,100%); background:rgba(13,10,21,.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+.isec,.rpan { width:min(1420px,100%); max-width:1420px; background:rgba(13,10,21,.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+.isec .ir { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); width:100%; gap:10px; }
+.isec .ic { width:auto; max-width:none; min-height:72px; display:flex; flex-direction:column; justify-content:center; }
+
+/* 平板友好的角色图鉴：每页四张，正面立绘、背面规则 */
+.rpan { max-height:none; overflow:visible; padding:18px 20px 16px; }
+.rbook-head { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; gap:12px; margin-bottom:12px; }
+.rbook-head h3 { margin:0; }
+.rbook-nav { width:44px; height:38px; border-radius:12px; border:1px solid rgba(232,196,106,.35); background:rgba(232,196,106,.07); color:#efd69a; font-size:1.35rem; cursor:pointer; }
+.rbook-nav:disabled { opacity:.26; cursor:default; }
+.rbook-meta { display:flex; justify-content:center; align-items:center; gap:10px; color:#9d91ad; font-size:.72rem; margin:0 0 10px; }
+.rbook-meta strong { color:#e8c46a; font-family:var(--font-title); letter-spacing:.08em; }
+.rbook-hint { text-align:center; color:#756b85; font-size:.68rem; margin-top:10px; }
+.rgrid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.ri0.role-flip { display:block; position:relative; min-width:0; height:340px; padding:0; border:0; border-radius:14px; background:transparent; perspective:1100px; cursor:pointer; color:inherit; text-align:left; }
+.role-card-inner { position:absolute; inset:0; transform-style:preserve-3d; transition:transform .58s cubic-bezier(.2,.72,.2,1); }
+.role-flip.is-flipped .role-card-inner { transform:rotateY(180deg); }
+.role-card-face { position:absolute; inset:0; overflow:hidden; border-radius:14px; border:1px solid rgba(184,154,91,.55); backface-visibility:hidden; -webkit-backface-visibility:hidden; background:#17111f; box-shadow:0 12px 26px rgba(0,0,0,.34),inset 0 0 0 1px rgba(232,196,106,.06); }
+.role-card-front img { width:100%; height:100%; object-fit:cover; object-position:center 18%; display:block; transition:transform .45s ease; }
+.role-flip:hover .role-card-front img { transform:scale(1.035); }
+.role-card-fallback { position:absolute; inset:0; display:grid; place-items:center; font-size:4.8rem; background:radial-gradient(circle at 50% 35%,rgba(138,110,207,.22),transparent 55%); }
+.role-card-shade { position:absolute; inset:0; background:linear-gradient(180deg,rgba(7,5,12,.04) 25%,rgba(7,5,12,.18) 54%,rgba(7,5,12,.94) 100%); }
+.role-card-title { position:absolute; left:14px; right:14px; bottom:14px; z-index:2; }
+.role-card-title strong { display:block; color:#f2d69d; font-family:var(--font-title); font-size:1.05rem; letter-spacing:.08em; text-shadow:0 2px 10px #000; }
+.role-card-title small { color:#c5b9cd; font-size:.68rem; }
+.role-card-back { transform:rotateY(180deg); padding:22px 18px 18px; display:flex; flex-direction:column; justify-content:center; background:radial-gradient(circle at 50% 0%,rgba(138,110,207,.18),transparent 48%),linear-gradient(145deg,#1c1527,#100d19); }
+.role-card-back::before { content:''; position:absolute; inset:8px; border:1px solid rgba(232,196,106,.22); border-radius:10px; pointer-events:none; }
+.role-card-back strong { color:#f2d69d; font-family:var(--font-title); font-size:1.08rem; text-align:center; margin-bottom:13px; }
+.role-card-rule { color:#d1c7d8; font-size:.78rem; line-height:1.75; text-align:left; max-height:190px; overflow:auto; position:relative; z-index:1; }
+.role-card-back small { color:#736a83; text-align:center; margin-top:14px; font-size:.64rem; }
+.role-flip.bad .role-card-face { border-color:rgba(194,70,88,.58); }
+.role-flip.good .role-card-face { border-color:rgba(104,184,232,.50); }
+.role-flip.third .role-card-face { border-color:rgba(232,200,72,.48); }
+
+.lobby-tools { width:min(1040px,100%); display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:12px auto 6px; }
+.lobby-tools > button { width:100%; min-height:46px; margin:0 !important; justify-content:center; }
+
+/* 自定义模式封面选择 */
+.custom-cover-box { margin:10px 0 4px; padding:10px; border:1px solid rgba(232,196,106,.22); border-radius:12px; background:rgba(8,6,14,.35); }
+.custom-cover-title { color:#b9aac5; font-size:.74rem; text-align:center; margin-bottom:8px; }
+.custom-cover-list { display:flex; gap:8px; overflow-x:auto; padding:2px 2px 7px; scrollbar-width:thin; }
+.custom-cover-option { flex:0 0 72px; height:92px; padding:0; overflow:hidden; position:relative; border-radius:10px; border:1px solid rgba(184,154,91,.28); background:#15101e; cursor:pointer; }
+.custom-cover-option img { width:100%; height:100%; object-fit:cover; display:block; }
+.custom-cover-option span { position:absolute; left:0; right:0; bottom:0; padding:15px 3px 4px; text-align:center; font-size:.58rem; color:#fff; background:linear-gradient(transparent,rgba(0,0,0,.9)); }
+.custom-cover-option.selected { border-color:#e8c46a; box-shadow:0 0 0 2px rgba(232,196,106,.28),0 0 18px rgba(232,196,106,.18); }
+#mode-cards .mcd-preset .pl { display:none; }
+#mode-cards .mcd-preset.has-art h3 { margin-top:auto; }
+
+@media (max-width:900px) {
+  .rgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .ri0.role-flip { height:300px; }
+  .lobby-tools { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media (max-width:520px) {
+  .rpan { padding:14px 10px; }
+  .rbook-head { grid-template-columns:38px 1fr 38px; gap:6px; }
+  .rbook-nav { width:38px; height:34px; }
+  .rgrid { gap:8px; }
+  .ri0.role-flip { height:250px; }
+  .role-card-title { left:10px; right:10px; bottom:10px; }
+  .role-card-title strong { font-size:.9rem; }
+  .role-card-back { padding:16px 12px; }
+  .role-card-rule { font-size:.7rem; line-height:1.6; }
+  .lobby-tools { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+}
 @media (max-width:1180px) {
   #mode-cards { grid-template-columns:repeat(4,minmax(0,1fr)); width:min(900px,100%); }
   #mode-cards .mcd:nth-child(8) { grid-column:auto; }
@@ -1908,12 +1972,19 @@ body.has-wp::after {
     <div class="ir"><div class="ic an"><div class="wt">🎭 匿名</div>隐藏身份与心声<br>死亡后揭示身份</div><div class="ic hd"><div class="wt">💀 隐死亡</div>死者身份不公开<br>增加推理难度</div><div class="ic mb"><div class="wt">🧠 性情</div>随机分配性格<br>影响说话风格</div></div>
     <div class="ir"><div class="ic rp"><div class="wt">⚠️ 审判</div>十分怀疑时可发起审判<br>全员投票决定去留</div><div class="ic pf"><div class="wt">⚡ 并发</div>多路同时请求<br>书写速度可调</div></div>
   </div>
-  <div class="rpan"><h3>── キャラクター図鑑 ──</h3><div class="rgrid" id="rgrid"></div></div>
-  <button id="btn-custom-role" style="margin-top:10px;padding:10px 28px;font-family:var(--font-title);font-size:0.9em;font-weight:700;background:linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10));border:1px solid rgba(208,160,240,0.4);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.1em;transition:all 0.25s" onmouseover="this.style.background='rgba(208,160,240,0.28)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10))'">✏️ 自创角色</button>
-  <button id="btn-chagen">✨ 角色生成器</button>
-  <button id="btn-wallpaper">🖼️ 壁纸</button>
-  <button id="btn-namepool" style="margin-top:6px;padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(245,160,184,0.12),rgba(192,80,120,0.08));border:1px solid rgba(245,160,184,0.25);border-radius:var(--r-lg);color:var(--gold);cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">👤 名字库</button>
-  <button id="btn-personapool" style="margin-top:6px;padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(208,160,240,0.12),rgba(136,88,200,0.08));border:1px solid rgba(208,160,240,0.25);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">🎭 人设库</button>
+  <div class="rpan">
+    <div class="rbook-head"><button class="rbook-nav" id="role-prev" type="button" aria-label="上一页">‹</button><h3>── キャラクター図鑑 ──</h3><button class="rbook-nav" id="role-next" type="button" aria-label="下一页">›</button></div>
+    <div class="rbook-meta"><span>角色图鉴</span><strong id="role-page">1 / 1</strong></div>
+    <div class="rgrid" id="rgrid"></div>
+    <div class="rbook-hint">点击卡牌翻面查看技能规则</div>
+  </div>
+  <div class="lobby-tools">
+    <button id="btn-custom-role" style="padding:10px 28px;font-family:var(--font-title);font-size:0.9em;font-weight:700;background:linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10));border:1px solid rgba(208,160,240,0.4);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.1em;transition:all 0.25s" onmouseover="this.style.background='rgba(208,160,240,0.28)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10))'">✏️ 自创角色</button>
+    <button id="btn-chagen">✨ 角色生成器</button>
+    <button id="btn-wallpaper">🖼️ 壁纸</button>
+    <button id="btn-namepool" style="padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(245,160,184,0.12),rgba(192,80,120,0.08));border:1px solid rgba(245,160,184,0.25);border-radius:var(--r-lg);color:var(--gold);cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">👤 名字库</button>
+    <button id="btn-personapool" style="padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(208,160,240,0.12),rgba(136,88,200,0.08));border:1px solid rgba(208,160,240,0.25);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">🎭 人设库</button>
+  </div>
 </div>
 
 <!-- ══════ 云存档账号 ══════ -->
@@ -2163,6 +2234,7 @@ body.has-wp::after {
   <div class="ct-row"><label>总人数</label><input type="number" id="ct-num" min="6" max="20" value="10"></div>
   <div id="croles"></div>
   <div class="cst" id="cst">0/10</div>
+  <div class="custom-cover-box"><div class="custom-cover-title">选择保存卡片的封面（从本局角色中选择）</div><div class="custom-cover-list" id="custom-cover-list"></div></div>
   <!-- 观众席（仅斗蛐蛐模式显示） -->
   <div id="cpop-spec-section" style="display:none;margin-top:10px;border-top:1px solid rgba(160,100,220,0.2);padding-top:10px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -17458,9 +17530,10 @@ window.addEventListener('load', () => {
  * ================================================================ */
 function openCustom(isPureAI) {
   customTotal = 10; customCounts = {};
+  customCoverRole = 'werewolf';
   S._customPureAI = !!isPureAI;
   for (const id in ALL_ROLES) customCounts[id] = 0;
-  customCounts.werewolf=2; customCounts.seer=1; customCounts.witch=1; customCounts.villager=7;
+  customCounts.werewolf=2; customCounts.seer=1; customCounts.witch=1; customCounts.villager=6;
   detailStates = {};
   $('ct-num').value = 10;
   renderCR();
@@ -17508,6 +17581,7 @@ function renderCR() {
     g.appendChild(det);
   });
   updateCS();
+  renderCustomCoverPicker();
 }
 function adjC(id, d) {
   const mx = MAX_COUNT[id]||1;
@@ -17523,6 +17597,7 @@ function adjC(id, d) {
     det.querySelector('summary').textContent = labels[team]+' ('+cnt+'人)';
   });
   updateCS();
+  renderCustomCoverPicker();
 }
 function updateCS() {
   customTotal = parseInt($('ct-num').value) || 10;
@@ -17569,6 +17644,27 @@ function startC() {
 
 /* ══════ 自定义模式预设：把当前自定配置存成常驻卡片，下次一点即玩 ══════ */
 window._customModes = window._customModes || [];
+let customCoverRole = 'werewolf';
+
+function renderCustomCoverPicker() {
+  const box = $('custom-cover-list');
+  if (!box) return;
+  const selected = Object.keys(customCounts || {}).filter(id => customCounts[id] > 0 && ALL_ROLES[id]);
+  if (!selected.length) { box.innerHTML = '<span style="color:#6f657b;font-size:.7rem">请先添加角色</span>'; return; }
+  if (!selected.includes(customCoverRole)) customCoverRole = selected[0];
+  box.innerHTML = selected.map(id => {
+    const r = ALL_ROLES[id];
+    return '<button type="button" class="custom-cover-option' + (id === customCoverRole ? ' selected' : '') + '" data-cover-role="' + escapeHtml(id) + '" title="' + escapeHtml(r.name) + '">'
+      + '<img src="icons/roles/' + encodeURIComponent(id) + '.jpg" alt="" onerror="this.style.display=\'none\'">'
+      + '<span>' + escapeHtml(r.name) + '</span></button>';
+  }).join('');
+  box.onclick = e => {
+    const btn = e.target.closest('[data-cover-role]');
+    if (!btn) return;
+    customCoverRole = btn.dataset.coverRole;
+    renderCustomCoverPicker();
+  };
+}
 
 // 把一套自定配置压成简短的角色摘要（供卡片显示），如 "🐺×3 🔮 🧪 🛡️ 👨‍🌾×2"
 function _customModeSummary(counts) {
@@ -17594,7 +17690,8 @@ function saveCustomModePreset() {
   if (!name) return;
   const counts = {};
   for (const id in customCounts) { if (customCounts[id] > 0 && ALL_ROLES[id]) counts[id] = customCounts[id]; }
-  window._customModes.push({ id: 'cm_' + Date.now(), name, count: customTotal, counts });
+  const cover = (customCoverRole && counts[customCoverRole]) ? customCoverRole : Object.keys(counts)[0];
+  window._customModes.push({ id: 'cm_' + Date.now(), name, count: customTotal, counts, cover });
   saveCfg();
   renderCustomModeCards();
   alert('✅ 已保存为模式「' + name + '」，返回主菜单即可看到它的卡片。');
@@ -17609,8 +17706,10 @@ function renderCustomModeCards() {
     const card = document.createElement('div');
     card.className = 'mcd mcd-preset';
     card.dataset.mode = cm.id;
-    card.innerHTML = '<button class="cm-del" title="删除此模式" style="position:absolute;top:4px;right:6px;width:20px;height:20px;line-height:18px;padding:0;border-radius:50%;background:rgba(200,48,64,0.25);border:1px solid rgba(200,48,64,0.5);color:#f0a0a8;font-size:0.8em;cursor:pointer;z-index:2">✕</button>'
-      + '<h3>' + escapeHtml(cm.name) + '</h3><div class="pl">📌</div>'
+    const cover = (cm.cover && ALL_ROLES[cm.cover]) ? cm.cover : Object.keys(cm.counts || {}).find(id => ALL_ROLES[id]);
+    const art = cover ? '<img class="mcd-art" src="icons/roles/' + encodeURIComponent(cover) + '.jpg" alt="" loading="lazy" onload="this.closest(\'.mcd\').classList.add(\'has-art\')"><i class="mcd-scrim"></i>' : '';
+    card.innerHTML = art + '<button class="cm-del" title="删除此模式" style="position:absolute;top:8px;right:8px;width:26px;height:26px;line-height:22px;padding:0;border-radius:50%;background:rgba(120,20,42,0.72);border:1px solid rgba(240,130,150,0.65);color:#ffd5dc;font-size:0.8em;cursor:pointer;z-index:4">✕</button>'
+      + '<h3>' + escapeHtml(cm.name) + '</h3>'
       + '<div class="desc">' + cm.count + '人 · 自定义<br>' + escapeHtml(_customModeSummary(cm.counts)) + '</div>';
     card.style.position = 'relative';
     grid.appendChild(card);
@@ -21058,14 +21157,28 @@ function savePCfg() {
 /* ================================================================
  *  § 26. 初始化
  * ================================================================ */
+let roleBookPage = 0;
+const ROLE_BOOK_PAGE_SIZE = 4;
 function initRoles() {
   const g = $('rgrid');
-  g.innerHTML = '';
-  for (const id in ALL_ROLES) {
+  if (!g) return;
+  const ids = Object.keys(ALL_ROLES);
+  const pages = Math.max(1, Math.ceil(ids.length / ROLE_BOOK_PAGE_SIZE));
+  roleBookPage = Math.max(0, Math.min(roleBookPage, pages - 1));
+  const visible = ids.slice(roleBookPage * ROLE_BOOK_PAGE_SIZE, (roleBookPage + 1) * ROLE_BOOK_PAGE_SIZE);
+  g.innerHTML = visible.map(id => {
     const r = ALL_ROLES[id];
-    const tc = r.team==='bad'?'bad':r.team==='third'?'third':'good';
-    g.innerHTML += `<div class="ri0 ${tc}" style="background-image:url('icons/roles/${id}.jpg')"><span class="emo">${r.emoji}</span><div class="rii"><div class="rin">${r.name}</div><div class="rid">${{bad:'狼人阵营',good:'好人阵营',third:'第三方'}[r.team]} · ${(window.WolfI18n&&window.WolfI18n.isEnglish&&window.WolfI18n.isEnglish()&&window.WolfI18n.roles&&window.WolfI18n.roles[id])?window.WolfI18n.roles[id].desc:r.desc}</div></div></div>`;
-  }
+    const tc = r.team === 'bad' ? 'bad' : r.team === 'third' ? 'third' : 'good';
+    const team = {bad:'狼人阵营',good:'好人阵营',third:'第三方'}[r.team];
+    const translated = window.WolfI18n && window.WolfI18n.isEnglish && window.WolfI18n.isEnglish() && window.WolfI18n.roles && window.WolfI18n.roles[id];
+    const desc = translated && translated.desc ? translated.desc : r.desc;
+    return `<button type="button" class="ri0 role-flip ${tc}" data-role-card="${escapeHtml(id)}" aria-label="${escapeHtml(r.name)}，点击翻面查看规则"><span class="role-card-inner"><span class="role-card-face role-card-front"><span class="role-card-fallback">${r.emoji}</span><img src="icons/roles/${encodeURIComponent(id)}.jpg" alt="${escapeHtml(r.name)}立绘" loading="lazy" onerror="this.remove()"><i class="role-card-shade"></i><span class="role-card-title"><strong>${escapeHtml(r.name)}</strong><small>${team}</small></span></span><span class="role-card-face role-card-back"><strong>${r.emoji} ${escapeHtml(r.name)}</strong><span class="role-card-rule">${escapeHtml(desc)}</span><small>点击翻回立绘</small></span></span></button>`;
+  }).join('');
+  const page = $('role-page'); if (page) page.textContent = (roleBookPage + 1) + ' / ' + pages;
+  const prev = $('role-prev'), next = $('role-next');
+  if (prev) { prev.disabled = roleBookPage === 0; prev.onclick = () => { roleBookPage--; initRoles(); }; }
+  if (next) { next.disabled = roleBookPage >= pages - 1; next.onclick = () => { roleBookPage++; initRoles(); }; }
+  g.onclick = e => { const card = e.target.closest('[data-role-card]'); if (card) card.classList.toggle('is-flipped'); };
 }
 
 // 🌐 语言切换后，重渲染带角色描述的面板（英文用 ROLE_EN 完整描述，而非逐词替换）
