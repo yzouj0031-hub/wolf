@@ -75,6 +75,17 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      # @capgo/capacitor-updater pulls AndroidX WorkManager 2.10.x, whose
+      # AAR metadata requires consumers to compile against Android API 35+.
+      # Capacitor 6 still generates compileSdkVersion 34 by default, so raise
+      # only the compile SDK here; minSdk/targetSdk and device compatibility
+      # remain unchanged.
+      - name: Use Android compile SDK 35
+        run: |
+          sdkmanager "platforms;android-35"
+          echo "ext.compileSdkVersion = 35" >> android/variables.gradle
+          tail -n 5 android/variables.gradle
+
       - name: Generate launcher icons & splash
         run: npx capacitor-assets generate --android
 
