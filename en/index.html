@@ -1565,6 +1565,30 @@ body.blind-review .le.ending { display:none !important; }
 /* 模式卡增强 */
 .mcd .pl { transition: transform 0.3s; }
 .mcd:hover .pl { transform: scale(1.15) rotate(-5deg); }
+/* Gothic lobby skin: visual-only layer; all existing controls and handlers remain intact. */
+:root { --gothic-gold:#b89a5b; --gothic-gold-bright:#e8c46a; --gothic-pink:#d58aa7; --gothic-violet:#8a6ecf; }
+.mm { width:min(1280px,100%); margin:0 auto; padding:42px 22px 56px; isolation:isolate; }
+.mm::before { content:''; position:absolute; inset:18px 10px 24px; border:1px solid rgba(184,154,91,.22); border-radius:28px; pointer-events:none; z-index:-1; box-shadow:inset 0 0 70px rgba(92,57,125,.13),0 0 55px rgba(0,0,0,.22); }
+.mm-title { font-size:clamp(2.15em,5vw,3.35em); letter-spacing:.18em; text-shadow:0 0 22px rgba(213,138,167,.25); }
+.mm-sub { color:var(--gothic-pink); opacity:.9; }
+.cloud-card,.lobby-demo { background:linear-gradient(135deg,rgba(26,20,34,.94),rgba(36,26,49,.88)); border:1px solid rgba(184,154,91,.55); box-shadow:0 8px 26px rgba(0,0,0,.2),inset 0 0 24px rgba(138,110,207,.08); }
+.cloud-card { max-width:720px; width:min(720px,calc(100% - 12px)); }
+.cloud-card strong,.cloud-btn { color:var(--gothic-gold-bright); }
+.cloud-btn { border-color:rgba(184,154,91,.42); background:rgba(184,154,91,.1); }
+.cloud-btn:hover { background:rgba(232,196,106,.18); }
+.lobby-demo { width:min(720px,calc(100% - 12px)); margin-bottom:28px; }
+.lobby-demo:hover { border-color:var(--gothic-gold-bright); box-shadow:0 10px 32px rgba(138,110,207,.2); }
+.lobby-demo-copy strong { color:#f3dca0; } .lobby-demo-copy small { color:#b3a5c8; }
+.lobby-demo-icon { background:rgba(138,110,207,.2); } .lobby-demo-arrow { color:var(--gothic-gold-bright); }
+#mode-cards { display:grid; grid-template-columns:repeat(6,minmax(135px,1fr)); gap:12px; width:min(1160px,100%); margin:0 auto 30px; }
+#mode-cards .mcd { width:auto; min-height:166px; display:flex; flex-direction:column; justify-content:center; background:linear-gradient(160deg,rgba(36,26,49,.96),rgba(20,15,29,.96)); border:1px solid rgba(184,154,91,.58); border-radius:13px; padding:18px 12px 15px; box-shadow:inset 0 0 24px rgba(138,110,207,.07),0 7px 18px rgba(0,0,0,.18); }
+#mode-cards .mcd::after { content:''; position:absolute; inset:6px; border:1px solid rgba(213,138,167,.12); border-radius:9px; pointer-events:none; }
+#mode-cards .mcd:hover { transform:translateY(-5px); border-color:var(--gothic-gold-bright); background:linear-gradient(160deg,rgba(53,37,70,.98),rgba(25,18,35,.98)); box-shadow:0 12px 28px rgba(0,0,0,.32),0 0 0 1px rgba(232,196,106,.15),0 0 24px rgba(138,110,207,.18); }
+#mode-cards .mcd h3 { color:#f0dca7; font-size:1.05em; letter-spacing:.08em; } #mode-cards .mcd .pl { filter:drop-shadow(0 0 10px rgba(213,138,167,.35)); } #mode-cards .mcd .desc { color:#b6aac6; }
+#mode-cards .mcd-chaos { border-color:rgba(213,138,167,.7)!important; } #mode-cards .mcd-chaos h3 { color:var(--gothic-pink); }
+.isec,.setup-panel,.settings-panel { border-color:rgba(184,154,91,.42); background:linear-gradient(145deg,rgba(26,20,34,.9),rgba(17,14,25,.92)); box-shadow:inset 0 0 30px rgba(138,110,207,.06); }
+@media (max-width:980px) { #mode-cards { grid-template-columns:repeat(4,minmax(125px,1fr)); } }
+@media (max-width:620px) { .mm { padding:28px 10px 40px; } .mm::before { inset:8px 4px 14px; border-radius:18px; } #mode-cards { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } #mode-cards .mcd { min-height:142px; padding:14px 8px 12px; } #mode-cards .mcd .desc { font-size:.68em; } }
 /* 命牌呼吸发光增强 */
 .pc.speaking {
   animation: vn-breathe 2.5s ease-in-out infinite, card-pulse 2.5s ease-in-out infinite;
@@ -23504,5 +23528,20 @@ if ('serviceWorker' in navigator) {
 })();
 </script>
 <script src="./role-effects.js"></script>
+<script>
+// Portrait assets live at the repository root; the English page is one level deeper.
+(function applyEnglishRolePortraits(){
+  function apply(){
+    const g = document.getElementById('rgrid');
+    if (!g || typeof ALL_ROLES === 'undefined') return;
+    Object.keys(ALL_ROLES).forEach((id, i) => {
+      const card = g.children[i];
+      if (card) card.style.backgroundImage = `url('../icons/roles/${id}.jpg')`;
+    });
+  }
+  window.addEventListener('load', apply);
+  document.addEventListener('wolf-language-change', apply);
+})();
+</script>
 </body>
 </html>
