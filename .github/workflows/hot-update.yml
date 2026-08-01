@@ -1,0 +1,87 @@
+name: Publish hot update
+
+# 发布网页热更新包：已安装的 APK / PWA 会自动拉取并在下次启动时生效，用户无需重装。
+#
+# 产物发到滚动标签 web-latest 上的两个 Release 资源：
+#   version.json  约 1KB 的清单，客户端每次只拉它来比对构建号
+#   bundle.json   整包内容，只有确实有新版时才下载
+#
+# 构建号用 `git rev-list --count HEAD`（main 上单调递增），与 build-apk.yml 取值方式
+# 完全一致 —— 同一个 commit 出的 APK 和热更新包构建号必然相同，所以刚装上最新 APK 的
+# 用户不会被同构建号的热更新包重复覆盖（sw.js 要求热更新 build 严格大于内置 build）。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'i18n.js'
+      - 'hot-update.js'
+      - 'native-http.js'
+      - 'role-effects.js'
+      - 'role-effects.css'
+      - 'tablet.css'
+      - 'horror.html'
+      - 'manifest.webmanifest'
+      - 'en/**'
+      - 'scripts/stamp-build.mjs'
+      - 'scripts/make-hot-bundle.mjs'
+      - '.github/workflows/hot-update.yml'
+
+permissions:
+  contents: write
+
+# 串行发布：滚动标签下后跑的必须后覆盖，不能并发互相打架。
+concurrency:
+  group: hot-update
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 构建号要数全部提交，浅克隆会永远得到 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Compute build number
+        id: ver
+        run: |
+          BUILD="$(git rev-list --count HEAD)"
+          SHORT="$(git rev-parse --short HEAD)"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "version=b$BUILD ($SHORT)" >> "$GITHUB_OUTPUT"
+          echo "构建号 $BUILD / $SHORT"
+
+      - name: Stamp build number into web assets
+        run: node scripts/stamp-build.mjs "${{ steps.ver.outputs.build }}" "${{ steps.ver.outputs.version }}"
+
+      - name: Build hot-update bundle
+        run: node scripts/make-hot-bundle.mjs "${{ steps.ver.outputs.build }}" "${{ steps.ver.outputs.version }}"
+
+      - name: Verify bundle integrity
+        run: node scripts/verify-hot-bundle.mjs
+
+      - name: Publish to rolling release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: web-latest
+          name: 网页热更新包（最新）
+          body: |
+            构建号 `${{ steps.ver.outputs.build }}` · `${{ steps.ver.outputs.version }}`
+            提交 ${{ github.sha }}
+
+            这是给已安装的 APK / PWA 客户端自动拉取的网页热更新包，**不需要手动下载**。
+            要安装安卓应用请到 [android-latest](https://github.com/${{ github.repository }}/releases/tag/android-latest)。
+          files: |
+            dist-hot/version.json
+            dist-hot/bundle.json
+          # 别抢走 android-latest 的 "Latest" 标记，那才是用户该下载的东西
+          make_latest: false
