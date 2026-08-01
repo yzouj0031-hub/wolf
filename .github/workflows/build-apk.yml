@@ -78,12 +78,13 @@ jobs:
       # @capgo/capacitor-updater pulls AndroidX WorkManager 2.10.x, whose
       # AAR metadata requires consumers to compile against Android API 35+.
       # Capacitor 6 still generates compileSdkVersion 34 by default, so raise
-      # only the compile SDK here; minSdk/targetSdk and device compatibility
-      # remain unchanged.
-      - name: Use Android compile SDK 35
+      # the Android SDK levels here. WorkManager 2.10 also requires API 23 as
+      # the minimum runtime level; targetSdk remains unchanged.
+      - name: Use Android SDK levels required by native updater
         run: |
           sdkmanager "platforms;android-35"
           echo "ext.compileSdkVersion = 35" >> android/variables.gradle
+          echo "ext.minSdkVersion = 23" >> android/variables.gradle
           tail -n 5 android/variables.gradle
 
       - name: Generate launcher icons & splash
@@ -101,12 +102,13 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -e
+          set -o pipefail
           cd android
           chmod +x gradlew
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "🔐 检测到发布签名密钥，使用正式签名"
             echo "$KEYSTORE_BASE64" | base64 -d > ../release.jks
-            ./gradlew assembleRelease --no-daemon --stacktrace
+            ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee ../gradle-build.log
             BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
             "$BT/zipalign" -f 4 app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
             "$BT/apksigner" sign \
@@ -116,7 +118,7 @@ jobs:
             echo "signed=release" >> "$GITHUB_OUTPUT"
           else
             echo "🧪 未配置发布签名密钥，使用 debug 签名（个人侧载安装即可）"
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../gradle-build.log
             cp app/build/outputs/apk/debug/app-debug.apk ../ai-wolf.apk
             echo "signed=debug" >> "$GITHUB_OUTPUT"
           fi
@@ -129,6 +131,14 @@ jobs:
           name: ai-wolf-apk
           path: ai-wolf.apk
           if-no-files-found: error
+
+      - name: Upload Gradle log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: gradle-build.log
+          if-no-files-found: ignore
 
       - name: Publish to GitHub Release (main only)
         if: github.ref == 'refs/heads/main'
