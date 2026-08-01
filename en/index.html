@@ -23504,5 +23504,20 @@ if ('serviceWorker' in navigator) {
 })();
 </script>
 <script src="./role-effects.js"></script>
+<script>
+// Portrait assets live at the repository root; the English page is one level deeper.
+(function applyEnglishRolePortraits(){
+  function apply(){
+    const g = document.getElementById('rgrid');
+    if (!g || typeof ALL_ROLES === 'undefined') return;
+    Object.keys(ALL_ROLES).forEach((id, i) => {
+      const card = g.children[i];
+      if (card) card.style.backgroundImage = `url('../icons/roles/${id}.jpg')`;
+    });
+  }
+  window.addEventListener('load', apply);
+  document.addEventListener('wolf-language-change', apply);
+})();
+</script>
 </body>
 </html>
