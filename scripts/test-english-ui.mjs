@@ -21,8 +21,12 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, "uiEnglish() ? '⏪ Return here'", `${label} timeline button`);
   requireText(source, '— Full role and rules encyclopedia —', `${label} dynamic rulebook title`);
   requireText(source, 'window.RoleSigils.render(id)', `${label} role-card sigil renderer`);
+  requireText(source, "window.RoleSigils.render(o.id, 'cr-role-sigil')", `${label} role-picker sigil renderer`);
   if (source.includes('role-card-fallback">${r.emoji}') || source.includes('<strong>${r.emoji} ${escapeHtml(')) {
     throw new Error(`${label} still renders role emoji in the encyclopedia`);
+  }
+  if (source.includes('<span style="font-size:.85em">${o.r.emoji}</span>')) {
+    throw new Error(`${label} still renders role emoji in the role picker`);
   }
 }
 

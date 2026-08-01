@@ -302,6 +302,12 @@ select { min-width: 60px; }
 .cri.bad { border-left: 3px solid var(--cinnabar); }
 .cri.good { border-left: 3px solid var(--jade); }
 .cri.third { border-left: 3px solid var(--third-amber); }
+.cri .role-sigil.cr-role-sigil { width: 34px; height: 34px; flex: 0 0 34px; padding: 3px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.07), rgba(255,255,255,.015) 64%, transparent 66%); filter: drop-shadow(0 2px 5px rgba(0,0,0,.45)); }
+.cri.bad .role-sigil.cr-role-sigil { color: #d97582; }
+.cri.good .role-sigil.cr-role-sigil { color: #76c7e8; }
+.cri.third .role-sigil.cr-role-sigil { color: #e0bd55; }
+.cri .role-sigil.cr-role-sigil .sigil-ring.outer { opacity: .75; }
+.cri .role-sigil.cr-role-sigil .sigil-ring.inner { opacity: .35; }
 .crl { flex: 1; font-size: 0.75em; }
 .crc { display: flex; align-items: center; gap: 4px; }
 .crc button { width: 24px; height: 24px; border-radius: 50%; font-weight: 700; font-size: 0.85em; background: rgba(245,160,184,0.1); color: #d8d0e8; }
@@ -17566,7 +17572,7 @@ function openCustom(isPureAI) {
 function renderCR() {
   const g = $('croles');
   g.innerHTML = '';
-  const groups = {bad:{label:'🐺 狼人阵营',roles:[]},good:{label:'✅ 好人阵营',roles:[]},third:{label:'🎭 第三方',roles:[]}};
+  const groups = {bad:{label:'◆ 狼人阵营',roles:[]},good:{label:'◇ 好人阵营',roles:[]},third:{label:'◈ 第三方',roles:[]}};
   for (const id in ALL_ROLES) groups[ALL_ROLES[id].team].roles.push({id, r:ALL_ROLES[id]});
   ['bad','good','third'].forEach(team => {
     const gr = groups[team];
@@ -17585,7 +17591,8 @@ function renderCR() {
       const mx = MAX_COUNT[o.id]||1;
       const item = document.createElement('div');
       item.className = 'cri '+team;
-      item.innerHTML = `<span style="font-size:.85em">${o.r.emoji}</span><div class="crl">${o.r.name}${mx===1?' <span style="color:#6a6050;font-size:.8em">(唯一)</span>':''}<div style="font-size:.75em;color:#5a5040">${(window.WolfI18n&&window.WolfI18n.isEnglish&&window.WolfI18n.isEnglish()&&window.WolfI18n.roles&&window.WolfI18n.roles[o.id])?window.WolfI18n.roles[o.id].desc:o.r.desc}</div></div><div class="crc"><button data-adj="${o.id}" data-dir="-1">−</button><span id="cc-${o.id}">${customCounts[o.id]||0}</span><button data-adj="${o.id}" data-dir="1">+</button></div>`;
+      const roleBadge = window.RoleSigils ? window.RoleSigils.render(o.id, 'cr-role-sigil') : '<span class="role-sigil cr-role-sigil" aria-hidden="true">◇</span>';
+      item.innerHTML = `${roleBadge}<div class="crl">${o.r.name}${mx===1?' <span style="color:#6a6050;font-size:.8em">(唯一)</span>':''}<div style="font-size:.75em;color:#5a5040">${(window.WolfI18n&&window.WolfI18n.isEnglish&&window.WolfI18n.isEnglish()&&window.WolfI18n.roles&&window.WolfI18n.roles[o.id])?window.WolfI18n.roles[o.id].desc:o.r.desc}</div></div><div class="crc"><button data-adj="${o.id}" data-dir="-1">−</button><span id="cc-${o.id}">${customCounts[o.id]||0}</span><button data-adj="${o.id}" data-dir="1">+</button></div>`;
       inner.appendChild(item);
     });
     det.appendChild(inner);
@@ -17599,7 +17606,7 @@ function adjC(id, d) {
   customCounts[id] = Math.max(0, Math.min(mx, (customCounts[id]||0)+d));
   const sp = $('cc-'+id);
   if (sp) sp.textContent = customCounts[id];
-  const labels = {bad:'🐺 狼人阵营',good:'✅ 好人阵营',third:'🎭 第三方'};
+  const labels = {bad:'◆ 狼人阵营',good:'◇ 好人阵营',third:'◈ 第三方'};
   ['bad','good','third'].forEach(team => {
     const det = $('cdet-'+team);
     if (!det) return;
