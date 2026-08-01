@@ -1,61 +1,54 @@
-// 用客户端的校验方式复核 dist-hot/ 的产物，把坏包挡在 CI 里而不是挡在用户手机上。
+// 复核 dist-hot/ 的产物，把坏包挡在 CI 里而不是挡在用户手机上。
 //
-// 客户端拿到的是 JSON 里的字符串，会用 TextEncoder 重新编码成 UTF-8 再算 SHA-256；
-// 这里走一遍完全相同的路径（JSON 往返 → Buffer.from(text,'utf8') → sha256），
-// 确保线上不会出现「每次更新都卡在校验失败」这种只有用户才能发现的问题。
+// CapacitorUpdater 是【整目录替换】：zip 里缺什么，换包之后就没有什么。所以这里重点
+// 检查包的完整性和结构，而不只是校验和对不对得上。
 import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const fail = msg => { console.error('❌ ' + msg); process.exit(1); };
 
-for (const f of ['dist-hot/version.json', 'dist-hot/bundle.json']) {
+for (const f of ['dist-hot/version.json', 'dist-hot/bundle.zip']) {
   if (!existsSync(f)) fail(`缺少产物：${f}`);
 }
 
 const meta = JSON.parse(readFileSync('dist-hot/version.json', 'utf8'));
-const bundle = JSON.parse(readFileSync('dist-hot/bundle.json', 'utf8'));
-
 if (!Number.isInteger(meta.build) || meta.build <= 0) fail('version.json 的 build 非法');
-if (bundle.build !== meta.build) fail(`bundle.build(${bundle.build}) 与 version.build(${meta.build}) 不一致`);
-if (bundle.version !== meta.version) fail('bundle.version 与 version.version 不一致');
+if (!meta.version) fail('version.json 缺少 version');
 if (!Number.isInteger(meta.minNative) || meta.minNative < 1) fail('version.json 的 minNative 非法');
+if (!/^https:\/\//.test(meta.zipUrl || '')) fail('version.json 的 zipUrl 必须是 https 绝对地址');
 
-const files = bundle.files || {};
-const paths = Object.keys(files);
-if (!paths.length) fail('更新包是空的');
-if (!files['index.html']) fail('更新包里没有 index.html');
+const zip = readFileSync('dist-hot/bundle.zip');
+if (zip.length !== meta.size) fail(`zip 大小 ${zip.length} 与清单 ${meta.size} 不符`);
+const sha = createHash('sha256').update(zip).digest('hex');
+if (sha !== meta.sha256) fail(`zip 校验和不符：${sha} vs ${meta.sha256}`);
 
-// sw.js 绝不能进热更新包：它是「安装包内置版本」的判定基准，
-// 热更新改掉它就等于把自己的比较基准也改了，新 APK 将再也压不过旧热更新包。
-for (const banned of ['sw.js', 'en/sw.js']) {
-  if (files[banned]) fail(`${banned} 不允许出现在热更新包里`);
+// 列出包内文件；插件按 zip 根目录展开，多套一层 www/ 会导致换包后整个页面 404
+const listing = execFileSync('unzip', ['-Z1', 'dist-hot/bundle.zip'], { encoding: 'utf8' })
+  .split('\n').map(s => s.trim()).filter(Boolean);
+
+if (!listing.includes('index.html')) fail('zip 根目录没有 index.html（可能多套了一层目录）');
+if (listing.some(p => p.startsWith('www/'))) fail('zip 里多套了一层 www/，插件展开后路径会全错');
+
+// 换包是整目录替换，这些少一个都会让新版本跑不起来
+for (const must of ['i18n.js', 'hot-update.js', 'native-http.js', 'en/index.html', 'en/i18n.js', 'en/hot-update.js']) {
+  if (!listing.includes(must)) fail(`zip 里缺少必需文件：${must}`);
 }
 
-// 客户端把热更新包里的 hot-update.js 也一起换掉，所以包里的 APP_BUILD 必须等于本次构建号，
-// 否则装上之后它会立刻又把自己判成「有新版」，陷入反复下载。
-const abi = (files['hot-update.js'] || '').match(/const APP_BUILD = (\d+);/);
-if (!abi) fail('更新包里的 hot-update.js 找不到 APP_BUILD');
-if (Number(abi[1]) !== meta.build) fail(`包内 APP_BUILD=${abi[1]} 与 build=${meta.build} 不符`);
+// 卡片插画和角色立绘都要在，否则换包之后大厅和图鉴会变成空图
+const modeArt = listing.filter(p => /^icons\/modes\/.+\.jpg$/.test(p)).length;
+const roleArt = listing.filter(p => /^icons\/roles\/.+\.jpg$/.test(p)).length;
+if (modeArt < 11) fail(`zip 里模式卡图只有 ${modeArt} 张，应为 11 张`);
+if (roleArt < 21) fail(`zip 里角色立绘只有 ${roleArt} 张，应为 21 张`);
 
-for (const path of paths) {
-  const text = files[path];
-  if (typeof text !== 'string') fail(`${path} 内容不是字符串`);
-  const bytes = Buffer.from(text, 'utf8');
+// 包内的 hot-update.js 必须已经写上本次构建号，否则装上后会立刻又判成「有新版」反复下载
+const stamped = execFileSync('unzip', ['-p', 'dist-hot/bundle.zip', 'hot-update.js'], { encoding: 'utf8' });
+const build = stamped.match(/const APP_BUILD = (\d+);/);
+if (!build) fail('包内 hot-update.js 找不到 APP_BUILD');
+if (Number(build[1]) !== meta.build) fail(`包内 APP_BUILD=${build[1]} 与 build=${meta.build} 不符`);
+const abi = stamped.match(/const NATIVE_ABI = (\d+);/);
+if (!abi || Number(abi[1]) !== meta.minNative) fail(`包内 NATIVE_ABI 与清单 minNative=${meta.minNative} 不符`);
 
-  const expectSize = meta.sizes && meta.sizes[path];
-  if (expectSize == null) fail(`${path} 在 version.json 里没有 size`);
-  if (bytes.length !== expectSize) fail(`${path} 长度不符：包内 ${bytes.length} vs 清单 ${expectSize}`);
-
-  const expectHash = meta.sha256 && meta.sha256[path];
-  if (!expectHash) fail(`${path} 在 version.json 里没有 sha256`);
-  const got = createHash('sha256').update(bytes).digest('hex');
-  if (got !== expectHash) fail(`${path} 哈希不符：${got} vs ${expectHash}`);
-}
-
-// 清单里列了、包里却没有的文件会让客户端永远校验不过
-for (const path of Object.keys(meta.sha256 || {})) {
-  if (!(path in files)) fail(`清单里有 ${path}，更新包里却没有`);
-}
-
-const mb = (readFileSync('dist-hot/bundle.json').length / 1024 / 1024).toFixed(2);
-console.log(`✅ 热更新包校验通过：build=${meta.build} ${paths.length} 个文件 bundle.json ${mb}MB`);
+const mb = (zip.length / 1024 / 1024).toFixed(2);
+console.log(`✅ 热更新包校验通过：build=${meta.build} ${listing.length} 个条目 ${mb}MB` +
+  `（模式卡 ${modeArt} 张 / 角色立绘 ${roleArt} 张）`);

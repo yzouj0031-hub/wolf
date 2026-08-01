@@ -23551,7 +23551,11 @@ function openMurderMystery(){ MurderMystery.open(); }
 if (window.WolfHotUpdate) window.WolfHotUpdate.markBootOk();
 
 // 安装 PWA 并缓存应用外壳；外部 AI/API 请求不会进入离线缓存。
-if ('serviceWorker' in navigator) {
+// ⚠️ 只在网页/PWA 注册 Service Worker。APK 里由 CapacitorUpdater 在原生层换包，
+//    此时 SW 拦不住导航（原生的 WebViewAssetLoader 排在它前面），却会用自己的旧缓存
+//    应答 i18n.js 这类子资源，造成「新页面配旧脚本」。所以 APK 里根本不注册它。
+if ('serviceWorker' in navigator &&
+    !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(err => {
       console.warn('Service Worker 注册失败：', err);

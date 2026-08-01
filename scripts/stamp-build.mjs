@@ -7,10 +7,10 @@
 //
 // 被写入的位置：
 //   hot-update.js / en/hot-update.js  →  APP_BUILD、APP_VERSION（当前正在运行的版本）
-//   sw.js / en/sw.js                  →  BUNDLED_BUILD（安装包内置版本，热更新的比较基准）
 //
-// 这两处必须同时写、写同一个值：sw.js 只在「热更新包 build > BUNDLED_BUILD」时才
-// 启用热更新包，如果只写了 hot-update.js，装上新 APK 之后旧热更新包会一直压着新包。
+// 客户端拿 APP_BUILD 和远端 version.json 里的 build 比大小判断有没有新版。
+// 「装了新 APK 之后旧热更新包要自动退位」这件事现在由 CapacitorUpdater 的
+// resetWhenUpdate 负责，不再需要往 sw.js 里写比较基准。
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 const build = Number(process.argv[2]);
@@ -46,8 +46,6 @@ const edits = [
       [/const APP_VERSION = '[^']*';/, `const APP_VERSION = '${version}';`]
     ]
   },
-  { file: 'sw.js', subs: [[/const BUNDLED_BUILD = \d+;/, `const BUNDLED_BUILD = ${build};`]] },
-  { file: 'en/sw.js', subs: [[/const BUNDLED_BUILD = \d+;/, `const BUNDLED_BUILD = ${build};`]] }
 ];
 
 const missing = edits.filter(e => !existsSync(e.file)).map(e => e.file);

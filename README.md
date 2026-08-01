@@ -56,8 +56,13 @@ npx cap sync android
 让 11 张卡看上去是一套的。
 
 ```bash
-npm run art:modes    # 改了映射或裁剪参数后重新生成
+npm run art:roles    # 把角色立绘压到显示尺寸（就地覆盖，可重复运行）
+npm run art:modes    # 改了映射或裁剪参数后重新生成模式卡图
 ```
+
+角色立绘原始是 896×1200、每张约 1MB（21 张共 18MB），但界面上只用在角色图鉴那个
+横向列表小条的背景里。`art:roles` 压到 600px 宽后合计 2.2MB——省下的 16MB 既瘦身了
+安装包，也让热更新包（要装整个网页目录）从 20MB+ 降到约 4.9MB 才变得可用。
 
 模式与借用立绘的对应关系写在 `scripts/make-mode-art.mjs` 顶部的 `MAP` 里。
 
@@ -65,39 +70,54 @@ npm run art:modes    # 改了映射或裁剪参数后重新生成
 （热更新包只含文本资源），所以老版本 APK 热更新到新页面时图会 404 ——
 此时卡片自动保持原来的 emoji 样式，不会变成空卡；等用户装了新的安装包才会看到插画。
 
-## 自动更新（APK / PWA）
+## 自动更新（仅 APK）
 
-已安装的客户端会自动跟上网页部分的更新，用户不需要重新下载安装包：
+已安装的安卓 App 会自动跟上网页部分的更新，用户不需要重新下载安装包：
 
 启动 8 秒后拉一次 `version.json`（约 1KB，最多 6 小时一次）→ 发现新构建号就后台下载
-整包 → 逐文件校验 SHA-256 → 写入 Cache Storage → **下次冷启动生效**。对局进行中绝不
-切换版本，避免存档格式撕裂。
+`bundle.zip` → 交给 `@capgo/capacitor-updater` 在原生层落地 → **切后台或重启后生效**。
+对局进行中绝不切换版本（用插件的 `next()` 而不是 `set()`），避免存档格式撕裂。
 
-推到 `main` 时 `hot-update.yml` 会自动把热更新包发到滚动标签 `web-latest`，
-`build-apk.yml` 同时出新的 APK，两者用同一个构建号（`git rev-list --count HEAD`）。
+网页 / PWA **不走这套**——刷新本来就是最新的，白下几 MB 没有意义。
 
-几条设计约束：
+推到 `main` 时 `hot-update.yml` 把更新包发到滚动标签 `web-latest`，`build-apk.yml`
+同时出新的 APK，两者用同一个构建号（`git rev-list --count HEAD`）。
 
-- **`sw.js` 永不参与热更新**。它里面的 `BUNDLED_BUILD` 是「安装包内置版本」的判定基准，
-  只有热更新包的构建号严格大于它时热更新才生效——装了更新的 APK 之后旧热更新包会自动
-  退位。热更新如果能改 `sw.js`，这个基准就没了，而且写坏 SW 会让 app 直接打不开。
-- **启动失败自动回滚**。`hot-update.js` 在主脚本之前加载并记一次「尝试启动」，主脚本
-  完整跑完才写「启动成功」。热更新包把 app 写崩时累计 3 次就清掉热更新缓存回到内置版本。
-- **原生层变更走整包更新**。改了 Capacitor 插件、权限或图标时，把 `hot-update.js` 里的
-  `NATIVE_ABI` 手动 +1；客户端发现新网页要求的 ABI 高于自己就不热更新，改为提示用户去
-  下载新安装包。
+### ⚠️ 为什么不能用 Service Worker 做这件事
+
+第一版是用 Service Worker + Cache Storage 掉包的，在浏览器里完全正常，**但在 APK 里
+无效**：Capacitor 在原生层用 `WebViewAssetLoader` 拦截请求、直接把安装包里的文件递给
+WebView，这一层排在 Service Worker 之前，SW 根本没机会应答导航请求。症状是「提示下载
+成功，重启后版本号纹丝不动」。
+
+所以 APK 里**根本不注册 Service Worker**（`index.html` 的注册处有 `isNativePlatform`
+判断），而且 `hot-update.js` 启动时会主动注销旧版本遗留的 SW 并清空其缓存——否则插件
+换包之后，旧缓存仍会应答 `i18n.js` 这类子资源，造成「新页面配旧脚本」。
+
+### 其他设计约束
+
+- **启动失败自动回滚**：插件要求每次启动调用 `notifyAppReady()`。主脚本完整跑完才会
+  调到（`WolfHotUpdate.markBootOk()`），新包把 app 写崩时永远调不到，插件超时后自动
+  退回安装包内置版本。
+- **装了新 APK 后旧更新包自动退位**：由插件的 `resetWhenUpdate`（默认开）负责。
+- **原生层变更走整包更新**：改了 Capacitor 插件、权限或图标时，把 `hot-update.js` 里的
+  `NATIVE_ABI` 手动 +1；客户端发现新网页要求的 ABI 高于自己就不下载，改为提示去下载
+  新安装包。
 
 本地验证整条链路：
 
 ```bash
-node scripts/stamp-build.mjs 999 "b999 (test)"   # 写入构建号
-node scripts/make-hot-bundle.mjs 999 "b999 (test)"
-node scripts/verify-hot-bundle.mjs               # 用客户端的方式复核产物
-npm run test:hot-update                          # 在 Node 里跑真实的更新器与 SW
+node scripts/stamp-build.mjs 999 "b999 (test)"      # 写入构建号
+node scripts/make-hot-bundle.mjs 999 "b999 (test)"  # 产出 version.json + bundle.zip
+node scripts/verify-hot-bundle.mjs                  # 复核包结构与校验和
+npm run test:hot-update                             # 在 Node 里跑真实的更新器逻辑
 ```
 
-> 仓库里的 `APP_BUILD` / `BUNDLED_BUILD` 必须保持 `0`（测试会检查这一点）。
-> 打完标记记得还原，否则会把本地开发版当成线上版本。
+> 仓库里的 `APP_BUILD` 必须保持 `0`（测试会检查这一点）。打完标记记得还原，
+> 否则会把本地开发版当成线上版本。
+
+> 测试覆盖的是**调用逻辑**。插件能不能在真机上换包只能装 APK 实测——上一版就是败在
+> 这一点：逻辑全对，但那套机制在 APK 里根本没机会执行。**发布前务必先自己装一台验证。**
 
 ### ⚠️ 发布签名必须配置
 
