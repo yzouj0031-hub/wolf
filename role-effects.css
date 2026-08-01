@@ -4,3 +4,63 @@
 .pc.role-oracle .role-reveal-fx::before{border-style:double;transform:rotate(45deg)}.pc.role-potion .role-reveal-fx{background:radial-gradient(ellipse at 50% 80%,rgba(64,168,136,.42),transparent 62%)}.pc.role-guardfx .role-reveal-fx::before{border-radius:42% 42% 55% 55%;border-width:2px}.pc.role-blade .role-reveal-glyph{animation-name:role-slash}.pc.role-illusion .role-reveal-fx::before{border-style:dashed;animation-name:role-spin}.pc.role-machine .role-reveal-fx{background:repeating-linear-gradient(90deg,transparent 0 8px,rgba(80,176,208,.12) 9px 10px)}.pc.role-love .role-reveal-fx::before{border-color:#ff92bc;box-shadow:0 0 16px #ff5e9e}.pc.role-chaos .role-reveal-glyph{animation-name:role-pop}
 .pc.role-werewolf{--role-color:#d43850;--role-accent:#ff8798}.pc.role-wolfking{--role-color:#ff3b35;--role-accent:#ffb03a}.pc.role-wolfbeauty{--role-color:#e45d9e;--role-accent:#ffb1d2}.pc.role-seer{--role-color:#9d8cff;--role-accent:#e4ddff}.pc.role-witch{--role-color:#3ed19f;--role-accent:#b8ffe8}.pc.role-hunter{--role-color:#e89a42;--role-accent:#ffe1a3}.pc.role-guard{--role-color:#668dff;--role-accent:#c8d6ff}.pc.role-knight{--role-color:#7fb7ff;--role-accent:#f4fbff}.pc.role-magician{--role-color:#bd6cff;--role-accent:#f2c9ff}.pc.role-whitecat{--role-color:#d8e0ef;--role-accent:#7ee8ff}.pc.role-fox{--role-color:#ff984c;--role-accent:#fff0a8}.pc.role-fool{--role-color:#ffcf3e;--role-accent:#ff6fcb}.pc.role-merchant{--role-color:#e5aa55;--role-accent:#70e1c1}.pc.role-youshang{--role-color:#cda66b;--role-accent:#ffe0a1}.pc.role-wolfconcubine{--role-color:#824bc8;--role-accent:#f06cbd}.pc.role-villager{--role-color:#8aa18b;--role-accent:#dce8cf}.pc.role-whitewolf{--role-color:#f0f1ff;--role-accent:#ff4b63}.pc.role-mechwolf{--role-color:#46c7e8;--role-accent:#d2fbff}.pc.role-jester{--role-color:#f4ce3e;--role-accent:#c76cff}.pc.role-cupid{--role-color:#ff77aa;--role-accent:#ffd1e4}.pc.role-serialkiller{--role-color:#e06d36;--role-accent:#ffd07d}
 @keyframes role-aura{0%,100%{opacity:.35}50%{opacity:.72}}@keyframes role-fade{0%,65%{opacity:1}100%{opacity:0}}@keyframes role-ring{0%{opacity:0;transform:scale(.25) rotate(-35deg)}45%{opacity:1}100%{opacity:0;transform:scale(3) rotate(20deg)}}@keyframes role-glyph{0%{opacity:0;transform:scale(.25) rotate(-20deg)}45%{opacity:1;transform:scale(1.3)}100%{opacity:0;transform:scale(1)}}@keyframes role-spark{0%{opacity:0;transform:translate(-50%,-50%) rotate(var(--angle)) translateX(5px)}35%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) rotate(var(--angle)) translateX(55px)}}@keyframes role-slash{0%{opacity:0;transform:translate(-34px,22px) rotate(-55deg)}42%{opacity:1;transform:translate(8px,-8px) rotate(8deg)}100%{opacity:0;transform:translate(22px,-18px) rotate(22deg)}}@keyframes role-spin{0%{opacity:0;transform:scale(.3) rotate(0)}55%{opacity:1}100%{opacity:0;transform:scale(3) rotate(210deg)}}@keyframes role-pop{0%{opacity:0;transform:scale(.2) rotate(-80deg)}45%{opacity:1;transform:scale(1.45) rotate(20deg)}100%{opacity:0;transform:scale(1.1) rotate(8deg)}}@media(prefers-reduced-motion:reduce){.pc.role-theme:not(.dead)::before{animation:none}.role-reveal-fx,.role-reveal-fx::before,.role-reveal-glyph,.role-reveal-spark{animation-duration:.01ms!important}}
+
+/* Custom Portraits */
+.pc.role-theme {
+    background-size: cover;
+    background-position: center 20%;
+    /* Darken background slightly */
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.6) !important;
+}
+.pc.role-theme::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 50%);
+    border-radius: inherit; pointer-events: none; z-index: 1;
+}
+.pc.role-theme > * { position: relative; z-index: 2; text-shadow: 0 1px 4px rgba(0,0,0,1); }
+.pc.role-werewolf { background-image: url('icons/roles/werewolf.jpg'); }
+.pc.role-wolfking { background-image: url('icons/roles/wolfking.jpg'); }
+.pc.role-wolfbeauty { background-image: url('icons/roles/wolfbeauty.jpg'); }
+.pc.role-seer { background-image: url('icons/roles/seer.jpg'); }
+.pc.role-witch { background-image: url('icons/roles/witch.jpg'); }
+.pc.role-hunter { background-image: url('icons/roles/hunter.jpg'); }
+.pc.role-guard { background-image: url('icons/roles/guard.jpg'); }
+.pc.role-knight { background-image: url('icons/roles/knight.jpg'); }
+.pc.role-magician { background-image: url('icons/roles/magician.jpg'); }
+.pc.role-whitecat { background-image: url('icons/roles/whitecat.jpg'); }
+.pc.role-fox { background-image: url('icons/roles/fox.jpg'); }
+.pc.role-fool { background-image: url('icons/roles/fool.jpg'); }
+.pc.role-merchant { background-image: url('icons/roles/merchant.jpg'); }
+.pc.role-youshang { background-image: url('icons/roles/youshang.jpg'); }
+.pc.role-wolfconcubine { background-image: url('icons/roles/wolfconcubine.jpg'); }
+.pc.role-villager { background-image: url('icons/roles/villager.jpg'); }
+.pc.role-whitewolf { background-image: url('icons/roles/whitewolf.jpg'); }
+.pc.role-mechwolf { background-image: url('icons/roles/mechwolf.jpg'); }
+.pc.role-jester { background-image: url('icons/roles/jester.jpg'); }
+.pc.role-cupid { background-image: url('icons/roles/cupid.jpg'); }
+.pc.role-serialkiller { background-image: url('icons/roles/serialkiller.jpg'); }
+
+.ri0[style*="background-image"] {
+    background-size: cover;
+    background-position: center 20%;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.85) !important;
+    position: relative;
+    color: #fff;
+}
+.ri0[style*="background-image"]::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 100%);
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 1;
+}
+.ri0[style*="background-image"] > * {
+    position: relative;
+    z-index: 2;
+    text-shadow: 0 1px 4px rgba(0,0,0,1);
+}
+.ri0[style*="background-image"] .rid {
+    color: #e0e0e0 !important;
+}

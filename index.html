@@ -20939,7 +20939,7 @@ function initRoles() {
   for (const id in ALL_ROLES) {
     const r = ALL_ROLES[id];
     const tc = r.team==='bad'?'bad':r.team==='third'?'third':'good';
-    g.innerHTML += `<div class="ri0 ${tc}"><span class="emo">${r.emoji}</span><div class="rii"><div class="rin">${r.name}</div><div class="rid">${{bad:'狼人阵营',good:'好人阵营',third:'第三方'}[r.team]} · ${(window.WolfI18n&&window.WolfI18n.isEnglish&&window.WolfI18n.isEnglish()&&window.WolfI18n.roles&&window.WolfI18n.roles[id])?window.WolfI18n.roles[id].desc:r.desc}</div></div></div>`;
+    g.innerHTML += `<div class="ri0 ${tc}" style="background-image:url('icons/roles/${id}.jpg')"><span class="emo">${r.emoji}</span><div class="rii"><div class="rin">${r.name}</div><div class="rid">${{bad:'狼人阵营',good:'好人阵营',third:'第三方'}[r.team]} · ${(window.WolfI18n&&window.WolfI18n.isEnglish&&window.WolfI18n.isEnglish()&&window.WolfI18n.roles&&window.WolfI18n.roles[id])?window.WolfI18n.roles[id].desc:r.desc}</div></div></div>`;
   }
 }
 
