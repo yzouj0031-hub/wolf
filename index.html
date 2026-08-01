@@ -1584,6 +1584,41 @@ body.blind-review .le.ending { display:none !important; }
 #mode-cards .mcd:hover { transform:translateY(-5px); border-color:var(--gothic-gold-bright); background:linear-gradient(160deg,rgba(53,37,70,.98),rgba(25,18,35,.98)); box-shadow:0 12px 28px rgba(0,0,0,.32),0 0 0 1px rgba(232,196,106,.15),0 0 24px rgba(138,110,207,.18); }
 #mode-cards .mcd h3 { color:#f0dca7; font-size:1.05em; letter-spacing:.08em; } #mode-cards .mcd .pl { filter:drop-shadow(0 0 10px rgba(213,138,167,.35)); } #mode-cards .mcd .desc { color:#b6aac6; }
 #mode-cards .mcd-chaos { border-color:rgba(213,138,167,.7)!important; } #mode-cards .mcd-chaos h3 { color:var(--gothic-pink); }
+/* ══════ 模式卡插画 ══════
+   图源是 icons/roles 里已有的角色立绘，由 scripts/make-mode-art.mjs 裁掉画框和名牌
+   后缩成小图，不新增美术资源。
+   · 只有图真的 onload 成功才加 .has-art：老版本 APK 热更新到这份页面时安装包里没有
+     icons/modes/（图片不进热更新包），图 404 → 卡片自动保持原来的 emoji 样式。
+   · 遮罩用独立的 .mcd-scrim 元素，因为 #mode-cards .mcd::after 已经被内边框占用了。 */
+#mode-cards .mcd-art, #mode-cards .mcd-scrim {
+  position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .45s ease;
+}
+#mode-cards .mcd-art {
+  width:100%; height:100%; object-fit:cover; object-position:top center;
+  z-index:0; transition:opacity .45s ease, transform .45s ease;
+}
+#mode-cards .mcd-scrim {
+  z-index:1;
+  background:linear-gradient(180deg,
+    rgba(12,9,20,.90) 0%, rgba(12,9,20,.30) 26%,
+    rgba(12,9,20,.22) 52%, rgba(12,9,20,.78) 82%, rgba(12,9,20,.96) 100%);
+}
+#mode-cards .mcd.has-art { justify-content:space-between; min-height:236px; padding:16px 12px 14px; }
+#mode-cards .mcd.has-art .mcd-art { opacity:.92; }
+#mode-cards .mcd.has-art .mcd-scrim { opacity:1; }
+#mode-cards .mcd.has-art .pl { display:none; }
+#mode-cards .mcd.has-art h3,
+#mode-cards .mcd.has-art .desc { position:relative; z-index:2; margin:0; }
+#mode-cards .mcd.has-art h3 { text-shadow:0 2px 10px rgba(0,0,0,.95), 0 0 26px rgba(0,0,0,.8); }
+#mode-cards .mcd.has-art .desc { color:#ddd5ee; text-shadow:0 1px 7px rgba(0,0,0,1), 0 0 18px rgba(0,0,0,.9); }
+#mode-cards .mcd.has-art:hover .mcd-art { opacity:1; transform:scale(1.06); }
+@media (max-width:620px) {
+  #mode-cards .mcd.has-art { min-height:186px; padding:12px 8px 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #mode-cards .mcd-art { transition:opacity .45s ease; }
+  #mode-cards .mcd.has-art:hover .mcd-art { transform:none; }
+}
 .isec,.setup-panel,.settings-panel { border-color:rgba(184,154,91,.42); background:linear-gradient(145deg,rgba(26,20,34,.9),rgba(17,14,25,.92)); box-shadow:inset 0 0 30px rgba(138,110,207,.06); }
 @media (max-width:980px) { #mode-cards { grid-template-columns:repeat(4,minmax(125px,1fr)); } }
 @media (max-width:620px) { .mm { padding:28px 10px 40px; } .mm::before { inset:8px 4px 14px; border-radius:18px; } #mode-cards { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } #mode-cards .mcd { min-height:142px; padding:14px 8px 12px; } #mode-cards .mcd .desc { font-size:.68em; } }
@@ -1777,17 +1812,17 @@ body.has-wp::after {
     <span class="lobby-demo-arrow">›</span>
   </button>
   <div class="mc" id="mode-cards">
-    <div class="mcd" data-mode="standard"><h3>十人局</h3><div class="pl">🎮</div><div class="desc">经典局<br>3狼(含狼王)+预女猎守+魔术+2民</div></div>
-    <div class="mcd" data-mode="super"><h3>十二人局</h3><div class="pl">⚔️</div><div class="desc">经典局<br>3狼(含狼美)+预女猎守骑魔+3民</div></div>
-    <div class="mcd" data-mode="mega"><h3>十四人局</h3><div class="pl">🔥</div><div class="desc">经典大局<br>4狼(含狼王)+预女猎守骑魔+4民</div></div>
-    <div class="mcd mcd-chaos" data-mode="chaos12"><h3>诡术局</h3><div class="pl">🃏</div><div class="desc">12人·花活<br>2狼+机械狼+预女守魔+🃏小丑+4民</div></div>
-    <div class="mcd mcd-chaos" data-mode="chaos14"><h3>血案局</h3><div class="pl">🔪</div><div class="desc">14人·花活<br>3狼(含狼美)+全神+🔪连环杀手+4民</div></div>
-    <div class="mcd mcd-chaos" data-mode="cupid14"><h3>红线局</h3><div class="pl">💘</div><div class="desc">14人·花活<br>4狼(狼王+机械)+全神+💘丘比特+4民</div></div>
-    <div class="mcd" data-mode="custom"><h3>自定</h3><div class="pl">🎲</div><div class="desc">自由配置<br>角色与人数</div></div>
-    <div class="mcd" data-mode="pureai"><h3>天机</h3><div class="pl">🤖</div><div class="desc">纯AI十人<br>上帝视角观战</div></div>
-    <div class="mcd" data-mode="customai"><h3>斗蛐蛐</h3><div class="pl">🦗</div><div class="desc">自定义配置<br>上帝视角观战</div></div>
-    <div class="mcd" data-mode="groupchat"><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">自由群聊<br>随便聊什么都行</div></div>
-    <div class="mcd mcd-chaos" data-mode="mystery"><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>纯AI／网页端AI</div></div>
+    <div class="mcd" data-mode="standard"><img class="mcd-art" src="icons/modes/standard.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>十人局</h3><div class="pl">🎮</div><div class="desc">经典局<br>3狼(含狼王)+预女猎守+魔术+2民</div></div>
+    <div class="mcd" data-mode="super"><img class="mcd-art" src="icons/modes/super.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>十二人局</h3><div class="pl">⚔️</div><div class="desc">经典局<br>3狼(含狼美)+预女猎守骑魔+3民</div></div>
+    <div class="mcd" data-mode="mega"><img class="mcd-art" src="icons/modes/mega.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>十四人局</h3><div class="pl">🔥</div><div class="desc">经典大局<br>4狼(含狼王)+预女猎守骑魔+4民</div></div>
+    <div class="mcd mcd-chaos" data-mode="chaos12"><img class="mcd-art" src="icons/modes/chaos12.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>诡术局</h3><div class="pl">🃏</div><div class="desc">12人·花活<br>2狼+机械狼+预女守魔+🃏小丑+4民</div></div>
+    <div class="mcd mcd-chaos" data-mode="chaos14"><img class="mcd-art" src="icons/modes/chaos14.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>血案局</h3><div class="pl">🔪</div><div class="desc">14人·花活<br>3狼(含狼美)+全神+🔪连环杀手+4民</div></div>
+    <div class="mcd mcd-chaos" data-mode="cupid14"><img class="mcd-art" src="icons/modes/cupid14.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>红线局</h3><div class="pl">💘</div><div class="desc">14人·花活<br>4狼(狼王+机械)+全神+💘丘比特+4民</div></div>
+    <div class="mcd" data-mode="custom"><img class="mcd-art" src="icons/modes/custom.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>自定</h3><div class="pl">🎲</div><div class="desc">自由配置<br>角色与人数</div></div>
+    <div class="mcd" data-mode="pureai"><img class="mcd-art" src="icons/modes/pureai.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>天机</h3><div class="pl">🤖</div><div class="desc">纯AI十人<br>上帝视角观战</div></div>
+    <div class="mcd" data-mode="customai"><img class="mcd-art" src="icons/modes/customai.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>斗蛐蛐</h3><div class="pl">🦗</div><div class="desc">自定义配置<br>上帝视角观战</div></div>
+    <div class="mcd" data-mode="groupchat"><img class="mcd-art" src="icons/modes/groupchat.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">自由群聊<br>随便聊什么都行</div></div>
+    <div class="mcd mcd-chaos" data-mode="mystery"><img class="mcd-art" src="icons/modes/mystery.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>纯AI／网页端AI</div></div>
   </div>
   <!-- 观众席开关行（斗蛐蛐/天机专用） -->
   <div id="spec-bar" style="display:flex;align-items:center;justify-content:center;gap:12px;margin:10px 0 4px;padding:8px 16px;background:rgba(160,100,220,0.06);border:1px solid rgba(160,100,220,0.18);border-radius:var(--r-lg);max-width:420px;margin-left:auto;margin-right:auto;">
