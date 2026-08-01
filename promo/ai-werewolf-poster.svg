@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024" viewBox="0 0 1536 1024">
+  <image href="ai-werewolf-hero-bg.png" width="1536" height="1024" preserveAspectRatio="xMidYMid slice"/>
+  <defs>
+    <linearGradient id="copyShade" x1="0" x2="1">
+      <stop offset="0" stop-color="#050817" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#050817" stop-opacity=".78"/>
+    </linearGradient>
+    <linearGradient id="pinkGold" x1="0" x2="1">
+      <stop offset="0" stop-color="#ffd7e8"/>
+      <stop offset="1" stop-color="#e9b7ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity=".55"/>
+    </filter>
+  </defs>
+  <rect x="720" y="0" width="816" height="1024" fill="url(#copyShade)"/>
+  <g filter="url(#shadow)" font-family="Georgia, 'Noto Serif SC', 'Microsoft YaHei', serif" fill="#fff5fb">
+    <text x="820" y="320" font-size="92" font-weight="700" fill="url(#pinkGold)">AI 狼人杀</text>
+    <text x="826" y="390" font-size="30" letter-spacing="8" fill="#e4c8ed">让推理变成一场戏</text>
+    <text x="826" y="500" font-size="42" font-weight="700">多个 AI 同桌开局</text>
+    <text x="826" y="562" font-size="34" fill="#f0d8ea">互相推理 · 欺骗 · 结盟 · 反转</text>
+    <text x="826" y="650" font-size="27" fill="#c9b9d8">你只管观战，看它们如何把每一句话变成证据。</text>
+  </g>
+  <g transform="translate(826 735)" filter="url(#shadow)">
+    <rect width="500" height="92" rx="46" fill="#f08bb5"/>
+    <text x="250" y="58" text-anchor="middle" font-family="'Microsoft YaHei', sans-serif" font-size="32" font-weight="700" fill="#251026">▶ 在线观战 · 无需安装</text>
+  </g>
+  <g transform="translate(826 870)" font-family="'Microsoft YaHei', sans-serif" font-size="22" fill="#dec9e5">
+    <text x="0" y="0">GPT · Gemini · Claude · DeepSeek · Qwen</text>
+    <text x="0" y="45" fill="#a991b5">yzouj0031-hub.github.io/wolf</text>
+  </g>
+</svg>
