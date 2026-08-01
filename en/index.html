@@ -1691,21 +1691,31 @@ body.blind-review .le.ending { display:none !important; }
 .role-card-inner { position:absolute; inset:0; transform-style:preserve-3d; transition:transform .58s cubic-bezier(.2,.72,.2,1); }
 .role-flip.is-flipped .role-card-inner { transform:rotateY(180deg); }
 .role-card-face { position:absolute; inset:0; overflow:hidden; border-radius:14px; border:1px solid rgba(184,154,91,.55); backface-visibility:hidden; -webkit-backface-visibility:hidden; background:#17111f; box-shadow:0 12px 26px rgba(0,0,0,.34),inset 0 0 0 1px rgba(232,196,106,.06); }
-.role-card-front img { width:100%; height:100%; object-fit:cover; object-position:center 18%; display:block; transition:transform .45s ease; }
+.role-card-face::after { content:''; position:absolute; inset:6px; z-index:4; border:1px solid rgba(232,196,106,.16); border-radius:10px; pointer-events:none; clip-path:polygon(0 0,38% 0,38% 1px,62% 1px,62% 0,100% 0,100% 100%,62% 100%,62% calc(100% - 1px),38% calc(100% - 1px),38% 100%,0 100%); }
+.role-card-front img { position:relative; z-index:1; width:100%; height:100%; object-fit:cover; object-position:center 18%; display:block; transition:transform .45s ease; }
 .role-flip:hover .role-card-front img { transform:scale(1.035); }
-.role-card-fallback { position:absolute; inset:0; display:grid; place-items:center; font-size:4.8rem; background:radial-gradient(circle at 50% 35%,rgba(138,110,207,.22),transparent 55%); }
-.role-card-shade { position:absolute; inset:0; background:linear-gradient(180deg,rgba(7,5,12,.04) 25%,rgba(7,5,12,.18) 54%,rgba(7,5,12,.94) 100%); }
-.role-card-title { position:absolute; left:14px; right:14px; bottom:14px; z-index:2; }
+.role-card-fallback { position:absolute; inset:0; z-index:0; display:grid; place-items:center; background:radial-gradient(circle at 50% 38%,rgba(144,112,205,.26),transparent 38%),repeating-radial-gradient(circle at 50% 45%,transparent 0 32px,rgba(232,196,106,.045) 33px 34px),linear-gradient(145deg,#20162d,#0d0a14); }
+.role-card-shade { position:absolute; inset:0; z-index:2; background:linear-gradient(180deg,rgba(7,5,12,.04) 25%,rgba(7,5,12,.18) 54%,rgba(7,5,12,.94) 100%); }
+.role-card-title { position:absolute; left:14px; right:14px; bottom:14px; z-index:5; padding:12px 10px 4px; text-align:center; background:linear-gradient(90deg,transparent,rgba(12,8,18,.72) 18%,rgba(12,8,18,.72) 82%,transparent); }
 .role-card-title strong { display:block; color:#f2d69d; font-family:var(--font-title); font-size:1.05rem; letter-spacing:.08em; text-shadow:0 2px 10px #000; }
-.role-card-title small { color:#c5b9cd; font-size:.68rem; }
-.role-card-back { transform:rotateY(180deg); padding:22px 18px 18px; display:flex; flex-direction:column; justify-content:center; background:radial-gradient(circle at 50% 0%,rgba(138,110,207,.18),transparent 48%),linear-gradient(145deg,#1c1527,#100d19); }
+.role-card-title small { display:inline-block; color:#c5b9cd; font-size:.64rem; letter-spacing:.12em; margin-top:3px; }
+.role-card-back { transform:rotateY(180deg); padding:18px 18px 16px; display:flex; flex-direction:column; justify-content:center; align-items:stretch; background:radial-gradient(circle at 50% 4%,rgba(138,110,207,.23),transparent 42%),repeating-radial-gradient(circle at 50% 24%,transparent 0 36px,rgba(232,196,106,.035) 37px 38px),linear-gradient(145deg,#1c1527,#100d19); }
 .role-card-back::before { content:''; position:absolute; inset:8px; border:1px solid rgba(232,196,106,.22); border-radius:10px; pointer-events:none; }
-.role-card-back strong { color:#f2d69d; font-family:var(--font-title); font-size:1.08rem; text-align:center; margin-bottom:13px; }
+.role-card-back strong { color:#f2d69d; font-family:var(--font-title); font-size:1.08rem; text-align:center; margin:7px 0 10px; letter-spacing:.08em; }
 .role-card-rule { color:#d1c7d8; font-size:.78rem; line-height:1.75; text-align:left; max-height:190px; overflow:auto; position:relative; z-index:1; }
 .role-card-back small { color:#736a83; text-align:center; margin-top:14px; font-size:.64rem; }
-.role-flip.bad .role-card-face { border-color:rgba(194,70,88,.58); }
-.role-flip.good .role-card-face { border-color:rgba(104,184,232,.50); }
-.role-flip.third .role-card-face { border-color:rgba(232,200,72,.48); }
+.role-sigil { display:inline-grid; place-items:center; width:86px; height:86px; color:#d8b66b; filter:drop-shadow(0 4px 11px rgba(0,0,0,.55)); }
+.role-sigil svg { width:100%; height:100%; overflow:visible; }
+.role-sigil .sigil-ring,.role-sigil .sigil-glyph { fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.role-sigil .sigil-ring.outer { stroke-width:1; opacity:.55; stroke-dasharray:2 4; }
+.role-sigil .sigil-ring.inner { stroke-width:.8; opacity:.25; }
+.role-sigil .sigil-star { fill:currentColor; stroke:none; opacity:.9; }
+.role-card-back .role-sigil { width:68px; height:68px; align-self:center; flex:0 0 auto; }
+.role-flip.bad { --role-accent:#d65b72; } .role-flip.good { --role-accent:#72bde5; } .role-flip.third { --role-accent:#d9bc57; }
+.role-flip .role-card-face { border-color:color-mix(in srgb,var(--role-accent) 62%,#c9a867); }
+.role-flip .role-card-title small { color:var(--role-accent); }
+.role-flip .role-sigil { color:color-mix(in srgb,var(--role-accent) 42%,#e8c46a); }
+.role-flip:hover .role-card-face { box-shadow:0 16px 34px rgba(0,0,0,.48),0 0 22px color-mix(in srgb,var(--role-accent) 20%,transparent),inset 0 0 0 1px rgba(232,196,106,.1); }
 .lobby-tools { width:min(1040px,100%); display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:12px auto 6px; }
 .lobby-tools > button { width:100%; min-height:46px; margin:0 !important; justify-content:center; }
 .custom-cover-box { margin:10px 0 4px; padding:10px; border:1px solid rgba(232,196,106,.22); border-radius:12px; background:rgba(8,6,14,.35); }
@@ -1899,6 +1909,7 @@ body.has-wp::after {
 </style>
 <link rel="stylesheet" href="./tablet.css?v=2">
 <link rel="stylesheet" href="./role-effects.css">
+<script src="../role-sigils.js"></script>
 </head>
 <body>
 
@@ -1949,9 +1960,9 @@ body.has-wp::after {
     <button id="spec-bar-edit" style="font-size:0.75em;padding:3px 10px;background:rgba(160,100,220,0.14);color:#c8a0e8;border:1px solid rgba(160,100,220,0.3);border-radius:var(--r);cursor:pointer;">✏️ 编辑观众</button>
   </div>
   <div class="isec"><h3>── ゲームルール ──</h3>
-    <div class="ir"><div class="ic gd"><div class="wt">✅ 好人阵营</div>消灭所有狼人</div><div class="ic wf"><div class="wt">🐺 狼人阵营</div>好人存活≤狼人即胜</div></div>
-    <div class="ir"><div class="ic an"><div class="wt">🎭 匿名</div>隐藏身份与心声<br>死亡后揭示身份</div><div class="ic hd"><div class="wt">💀 隐死亡</div>死者身份不公开<br>增加推理难度</div><div class="ic mb"><div class="wt">🧠 性情</div>随机分配性格<br>影响说话风格</div></div>
-    <div class="ir"><div class="ic rp"><div class="wt">⚠️ 审判</div>十分怀疑时可发起审判<br>全员投票决定去留</div><div class="ic pf"><div class="wt">⚡ 并发</div>多路同时请求<br>书写速度可调</div></div>
+    <div class="ir"><div class="ic gd"><div class="wt">◇ Town faction</div>Eliminate all wolves</div><div class="ic wf"><div class="wt">◆ Wolf faction</div>Wolves win at parity</div></div>
+    <div class="ir"><div class="ic an"><div class="wt">◌ Anonymous</div>Hide identities and thoughts<br>Reveal identity after death</div><div class="ic hd"><div class="wt">† Hidden deaths</div>Dead roles stay hidden<br>Greater deduction difficulty</div><div class="ic mb"><div class="wt">⌁ Personality</div>Assign random personalities<br>Shape speaking style</div></div>
+    <div class="ir"><div class="ic rp"><div class="wt">⚖︎ Trial</div>Call a trial on strong suspicion<br>All players vote on the verdict</div><div class="ic pf"><div class="wt">⫴ Concurrency</div>Run model requests in parallel<br>Adjust writing speed</div></div>
   </div>
   <div class="rpan">
     <div class="rbook-head"><button class="rbook-nav" id="role-prev" type="button" aria-label="Previous page">‹</button><h3>── ROLE ENCYCLOPEDIA ──</h3><button class="rbook-nav" id="role-next" type="button" aria-label="Next page">›</button></div>
@@ -1960,11 +1971,11 @@ body.has-wp::after {
     <div class="rbook-hint">Tap a card to flip it and read the ability</div>
   </div>
   <div class="lobby-tools">
-    <button id="btn-custom-role" style="padding:10px 28px;font-family:var(--font-title);font-size:0.9em;font-weight:700;background:linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10));border:1px solid rgba(208,160,240,0.4);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.1em;transition:all 0.25s" onmouseover="this.style.background='rgba(208,160,240,0.28)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10))'">✏️ Create Role</button>
-    <button id="btn-chagen">✨ Role Generator</button>
-    <button id="btn-wallpaper">🖼️ Wallpaper</button>
-    <button id="btn-namepool" style="padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(245,160,184,0.12),rgba(192,80,120,0.08));border:1px solid rgba(245,160,184,0.25);border-radius:var(--r-lg);color:var(--gold);cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">👤 Name Library</button>
-    <button id="btn-personapool" style="padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(208,160,240,0.12),rgba(136,88,200,0.08));border:1px solid rgba(208,160,240,0.25);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">🎭 Persona Library</button>
+    <button id="btn-custom-role" style="padding:10px 28px;font-family:var(--font-title);font-size:0.9em;font-weight:700;background:linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10));border:1px solid rgba(208,160,240,0.4);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.1em;transition:all 0.25s" onmouseover="this.style.background='rgba(208,160,240,0.28)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(208,160,240,0.18),rgba(136,88,200,0.10))'">＋ Create Role</button>
+    <button id="btn-chagen">✦ Role Generator</button>
+    <button id="btn-wallpaper">▣ Wallpaper</button>
+    <button id="btn-namepool" style="padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(245,160,184,0.12),rgba(192,80,120,0.08));border:1px solid rgba(245,160,184,0.25);border-radius:var(--r-lg);color:var(--gold);cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">♙ Name Library</button>
+    <button id="btn-personapool" style="padding:8px 20px;font-family:var(--font-title);font-size:0.82em;background:linear-gradient(135deg,rgba(208,160,240,0.12),rgba(136,88,200,0.08));border:1px solid rgba(208,160,240,0.25);border-radius:var(--r-lg);color:#d0a0f0;cursor:pointer;letter-spacing:0.08em;transition:all 0.25s">◈ Persona Library</button>
   </div>
 </div>
 
@@ -21127,7 +21138,8 @@ function initRoles() {
     const desc = en && en.desc ? en.desc : r.desc;
     const tc = r.team === 'bad' ? 'bad' : r.team === 'third' ? 'third' : 'good';
     const team = {bad:'Wolf team',good:'Town team',third:'Third party'}[r.team];
-    return `<button type="button" class="ri0 role-flip ${tc}" data-role-card="${escapeHtml(id)}" aria-label="${escapeHtml(name)}, tap to read the ability"><span class="role-card-inner"><span class="role-card-face role-card-front"><span class="role-card-fallback">${r.emoji}</span><img src="../icons/roles/${encodeURIComponent(id)}.jpg" alt="${escapeHtml(name)} portrait" loading="lazy" onerror="this.remove()"><i class="role-card-shade"></i><span class="role-card-title"><strong>${escapeHtml(name)}</strong><small>${team}</small></span></span><span class="role-card-face role-card-back"><strong>${r.emoji} ${escapeHtml(name)}</strong><span class="role-card-rule">${escapeHtml(desc)}</span><small>Tap to return to the portrait</small></span></span></button>`;
+    const sigil = window.RoleSigils ? window.RoleSigils.render(id) : '';
+    return `<button type="button" class="ri0 role-flip ${tc}" data-role-card="${escapeHtml(id)}" aria-label="${escapeHtml(name)}, tap to read the ability"><span class="role-card-inner"><span class="role-card-face role-card-front"><span class="role-card-fallback">${sigil}</span><img src="../icons/roles/${encodeURIComponent(id)}.jpg" alt="${escapeHtml(name)} portrait" loading="lazy" onerror="this.remove()"><i class="role-card-shade"></i><span class="role-card-title"><strong>${escapeHtml(name)}</strong><small>${team}</small></span></span><span class="role-card-face role-card-back">${sigil}<strong>${escapeHtml(name)}</strong><span class="role-card-rule">${escapeHtml(desc)}</span><small>Tap to return to the portrait</small></span></span></button>`;
   }).join('');
   const page = $('role-page'); if (page) page.textContent = (roleBookPage + 1) + ' / ' + pages;
   const prev = $('role-prev'), next = $('role-next');

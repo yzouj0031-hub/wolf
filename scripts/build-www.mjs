@@ -17,6 +17,7 @@ const FILES = [
   'tablet.css',
   'role-effects.css',
   'role-effects.js',
+  'role-sigils.js',
   'native-http.js',
   'horror.html',
   'style-preview.html'
