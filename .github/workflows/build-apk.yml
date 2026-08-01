@@ -83,8 +83,7 @@ jobs:
       - name: Use Android SDK levels required by native updater
         run: |
           sdkmanager "platforms;android-35"
-          echo "ext.compileSdkVersion = 35" >> android/variables.gradle
-          echo "ext.minSdkVersion = 23" >> android/variables.gradle
+          printf '\next.compileSdkVersion = 35\next.minSdkVersion = 23\n' >> android/variables.gradle
           tail -n 5 android/variables.gradle
 
       - name: Generate launcher icons & splash
