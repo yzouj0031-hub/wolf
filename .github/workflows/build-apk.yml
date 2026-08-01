@@ -11,6 +11,7 @@ on:
     paths:
       - 'index.html'
       - 'native-http.js'
+      - 'hot-update.js'
       - 'manifest.webmanifest'
       - 'sw.js'
       - 'tablet.css'
@@ -29,11 +30,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 构建号要数全部提交，浅克隆会永远得到 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # 构建号取值方式必须与 hot-update.yml 完全一致：同一个 commit 出的 APK 和热更新包
+      # 构建号相同，刚装上最新 APK 的用户才不会被同构建号的热更新包重复覆盖。
+      - name: Compute build number
+        id: ver
+        run: |
+          BUILD="$(git rev-list --count HEAD)"
+          SHORT="$(git rev-parse --short HEAD)"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "version=b$BUILD ($SHORT)" >> "$GITHUB_OUTPUT"
+          echo "构建号 $BUILD / $SHORT"
+
+      # 写进 hot-update.js(APP_BUILD) 和 sw.js(BUNDLED_BUILD)。
+      # 不写的话 BUNDLED_BUILD 恒为 0，任何旧热更新包都会压过这个新安装包。
+      - name: Stamp build number into web assets
+        run: node scripts/stamp-build.mjs "${{ steps.ver.outputs.build }}" "${{ steps.ver.outputs.version }}"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -107,7 +126,10 @@ jobs:
           tag_name: android-latest
           name: AI狼人杀 · 安卓版（最新）
           body: |
-            自动构建的安卓 APK（${{ steps.build.outputs.signed }} 签名）。
+            自动构建的安卓 APK（${{ steps.build.outputs.signed }} 签名）· 构建号 `${{ steps.ver.outputs.version }}`。
             下载下方的 `ai-wolf.apk`，传到手机侧载安装即可。首次打开需联网、在设置里填模型 API key。
+
+            装好之后网页部分会自动热更新（后台下载、下次启动生效），
+            只有改动原生层时才需要回来重新下载安装包。
           files: ai-wolf.apk
           make_latest: true

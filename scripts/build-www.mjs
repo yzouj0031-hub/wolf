@@ -11,6 +11,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const FILES = [
   'index.html',
   'i18n.js',
+  'hot-update.js',
   'manifest.webmanifest',
   'sw.js',
   'tablet.css',

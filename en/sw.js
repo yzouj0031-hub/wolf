@@ -1,4 +1,21 @@
 const CACHE_NAME = 'wolf-en-pwa-v2-ui-translation';
+
+/* ══════ 🔥 Hot-update support ══════
+ * Build number of the assets bundled into this APK / PWA deploy; written by
+ * scripts/stamp-build.mjs at release time. The hot-update cache only wins when
+ * its build number is STRICTLY GREATER, so installing a newer APK automatically
+ * retires an older hot-update package instead of being pushed back by it.
+ * sw.js itself is NEVER hot-updated — a broken SW would brick the whole app.
+ * The hot cache is shared with the root client (same origin, keyed by full URL);
+ * this worker only ever serves the entries inside its own /en/ scope. */
+const BUNDLED_BUILD = 0; /* @@BUNDLED_BUILD@@ */
+const HOT_CACHE = 'wolf-hot-active';
+// The manifest key must be an absolute URL resolved against the SITE ROOT. A relative
+// path would be resolved against each worker's own base, so this /en/ worker would look
+// for /en/__wolf_hot_manifest__ and never find the one the page wrote at the root.
+const HOT_ROOT = self.location.href.replace(/[^/]*$/, '').replace(/(^|\/)en\/$/, '$1');
+const HOT_MANIFEST_KEY = HOT_ROOT + '__wolf_hot_manifest__';
+
 const APP_SHELL = [
   './',
   './index.html',
@@ -26,6 +43,42 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+let _hotState = null;
+
+async function hotState() {
+  if (_hotState) return _hotState;
+  try {
+    const cache = await caches.open(HOT_CACHE);
+    const res = await cache.match(HOT_MANIFEST_KEY);
+    if (!res) return (_hotState = { build: 0, active: false });
+    const manifest = await res.json();
+    const build = Number(manifest && manifest.build) || 0;
+    return (_hotState = { build, active: build > BUNDLED_BUILD });
+  } catch (e) {
+    return (_hotState = { build: 0, active: false });
+  }
+}
+
+function cacheKeyFor(request) {
+  const u = new URL(request.url);
+  if (u.pathname.endsWith('/')) u.pathname += 'index.html';
+  u.search = '';
+  u.hash = '';
+  return u.href;
+}
+
+async function hotMatch(request) {
+  const st = await hotState();
+  if (!st.active) return null;
+  const cache = await caches.open(HOT_CACHE);
+  return (await cache.match(cacheKeyFor(request))) || null;
+}
+
+self.addEventListener('message', event => {
+  const data = event.data || {};
+  if (data.type === 'wolf-hot-invalidate') _hotState = null;
+});
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
@@ -33,26 +86,28 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
-          return response;
-        })
-        .catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
+  event.respondWith((async () => {
+    const hot = await hotMatch(request);
+    if (hot) return hot;
 
-  event.respondWith(
-    caches.match(request).then(cached => cached || fetch(request).then(response => {
-      if (response.ok) {
+    if (request.mode === 'navigate') {
+      try {
+        const response = await fetch(request);
         const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+        caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
+        return response;
+      } catch (e) {
+        return (await caches.match('./index.html')) || Response.error();
       }
-      return response;
-    }))
-  );
+    }
+
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    const response = await fetch(request);
+    if (response.ok) {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+    }
+    return response;
+  })());
 });

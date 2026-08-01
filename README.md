@@ -48,13 +48,71 @@ npm run build:www
 npx cap sync android
 ```
 
+## 自动更新（APK / PWA）
+
+已安装的客户端会自动跟上网页部分的更新，用户不需要重新下载安装包：
+
+启动 8 秒后拉一次 `version.json`（约 1KB，最多 6 小时一次）→ 发现新构建号就后台下载
+整包 → 逐文件校验 SHA-256 → 写入 Cache Storage → **下次冷启动生效**。对局进行中绝不
+切换版本，避免存档格式撕裂。
+
+推到 `main` 时 `hot-update.yml` 会自动把热更新包发到滚动标签 `web-latest`，
+`build-apk.yml` 同时出新的 APK，两者用同一个构建号（`git rev-list --count HEAD`）。
+
+几条设计约束：
+
+- **`sw.js` 永不参与热更新**。它里面的 `BUNDLED_BUILD` 是「安装包内置版本」的判定基准，
+  只有热更新包的构建号严格大于它时热更新才生效——装了更新的 APK 之后旧热更新包会自动
+  退位。热更新如果能改 `sw.js`，这个基准就没了，而且写坏 SW 会让 app 直接打不开。
+- **启动失败自动回滚**。`hot-update.js` 在主脚本之前加载并记一次「尝试启动」，主脚本
+  完整跑完才写「启动成功」。热更新包把 app 写崩时累计 3 次就清掉热更新缓存回到内置版本。
+- **原生层变更走整包更新**。改了 Capacitor 插件、权限或图标时，把 `hot-update.js` 里的
+  `NATIVE_ABI` 手动 +1；客户端发现新网页要求的 ABI 高于自己就不热更新，改为提示用户去
+  下载新安装包。
+
+本地验证整条链路：
+
+```bash
+node scripts/stamp-build.mjs 999 "b999 (test)"   # 写入构建号
+node scripts/make-hot-bundle.mjs 999 "b999 (test)"
+node scripts/verify-hot-bundle.mjs               # 用客户端的方式复核产物
+npm run test:hot-update                          # 在 Node 里跑真实的更新器与 SW
+```
+
+> 仓库里的 `APP_BUILD` / `BUNDLED_BUILD` 必须保持 `0`（测试会检查这一点）。
+> 打完标记记得还原，否则会把本地开发版当成线上版本。
+
+### ⚠️ 发布签名必须配置
+
+目前 APK 走的是 debug 签名回退分支。Android Gradle Plugin 是在构建机上按需生成
+debug keystore 的，而 CI 每次都是全新的干净 runner，**每次构建的签名密钥都不一样**，
+覆盖安装会被系统拒绝（`INSTALL_FAILED_UPDATE_INCOMPATIBLE`），用户只能先卸载——
+而卸载会清掉本机的全部存档、API key 和提示词库。
+
+在仓库 Settings → Secrets 里配上这四个，`build-apk.yml` 会自动切到正式签名：
+
+| Secret | 说明 |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | keystore 文件的 base64（`base64 -w0 release.jks`） |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore 密码 |
+| `ANDROID_KEY_ALIAS` | 密钥别名 |
+| `ANDROID_KEY_PASSWORD` | 密钥密码 |
+
+生成方式（**密钥请自己生成、自己保管，丢了以后所有版本都升不上去**）：
+
+```bash
+keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
+  -validity 10000 -alias wolf
+```
+
 ## 项目结构
 
 | 路径 | 用途 |
 | --- | --- |
 | `index.html` | 游戏主界面与核心逻辑 |
 | `i18n.js` | 中英界面、角色与规则翻译及语言切换 |
-| `sw.js` | PWA 离线缓存 |
+| `hot-update.js` | APK/PWA 自动更新：检查、下载、校验、启动失败回滚 |
+| `sw.js` | PWA 离线缓存 + 热更新包的启用闸门 |
 | `manifest.webmanifest` | PWA 名称、主题与图标配置 |
 | `native-http.js` | Web 与原生 HTTP 访问适配 |
 | `scripts/` | PWA、存档及 Capacitor 构建脚本 |

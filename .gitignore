@@ -1,5 +1,6 @@
 node_modules/
 www/
+dist-hot/
 android/
 assets/
 *.apk

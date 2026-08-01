@@ -31,6 +31,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js"></script>
 <script src="./i18n.js"></script>
 <script src="./native-http.js"></script>
+<!-- 🔥 热更新：必须在主脚本之前加载——它的启动守护要赶在主脚本可能崩溃之前记下尝试次数 -->
+<script src="./hot-update.js"></script>
 <script>
 // 🌐 网页端 CORS 代理：非 APK(浏览器)环境下，把发往任意 AI API/中转站 的跨域请求自动转经 wolf-api worker，绕过 CORS。
 //   用户只需填自己正常的 API 地址（任意 provider / 中转站均可），游戏在网页端自动代理；APK 走 native-http，不经此处。
@@ -23484,6 +23486,10 @@ function openMurderMystery(){ MurderMystery.open(); }
     _reportGlobalErr('[未处理的Promise异常]', (r && (r.stack || r.message)) || String(r));
   });
 })();
+
+// 🔥 热更新·启动成功打点：能跑到这里说明整份主脚本已完整解析并执行，这一版可以信任。
+//    热更新包若把 app 写崩，这行永远执行不到，启动守护累计 3 次后会自动回滚到内置版本。
+if (window.WolfHotUpdate) window.WolfHotUpdate.markBootOk();
 
 // 安装 PWA 并缓存应用外壳；外部 AI/API 请求不会进入离线缓存。
 if ('serviceWorker' in navigator) {
