@@ -19,6 +19,15 @@
 (function () {
   'use strict';
 
+  // APK-only: browser/PWA users already receive the latest GitHub Pages files.
+  // Short-circuit before any manifest check, boot guard, download, or UI injection.
+  const IS_NATIVE = !!(
+    window.Capacitor &&
+    typeof window.Capacitor.isNativePlatform === 'function' &&
+    window.Capacitor.isNativePlatform()
+  ) || /^(https?:\/\/)(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(window.location.href);
+  if (!IS_NATIVE) return;
+
   // ── 发布时由 scripts/stamp-build.mjs 写入；仓库里永远是占位值 ──
   // 本地开发时 APP_BUILD 恒为 0，任何线上构建号都大于它，所以本地永远不会误判成"已最新"。
   const APP_BUILD = 0;

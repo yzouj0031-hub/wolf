@@ -10,6 +10,10 @@ const CACHE_NAME = 'wolf-en-pwa-v2-ui-translation';
  * this worker only ever serves the entries inside its own /en/ scope. */
 const BUNDLED_BUILD = 0; /* @@BUNDLED_BUILD@@ */
 const HOT_CACHE = 'wolf-hot-active';
+// The Android Capacitor shell uses https://localhost. Browser/PWA origins
+// must never consume the APK-only hot-update bundle.
+const IS_NATIVE_ORIGIN = self.location.hostname === 'localhost' ||
+  self.location.hostname === '127.0.0.1' || self.location.hostname === '[::1]';
 // The manifest key must be an absolute URL resolved against the SITE ROOT. A relative
 // path would be resolved against each worker's own base, so this /en/ worker would look
 // for /en/__wolf_hot_manifest__ and never find the one the page wrote at the root.
@@ -36,9 +40,11 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.filter(key => key.startsWith('wolf-en-') && key !== CACHE_NAME).map(key => caches.delete(key))
-    ))
+    caches.keys().then(keys => {
+      const stale = keys.filter(key => key.startsWith('wolf-en-') && key !== CACHE_NAME);
+      if (!IS_NATIVE_ORIGIN && keys.includes(HOT_CACHE)) stale.push(HOT_CACHE);
+      return Promise.all(stale.map(key => caches.delete(key)));
+    })
   );
   self.clients.claim();
 });
@@ -46,6 +52,7 @@ self.addEventListener('activate', event => {
 let _hotState = null;
 
 async function hotState() {
+  if (!IS_NATIVE_ORIGIN) return (_hotState = { build: 0, active: false });
   if (_hotState) return _hotState;
   try {
     const cache = await caches.open(HOT_CACHE);
