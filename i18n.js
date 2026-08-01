@@ -56,7 +56,7 @@
     '角色名':'Role name','第三方':'Independent','技能模板':'Ability template','积木技能':'Ability blocks','可多选叠加':'Combine multiple abilities',
     '无（只有人设，夜里无技能）':'None (persona only; no night ability)','能力简介':'Ability summary','AI行动指南':'AI action guide','保存角色':'Save role',
     '最多4位，只有你能看到观众评论，AI玩家完全不知情。':'Up to 4. Only you can see audience comments; AI players never know about them.',
-    '添加观众':'Add spectator','成员':'Members','添加成员':'Add member','导入上局角色':'Import last game’s cast','复盘上一局':'Review last game','赛后复盘':'Post-game review','换个议题':'Next topic','重新导入本局':'Reload this game','退出复盘':'Exit review',
+    '添加观众':'Add spectator','选择剧本':'Choose a script','其余角色搜证':'Let the others investigate','跳过，直接讨论':'Skip to discussion','开始加赛':'Start runoff','AI 自主搜证（每人每幕自己挑一条线索查）':'AI investigates on its own (each picks one clue per act)','成员':'Members','添加成员':'Add member','导入上局角色':'Import last game’s cast','复盘上一局':'Review last game','赛后复盘':'Post-game review','换个议题':'Next topic','重新导入本局':'Reload this game','退出复盘':'Exit review',
     '下午茶闲聊':'Afternoon tea','推理讨论':'Deduction','自由对话':'Free conversation','回到最新':'Jump to latest','开始自聊':'Start auto chat','间隔':'Interval','插话':'Interject',
     'AI 剧本杀':'AI murder mystery','首发剧本 · 6人 · 本格推理':'Launch story · 6 players · classic mystery','米花町别墅事件':'Beika Villa Case',
     '网页端AI接力':'Web AI relay','等待中':'Waiting','展开设置':'Show settings','导演模式':'Director mode','备选API（主API失败时依次尝试）':'Fallback APIs (used in order)',
