@@ -17,7 +17,8 @@
     "test:fox-info": "node scripts/test-fox-private-info.mjs",
     "test:gchat-review": "node scripts/test-gchat-review.mjs",
     "art:modes": "node scripts/make-mode-art.mjs",
-    "art:roles": "node scripts/optimize-role-art.mjs"
+    "art:roles": "node scripts/optimize-role-art.mjs",
+    "art:action-cg": "node scripts/optimize-action-cg.mjs"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

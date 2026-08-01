@@ -2,7 +2,10 @@ node_modules/
 www/
 dist-hot/
 android/
-assets/
+assets/*
+!assets/action-cg/
+assets/action-cg/*
+!assets/action-cg/*.webp
 *.apk
 *.jks
 *.keystore

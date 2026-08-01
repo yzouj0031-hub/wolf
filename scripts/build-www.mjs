@@ -18,6 +18,7 @@ const FILES = [
   'role-effects.css',
   'role-effects.js',
   'role-sigils.js',
+  'action-cg.js',
   'native-http.js',
   'horror.html',
   'style-preview.html'
@@ -32,6 +33,21 @@ for (const f of FILES) {
 for (const d of DIRS) {
   if (fs.existsSync(d)) { fs.cpSync(d, path.join(OUT, d), { recursive: true }); n++; }
 }
+
+// 行动 CG 只复制映射表中实际使用的文件，避免把本地概念草稿打进 APK / 热更新包。
+const actionMapSource = fs.readFileSync('action-cg.js', 'utf8');
+const actionCGFiles = [...actionMapSource.matchAll(/\bsrc:'([^']+)'/g)].map(match => match[1]);
+const actionCGOut = path.join(OUT, 'assets', 'action-cg');
+fs.mkdirSync(actionCGOut, { recursive: true });
+for (const file of actionCGFiles) {
+  const source = path.join('assets', 'action-cg', file);
+  if (!fs.existsSync(source)) {
+    console.error(`❌ 行动 CG 缺失：${source}`);
+    process.exit(1);
+  }
+  fs.copyFileSync(source, path.join(actionCGOut, file));
+}
+n++;
 
 if (!fs.existsSync(path.join(OUT, 'index.html'))) {
   console.error('❌ www/index.html 缺失，打包会失败');
