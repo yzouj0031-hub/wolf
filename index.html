@@ -1996,7 +1996,7 @@ body.has-wp::after {
     <div class="mcd" data-mode="custom"><img class="mcd-art" src="icons/modes/custom.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>自定</h3><div class="pl">🎲</div><div class="desc">自由配置<br>角色与人数</div></div>
     <div class="mcd" data-mode="pureai"><img class="mcd-art" src="icons/modes/pureai.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>天机</h3><div class="pl">🤖</div><div class="desc">纯AI十人<br>上帝视角观战</div></div>
     <div class="mcd" data-mode="customai"><img class="mcd-art" src="icons/modes/customai.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>斗蛐蛐</h3><div class="pl">🦗</div><div class="desc">自定义配置<br>上帝视角观战</div></div>
-    <div class="mcd" data-mode="groupchat"><img class="mcd-art" src="icons/modes/groupchat.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">自由群聊<br>随便聊什么都行</div></div>
+    <div class="mcd" data-mode="groupchat"><img class="mcd-art" src="icons/modes/groupchat.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">赛后复盘群<br>AI 吐槽甩锅互相盘</div></div>
     <div class="mcd mcd-chaos" data-mode="mystery"><img class="mcd-art" src="icons/modes/mystery.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>纯AI／网页端AI</div></div>
   </div>
   <!-- 观众席开关行（斗蛐蛐/天机专用） -->
@@ -2331,6 +2331,18 @@ body.has-wp::after {
     <span style="font-family:var(--font-title);font-size:.95em;color:#f5a0b8;flex:1;text-align:center">🗨️ 群聊</span>
     <button id="gchat-cfg-btn" style="padding:4px 10px;background:rgba(245,160,184,0.1);border:1px solid rgba(245,160,184,0.2);border-radius:var(--r);color:#c8a0d8;font-size:.78em;cursor:pointer;font-family:var(--font-body)">⚙ 成员</button>
   </div>
+  <!-- 复盘状态条：打完一局进来时显示当前在吵哪个议题，可手动跳下一个或退出复盘回到自由群聊 -->
+  <div id="gchat-review-bar" style="display:none;flex-shrink:0;padding:7px 14px;background:rgba(104,184,232,0.06);border-bottom:1px solid rgba(104,184,232,0.16)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:.66em;color:var(--jade);border:1px solid rgba(104,184,232,.35);border-radius:10px;padding:1px 7px;white-space:nowrap">🐺 赛后复盘</span>
+      <span id="gchat-review-topic" style="flex:1;font-size:.72em;color:#a8c8d8;line-height:1.45"></span>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button id="gchat-review-next" style="padding:3px 9px;background:rgba(104,184,232,0.1);border:1px solid rgba(104,184,232,0.3);border-radius:var(--r);color:var(--jade);font-size:.72em;cursor:pointer">⏭ 换个议题</button>
+      <button id="gchat-review-reseed" style="padding:3px 9px;background:rgba(245,160,184,0.08);border:1px solid rgba(245,160,184,0.25);border-radius:var(--r);color:#c8a0d8;font-size:.72em;cursor:pointer">🔄 重新导入本局</button>
+      <button id="gchat-review-off" style="padding:3px 9px;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.2);border-radius:var(--r);color:#8a7e6a;font-size:.72em;cursor:pointer">退出复盘</button>
+    </div>
+  </div>
   <div id="gchat-cfg-panel" style="display:none;flex-direction:column;flex-shrink:0;background:rgba(10,10,20,0.97);border-bottom:1px solid rgba(245,160,184,0.1);padding:10px 14px;overflow-y:auto;max-height:55vh">
     <div style="font-size:.72em;color:#8880a8;margin-bottom:8px">配置群成员（最多8人），留空则用全局API和模型</div>
     <div id="gchat-members-list" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -2343,7 +2355,7 @@ body.has-wp::after {
     <div style="margin-top:10px;border-top:1px solid rgba(245,160,184,0.08);padding-top:8px">
       <div style="font-size:.72em;color:#8880a8;margin-bottom:5px">💬 群设定：让成员拥有共同关系、当前事件和要解决的事</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
-        <button class="gchat-preset-btn" data-topic="现在是狼人杀游戏结束后，大家正在复盘刚才的游戏，可以分析战略、吐槽失误、讨论身份。">🐺 狼人杀复盘</button>
+        <button class="gchat-preset-btn" id="gchat-preset-review" data-review="1">🐺 复盘上一局</button>
         <button class="gchat-preset-btn" data-topic="大家正在一起喝下午茶，随意闲聊，可以聊任何话题。">☕ 下午茶闲聊</button>
         <button class="gchat-preset-btn" data-topic="这是一场即兴推理游戏，有人发现了一个谜题，大家一起讨论破案。">🔍 推理讨论</button>
         <button class="gchat-preset-btn" data-topic="大家正在自由对话，话题完全随意。">🎭 自由对话</button>
@@ -21485,6 +21497,9 @@ WP.init();
   var COLORS = ['#f5a0b8','#68b8e8','#a0e8a0','#e8c848','#c8a0e8','#e8a068','#e8d0a0','#a0c8e8'];
   var EMOJIS = ['🌸','🔵','🌿','⭐','🟣','🔶','🌙','💎'];
   var members = [], history = [], running = false, activeTopic = '';
+  // 赛后复盘状态：reviewOn=当前是不是在复盘上一局，reviewMatch=这批成员来自哪一局，
+  // topics/topicIdx=自动生成的议题队列，reviewFacts=战报缓存（每轮重建代价高，不入存档）
+  var reviewOn = false, reviewMatch = '', topics = [], topicIdx = 0, reviewFacts = '';
   var sceneNudge = '先回应群内正在发生的事；如果话题停滞，提出一个具体问题、选择或新发现来推进关系。';
   var gcAutoFollow = true;
 
@@ -21533,10 +21548,14 @@ WP.init();
     if (!members.length) return -1;
     var lastMsg = history.length ? history[history.length - 1] : null;
     var lastText = lastMsg ? (lastMsg.text || '') : '';
+    // 复盘时当前议题的当事人（被冤枉的那个、投过他的那几个）优先开口，
+    // 否则议题指名道姓地问了某人，回话的却是个不相干的人。
+    var involved = gcTopicPeople();
     var weights = members.map(function(m, i) {
       if (i === lastSpeakerIdx) return 0.2;
       var w = 1;
       if (lastText.indexOf(m.name) >= 0) w *= 4;
+      if (involved.indexOf(m.name) >= 0) w *= 3;
       return w;
     });
     var total = weights.reduce(function(a, b) { return a + b; }, 0);
@@ -21558,18 +21577,12 @@ WP.init();
     var member = members[idx];
     running = true;
     gcAddTyping(member.name, idx);
-    var topicNote = activeTopic ? '\n\n【当前场景/话题】' + activeTopic : '';
     var lastCtx = '';
     if (history.length) {
       var last = history[history.length - 1];
       lastCtx = '\n\n上一条消息是「' + last.name + '」说的：' + last.text.slice(0, 60);
     }
-    var sys = (member.persona || ('你是' + member.name + '，自由聊天。'))
-      + topicNote
-      + '\n\n【重要】这不是无目的的轮流闲聊。' + sceneNudge
-      + '保留自己的立场，不要替所有人总结，也不要把话题一次说完。'
-      + '口语化自然，不超过100字，不要用bullet list，不要有前缀标签，直接说话。'
-      + lastCtx;
+    var sys = gcSysFor(member) + lastCtx;
     var msgs = [{role:'system', content:sys}];
     history.slice(-20).forEach(function(h) {
       msgs.push({role: h.role==='user' ? 'user' : 'assistant', content: h.name + '：' + h.text});
@@ -21578,7 +21591,9 @@ WP.init();
     var reply = await gcCallAI(member, msgs);
     gcRemoveTyping(idx);
     reply = reply.replace(/^[^：:]{1,10}[：:]/, '').trim();
-    history.push({role:'assistant', name:member.name, text:reply});
+    history.push({role:'assistant', name:member.name, text:reply, topicIdx:topicIdx});
+    gcAdvanceTopic();
+    gcRenderTopicBar();
     gcRenderLog();
     gcSave();
     running = false;
@@ -21621,23 +21636,295 @@ WP.init();
   }
 
   function gcSave() {
-    try { localStorage.setItem(GCKEY, JSON.stringify({members:members, history:history.slice(-80), topic:activeTopic})); } catch(e){}
+    try {
+      localStorage.setItem(GCKEY, JSON.stringify({
+        members:members, history:history.slice(-80), topic:activeTopic,
+        reviewOn:reviewOn, reviewMatch:reviewMatch, topics:topics, topicIdx:topicIdx
+      }));
+    } catch(e){}
   }
   function gcLoad() {
     try {
       var d = JSON.parse(localStorage.getItem(GCKEY)||'{}');
-      // 如果有保存的成员就用，否则尝试从上局游戏导入，再没有才用硬编码默认
-      if (d.members && d.members.length) {
-        members = d.members;
-      } else {
-        members = gcBuildFromLastGame() || [
+      reviewOn    = !!d.reviewOn;
+      reviewMatch = d.reviewMatch || '';
+      topics      = Array.isArray(d.topics) ? d.topics : [];
+      topicIdx    = d.topicIdx || 0;
+      history     = d.history || [];
+      activeTopic = d.topic || '';
+      members     = (d.members && d.members.length) ? d.members : [];
+      reviewFacts = '';   // 事实缓存不入存档，进群时按当前对局重建
+
+      // 打完一局之后进来，就换成那一局的复盘：成员、议题、话题全部重置。
+      // 旧版这里只在「成员为空」时导入一次，于是第一次存下柯南+L 之后，
+      // 之后每一局结束进来看到的都还是柯南和 L，得手动去⚙面板点导入。
+      var mid = gcMatchId();
+      if (mid && mid !== reviewMatch) {
+        var seeded = gcBuildFromLastGame();
+        if (seeded && seeded.length) {
+          members = seeded;
+          reviewOn = true;
+          reviewMatch = mid;
+          topics = gcReviewTopics();
+          topicIdx = 0;
+          history = [];          // 上一局的复盘记录留着没意义，且会污染新一局的上下文
+          activeTopic = '';
+          gcSave();
+        }
+      }
+
+      if (!members.length) {
+        members = [
           {name:'柯南', model:'', url:'', key:'', persona:'你是江户川柯南，聪明好奇、习惯追问细节。你和 L 是会互相较劲也会合作的朋友。'},
           {name:'L',    model:'', url:'', key:'', persona:'你是L·劳莱特，冷静精准，喜欢甜食。你认可柯南的能力，但会用不同角度挑战他的结论。'}
         ];
       }
-      history = d.history || [];
-      activeTopic = d.topic || '柯南和 L 的侦探事务所群：委托人刚发来一张模糊照片，声称其中藏着求救信息。两人要决定先核实照片，还是直接赶往拍摄地点。';
-    } catch(e) { members=[]; history=[]; activeTopic=''; }
+      if (!reviewOn && !activeTopic) {
+        activeTopic = '柯南和 L 的侦探事务所群：委托人刚发来一张模糊照片，声称其中藏着求救信息。两人要决定先核实照片，还是直接赶往拍摄地点。';
+      }
+    } catch(e) { members=[]; history=[]; activeTopic=''; reviewOn=false; topics=[]; }
+  }
+
+  /* ── 赛后复盘：把上一局真正发生了什么喂给群成员 ──────────────────────
+   *
+   * 旧版只导入「名字 + 我演了什么角色」，AI 不知道这局谁死了、谁投了谁、谁赢了，
+   * 于是只能产出「哈哈这局好惨」这种空话——不是提示词不行，是没有事实可聊。
+   * 这里补三层：
+   *   ① 共同事实 gcReviewFacts()：全员身份 + 逐轮经过（复用 MVP 用的上帝视角战报）
+   *   ② 个人视角 gcMyView()：我自己的夜间行动/查验/票/死法，并点明"当时我不知道"
+   *   ③ 争议议题 gcReviewTopics()：从战报里扫出真值得吵的点，排队推着聊
+   * 三层缺一不可——只给①的话，8 个人会输出 8 段一模一样的全知总结；
+   * ②才让它们带着当时的错误认知进场，③才让它们互相接话而不是各说各的。
+   */
+
+  // 本局的唯一标识。要求 gameOver：游戏没结束就把身份灌进群聊等于开挂泄底。
+  function gcMatchId() {
+    try {
+      if (typeof S === 'undefined' || !S || !S.gameOver || !S.players || !S.players.length) return '';
+      return String(S._matchUid || ('live_' + S.gameId));
+    } catch(e) { return ''; }
+  }
+  function gcRecords() {
+    return (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord : [];
+  }
+  function gcBlind() {
+    try { return typeof blindReviewOn === 'function' && blindReviewOn(); } catch(e) { return false; }
+  }
+  // 夜间记录大多只写了 role 而没写 name（seer/witch/guard/wolf…），按角色反查是谁干的
+  function gcActor(r) {
+    try {
+      if (r.name) return r.name;
+      var p = S.players.find(function(x){ return x.role && (r.role === x.role.id || r.role.indexOf(x.role.id) === 0); });
+      return p ? p.name : '';
+    } catch(e) { return ''; }
+  }
+  function gcVoterName(v) { return String(v||'').replace(/\(.*\)$/, ''); }
+
+  // ① 共同事实。开着终局盲复盘时只给公开信息——那是用户特意藏了身份，不能从群聊漏出去。
+  function gcReviewFacts() {
+    if (reviewFacts) return reviewFacts;
+    if (!gcMatchId()) return '';
+    var blind = gcBlind(), lines = [];
+    var WIN = {good:'好人阵营获胜', bad:'狼人阵营获胜', jester:'小丑获胜', lovers:'恋人双双获胜', sk:'连环杀手获胜'};
+    lines.push('【本局结果】' + (WIN[S._winType] || '游戏结束') + '，打到第 ' + (S.round || '?') + ' 轮');
+
+    if (blind) {
+      lines.push('【身份】本局开启了终局盲复盘，真实身份没有揭晓。你只知道自己的身份，别人的只能推测——不要假装知道谁是什么。');
+    } else {
+      lines.push('【全员身份】' + S.players.map(function(p){
+        return p.name + '=' + (p.role ? p.role.emoji + p.role.name : '?') + (p.alive ? '(活到最后)' : '(出局)');
+      }).join('、'));
+    }
+
+    var report = '';
+    if (!blind && typeof _buildGodViewReport === 'function') {
+      try { report = _buildGodViewReport(); } catch(e) { report = ''; }
+    } else {
+      report = gcPublicReport();
+    }
+    // 战报每条消息都要随 system 发一次，太长会让自动聊天变得很贵。
+    // 超长时砍掉最早的几轮（复盘通常在吵后期的关键手），并明确告诉模型前面被截断了。
+    if (report.length > 2600) report = '（前几轮从略）\n' + report.slice(report.length - 2600);
+    if (report) lines.push('【本局经过】\n' + report);
+
+    reviewFacts = lines.join('\n');
+    return reviewFacts;
+  }
+
+  // 盲复盘用的公开战报：只保留票型、死亡（不带身份）和公开发言
+  function gcPublicReport() {
+    var byRound = {};
+    gcRecords().forEach(function(r){ (byRound[r.round||0] = byRound[r.round||0] || []).push(r); });
+    var lines = [];
+    Object.keys(byRound).map(Number).sort(function(a,b){return a-b;}).forEach(function(rd){
+      if (!rd) return;
+      var seg = [];
+      byRound[rd].forEach(function(r){
+        if (r.type === 'death') seg.push('  💀 ' + r.name + ' 死亡（' + (r.cause||'?') + '）');
+        else if (r.type === 'vote' && r.subtype === 'day' && r.result) seg.push('  🗳️ 白天放逐：' + r.result);
+      });
+      var seen = {};
+      byRound[rd].filter(function(r){ return r.type==='speech' && r.game && !r.wolfChat; }).forEach(function(sp){
+        if (seen[sp.name]) return; seen[sp.name] = 1;
+        var t = String(sp.game).slice(0,70).replace(/\n/g,' ');
+        if (t.trim()) seg.push('  💬 ' + sp.name + '：' + t);
+      });
+      if (seg.length) lines.push('\n【第' + rd + '天/夜】\n' + seg.join('\n'));
+    });
+    return lines.join('').trim();
+  }
+
+  // ② 个人视角。复盘好看的地方是落差——"我第二夜就验你金水了"对上"那你为什么第三天投我"，
+  //    所以每个人除了共同事实，还要拿到自己当时的行动，以及"这些是别人当时不知道的"。
+  function gcMyView(name) {
+    if (!gcMatchId()) return '';
+    var p = S.players.find(function(x){ return x.name === name; });
+    if (!p) return '';
+    var out = [], acted = [];
+
+    gcRecords().forEach(function(r){
+      if (r.round == null) return;
+      if (r.type === 'night_action') {
+        if (r.role === 'wolf') {   // 狼刀是全队的，队里每个人都算参与
+          if (p.role && p.role.team === 'bad' && r.target && r.target !== '无') acted.push('第' + r.round + '夜 狼队刀了 ' + r.target);
+          return;
+        }
+        if (gcActor(r) !== name) return;
+        if (r.role === 'seer' || r.role === 'granted-seer' || r.role === 'custom-inspect') {
+          acted.push('第' + r.round + '夜 你验了 ' + r.target + '，结果是' + (r.result === 'wolf' ? '狼' : '好人'));
+        } else if (r.role === 'witch') {
+          if (r.saved) acted.push('第' + r.round + '夜 你用解药救了 ' + r.saved);
+          if (r.poisoned) acted.push('第' + r.round + '夜 你用毒药毒了 ' + r.poisoned);
+        } else if (r.role === 'guard' && r.target) {
+          acted.push('第' + r.round + '夜 你守了 ' + r.target);
+        } else if (r.target) {
+          acted.push('第' + r.round + '夜 你的行动目标是 ' + r.target);
+        }
+      } else if (r.type === 'vote' && r.subtype === 'day' && r.votes) {
+        for (var k in r.votes) {
+          if ((r.votes[k]||[]).some(function(v){ return gcVoterName(v) === name; })) {
+            acted.push('第' + r.round + '天 你投了 ' + k);
+            break;
+          }
+        }
+      } else if (r.type === 'death' && r.name === name) {
+        acted.push('第' + r.round + '轮 你出局了，死因：' + (r.cause || '?'));
+      }
+    });
+
+    out.push('【你在这局是】' + (p.role ? p.role.emoji + p.role.name : '?') + '，' + (p.alive ? '活到了最后' : '中途出局'));
+    if (acted.length) out.push('【你自己做过的事】\n· ' + acted.slice(0, 14).join('\n· '));
+    out.push('【很重要】上面这些是【你当时的视角】。别人当时并不知道你做了什么，你当时也不知道别人的身份——'
+      + '现在真相摊开了，你才第一次看到全貌。所以你说话要带着"我当时是怎么想的"和"原来是这样"的落差感，'
+      + '该惊讶就惊讶、该不服就不服、该认栽就认栽，不要用上帝视角平铺直叙地总结全局。');
+    return out.join('\n');
+  }
+
+  // ③ 争议议题。UI 上那句提示说得对：好群聊要有「未解决的问题」。
+  //    复盘的未解决问题不用人写，战报里全是——冤枉了谁、毒错了谁、刀口怎么找到神的。
+  function gcReviewTopics() {
+    if (!gcMatchId() || gcBlind()) return [];
+    var role = {}, team = {};
+    S.players.forEach(function(p){
+      role[p.name] = p.role ? p.role.emoji + p.role.name : '?';
+      team[p.name] = p.role ? p.role.team : '';
+    });
+    var recs = gcRecords(), list = [];
+
+    // 冤枉好人：复盘里最经典的翻车现场，也最容易吵起来
+    recs.forEach(function(r){
+      if (r.type !== 'vote' || r.subtype !== 'day') return;
+      var out = r.result;
+      if (!out || out === '平票' || out === '无' || team[out] !== 'good') return;
+      var voters = ((r.votes && r.votes[out]) || []).map(gcVoterName);
+      list.push({
+        w: 3,
+        text: '第' + r.round + '天把 ' + out + '（' + role[out] + '，好人）投出去了'
+              + (voters.length ? '，投票的是 ' + voters.join('、') : '') + '。这票到底是怎么归上去的？谁带的节奏？' + out + '当时冤不冤？',
+        people: [out].concat(voters)
+      });
+    });
+
+    // 女巫毒错人
+    recs.forEach(function(r){
+      if (r.type !== 'night_action' || r.role !== 'witch' || !r.poisoned) return;
+      if (team[r.poisoned] !== 'good') return;
+      var w = gcActor(r);
+      list.push({
+        w: 2,
+        text: '第' + r.round + '夜女巫' + (w ? '（' + w + '）' : '') + '把毒药用在了 ' + r.poisoned + '（' + role[r.poisoned] + '，好人）身上。当时是什么让你锁定他的？',
+        people: [w, r.poisoned]
+      });
+    });
+
+    // 狼刀刀中神职：狼是怎么找到神的，好人这边通常一肚子话
+    recs.forEach(function(r){
+      if (r.type !== 'night_action' || r.role !== 'wolf' || !r.target || r.target === '无') return;
+      if (team[r.target] !== 'good') return;
+      var rn = role[r.target] || '';
+      if (rn.indexOf('村民') >= 0) return;   // 刀平民没什么好复盘的
+      list.push({
+        w: 1,
+        text: '第' + r.round + '夜狼队刀了 ' + r.target + '（' + rn + '）。狼是怎么在那个时候锁定他的？好人这边有没有暴露什么？',
+        people: [r.target].concat(S.players.filter(function(p){ return p.role && p.role.team === 'bad'; }).map(function(p){ return p.name; }))
+      });
+    });
+
+    // 抓对狼：正面案例，让复盘不至于全是互相埋怨
+    recs.forEach(function(r){
+      if (r.type !== 'vote' || r.subtype !== 'day') return;
+      var out = r.result;
+      if (!out || out === '平票' || out === '无' || team[out] !== 'bad') return;
+      list.push({
+        w: 1,
+        text: '第' + r.round + '天成功把狼 ' + out + '（' + role[out] + '）投出去了。这一票是谁先抓到的？他哪句话露了？',
+        people: [out].concat(((r.votes && r.votes[out]) || []).map(gcVoterName))
+      });
+    });
+
+    list.sort(function(a,b){ return b.w - a.w; });
+    var picked = list.slice(0, 4);
+    picked.push({ w:0, text:'议题聊完了：现在自由发挥——评本局 MVP、吐槽自己最蠢的一手、或者放话下一局怎么打。', people:[] });
+    return picked;
+  }
+
+  function gcCurTopic() {
+    if (!reviewOn || !topics.length) return activeTopic;
+    return (topics[Math.min(topicIdx, topics.length - 1)] || {}).text || activeTopic;
+  }
+  // 每聊够几条就推进一个议题，免得围着同一件事聊到烂
+  function gcAdvanceTopic() {
+    if (!reviewOn || topicIdx >= topics.length - 1) return;
+    var since = 0;
+    for (var i = history.length - 1; i >= 0 && history[i].topicIdx === topicIdx; i--) since++;
+    if (since >= 6) topicIdx++;
+  }
+  // 复盘时让当前议题的当事人优先开口——被冤枉的那个、投过他的那几个
+  function gcTopicPeople() {
+    if (!reviewOn || !topics.length) return [];
+    return ((topics[Math.min(topicIdx, topics.length - 1)] || {}).people || []).filter(Boolean);
+  }
+
+  // 组装一个成员这一条消息的 system 提示
+  function gcSysFor(member) {
+    var base = member.persona || ('你是' + member.name + '，在一个有共同历史的群里聊天。');
+    if (!reviewOn) {
+      return base + (activeTopic ? '\n\n【当前场景/话题】' + activeTopic : '')
+        + '\n\n【群聊原则】' + sceneNudge + ' 保留自己的立场，口语化自然，不超过120字，不要用 bullet list。';
+    }
+    var parts = [base];
+    var facts = gcReviewFacts();
+    if (facts) parts.push('【这局到底发生了什么】\n' + facts);
+    var mine = gcMyView(member.name);
+    if (mine) parts.push(mine);
+    var t = gcCurTopic();
+    if (t) parts.push('【现在群里正在吵的】' + t);
+    if (reviewOn && activeTopic) parts.push('【额外要求】' + activeTopic);
+    parts.push('【怎么说话】这是刚打完一局的复盘群，不是写战报。'
+      + '只挑一个点说——接上一句、反驳某个人、或者甩个自己的锅，然后把话头留给别人。'
+      + '可以吐槽、可以阴阳怪气、可以嘴硬、可以互相甩锅，用你自己的语气。'
+      + '不要复述战报，不要替所有人做总结，不要列 1234，不超过120字，直接说话不要加名字前缀。');
+    return parts.join('\n\n');
   }
 
   // 从上局游戏的 playerConfigs + curNames + S.players 构建成员列表
@@ -21656,17 +21943,16 @@ WP.init();
         var p = players ? players[i] : null;
         var name = p ? p.name : (names[i] || ('P'+(i+1)));
         var cfg = pCfgs[i] || {};
-        // 人设：优先用命牌里的自定义人设，否则根据角色自动生成简版
+        // 人设：优先用命牌里的自定义人设（保留玩家精心写的 Cosplay 设定），
+        // 没有才按角色生成一句。战局事实不写进 persona——那部分由 gcSysFor()
+        // 每次动态拼，这样成员列表存到 localStorage 里不会塞进整份战报。
         var persona = cfg.persona || '';
         if (!persona && p && p.role) {
-          persona = '你是' + name + '，刚刚扮演了「' + p.role.emoji + p.role.name + '」参加了一局狼人杀。'
-            + '游戏已经结束，现在是赛后群聊，可以用自己的风格自由发言，聊游戏体验、吐槽失误或者随便扯。口语化，不超过120字。';
+          persona = '你是' + name + '，刚刚在一局狼人杀里扮演了「' + p.role.emoji + p.role.name + '」。';
         } else if (!persona) {
-          persona = '你是' + name + '，刚刚参加了一局狼人杀。现在是赛后自由闲聊，用自己的方式随便聊。口语化，不超过120字。';
-        } else {
-          // 已有人设的话附上简单的游戏背景
-          var roleNote = (p && p.role) ? '（本局身份：' + p.role.emoji + p.role.name + (p.alive ? '，存活' : '，已出局') + '）' : '';
-          persona = persona + '\n\n' + roleNote + '\n现在游戏结束，赛后群聊，可以随意聊天。口语化，不超过120字。';
+          persona = '你是' + name + '，刚刚打完一局狼人杀。';
+        } else if (p && p.role) {
+          persona = persona + '\n\n（本局身份：' + p.role.emoji + p.role.name + (p.alive ? '，活到最后' : '，中途出局') + '）';
         }
         result.push({
           name: name,
@@ -21678,6 +21964,18 @@ WP.init();
       }
       return result.length ? result : null;
     } catch(e) { return null; }
+  }
+
+  function gcRenderTopicBar() {
+    var bar = document.getElementById('gchat-review-bar');
+    if (!bar) return;
+    bar.style.display = reviewOn ? 'block' : 'none';
+    if (!reviewOn) return;
+    var el = document.getElementById('gchat-review-topic');
+    if (!el) return;
+    var t = gcCurTopic();
+    var n = topics.length ? ('（' + Math.min(topicIdx + 1, topics.length) + '/' + topics.length + '）') : '';
+    el.textContent = n + (t || '（本局没扫出明显的争议点，随便聊）');
   }
 
   function gcEsc(s) {
@@ -21831,7 +22129,7 @@ WP.init();
     // 暂时停掉自动轮询（不改变 autoRunning 状态）
     if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
     gcAutoFollow = true;
-    history.push({role:'user', name:'你', text:text});
+    history.push({role:'user', name:'你', text:text, topicIdx:topicIdx});
     gcRenderLog();
     running = true;
     document.getElementById('gchat-send').disabled = true;
@@ -21842,15 +22140,13 @@ WP.init();
       var member = responders[ri];
       var mi = members.indexOf(member);
       gcAddTyping(member.name, mi);
-      var topicNote = activeTopic ? '\n\n【当前场景/话题】'+activeTopic : '';
-      var sys = (member.persona||('你是'+member.name+'，在一个有共同历史的群里聊天。')) + topicNote + '\n\n【群聊原则】'+sceneNudge+' 保留自己的立场，口语化自然，不超过120字，不要用 bullet list。';
-      var msgs = [{role:'system',content:sys}];
+      var msgs = [{role:'system',content:gcSysFor(member)}];
       history.slice(-24).forEach(function(h) {
         msgs.push({role:h.role==='user'?'user':'assistant', content:h.name+'：'+h.text});
       });
       var reply = await gcCallAI(member, msgs);
       gcRemoveTyping(mi);
-      history.push({role:'assistant', name:member.name, text:reply});
+      history.push({role:'assistant', name:member.name, text:reply, topicIdx:topicIdx});
       gcRenderLog();
       gcSave();
       if (ri < responders.length - 1) await new Promise(function(r){setTimeout(r,200);});
@@ -21872,6 +22168,7 @@ WP.init();
     document.getElementById('mm').classList.add('hidden');
     gcRenderLog();
     gcRenderReplyBtns();
+    gcRenderTopicBar();
     document.getElementById('gchat-topic').value = activeTopic;
     document.querySelectorAll('.gchat-preset-btn').forEach(function(b) {
       b.classList.toggle('active', b.dataset.topic===activeTopic);
@@ -21911,6 +22208,26 @@ WP.init();
     document.getElementById('gchat-cfg-save').onclick = function() {
       gcSave(); document.getElementById('gchat-cfg-panel').style.display='none'; gcRenderReplyBtns();
     };
+    document.getElementById('gchat-review-next').onclick = function() {
+      if (topicIdx < topics.length - 1) { topicIdx++; gcSave(); gcRenderTopicBar(); }
+    };
+    document.getElementById('gchat-review-off').onclick = function() {
+      reviewOn = false; topics = []; topicIdx = 0; reviewFacts = '';
+      if (!activeTopic) activeTopic = '大家正在自由对话，话题完全随意。';
+      gcSave(); gcRenderTopicBar();
+      var ta = document.getElementById('gchat-topic'); if (ta) ta.value = activeTopic;
+    };
+    // 手动重来：清空聊天记录、按当前对局重新导入成员和议题
+    document.getElementById('gchat-review-reseed').onclick = function() {
+      var mid = gcMatchId();
+      if (!mid) { alert('没有已结束的对局可以复盘。\n请先打完一局，再回来看看。'); return; }
+      if (history.length && !confirm('将清空当前聊天记录，按本局重新开始复盘。继续？')) return;
+      var seeded = gcBuildFromLastGame();
+      if (!seeded || !seeded.length) { alert('没能读到本局的玩家数据。'); return; }
+      members = seeded; reviewOn = true; reviewMatch = mid; reviewFacts = '';
+      topics = gcReviewTopics(); topicIdx = 0; history = [];
+      gcSave(); gcRenderLog(); gcRenderReplyBtns(); gcRenderTopicBar(); gcRenderMembersCfg();
+    };
     document.getElementById('gchat-add-member').onclick = function() {
       if (members.length>=8){alert('最多8名成员');return;}
       members.push({name:'新成员'+(members.length+1),model:'',url:'',key:'',persona:''});
@@ -21924,16 +22241,16 @@ WP.init();
       }
       if (members.length && !confirm('导入上局角色将替换当前成员列表，是否继续？')) return;
       members = imported;
-      // 自动设置复盘话题
-      if (!activeTopic) {
-        activeTopic = '现在是狼人杀游戏结束后，大家正在复盘刚才的游戏，可以分析战略、吐槽失误、讨论身份。';
-        document.getElementById('gchat-topic').value = activeTopic;
-        document.querySelectorAll('.gchat-preset-btn').forEach(function(b){
-          b.classList.toggle('active', b.dataset.topic===activeTopic);
-        });
+      // 只要这一局已经结束，导入就直接进复盘模式——议题和战报都自动带上，
+      // 不再只塞一句空泛的「大家正在复盘」话题字符串。
+      var mid = gcMatchId();
+      if (mid) {
+        reviewOn = true; reviewMatch = mid; reviewFacts = '';
+        topics = gcReviewTopics(); topicIdx = 0;
       }
       gcRenderMembersCfg();
       gcRenderReplyBtns();
+      gcRenderTopicBar();
       gcSave();
       // 给个反馈
       var btn = document.getElementById('gchat-import-game');
@@ -21959,10 +22276,18 @@ WP.init();
     });
     document.querySelectorAll('.gchat-preset-btn').forEach(function(btn) {
       btn.onclick = function() {
+        // 「复盘上一局」不是一句话题字符串，它切的是整个模式：带战报、带各自视角、带议题队列
+        if (btn.dataset.review) {
+          var el = document.getElementById('gchat-review-reseed');
+          if (el) el.onclick();
+          return;
+        }
         activeTopic = btn.dataset.topic;
+        reviewOn = false; topics = []; topicIdx = 0; reviewFacts = '';
         document.getElementById('gchat-topic').value = activeTopic;
         document.querySelectorAll('.gchat-preset-btn').forEach(function(b){b.classList.remove('active');});
         btn.classList.add('active');
+        gcRenderTopicBar();
         gcSave();
       };
     });

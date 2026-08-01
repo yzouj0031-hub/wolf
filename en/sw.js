@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v3-fox-art';
+const CACHE_NAME = 'wolf-en-pwa-v4-gchat-review';
 const APP_SHELL = [
   './',
   './index.html',
