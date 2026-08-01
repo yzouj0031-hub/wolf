@@ -1,10 +1,11 @@
-const CACHE_NAME = 'wolf-pwa-v12-i18n-complete';
+const CACHE_NAME = 'wolf-pwa-v13-role-sigils';
 const APP_SHELL = [
   './',
   './index.html',
   './i18n.js',
   './manifest.webmanifest',
   './tablet.css',
+  './role-sigils.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
