@@ -25,7 +25,7 @@
     window.Capacitor &&
     typeof window.Capacitor.isNativePlatform === 'function' &&
     window.Capacitor.isNativePlatform()
-  );
+  ) || /^(https?:\/\/)(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(window.location.href);
   if (!IS_NATIVE) return;
 
   // ── 发布时由 scripts/stamp-build.mjs 写入；仓库里永远是占位值 ──

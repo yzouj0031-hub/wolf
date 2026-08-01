@@ -65,8 +65,9 @@ function makeStorage() {
 }
 
 function pageContext({ caches, fetchImpl, pathname, localStorage, source, native = true }) {
-  const href = 'https://localhost' + pathname;
-  const scriptSrc = 'https://localhost' + (pathname.includes('/en/') ? '/en' : '') + '/hot-update.js';
+  const origin = native ? 'https://localhost' : 'https://yzouj0031-hub.github.io';
+  const href = origin + pathname;
+  const scriptSrc = origin + (pathname.includes('/en/') ? '/en' : '') + '/hot-update.js';
   const ctx = {
     console, setTimeout, clearTimeout, setImmediate, Response, Headers, TextEncoder, crypto, URL,
     caches: caches.view(href),
