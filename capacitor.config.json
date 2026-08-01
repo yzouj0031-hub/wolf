@@ -8,6 +8,11 @@
   "plugins": {
     "CapacitorHttp": {
       "enabled": true
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "appReadyTimeout": 20000,
+      "resetWhenUpdate": true
     }
   }
 }

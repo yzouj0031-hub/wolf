@@ -1,14 +1,15 @@
 name: Publish hot update
 
-# 发布网页热更新包：已安装的 APK / PWA 会自动拉取并在下次启动时生效，用户无需重装。
+# 发布网页热更新包：已安装的 APK 会自动拉取，下次切后台/重启时生效，用户无需重装。
+# 网页/PWA 不走这套（刷新本来就是最新的），只有 APK 需要。
 #
 # 产物发到滚动标签 web-latest 上的两个 Release 资源：
 #   version.json  约 1KB 的清单，客户端每次只拉它来比对构建号
-#   bundle.json   整包内容，只有确实有新版时才下载
+#   bundle.zip    整个网页目录，交给 CapacitorUpdater 在原生层替换；只有确实有新版才下
 #
 # 构建号用 `git rev-list --count HEAD`（main 上单调递增），与 build-apk.yml 取值方式
 # 完全一致 —— 同一个 commit 出的 APK 和热更新包构建号必然相同，所以刚装上最新 APK 的
-# 用户不会被同构建号的热更新包重复覆盖（sw.js 要求热更新 build 严格大于内置 build）。
+# 用户不会被同构建号的热更新包重复下载（客户端要求远端 build 严格大于本机 APP_BUILD）。
 
 on:
   workflow_dispatch:
@@ -82,6 +83,6 @@ jobs:
             要安装安卓应用请到 [android-latest](https://github.com/${{ github.repository }}/releases/tag/android-latest)。
           files: |
             dist-hot/version.json
-            dist-hot/bundle.json
+            dist-hot/bundle.zip
           # 别抢走 android-latest 的 "Latest" 标记，那才是用户该下载的东西
           make_latest: false

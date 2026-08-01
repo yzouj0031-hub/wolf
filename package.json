@@ -15,7 +15,8 @@
     "test:english-ui": "node scripts/test-english-ui.mjs",
     "test:match-replay": "node scripts/test-match-replay.mjs",
     "test:fox-info": "node scripts/test-fox-private-info.mjs",
-    "art:modes": "node scripts/make-mode-art.mjs"
+    "art:modes": "node scripts/make-mode-art.mjs",
+    "art:roles": "node scripts/optimize-role-art.mjs"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
@@ -24,6 +25,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
-    "@capacitor/core": "^6.1.2"
+    "@capacitor/core": "^6.1.2",
+    "@capgo/capacitor-updater": "^6.50.2"
   }
 }

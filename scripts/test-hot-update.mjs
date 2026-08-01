@@ -1,331 +1,206 @@
-// 热更新的行为测试：在 Node 里用 vm 造一个浏览器环境，把 hot-update.js 和 sw.js
-// 真正跑起来，而不是只做字符串匹配。手机上很难复现的分支（校验失败、装了更新的 APK、
-// 启动失败回滚、英文端缓存键）在这里全部走一遍。
+// 自动更新的行为测试：在 Node 里用 vm 造一个 APK 环境，把 hot-update.js 真跑起来，
+// 用假的 CapacitorUpdater 记录它到底调了什么。手机上难复现的分支（原生 ABI 不够、
+// 已下载过、网页端不许跑、启动确认）在这里全部走一遍。
 //
-// 用的是 Node 自带的真 Response / TextEncoder / crypto.subtle，所以哈希与内容类型的
-// 行为和浏览器一致；只有 caches / localStorage / document 是桩。
+// ⚠️ 这里验证的是【调用逻辑】。插件本身能不能在真机上换包，只能装 APK 实测——
+// 上一版就是败在这一点上：逻辑全对，但 Service Worker 在 APK 里根本没机会执行。
 import vm from 'node:vm';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 let passed = 0;
-const ok = (cond, label) => {
-  if (!cond) { console.error('❌ ' + label); process.exit(1); }
-  passed++;
-};
-const eq = (got, want, label) => ok(Object.is(got, want), `${label}（期望 ${want}，实际 ${got}）`);
+const ok = (c, label) => { if (!c) { console.error('❌ ' + label); process.exit(1); } passed++; };
+const eq = (g, w, label) => ok(Object.is(g, w), `${label}（期望 ${w}，实际 ${g}）`);
 
-mkdirSync('dist-hot', { recursive: true });
+const SRC = readFileSync('hot-update.js', 'utf8');
+const stampedWith = b => SRC.replace(/const APP_BUILD = \d+;/, `const APP_BUILD = ${b};`);
 
-/* ══════ 浏览器环境桩 ══════ */
-
-// 真实 Cache API 会把相对路径按【调用方各自的 base】解析。页面、根 SW、/en/ SW 三者
-// base 不同，所以这里也按 base 解析——用相对键跨 base 读写就会自然读不到，和浏览器
-// 表现一致（热更新 manifest 必须用按站点根算的绝对 URL，正是因为这个）。
-function makeCaches() {
-  const store = new Map();  // cacheName -> Map(绝对url -> {body, headers})
-  const openCache = (name, base) => {
-    if (!store.has(name)) store.set(name, new Map());
-    const m = store.get(name);
-    const key = k => new URL(String(k && k.url ? k.url : k), base).href;
-    return {
-      async match(k) {
-        const hit = m.get(key(k));
-        // Response 的 body 只能读一次，每次 match 都新建一个。
-        return hit ? new Response(hit.body, { headers: hit.headers }) : undefined;
-      },
-      async put(k, res) {
-        m.set(key(k), { body: await res.text(), headers: Object.fromEntries(res.headers) });
-      }
-    };
-  };
-  // 每个执行上下文拿一份绑定了自己 base 的视图，底层存储共享（同源同一个 Cache Storage）
-  const view = base => ({
-    async open(name) { return openCache(name, base); },
-    async delete(name) { return store.delete(name); },
-    async match(req) {
-      const k = new URL(String(req && req.url ? req.url : req), base).href;
-      for (const m of store.values()) {
-        if (m.has(k)) { const hit = m.get(k); return new Response(hit.body, { headers: hit.headers }); }
-      }
-      return undefined;
-    }
-  });
-  return { _store: store, view };
+function makeStorage(init = {}) {
+  const m = new Map(Object.entries(init).map(([k, v]) => [k, String(v)]));
+  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)),
+           removeItem: k => m.delete(k), _map: m };
 }
 
-function makeStorage() {
-  const m = new Map();
+// 记录插件收到的每一次调用，测试据此断言，而不是去猜内部状态
+function makeUpdater() {
+  const calls = { download: [], next: [], notifyAppReady: 0 };
   return {
-    getItem: k => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: k => m.delete(k),
-    _map: m
+    calls,
+    plugin: {
+      async download(o) { calls.download.push(o); return { id: 'bundle-' + o.version, version: o.version }; },
+      async next(o) { calls.next.push(o); },
+      notifyAppReady() { calls.notifyAppReady++; return Promise.resolve({}); },
+      async current() { return { bundle: { id: 'builtin', version: 'builtin' }, native: '1.0.0' }; }
+    }
   };
 }
 
-function pageContext({ caches, fetchImpl, pathname, localStorage, source, native = true }) {
-  const origin = native ? 'https://localhost' : 'https://yzouj0031-hub.github.io';
-  const href = origin + pathname;
-  const scriptSrc = origin + (pathname.includes('/en/') ? '/en' : '') + '/hot-update.js';
+function run({ source = SRC, native = true, hasPlugin = true, remote, localStorage = makeStorage(),
+               pathname = '/', connection } = {}) {
+  const up = makeUpdater();
+  const swRegs = [{ unregistered: false, unregister() { this.unregistered = true; return Promise.resolve(); } }];
+  const deletedCaches = [];
   const ctx = {
-    console, setTimeout, clearTimeout, setImmediate, Response, Headers, TextEncoder, crypto, URL,
-    caches: caches.view(href),
+    console, setTimeout, clearTimeout, setImmediate, URL,
     localStorage,
-    sessionStorage: makeStorage(),
-    fetch: fetchImpl,
-    Capacitor: native ? { isNativePlatform: () => true } : undefined,
-    location: { pathname, href, reload() { ctx.__reloaded = true; } },
+    fetch: async url => {
+      if (!/version\.json/.test(url)) throw new Error('只应请求 version.json，实际：' + url);
+      return { ok: true, async json() { return remote; } };
+    },
+    location: { pathname, href: 'https://localhost' + pathname },
     document: {
-      currentScript: { src: scriptSrc },
       getElementById: () => null,
       createElement: () => ({ style: {}, append() {}, insertAdjacentElement() {}, onclick: null }),
-      body: { appendChild() {} },
-      documentElement: { appendChild() {} }
+      body: { appendChild() {} }, documentElement: { appendChild() {} }
     },
-    navigator: { serviceWorker: { getRegistrations: async () => [] } },
-    __reloaded: false
+    navigator: {
+      connection,
+      serviceWorker: { getRegistrations: async () => swRegs }
+    },
+    caches: {
+      keys: async () => ['wolf-pwa-x', 'wolf-hot-active'],
+      delete: async k => { deletedCaches.push(k); return true; }
+    },
+    Capacitor: native ? {
+      isNativePlatform: () => true,
+      Plugins: hasPlugin ? { CapacitorUpdater: up.plugin } : {},
+      registerPlugin: () => (hasPlugin ? up.plugin : null)
+    } : undefined
   };
-  ctx.window = ctx;
-  ctx.globalThis = ctx;
-  ctx.window.addEventListener = () => {};   // 不触发 load，手动调 check 更好控制
+  ctx.window = ctx; ctx.globalThis = ctx;
+  ctx.window.addEventListener = () => {};
   vm.createContext(ctx);
   vm.runInContext(source, ctx, { filename: 'hot-update.js' });
-  return ctx;
+  return { ctx, api: ctx.window.WolfHotUpdate, calls: up.calls, swRegs, deletedCaches };
 }
 
-function loadSw(file, { caches, href }) {
-  const handlers = {};
-  const origin = new URL(href).origin;
-  const self = {
-    addEventListener: (type, fn) => { handlers[type] = fn; },
-    skipWaiting() {}, clients: { claim() {} },
-    location: { origin, hostname: new URL(href).hostname, href }
-  };
-  const ctx = {
-    console, Response, Headers, URL, self,
-    caches: caches.view(href),
-    // 「网络」在 APK 里就是安装包内置的那份资源
-    fetch: async () => new Response('BUNDLED', { headers: { 'Content-Type': 'text/html' } })
-  };
-  ctx.globalThis = ctx;
-  vm.createContext(ctx);
-  vm.runInContext(readFileSync(file, 'utf8'), ctx, { filename: file });
-  return {
-    // 驱动真正注册的 fetch 监听器，而不是去猜内部状态
-    async serve(url, mode = 'navigate') {
-      let out;
-      handlers.fetch({ request: { url, method: 'GET', mode }, respondWith(p) { out = p; } });
-      return out ? await out : undefined;
-    }
-  };
-}
-
-/* ══════ 造一个和 CI 产物同构的更新包 ══════ */
-function makeBundle(build, { minNative = 1, corrupt = false } = {}) {
-  const files = {
-    'index.html': `<!doctype html><title>build ${build}</title>`,
-    'hot-update.js': `const APP_BUILD = ${build};`,
-    'en/index.html': `<!doctype html><title>en build ${build}</title>`
-  };
-  const sha256 = {}, sizes = {};
-  for (const [p, text] of Object.entries(files)) {
-    const buf = Buffer.from(text, 'utf8');
-    sha256[p] = createHash('sha256').update(buf).digest('hex');
-    sizes[p] = buf.length;
-  }
-  if (corrupt) files['index.html'] += '<!-- 传输中被改动 -->';
-  return {
-    meta: { build, version: 'b' + build, minNative, sha256, sizes },
-    bundle: { build, version: 'b' + build, files }
-  };
-}
-
-const serveJson = pkg => async url => {
-  if (url.includes('version.json')) return new Response(JSON.stringify(pkg.meta));
-  if (url.includes('bundle.json')) return new Response(JSON.stringify(pkg.bundle));
-  return new Response('not found', { status: 404 });
-};
-
-const HOT = 'wolf-hot-active';
-const MANIFEST = 'https://localhost/__wolf_hot_manifest__';
-const HOT_SRC = readFileSync('hot-update.js', 'utf8');
-const stampedWith = build => HOT_SRC.replace(/const APP_BUILD = \d+;/, `const APP_BUILD = ${build};`);
-
-const load = (caches, fetchImpl, opts = {}) => pageContext({
-  caches, fetchImpl,
-  pathname: opts.pathname || '/',
-  localStorage: opts.localStorage || makeStorage(),
-  source: opts.source || HOT_SRC,
-  native: opts.native !== false
+const remoteAt = (build, extra = {}) => ({
+  build, version: 'b' + build, minNative: 1,
+  sha256: 'a'.repeat(64), size: 123, zipUrl: 'https://example.test/bundle.zip', ...extra
 });
 
-/* Browser/PWA must not fetch or stage the APK-only bundle. */
+/* ① 仓库里必须保持占位值，否则本地开发版会把自己当成线上版本 */
+eq(Number(SRC.match(/const APP_BUILD = (\d+);/)[1]), 0, '仓库里的 hot-update.js 应保持 APP_BUILD=0');
+eq(SRC.match(/const APP_VERSION = '([^']*)';/)[1], 'dev', '仓库里的 APP_VERSION 应保持 dev');
+
+/* ② 网页端完全不参与：不暴露控制器、不请求清单 */
 {
-  const caches = makeCaches();
-  let calls = 0;
-  const ctx = load(caches, async () => { calls++; throw new Error('browser must not fetch'); }, { native: false });
-  ok(!ctx.window.WolfHotUpdate, '浏览器端不应启用 APK 热更新控制器');
-  eq(calls, 0, '浏览器端不应请求热更新清单');
+  const r = run({ native: false, remote: remoteAt(999) });
+  ok(!r.api, '网页端不应暴露 WolfHotUpdate');
+  eq(r.calls.download.length, 0, '网页端不应下载更新包');
 }
 
-/* Browser/PWA must ignore any stale APK hot cache left by an older build. */
+/* ③ 网页端也不该动 Service Worker —— 浏览器还要靠它离线 */
 {
-  const caches = makeCaches();
-  const root = caches.view('https://yzouj0031-hub.github.io/');
-  const c = await root.open(HOT);
-  await c.put('https://yzouj0031-hub.github.io/index.html', new Response('HOT'));
-  await c.put('https://yzouj0031-hub.github.io/__wolf_hot_manifest__', new Response(JSON.stringify({ build: 99 })));
-  const tmp = 'dist-hot/.test-web-sw.js';
-  writeFileSync(tmp, readFileSync('sw.js', 'utf8').replace(/const BUNDLED_BUILD = \d+;/, 'const BUNDLED_BUILD = 1;'));
-  const sw = loadSw(tmp, { caches, href: 'https://yzouj0031-hub.github.io/sw.js' });
-  eq(await (await sw.serve('https://yzouj0031-hub.github.io/')).text(), 'BUNDLED',
-    '浏览器端应忽略 APK 热更新缓存');
+  const r = run({ native: false, remote: remoteAt(999) });
+  await new Promise(res => setImmediate(res));
+  ok(!r.swRegs[0].unregistered, '网页端不能注销 Service Worker');
+  eq(r.deletedCaches.length, 0, '网页端不能清空缓存');
 }
 
-/* ══════ ① 仓库里必须保持占位值，否则本地开发版会把自己当成线上版本 ══════ */
-eq(Number(HOT_SRC.match(/const APP_BUILD = (\d+);/)[1]), 0, '仓库里的 hot-update.js 应保持 APP_BUILD=0');
-eq(Number(readFileSync('sw.js', 'utf8').match(/const BUNDLED_BUILD = (\d+);/)[1]), 0, '仓库里的 sw.js 应保持 BUNDLED_BUILD=0');
-eq(Number(readFileSync('en/sw.js', 'utf8').match(/const BUNDLED_BUILD = (\d+);/)[1]), 0, '仓库里的 en/sw.js 应保持 BUNDLED_BUILD=0');
-
-/* ══════ ② 远端不比本地新 → 什么都不做 ══════ */
+/* ④ APK 里必须清掉旧方案留下的 SW 和缓存，否则换包后会新页面配旧脚本 */
 {
-  const caches = makeCaches();
-  const ctx = load(caches, serveJson(makeBundle(0)));
-  const r = await ctx.window.WolfHotUpdate.check({ manual: true });
-  eq(r.status, 'current', '远端构建号不大于本地时应报 current');
-  eq(caches._store.size, 0, 'current 时不应写任何缓存');
+  const r = run({ remote: remoteAt(0) });
+  await new Promise(res => setImmediate(res));
+  await new Promise(res => setImmediate(res));
+  ok(r.swRegs[0].unregistered, 'APK 里应注销遗留的 Service Worker');
+  ok(r.deletedCaches.includes('wolf-hot-active'), 'APK 里应清掉旧热更新缓存');
+  ok(r.deletedCaches.includes('wolf-pwa-x'), 'APK 里应清掉旧 PWA 缓存');
 }
 
-/* ══════ ③ 正常更新 → 全部文件落缓存，manifest 最后写 ══════ */
+/* ⑤ 插件不存在时安静退出，不能连累主程序 */
 {
-  const caches = makeCaches();
-  const ctx = load(caches, serveJson(makeBundle(77)));
-  const r = await ctx.window.WolfHotUpdate.check({ manual: true });
-  eq(r.status, 'staged', '有新版时应报 staged');
-  const cache = caches._store.get(HOT);
-  ok(cache, '应创建热更新缓存');
-  ok(cache.has('https://localhost/index.html'), 'index.html 应按站点根写入');
-  ok(cache.has('https://localhost/en/index.html'), 'en/index.html 应保留子目录');
-  ok(cache.has(MANIFEST), 'manifest 应按站点根写入绝对 URL');
-  eq([...cache.keys()].pop(), MANIFEST, 'manifest 必须最后写（保证「有 manifest = 文件齐」）');
-  ok(cache.get('https://localhost/index.html').headers['content-type'].startsWith('text/html'),
-    'html 应带 text/html 内容类型');
+  const r = run({ hasPlugin: false, remote: remoteAt(999) });
+  ok(!r.api, '拿不到插件时不应暴露控制器');
 }
 
-/* ══════ ④ 内容被改动 → 整包拒绝，一个字节都不落盘 ══════ */
+/* ⑥ 远端不比本地新 → 什么都不做 */
 {
-  const caches = makeCaches();
-  const ctx = load(caches, serveJson(makeBundle(78, { corrupt: true })));
-  let threw = false;
-  try { await ctx.window.WolfHotUpdate.check({ manual: true }); } catch (e) { threw = true; }
-  ok(threw, '校验不过应抛错');
-  const cache = caches._store.get(HOT);
-  ok(!cache || !cache.has(MANIFEST), '校验失败绝不能留下 manifest');
-  ok(!cache || cache.size === 0, '校验失败应完全不写缓存，避免半个版本');
+  const r = run({ source: stampedWith(700), remote: remoteAt(700) });
+  const res = await r.api.check({ manual: true });
+  eq(res.status, 'current', '构建号不大于本地时应报 current');
+  eq(r.calls.download.length, 0, 'current 时不应下载');
 }
 
-/* ══════ ⑤ 新网页要求更高的原生 ABI → 不热更新，提示重装 ══════ */
+/* ⑦ 有新版 → 按清单里的地址下载，并用 next 排到下次启动（不能用 set 打断当前对局） */
 {
-  const caches = makeCaches();
-  const ctx = load(caches, serveJson(makeBundle(79, { minNative: 99 })));
-  const r = await ctx.window.WolfHotUpdate.check({ manual: true });
-  eq(r.status, 'needs-apk', '原生 ABI 不够时应报 needs-apk');
-  eq(caches._store.size, 0, 'needs-apk 时不应写缓存');
+  const r = run({ source: stampedWith(700), remote: remoteAt(750) });
+  const res = await r.api.check({ manual: true });
+  eq(res.status, 'staged', '有新版应报 staged');
+  eq(r.calls.download.length, 1, '应下载一次');
+  eq(r.calls.download[0].url, 'https://example.test/bundle.zip', '应使用清单里的 zipUrl');
+  eq(r.calls.download[0].version, '750', '应把构建号作为版本号传给插件');
+  eq(r.calls.download[0].checksum, 'a'.repeat(64), '应把 sha256 交给插件校验');
+  eq(r.calls.next.length, 1, '应调用 next 排期');
+  eq(r.calls.next[0].id, 'bundle-750', 'next 应指向刚下载的包');
+  eq(r.ctx.localStorage.getItem('wolfHotPending'), '750', '应记下已就绪的构建号');
 }
 
-/* ══════ ⑥ /en/ 下的副本也必须按站点根写缓存键 ══════ */
+/* ⑧ 已经下载过就不再重复下载几 MB */
 {
-  const caches = makeCaches();
-  const ctx = load(caches, serveJson(makeBundle(80)), { pathname: '/en/index.html' });
-  await ctx.window.WolfHotUpdate.check({ manual: true });
-  const cache = caches._store.get(HOT);
-  ok(cache.has('https://localhost/index.html'), 'en 客户端不能把 index.html 写成 /en/index.html');
-  ok(cache.has('https://localhost/en/index.html'), 'en 客户端仍要写 /en/index.html');
-  ok(cache.has(MANIFEST), 'en 客户端的 manifest 也必须写在站点根');
+  const ls = makeStorage({ wolfHotPending: '750' });
+  const r = run({ source: stampedWith(700), remote: remoteAt(750), localStorage: ls });
+  const res = await r.api.check({ manual: true });
+  eq(res.status, 'pending', '已就绪时应报 pending');
+  eq(r.calls.download.length, 0, 'pending 时不应重复下载');
 }
 
-/* ══════ ⑦ SW 闸门：热更新包必须严格新于内置版本才生效 ══════ */
-for (const [file, navUrl] of [['sw.js', 'https://localhost/'], ['en/sw.js', 'https://localhost/en/']]) {
-  for (const [bundled, hot, serveHot] of [[10, 20, true], [20, 20, false], [30, 20, false]]) {
-    const caches = makeCaches();
-    const root = caches.view('https://localhost/');
-    const c = await root.open(HOT);
-    await c.put(navUrl + 'index.html', new Response('HOT', { headers: { 'Content-Type': 'text/html' } }));
-    await c.put(MANIFEST, new Response(JSON.stringify({ build: hot })));
-
-    const tmp = 'dist-hot/.test-' + file.replace('/', '-');
-    writeFileSync(tmp, readFileSync(file, 'utf8').replace(/const BUNDLED_BUILD = \d+;/, `const BUNDLED_BUILD = ${bundled};`));
-    // href 决定 SW 怎么算站点根：/en/sw.js 必须回退到根去找 manifest
-    const sw = loadSw(tmp, { caches, href: 'https://localhost/' + file });
-    eq(await (await sw.serve(navUrl)).text(), serveHot ? 'HOT' : 'BUNDLED',
-      `${file}：内置 ${bundled} vs 热更新 ${hot} 应返回${serveHot ? '热更新' : '内置'}版本`);
-  }
-}
-
-/* ══════ ⑧ SW 归一化：目录形式、带 query 的导航都要命中同一个缓存键 ══════ */
+/* ⑨ 新网页要求更高的原生 ABI → 不下载，提示去装新安装包 */
 {
-  const caches = makeCaches();
-  const c = await caches.view('https://localhost/').open(HOT);
-  await c.put('https://localhost/index.html', new Response('HOT', { headers: { 'Content-Type': 'text/html' } }));
-  await c.put(MANIFEST, new Response(JSON.stringify({ build: 20 })));
-  const tmp = 'dist-hot/.test-norm-sw.js';
-  writeFileSync(tmp, readFileSync('sw.js', 'utf8').replace(/const BUNDLED_BUILD = \d+;/, 'const BUNDLED_BUILD = 1;'));
-  const sw = loadSw(tmp, { caches, href: 'https://localhost/sw.js' });
-  for (const u of ['https://localhost/', 'https://localhost/index.html', 'https://localhost/?x=1']) {
-    eq(await (await sw.serve(u)).text(), 'HOT', `导航 ${u} 应命中热更新缓存`);
-  }
+  const r = run({ source: stampedWith(700), remote: remoteAt(750, { minNative: 99 }) });
+  const res = await r.api.check({ manual: true });
+  eq(res.status, 'needs-apk', '原生 ABI 不够时应报 needs-apk');
+  eq(r.calls.download.length, 0, 'needs-apk 时绝不能下载——包里的新页面跑不起来');
 }
 
-/* ══════ ⑨ 启动守护：热更新包连续启动失败达上限后自动回滚 ══════ */
+/* ⑩ 省流量 / 2G 下不自动下载，但手动点仍然下 */
 {
-  const caches = makeCaches();
-  const c = await caches.view('https://localhost/').open(HOT);
-  await c.put(MANIFEST, new Response(JSON.stringify({ build: 55 })));
-  const ls = makeStorage();
-  const src = stampedWith(55);
-  let reloaded = false;
-  for (let i = 1; i <= 4; i++) {   // 4 次都没走到 markBootOk
-    const ctx = load(caches, async () => new Response('{}'), { localStorage: ls, source: src });
-    await new Promise(r => setImmediate(r));   // 等 bootGuard 的异步链跑完
-    if (ctx.__reloaded) reloaded = true;
-  }
-  ok(reloaded, '连续启动失败达上限后应回滚并重载');
-  ok(!caches._store.has(HOT) || caches._store.get(HOT).size === 0, '回滚应清空热更新缓存');
+  const saveData = { connection: { saveData: true, effectiveType: '4g' } };
+  const auto = run({ source: stampedWith(700), remote: remoteAt(750), ...saveData });
+  eq((await auto.api.check({})).status, 'skipped-metered', '省流量模式不应自动下载');
+  eq(auto.calls.download.length, 0, '省流量模式确实没下载');
+
+  const manual = run({ source: stampedWith(700), remote: remoteAt(750), ...saveData });
+  eq((await manual.api.check({ manual: true })).status, 'staged', '手动点应无视省流量模式');
 }
 
-/* ══════ ⑩ 启动成功打点后，再启动多少次都不回滚 ══════ */
+/* ⑪ 自动检查有 6 小时节流，手动检查不受限 */
 {
-  const caches = makeCaches();
-  const c = await caches.view('https://localhost/').open(HOT);
-  await c.put(MANIFEST, new Response(JSON.stringify({ build: 66 })));
-  const ls = makeStorage();
-  const src = stampedWith(66);
-  let reloaded = false;
-  for (let i = 0; i < 6; i++) {
-    const ctx = load(caches, async () => new Response('{}'), { localStorage: ls, source: src });
-    await new Promise(r => setImmediate(r));
-    ctx.window.WolfHotUpdate.markBootOk();     // 主脚本完整跑完
-    if (ctx.__reloaded) reloaded = true;
-  }
-  ok(!reloaded, '已确认可正常启动的构建不应再被回滚');
-  ok(caches._store.get(HOT).has(MANIFEST), '正常启动不应清掉热更新缓存');
+  const ls = makeStorage({ wolfHotLastCheck: String(Date.now()) });
+  const r = run({ source: stampedWith(700), remote: remoteAt(750), localStorage: ls });
+  eq((await r.api.check({})).status, 'skipped', '短时间内不应重复自动检查');
+  eq((await r.api.check({ manual: true })).status, 'staged', '手动检查应无视节流');
 }
 
-/* ══════ ⑪ 内置版本自身崩溃时绝不能被当成热更新失败反复重载 ══════ */
+/* ⑫ 启动确认必须真的调到插件——不调的话插件会判定启动失败并回滚 */
 {
-  const caches = makeCaches();     // 没有任何热更新缓存 = 跑的是内置版本
-  const ls = makeStorage();
-  let reloaded = false;
-  for (let i = 0; i < 6; i++) {
-    const ctx = load(caches, async () => new Response('{}'), { localStorage: ls, source: stampedWith(70) });
-    await new Promise(r => setImmediate(r));
-    if (ctx.__reloaded) reloaded = true;
-  }
-  ok(!reloaded, '内置版本启动失败与热更新无关，不能触发重载循环');
+  const ls = makeStorage({ wolfHotPending: '700' });
+  const r = run({ source: stampedWith(700), remote: remoteAt(700), localStorage: ls });
+  r.api.markBootOk();
+  eq(r.calls.notifyAppReady, 1, 'markBootOk 应调用插件的 notifyAppReady');
+  eq(ls.getItem('wolfHotPending'), null, '已生效的构建号应从 pending 清掉');
 }
 
-/* ══════ ⑫ 两个客户端的 hot-update.js 必须逐字一致，避免只改了一边 ══════ */
-ok(HOT_SRC === readFileSync('en/hot-update.js', 'utf8'), 'en/hot-update.js 必须与根目录版本逐字一致');
+/* ⑬ 主脚本里必须留着启动确认，且 SW 只在网页端注册 */
+for (const f of ['index.html', 'en/index.html']) {
+  const h = readFileSync(f, 'utf8');
+  ok(h.includes('WolfHotUpdate.markBootOk()'), `${f} 必须调用 markBootOk()`);
+  ok(/serviceWorker' in navigator &&[\s\S]{0,200}isNativePlatform\(\)\)\)/.test(h),
+    `${f} 必须只在网页端注册 Service Worker`);
+}
+
+/* ⑭ 两个客户端的 hot-update.js 必须逐字一致，避免只改了一边 */
+ok(SRC === readFileSync('en/hot-update.js', 'utf8'), 'en/hot-update.js 必须与根目录版本逐字一致');
+
+/* ⑮ 旧方案的残留必须清干净，避免两套机制并存 */
+for (const f of ['sw.js', 'en/sw.js']) {
+  const s = readFileSync(f, 'utf8');
+  ok(!/HOT_CACHE|BUNDLED_BUILD|wolf-hot-active/.test(s), `${f} 不应再残留旧热更新逻辑`);
+}
+
+/* ⑯ 打包脚本必须把 hot-update.js 收进 APK，否则安装包里根本没有更新器 */
+{
+  const b = readFileSync('scripts/build-www.mjs', 'utf8');
+  ok(b.includes("'hot-update.js'"), 'build-www.mjs 必须收集 hot-update.js');
+}
 
 console.log(`hot update: ${passed} 项检查通过`);

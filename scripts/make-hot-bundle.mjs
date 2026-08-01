@@ -1,17 +1,16 @@
-// 生成热更新包：dist-hot/version.json（小清单）+ dist-hot/bundle.json（整包内容）。
+// 生成热更新包：dist-hot/version.json（小清单）+ dist-hot/bundle.zip（整个网页目录）。
 //
 //   node scripts/stamp-build.mjs <build> <version>   # 先写入构建号
 //   node scripts/make-hot-bundle.mjs <build> <version>
 //
-// 客户端先拉 version.json（约 1KB）比对构建号，只有确实有新版才去下 bundle.json。
+// 客户端先拉 version.json（约 1KB）比对构建号，只有确实有新版才去下 bundle.zip。
 //
-// 刻意【不】包含：
-//   sw.js / en/sw.js  —— 热更新写坏 Service Worker 会让整个 app 打不开，
-//                        它只能随安装包更新。sw.js 里的 BUNDLED_BUILD 同时也是
-//                        「安装包内置版本」的判定基准，热更新改了它就没有基准了。
-//   icons/**          —— 体积大、几乎不变，且换图标本身就要重新打包。
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+// zip 的内容【必须】和打进 APK 的 www/ 完全一致：CapacitorUpdater 是整目录替换的，
+// zip 里没有的文件在换包之后就不存在了。所以这里直接复用 build-www.mjs 的产物，
+// 而不是另维护一份文件清单——两边一旦不同步，热更新后就会缺文件。
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const build = Number(process.argv[2]);
 const version = process.argv[3];
@@ -20,28 +19,6 @@ if (!Number.isInteger(build) || build <= 0 || !version) {
   console.error('❌ 用法：node scripts/make-hot-bundle.mjs <build 正整数> <version 字符串>');
   process.exit(1);
 }
-
-const HOT_FILES = [
-  'index.html',
-  'i18n.js',
-  'hot-update.js',
-  'native-http.js',
-  'role-effects.js',
-  'role-effects.css',
-  'tablet.css',
-  'manifest.webmanifest',
-  'horror.html',
-  'en/index.html',
-  'en/i18n.js',
-  'en/hot-update.js',
-  'en/native-http.js',
-  'en/storage-scope.js',
-  'en/role-effects.js',
-  'en/role-effects.css',
-  'en/tablet.css',
-  'en/manifest.webmanifest',
-  'en/horror.html'
-];
 
 // 原生壳 ABI 从 hot-update.js 里读，保证「网页要求的 ABI」和代码里写的永远一致。
 const selfSrc = readFileSync('hot-update.js', 'utf8');
@@ -52,7 +29,7 @@ if (!abiMatch) {
 }
 const minNative = Number(abiMatch[1]);
 
-// 构建号必须已经写进 hot-update.js，否则热更新包里的 APP_BUILD 还是 0，
+// 构建号必须已经写进 hot-update.js，否则包里的 APP_BUILD 还是 0，
 // 装上之后会立刻又把自己判成"有新版"，陷入反复下载。
 const stamped = selfSrc.match(/const APP_BUILD = (\d+);/);
 if (!stamped || Number(stamped[1]) !== build) {
@@ -60,42 +37,34 @@ if (!stamped || Number(stamped[1]) !== build) {
   process.exit(1);
 }
 
-const files = {};
-const sha256 = {};
-const sizes = {};
-let total = 0;
-
-for (const path of HOT_FILES) {
-  if (!existsSync(path)) {
-    console.warn(`⚠️  跳过不存在的文件：${path}`);
-    continue;
-  }
-  const buf = readFileSync(path);
-  const text = buf.toString('utf8');
-  // 客户端是按 UTF-8 字符串重新编码后校验的，这里必须确认往返一致，
-  // 否则哈希对不上会让每次更新都在校验这一步失败。
-  if (!Buffer.from(text, 'utf8').equals(buf)) {
-    console.error(`❌ ${path} 不是合法 UTF-8，无法放进 JSON 更新包`);
-    process.exit(1);
-  }
-  files[path] = text;
-  sha256[path] = createHash('sha256').update(buf).digest('hex');
-  sizes[path] = buf.length;
-  total += buf.length;
-}
-
-if (!files['index.html']) {
-  console.error('❌ 更新包里没有 index.html，拒绝发布');
+// 用与 APK 完全相同的方式收集网页资源
+execFileSync('node', ['scripts/build-www.mjs'], { stdio: 'inherit' });
+if (!existsSync('www/index.html')) {
+  console.error('❌ www/index.html 缺失');
   process.exit(1);
 }
 
-const meta = { build, version, minNative, time: Date.now(), sha256, sizes };
-
 rmSync('dist-hot', { recursive: true, force: true });
 mkdirSync('dist-hot', { recursive: true });
+
+// -r 递归、-q 安静、-X 不存额外属性（让同样内容产出稳定的包）
+// 在 www/ 内部打包，保证 zip 根目录直接是 index.html 而不是套一层 www/
+execFileSync('zip', ['-r', '-q', '-X', '../dist-hot/bundle.zip', '.'], { cwd: 'www' });
+
+const zip = readFileSync('dist-hot/bundle.zip');
+const sha256 = createHash('sha256').update(zip).digest('hex');
+
+const meta = {
+  build,
+  version,
+  minNative,
+  time: Date.now(),
+  size: zip.length,
+  sha256,
+  zipUrl: 'https://github.com/yzouj0031-hub/wolf/releases/download/web-latest/bundle.zip'
+};
 writeFileSync('dist-hot/version.json', JSON.stringify(meta));
-writeFileSync('dist-hot/bundle.json', JSON.stringify({ build, version, files }));
 
 const mb = n => (n / 1024 / 1024).toFixed(2) + 'MB';
 console.log(`✅ 热更新包已生成 build=${build} version=${version} minNative=${minNative}`);
-console.log(`   ${Object.keys(files).length} 个文件，原始 ${mb(total)}，bundle.json ${mb(readFileSync('dist-hot/bundle.json').length)}`);
+console.log(`   bundle.zip ${mb(zip.length)}  sha256 ${sha256.slice(0, 16)}…`);
