@@ -421,6 +421,34 @@ select { min-width: 60px; }
 @keyframes hunter-lock { 0%{opacity:0;transform:scale(3)} 80%{opacity:1;transform:scale(0.8)} 100%{opacity:0;transform:scale(1)} }
 @keyframes guard-pulse { 0%{opacity:0;transform:scale(0.8)} 50%{opacity:0.8;transform:scale(1.1)} 100%{opacity:0;transform:scale(1.3)} }
 
+/* --- Cinematic role reveals for major skill events --- */
+.role-cinematic { --cinema-accent:#d8b66b; position:fixed; inset:0; z-index:760; pointer-events:none; display:grid; place-items:center; overflow:hidden; opacity:0; background:radial-gradient(circle at 50% 46%,rgba(45,33,68,.4),rgba(4,5,12,.92) 68%); animation:cinema-shell 1.8s ease both; }
+.role-cinematic::before,.role-cinematic::after { content:''; position:absolute; inset:7%; border:1px solid color-mix(in srgb,var(--cinema-accent) 48%,transparent); clip-path:polygon(0 0,26% 0,26% 1px,74% 1px,74% 0,100% 0,100% 100%,74% 100%,74% calc(100% - 1px),26% calc(100% - 1px),26% 100%,0 100%); opacity:.6; }
+.role-cinematic::after { inset:10%; opacity:.22; }
+.role-cinematic.bad { --cinema-accent:#d26474; background:radial-gradient(circle at 50% 46%,rgba(118,24,45,.34),rgba(4,5,12,.94) 70%); }
+.role-cinematic.good { --cinema-accent:#78c7ec; background:radial-gradient(circle at 50% 46%,rgba(36,80,125,.34),rgba(4,5,12,.94) 70%); }
+.role-cinematic.third { --cinema-accent:#dfbd55; }
+.role-cinema-panel { position:relative; width:min(880px,90vw); height:min(510px,70vh); display:grid; grid-template-columns:minmax(250px,43%) 1fr; align-items:stretch; border-top:1px solid rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.08); background:linear-gradient(90deg,rgba(8,8,18,.2),rgba(14,12,27,.88)); box-shadow:0 24px 80px rgba(0,0,0,.58); overflow:hidden; animation:cinema-panel-in .5s cubic-bezier(.2,.75,.25,1) both; }
+.role-cinema-art-wrap { position:relative; min-width:0; overflow:hidden; }
+.role-cinema-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 24%; filter:saturate(.8) contrast(1.08) brightness(.76); }
+.role-cinema-art-wrap::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent 45%,rgba(14,12,27,.96)),linear-gradient(0deg,rgba(4,5,12,.55),transparent 45%); }
+.role-cinema-fallback { position:absolute; inset:0; display:grid; place-items:center; color:var(--cinema-accent); background:radial-gradient(circle,rgba(255,255,255,.06),transparent 65%); }
+.role-cinema-fallback .role-sigil { width:min(230px,65%); height:auto; aspect-ratio:1; opacity:.65; }
+.role-cinema-copy { position:relative; z-index:2; display:flex; flex-direction:column; justify-content:center; padding:clamp(24px,5vw,70px); margin-left:-1px; }
+.role-cinema-kicker { color:var(--cinema-accent); letter-spacing:.42em; font-size:.72em; text-transform:uppercase; opacity:.82; }
+.role-cinema-title { margin:.35em 0 .15em; color:#f3edf7; font-family:var(--font-title); font-size:clamp(2.1em,5vw,4.8em); line-height:1.05; letter-spacing:.12em; text-shadow:0 4px 24px color-mix(in srgb,var(--cinema-accent) 36%,transparent); }
+.role-cinema-actor { color:var(--cinema-accent); font-family:var(--font-title); font-size:clamp(1em,2.2vw,1.45em); letter-spacing:.12em; }
+.role-cinema-subtitle { margin-top:14px; max-width:32em; color:#aaa2ba; font-size:.92em; line-height:1.7; }
+.role-cinema-line { width:min(250px,65%); height:1px; margin-top:20px; background:linear-gradient(90deg,var(--cinema-accent),transparent); }
+@keyframes cinema-shell { 0%{opacity:0} 12%,76%{opacity:1} 100%{opacity:0} }
+@keyframes cinema-panel-in { from{opacity:0;transform:scale(1.04) translateY(12px)} to{opacity:1;transform:none} }
+body.fx-lite .role-cinematic { animation-duration:.7s; }
+body.fx-lite .role-cinema-panel { animation:none; }
+@media(max-width:700px){.role-cinema-panel{width:92vw;height:72vh;grid-template-columns:1fr;grid-template-rows:56% 44%}.role-cinema-art-wrap::after{background:linear-gradient(0deg,rgba(14,12,27,.98),transparent 68%)}.role-cinema-copy{margin-top:-54px;padding:24px 30px;justify-content:flex-end}.role-cinema-title{font-size:2.2em}.role-cinema-subtitle{margin-top:7px}.role-cinematic::before{inset:4%}}
+@media(prefers-reduced-motion:reduce){.role-cinematic{animation:cinema-shell .7s linear both}.role-cinema-panel{animation:none}}
+.role-sigil.pov-role-sigil{width:26px!important;height:26px!important;min-width:26px;flex:0 0 26px;color:#d8b66b;filter:drop-shadow(0 0 5px rgba(216,182,107,.28))}
+.pov-role-copy{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 .pc.speaking {
   border-color: var(--gold) !important;
   box-shadow: 0 0 18px rgba(245,160,184,0.25), inset 0 0 8px rgba(245,160,184,0.05) !important;
@@ -10570,6 +10598,10 @@ async function resolveDuel(knight, t) {
   S._duelRound = S.round;  // ★ 记录本次决斗发生在第几天：连斩模式下每天最多决斗一次，当天不再询问/不可再决斗，次日自动恢复
   // 只有真正出剑后才公开骑士身份；私密确认或PASS绝不能留下任何公开痕迹。
   Audio.playDuel();
+  await showRoleCinematic('knight', knight.name,
+    uiEnglish() ? "KNIGHT'S DUEL" : '骑士决斗',
+    uiEnglish() ? `${knight.name} challenges ${t.name}` : `${knight.name} 向 ${t.name} 发起决斗`,
+    {team:'good', key:`duel:${S.gameId}:${S.round}:${knight.id}:${t.id}`});
   Render.log('system','⚔️ '+knight.name+'亮出骑士身份，向'+t.name+'发起决斗！');
   if (t.role.team==='bad') {
     S.players.filter(p=>p.alive).forEach(p=>p.memory.push({role:'system',content:'【决斗结果】'+knight.name+'（骑士）向'+t.name+'发起决斗。'+t.name+'是狼人阵营，已死亡！'+knight.name+'存活。这说明'+knight.name+'是真骑士，'+t.name+'是狼。'}));
@@ -12073,6 +12105,48 @@ const SoundFX = {
   }
 };
 
+function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
+  try {
+    const gc = document.getElementById('gc');
+    if (!gc || !gc.classList.contains('active')) return Promise.resolve(false);
+    const key = opts.key || '';
+    if (key) {
+      S._roleCinematics ||= {};
+      if (S._roleCinematics[key]) return Promise.resolve(false);
+      S._roleCinematics[key] = true;
+    }
+    document.querySelector('.role-cinematic')?.remove();
+    const role = ALL_ROLES[roleId] || {};
+    const team = opts.team || role.team || 'good';
+    const reduced = document.body.classList.contains('fx-lite') || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const duration = reduced ? 700 : (opts.duration || 1800);
+    const artBase = /\/en(?:\/|$)/.test(location.pathname) ? '../icons/roles/' : 'icons/roles/';
+    const sigil = window.RoleSigils ? window.RoleSigils.render(roleId, 'cinema-sigil') : '';
+    const el = document.createElement('div');
+    el.className = `role-cinematic ${team}`;
+    el.setAttribute('aria-hidden', 'true');
+    el.style.animationDuration = `${duration}ms`;
+    el.innerHTML = `<div class="role-cinema-panel">
+      <div class="role-cinema-art-wrap">
+        <div class="role-cinema-fallback">${sigil}</div>
+        <img class="role-cinema-art" src="${artBase}${encodeURIComponent(roleId)}.jpg" alt="" onerror="this.remove()">
+      </div>
+      <div class="role-cinema-copy">
+        <div class="role-cinema-kicker">ROLE AWAKENING</div>
+        <div class="role-cinema-title">${escapeHtml(title || role.name || roleId)}</div>
+        <div class="role-cinema-actor">${escapeHtml(actorName || '')}</div>
+        <div class="role-cinema-subtitle">${escapeHtml(subtitle || '')}</div>
+        <div class="role-cinema-line"></div>
+      </div>
+    </div>`;
+    document.body.appendChild(el);
+    return new Promise(resolve => setTimeout(() => { el.remove(); resolve(true); }, duration));
+  } catch (e) {
+    console.warn('[role-cinematic]', e);
+    return Promise.resolve(false);
+  }
+}
+
 function playRoleEffect(p, type) {
   try {
     if(!p) return;
@@ -12312,6 +12386,10 @@ async function shoot(p) {
   if (!S.hunterLog) S.hunterLog = [];
   const t = findPlayer(tn, alive);
   if (t) {
+    await showRoleCinematic(_isMechShooter ? 'mechwolf' : 'hunter', p.name,
+      uiEnglish() ? 'FINAL SHOT' : '猎人开枪',
+      uiEnglish() ? `${p.name} takes aim at ${t.name}` : `${p.name} 将枪口对准 ${t.name}`,
+      {team:_isMechShooter ? 'bad' : 'good', key:`shoot:${S.gameId}:${S.round}:${p.id}:${t.id}`});
     Render.log('death','🏹 '+p.name+'（'+_shooterTag+'）开枪带走了'+t.name);
     S.hunterLog.push({round: S.round, hunter: p.name, target: t.name, msg: p.name+'（'+_shooterTag+'）死亡并开枪带走了'+t.name+'。开枪一事已公开证实，不容置疑！'});
     S.players.filter(x=>x.alive && x.id!==t.id).forEach(x=>x.memory.push({role:'system',content:'【🏹 开枪铁证】'+p.name+'（'+_shooterTag+'）死亡时开枪带走了'+t.name+'。开枪一事已证实，不要质疑。'+(_isMechShooter?'（注意：'+p.name+'是机械狼，属狼人阵营，不是好人。）':'')}));
@@ -13129,6 +13207,10 @@ const NightActions = {
     wolfRun.echoDone = Array.isArray(wolfRun.echoDone) ? wolfRun.echoDone : [];
     wolfRun.wolfLastActions ||= {};
     if (!isAnon()) Render.log('night-detail','🐺 狼人密谈…');
+    await showRoleCinematic('werewolf', uiEnglish() ? 'Wolf Pack' : '狼人阵营',
+      uiEnglish() ? 'WOLVES AWAKEN' : '狼人睁眼',
+      uiEnglish() ? 'The pack gathers beneath the night.' : '夜幕之下，狼群开始密谈。',
+      {team:'bad', key:`wolf-open:${wolfRunKey}`});
 
     // ★ v9.2 重构：狼队讨论改为三阶段架构（开场陈述 → 回响 → 投票）
     //   解决问题：
@@ -18590,18 +18672,19 @@ function openChatSummary() {
 
   S.players.forEach(p => {
     if (blindReviewOn()) return; // 盲复盘只允许导出统一公开战报，防止误点个人视角泄底
-    const roleLabel = blindReviewOn() ? '身份隐藏' : (p.role ? p.role.emoji + p.role.name : '未知');
+    const roleLabel = blindReviewOn() ? '身份隐藏' : (p.role ? p.role.name : '未知');
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:6px;align-items:center';
 
     const btn = document.createElement('button');
-    btn.style.cssText = 'flex:1;padding:7px 12px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);border-radius:6px;color:#d8d0e8;cursor:pointer;text-align:left;font-size:0.82em;font-family:var(--font-body)';
-    btn.textContent = publicPlayerLabel(p) + '　' + roleLabel + (p.alive ? '' : '　（已出局）');
+    btn.style.cssText = 'flex:1;display:flex;align-items:center;gap:9px;padding:7px 12px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);border-radius:6px;color:#d8d0e8;cursor:pointer;text-align:left;font-size:0.82em;font-family:var(--font-body);min-width:0';
+    const roleSigil = p.role && window.RoleSigils ? window.RoleSigils.render(p.role.id, 'pov-role-sigil') : '';
+    btn.innerHTML = roleSigil + '<span class="pov-role-copy">' + escapeHtml(publicPlayerLabel(p) + '　' + roleLabel + (p.alive ? '' : '　（已出局）')) + '</span>';
     btn.onclick = () => { const h = box.querySelector('#_hide-death-role').checked; document.body.removeChild(overlay); _buildChatSummary(p, selectAll ? null : [...selectedRounds].map(i => rounds[i]), {hideDeathRole:h}); };
 
     const claudeBtn = document.createElement('button');
     claudeBtn.style.cssText = 'padding:5px 9px;background:rgba(104,184,232,0.12);border:1px solid rgba(104,184,232,0.3);border-radius:6px;color:#68b8e8;cursor:pointer;font-size:0.75em;white-space:nowrap';
-    claudeBtn.textContent = '🤖 喂Claude';
+    claudeBtn.textContent = 'AI Claude';
     claudeBtn.title = '导出完整系统prompt+摘要，直接喂给网页端Claude';
     claudeBtn.onclick = () => { const h = box.querySelector('#_hide-death-role').checked; document.body.removeChild(overlay); _buildChatSummary(p, selectAll ? null : [...selectedRounds].map(i => rounds[i]), {hideDeathRole:h, feedClaude:true}); };
 

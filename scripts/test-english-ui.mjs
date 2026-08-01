@@ -22,11 +22,19 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, '— Full role and rules encyclopedia —', `${label} dynamic rulebook title`);
   requireText(source, 'window.RoleSigils.render(id)', `${label} role-card sigil renderer`);
   requireText(source, "window.RoleSigils.render(o.id, 'cr-role-sigil')", `${label} role-picker sigil renderer`);
+  requireText(source, "window.RoleSigils.render(p.role.id, 'pov-role-sigil')", `${label} export-view role sigil renderer`);
+  requireText(source, "function showRoleCinematic(roleId, actorName, title, subtitle", `${label} cinematic role overlay`);
+  requireText(source, "showRoleCinematic('werewolf'", `${label} wolf-action cinematic`);
+  requireText(source, "showRoleCinematic('knight'", `${label} knight-duel cinematic`);
+  requireText(source, "showRoleCinematic(_isMechShooter ? 'mechwolf' : 'hunter'", `${label} hunter-shot cinematic`);
   if (source.includes('role-card-fallback">${r.emoji}') || source.includes('<strong>${r.emoji} ${escapeHtml(')) {
     throw new Error(`${label} still renders role emoji in the encyclopedia`);
   }
   if (source.includes('<span style="font-size:.85em">${o.r.emoji}</span>')) {
     throw new Error(`${label} still renders role emoji in the role picker`);
+  }
+  if (source.includes("p.role ? p.role.emoji + p.role.name : '未知'")) {
+    throw new Error(`${label} still renders role emoji in the export-view picker`);
   }
 }
 
