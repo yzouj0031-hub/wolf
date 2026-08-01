@@ -140,6 +140,15 @@ jobs:
           path: gradle-build.log
           if-no-files-found: ignore
 
+      - name: Report Gradle root cause
+        if: failure()
+        run: |
+          if [ -f gradle-build.log ]; then
+            DETAILS="$(grep -A 18 -m1 '^\* What went wrong:' gradle-build.log | tail -n +2 | tr '\n' ' ' | head -c 1800)"
+            DETAILS="${DETAILS//'%'/'%25'}"
+            echo "::error title=Gradle root cause::$DETAILS"
+          fi
+
       - name: Publish to GitHub Release (main only)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
