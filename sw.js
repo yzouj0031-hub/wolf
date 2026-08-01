@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v13-role-sigils';
+const CACHE_NAME = 'wolf-pwa-v14-fox-art';
 const APP_SHELL = [
   './',
   './index.html',
