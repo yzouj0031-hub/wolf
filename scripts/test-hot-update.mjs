@@ -64,7 +64,7 @@ function makeStorage() {
   };
 }
 
-function pageContext({ caches, fetchImpl, pathname, localStorage, source }) {
+function pageContext({ caches, fetchImpl, pathname, localStorage, source, native = true }) {
   const href = 'https://localhost' + pathname;
   const scriptSrc = 'https://localhost' + (pathname.includes('/en/') ? '/en' : '') + '/hot-update.js';
   const ctx = {
@@ -73,6 +73,7 @@ function pageContext({ caches, fetchImpl, pathname, localStorage, source }) {
     localStorage,
     sessionStorage: makeStorage(),
     fetch: fetchImpl,
+    Capacitor: native ? { isNativePlatform: () => true } : undefined,
     location: { pathname, href, reload() { ctx.__reloaded = true; } },
     document: {
       currentScript: { src: scriptSrc },
@@ -94,10 +95,11 @@ function pageContext({ caches, fetchImpl, pathname, localStorage, source }) {
 
 function loadSw(file, { caches, href }) {
   const handlers = {};
+  const origin = new URL(href).origin;
   const self = {
     addEventListener: (type, fn) => { handlers[type] = fn; },
     skipWaiting() {}, clients: { claim() {} },
-    location: { origin: 'https://localhost', href }
+    location: { origin, hostname: new URL(href).hostname, href }
   };
   const ctx = {
     console, Response, Headers, URL, self,
@@ -153,8 +155,32 @@ const load = (caches, fetchImpl, opts = {}) => pageContext({
   caches, fetchImpl,
   pathname: opts.pathname || '/',
   localStorage: opts.localStorage || makeStorage(),
-  source: opts.source || HOT_SRC
+  source: opts.source || HOT_SRC,
+  native: opts.native !== false
 });
+
+/* Browser/PWA must not fetch or stage the APK-only bundle. */
+{
+  const caches = makeCaches();
+  let calls = 0;
+  const ctx = load(caches, async () => { calls++; throw new Error('browser must not fetch'); }, { native: false });
+  ok(!ctx.window.WolfHotUpdate, '浏览器端不应启用 APK 热更新控制器');
+  eq(calls, 0, '浏览器端不应请求热更新清单');
+}
+
+/* Browser/PWA must ignore any stale APK hot cache left by an older build. */
+{
+  const caches = makeCaches();
+  const root = caches.view('https://yzouj0031-hub.github.io/');
+  const c = await root.open(HOT);
+  await c.put('https://yzouj0031-hub.github.io/index.html', new Response('HOT'));
+  await c.put('https://yzouj0031-hub.github.io/__wolf_hot_manifest__', new Response(JSON.stringify({ build: 99 })));
+  const tmp = 'dist-hot/.test-web-sw.js';
+  writeFileSync(tmp, readFileSync('sw.js', 'utf8').replace(/const BUNDLED_BUILD = \d+;/, 'const BUNDLED_BUILD = 1;'));
+  const sw = loadSw(tmp, { caches, href: 'https://yzouj0031-hub.github.io/sw.js' });
+  eq(await (await sw.serve('https://yzouj0031-hub.github.io/')).text(), 'BUNDLED',
+    '浏览器端应忽略 APK 热更新缓存');
+}
 
 /* ══════ ① 仓库里必须保持占位值，否则本地开发版会把自己当成线上版本 ══════ */
 eq(Number(HOT_SRC.match(/const APP_BUILD = (\d+);/)[1]), 0, '仓库里的 hot-update.js 应保持 APP_BUILD=0');
