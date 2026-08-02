@@ -6684,12 +6684,132 @@ const CloudSave = (() => {
 
   async function signOut() {
     clearTimeout(uploadTimer); pendingRaw = null;
+    cfgPass = null;   // 别把同步密码留给下一个登录的人
     await client.auth.signOut();
   }
 
   // ☁️ API 配置(含所有 key)云同步：复用 game_saves 表的 slot='config'，与存档共用同一套 RLS。
   //   wg_gufeng 本身就是完整配置 blob，下载后写回并 loadCfg() 即可一键应用。
   // 同步的配置类本地键：主配置 + API 存储库(从库选) + 名字库
+  /* ── 云配置的端到端加密 ────────────────────────────────────────────
+   * 云配置里含 wg_apivault，也就是用户自己的 LLM API 密钥。明文上传的话，
+   * 一个被钓走的账号就等于一把密钥——那是真金白银，比丢存档严重得多。
+   *
+   * 这里在上传前于本机加密，服务器只存密文。同步密码从不上网，
+   * 所以连项目所有者在 Supabase 后台也看不到密钥内容。
+   *
+   * 密码丢了就解不开——这是端到端加密的定义，不是缺陷：任何「忘了也能
+   * 找回」的通道，对钓走账号的人同样开放。所以「忘记密码」只能是清空
+   * 重来（重新填一次 key），不是找回。游戏存档在另一个 slot，不受影响。
+   *
+   * 迭代次数要够：拿到密文的人可以离线爆破，PBKDF2 的成本就是他的成本。 */
+  const CFG_ITER = 200000;
+  let cfgPass = null;          // 只在本次会话内存里，不落盘
+
+  const _b64  = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+  const _ub64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+
+  async function deriveCfgKey(pass, salt) {
+    const base = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: CFG_ITER, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function encryptCfg(bundle, pass) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const key  = await deriveCfgKey(pass, salt);
+    const ct   = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key,
+                   new TextEncoder().encode(JSON.stringify(bundle)));
+    return { _cfgv: 3, salt: _b64(salt), iv: _b64(iv), ct: _b64(ct) };
+  }
+  async function decryptCfg(snap, pass) {
+    // AES-GCM 自带完整性校验：密码不对会直接抛错，不会解出一堆乱码
+    const key = await deriveCfgKey(pass, _ub64(snap.salt));
+    const pt  = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: _ub64(snap.iv) },
+                  key, _ub64(snap.ct));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+
+  // 密码强度：拿到密文能离线爆破，所以太短的直接不让用
+  function cfgPassScore(p) {
+    if (!p) return 0;
+    let n = 0;
+    if (p.length >= 8) n++;
+    if (p.length >= 12) n++;
+    if (/[a-zA-Z]/.test(p) && /\d/.test(p)) n++;
+    if (/[^\w]/.test(p)) n++;
+    return Math.min(n, 4);
+  }
+
+  /* 密码弹窗。mode='set' 设置新密码（要确认 + 强度 + 可跳过），
+     mode='ask' 输入已有密码（可选「忘记密码」）。resolve 的值：
+     字符串=密码，'__skip__'=不加密上传，'__reset__'=清空重来，null=取消 */
+  function askCfgPass(mode, note) {
+    return new Promise(resolve => {
+      const set = mode === 'set';
+      const ov = document.createElement('div');
+      ov.className = 'overlay show';
+      ov.style.zIndex = 1200;
+      ov.innerHTML =
+        '<div class="pbox" style="max-width:360px">'
+        + '<h3 style="margin:0 0 10px;color:var(--gold)">' + (set ? '🔐 设置同步密码' : '🔑 输入同步密码') + '</h3>'
+        + '<div style="font-size:.78em;color:#a098b8;line-height:1.65;margin-bottom:12px">'
+        + (note || (set
+            ? '你正要把 <b>API 密钥</b> 上传到云端。设一个同步密码，密钥会在本机加密后再上传——'
+              + '这个密码不会上传，所以就算账号被盗，别人也解不开。<br><br>'
+              + '⚠️ 请<b>不要</b>用和登录密码相同的密码。密码丢失无法找回，只能清空重设。'
+            : '这份云端配置是加密的，请输入当初设置的同步密码。'))
+        + '</div>'
+        + '<input type="password" id="_cfgpw1" placeholder="' + (set ? '同步密码（至少 8 位）' : '同步密码') + '" style="width:100%;margin-bottom:8px">'
+        + (set ? '<input type="password" id="_cfgpw2" placeholder="再输一次" style="width:100%;margin-bottom:8px">'
+               + '<div id="_cfgpwbar" style="height:4px;border-radius:3px;background:rgba(255,255,255,.08);margin-bottom:6px;overflow:hidden">'
+               + '<i style="display:block;height:100%;width:0;transition:all .2s"></i></div>'
+               + '<div id="_cfgpwhint" style="font-size:.72em;color:#8880a8;min-height:1.3em;margin-bottom:10px"></div>' : '<div style="height:6px"></div>')
+        // 宽度写死：全局 button 规则会把它们撑成 100%，光靠 flex 压不住
+        + '<div style="display:flex;gap:8px;align-items:stretch">'
+        + '<button id="_cfgok" class="cloud-btn" style="flex:1 1 auto;width:auto;min-width:0;white-space:nowrap;padding:9px 8px;font-size:.8em;background:rgba(200,168,76,.18);border-color:var(--gold);color:var(--gold)"'
+        + (set ? ' disabled' : '') + '>' + (set ? '设密码并加密上传' : '解密并应用') + '</button>'
+        + '<button id="_cfgcancel" class="cloud-btn" style="flex:0 0 76px;width:76px;min-width:0;padding:9px 8px;font-size:.8em">取消</button>'
+        + '</div>'
+        + '<div style="text-align:center;margin-top:11px">'
+        + (set ? '<a href="javascript:void(0)" id="_cfgskip" style="font-size:.72em;color:#6f6688">暂不加密，直接上传</a>'
+               : '<a href="javascript:void(0)" id="_cfgforgot" style="font-size:.72em;color:#6f6688">忘记同步密码？</a>')
+        + '</div></div>';
+      document.body.appendChild(ov);
+      const done = v => { ov.remove(); resolve(v); };
+      const p1 = ov.querySelector('#_cfgpw1'), p2 = ov.querySelector('#_cfgpw2');
+      const ok = ov.querySelector('#_cfgok');
+
+      if (set) {
+        const bar = ov.querySelector('#_cfgpwbar i'), hint = ov.querySelector('#_cfgpwhint');
+        const COLORS = ['#c85050', '#c88850', '#c8b850', '#88c860', '#54c8b8'];
+        const WORDS  = ['太弱', '偏弱', '一般', '不错', '很强'];
+        const sync = () => {
+          const v = p1.value, sc = cfgPassScore(v);
+          bar.style.width = (v ? (sc + 1) * 20 : 0) + '%';
+          bar.style.background = COLORS[sc];
+          if (!v) hint.textContent = '';
+          else if (v.length < 8) hint.textContent = '至少 8 位（密文可被离线爆破，太短等于没加密）';
+          else if (p2.value && p1.value !== p2.value) hint.textContent = '两次输入不一致';
+          else hint.textContent = '强度：' + WORDS[sc];
+          ok.disabled = !(v.length >= 8 && v === p2.value);
+        };
+        p1.addEventListener('input', sync); p2.addEventListener('input', sync);
+        ov.querySelector('#_cfgskip').onclick = () => done('__skip__');
+      } else {
+        p1.addEventListener('keydown', e => { if (e.key === 'Enter') ok.click(); });
+        ov.querySelector('#_cfgforgot').onclick = () => {
+          if (confirm('同步密码无法找回。\n\n可以清除云端的加密配置，之后用新密码把本机的 API 密钥重新上传一次。\n游戏存档不受影响。\n\n确定清除吗？')) done('__reset__');
+        };
+      }
+      ok.onclick = () => { if (p1.value) done(p1.value); };
+      ov.querySelector('#_cfgcancel').onclick = () => done(null);
+      setTimeout(() => p1.focus(), 50);
+    });
+  }
+
   const CFG_KEYS = ['wg_gufeng', 'wg_apivault', 'wg_namepool'];
   async function uploadConfig() {
     if (!client || !user) return false;
@@ -6699,8 +6819,19 @@ const CloudSave = (() => {
       const v = localStorage.getItem(k);
       if (v != null) { try { bundle[k] = JSON.parse(v); } catch (_) {} }
     }
+    // 决定加不加密：本次会话已有密码就直接用；否则弹窗问一次（默认加密，可跳过）
+    let payload = bundle;
+    if (cfgPass === null) {
+      const ans = await askCfgPass('set');
+      if (ans === null) return false;                 // 取消上传
+      cfgPass = (ans === '__skip__') ? '' : ans;      // 空串 = 用户明确选择不加密
+    }
+    if (cfgPass) {
+      try { payload = await encryptCfg(bundle, cfgPass); }
+      catch (e) { console.error('[云配置] 加密失败', e); showMessage('加密失败：' + e.message); return false; }
+    }
     const { error } = await client.from('game_saves').upsert({
-      user_id: user.id, slot: 'config', snapshot: bundle, client_updated_at: new Date().toISOString()
+      user_id: user.id, slot: 'config', snapshot: payload, client_updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,slot' });
     if (error) { console.error('[云配置] 上传失败', error); return false; }
     return true;
@@ -6710,7 +6841,25 @@ const CloudSave = (() => {
     const { data, error } = await client.from('game_saves')
       .select('snapshot').eq('user_id', user.id).eq('slot', 'config').maybeSingle();
     if (error || !data || !data.snapshot) { if (!silent) showMessage('云端还没有配置。请先在有 key 的设备上点「上传配置」。'); return false; }
-    const snap = data.snapshot;
+    let snap = data.snapshot;
+    // _cfgv:3 = 加密包。要密码才能还原；密码不对 AES-GCM 会直接抛错。
+    if (snap && snap._cfgv === 3) {
+      for (;;) {
+        if (cfgPass === null || cfgPass === '') {
+          const ans = await askCfgPass('ask');
+          if (ans === null) return false;
+          if (ans === '__reset__') {
+            await client.from('game_saves').delete().eq('user_id', user.id).eq('slot', 'config');
+            cfgPass = null;
+            showMessage('已清除云端配置。请在有 API 密钥的设备上点「上传配置」，届时可设置新的同步密码。');
+            return false;
+          }
+          cfgPass = ans;
+        }
+        try { snap = await decryptCfg(snap, cfgPass); break; }
+        catch (e) { cfgPass = null; if (!confirm('同步密码不正确，再试一次？')) return false; }
+      }
+    }
     if (snap && snap._cfgv === 2) {
       // 新格式：多个配置键
       for (const k of CFG_KEYS) { if (snap[k] !== undefined) localStorage.setItem(k, JSON.stringify(snap[k])); }
@@ -6720,12 +6869,13 @@ const CloudSave = (() => {
     }
     try { if (typeof loadCfg === 'function') loadCfg(); } catch (e) {}
     try { if (typeof NamePoolManager !== 'undefined' && NamePoolManager.restore) NamePoolManager.restore(); } catch (e) {}
-    if (!silent) showMessage('✅ 已从云端下载配置(含 API 库/名字库)并应用');
+    if (!silent) showMessage('✅ 已从云端下载配置(含 API 库/名字库)并应用'
+      + (data.snapshot && data.snapshot._cfgv === 3 ? '' : '\n\n提示：这份云端配置是明文存储的。再点一次「上传配置」即可设置同步密码并加密。'));
     return true;
   }
   async function uploadConfigNow() {
     setBusy(true); const ok = await uploadConfig(); setBusy(false);
-    showMessage(ok ? '✅ 配置(含 API key)已上传到云端' : '上传失败，或本机还没有可上传的配置');
+    showMessage(ok ? ('✅ 配置(含 API key)已上传到云端' + (cfgPass ? '，并已用同步密码加密 🔐' : '（未加密）')) : '上传失败，或本机还没有可上传的配置');
   }
 
   // 🎮 回来续玩：云端有一局"进行中"、且与本机存档不是同一份时，提示是否接着玩

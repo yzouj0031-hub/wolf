@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v23-cloud-hosts';
+const CACHE_NAME = 'wolf-pwa-v24-cfg-e2e';
 const APP_SHELL = [
   './',
   './index.html',
