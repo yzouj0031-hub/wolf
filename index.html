@@ -6546,7 +6546,30 @@ const AutoSave = (() => {
 const CloudSave = (() => {
   const SUPABASE_URL = 'https://hnlsmcucmbicygzjfmuf.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_pz6eS_bYsKjinBPtLgLYxQ_CvUXIEUf';
-  const client = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+  /* 云存档只在官方域名上启用。
+   *
+   * 这个 key 是 publishable 的，写在前端本来就没问题——数据库那边 anon 角色
+   * 连表级权限都没有，陌生人读不到任何东西。但有一条 RLS 拦不住：
+   * 任何人把这份纯前端页面原样部署到自己的域名下，那个页面上就有一个
+   * 会收邮箱和密码的登录框。他只要改几行 JS 就能在提交给 Supabase 之前
+   * 把凭据截下来，然后堂堂正正地登录——对数据库来说那是一次合法登录。
+   *
+   * 所以入口这道闸只能在前端把：不是官方域名，就干脆不创建 client，
+   * 页面上也不会出现登录框。副本照样能玩（游戏本体是纯前端的），
+   * 只是存在本机。
+   *
+   * 要新增官方域名（比如以后换到自己的域名或 Cloudflare Pages），
+   * 在这里加一行就行。 */
+  const CLOUD_HOSTS = [
+    'yzouj0031-hub.github.io',   // 官方网页版
+    'localhost',                 // 安卓 APK：capacitor.config.json 里 androidScheme=https，
+                                 // Capacitor 把页面跑在 https://localhost
+    '127.0.0.1'                  // 本地开发
+  ];
+  const cloudAllowed = CLOUD_HOSTS.includes(String(location.hostname || '').toLowerCase());
+  const client = (cloudAllowed && window.supabase)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
   let user = null;
   let uploadTimer = null;
   let pendingRaw = null;
@@ -6729,6 +6752,13 @@ const CloudSave = (() => {
   }
 
   async function init() {
+    if (!cloudAllowed) {
+      // 非官方部署：把入口整个藏掉，别让用户在陌生域名上看到登录框
+      const box = el('cloud-account-open');
+      if (box) box.style.display = 'none';
+      setStatus('此部署未启用云存档 · 游戏进度仅保存在本机');
+      return;
+    }
     if (!client) { setStatus('云存档组件加载失败，请检查网络'); return; }
     el('cloud-account-open')?.addEventListener('click', () => el('cloud-pop')?.classList.add('show'));
     el('cloud-close')?.addEventListener('click', () => el('cloud-pop')?.classList.remove('show'));
