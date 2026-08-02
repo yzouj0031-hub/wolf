@@ -67,7 +67,7 @@
     '并发设置':'Concurrency','发言':'Speech','狼议':'Wolf discussion','狼票':'Wolf vote','审判票':'Trial vote','感言':'Closing remarks','AI 思考时间（秒）':'AI thinking time (seconds)',
     '单次请求上限':'Request timeout','密约·提案':'Wolf pact · proposal','密约·投票':'Wolf pact · vote','名讳':'Names','点击命牌可单独设名字和API':'Click a role card to set its name and API',
     '座位排序（拖拽调整）':'Seat order (drag to reorder)','随机打乱':'Shuffle','恢复默认':'Restore default','仅第一夜':'First day only','每次都有':'Always','从不':'Never',
-    '盲名Cosplay':'Blind-name cosplay','硬核':'Hardcore','导演刀口主控':'Director controls wolf target','准备就绪':'Ready','提问':'Ask','读档':'Load save','朗读':'Read aloud',
+    '盲名Cosplay':'Blind-name cosplay','硬核':'Hardcore','导演刀口主控':'Director controls wolf target','准备就绪':'Ready','提问':'Ask','读档':'Load save','朗读':'Read aloud','提示词库':'Prompt library',
     '设置':'Settings','重置本局':'Reset game','向角色提问':'Ask a character','选择角色':'Choose character','发送':'Send','全员互评 · MVP':'All-player review · MVP','开始评选':'Start voting','知悉':'Understood',
     '身份(随机)':'Role (random)','API地址':'API URL','从库选':'Choose from library','API密钥':'API key','模型':'Model','永久记忆':'Persistent memory','已启用':'Enabled',
     '开启后，该角色将带着上一局的记忆进入新局':'When enabled, this character remembers the previous game','上一局记忆摘要：':'Previous-game memory:','暂无上一局记忆':'No previous memory',
