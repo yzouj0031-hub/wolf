@@ -616,6 +616,23 @@ body.fx-lite *, body.fx-lite *::before, body.fx-lite *::after {
 .mtog { display: flex; gap: 6px; justify-content: center; margin-bottom: 6px; flex-wrap: wrap; }
 .mti { display: flex; align-items: center; gap: 3px; font-size: 0.7em; padding: 3px 8px; background: rgba(245,160,184,0.03); border: 1px solid rgba(245,160,184,0.08); border-radius: var(--r); cursor: pointer; }
 .mti input[type="checkbox"] { width: auto; flex: none; min-width: auto; accent-color: var(--gold); }
+/* 设置面板分组：22 个开关平铺时既扫不出分类、也看不出哪些开着 */
+.mset-groups { display: flex; flex-direction: column; gap: 5px; padding: 6px 7px 4px; }
+.mset-g { border: 1px solid rgba(245,160,184,.07); border-radius: var(--r); background: rgba(255,255,255,.012); }
+.mset-g > summary { display: flex; align-items: center; gap: 7px; padding: 5px 9px; font-size: .66em; letter-spacing: .07em; color: #9a8ea8; cursor: pointer; list-style: none; }
+.mset-g > summary::-webkit-details-marker { display: none; }
+.mset-g > summary::after { content: '＋'; margin-left: auto; opacity: .5; font-size: 1.05em; }
+.mset-g[open] > summary::after { content: '−'; }
+.mset-g[open] > summary { border-bottom: 1px solid rgba(245,160,184,.06); }
+.mset-g .mset-n { color: var(--gold); opacity: .75; font-variant-numeric: tabular-nums; }
+.mset-g .mtog { justify-content: flex-start; margin: 0; padding: 6px 7px; }
+.mset-g .bgm-controls { width: 100%; padding: 2px 0 0 !important; }
+/* 开着的项给金色描边——原来选中与否只差一个小方块，一排 22 个根本分辨不出来 */
+.mti.on,
+.mset-groups .mti:has(input[type="checkbox"]:checked) { background: rgba(200,168,76,.10); border-color: rgba(200,168,76,.36); color: #e8d8a8; }
+.mset-sum { margin-left: 7px; color: #7a7290; font-size: .92em; font-weight: 400; }
+/* 更多功能的分区标题 */
+.cmg-label { flex: 0 0 52px; display: flex; align-items: center; justify-content: flex-end; font-size: .58em; letter-spacing: .04em; color: #6f6688; padding-right: 3px; }
 .bm { padding: 5px 8px; font-size: 0.72em; flex: 1; min-width: 40px; border-radius: var(--r); }
 
 .conc-det summary, .batch-det summary { font-size: 0.72em; color: var(--gold); cursor: pointer; list-style: none; margin-bottom: 4px; }
@@ -927,8 +944,14 @@ body.blind-review .le.ending { display:none !important; }
 .ctrls-more > summary:hover { color: #c0b8d8; background: rgba(136,136,204,0.11); }
 .ctrls-more-chevron { display: inline-block; transition: transform 0.2s; }
 .ctrls-more[open] .ctrls-more-chevron { transform: rotate(180deg); }
-.ctrls-more-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; padding-top: 4px; }
-.ctrls-more-grid .br { grid-column: span 3; }
+/* 原来是 3 列硬网格。分组之后每组 2~4 个按钮，硬网格会留下一堆空格子，
+   抽屉反而变高了。改成弹性排布：按钮按可用宽度自己分，一组挤在一两行里。 */
+/* 原来是 3 列硬网格；分组后每组 2~4 个按钮，硬网格留下一堆空格子反而更高。
+   改成每组一行、组名内联在行首——分区看得出来，又不额外吃掉三行标题的高度。 */
+.ctrls-more-grid { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
+.cmg-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: stretch; }
+.cmg-row .be { flex: 1 1 auto; min-width: 86px; }
+.ctrls-more-grid .br { width: 100%; margin-top: 2px; }
 
 .lobby-demo {
   width: min(420px, calc(100% - 20px)); margin: 0 auto 18px; padding: 11px 14px;
@@ -2566,32 +2589,49 @@ body.has-wp::after {
       </details>
     </details>
     <details class="mobile-secondary" id="mobile-secondary">
-      <summary>⚙ Game, display & audio</summary>
-    <div class="mtog">
-      <label class="mti"><input type="checkbox" id="m-anon" checked>🎭 匿名</label>
-      <label class="mti"><input type="checkbox" id="m-trial" checked>⚠️ 审判</label>
-      <label class="mti"><input type="checkbox" id="m-hdeath">💀 隐死亡</label>
-      <label class="mti" title="遗言规则"><span style="font-size:0.8em;color:#d8d0e8">💬 遗言</span><select id="m-lastwill" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="first">仅第一夜</option><option value="always">每次都有</option><option value="never">从不</option></select></label>
-      <label class="mti" title="关闭后AI发言中提到本局不存在的角色名时不再自动替换"><input type="checkbox" id="m-factcheck" checked>🔍 事实校验</label>
-      <label class="mti"><input type="checkbox" id="m-mbti" checked>🧠 性情</label>
-      <label class="mti"><input type="checkbox" id="m-cosplay" checked>🎭 Cosplay</label>
-      <label class="mti" title="开启后，公开界面、API公共战报、网页端AI提示词与摘要都只显示P编号；每个AI只在私密提示中知道自己的Cosplay角色名，避免名气刀、仇刀和角色名联想。"><input type="checkbox" id="m-blindnames">🙈 盲名Cosplay</label>
-      <label class="mti"><input type="checkbox" id="m-hardcore">🔥 硬核</label>
-      <label class="mti" title="关掉毛玻璃和常驻动画。若你在浏览器里遇到「玩着玩着某块画面变空白，但游戏照常」，打开它即可解决——那是浏览器合成高负载特效时的老毛病，与游戏逻辑无关。桌面默认关闭（保留华丽特效）。"><input type="checkbox" id="m-litefx">⚡ 精简特效</label>
-      <label class="mti"><input type="checkbox" id="m-mc">⚖️ 主持人</label>
-      <label class="mti" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口——可以指定杀谁，也可以选「空刀」制造平安夜。无论你是否扮演狼、纯观战也能用，直接覆盖AI狼队的决定。关闭则狼队自己民主投票（默认）"><input type="checkbox" id="m-director-veto">🎬 导演刀口主控</label>
-      <label class="mti"><input type="checkbox" id="m-audio" checked>🔊 音效</label>
-      <label class="mti" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">🏷️ 模型标签</label>
-      <label class="mti" title="开启后AI会输出思维过程（更耗token但可观察推理）；关闭则直接输出发言和操作（省token，速度更快）"><input type="checkbox" id="m-thinking" checked>💭 思维链</label>
-      <label class="mti" title="开启后AI自然说话，思考可写在[草稿]里自动过滤；关闭则用XML标签格式（可能导致发言过短）。推荐保持开启。可在命牌弹窗里针对单个AI关闭。"><input type="checkbox" id="m-free-output" checked>🗣️ 自由输出</label>
-      <label class="mti" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>🛠️ 手动重试</label>
-      <label class="mti" title="开启=屠边局（默认）：狼人只要把神职全杀光、或把平民全杀光，就立刻获胜（即使总人数还没到屠城线）。关闭=屠城局：狼人需把好人杀到≤狼人数才赢。屠边对狼更有利、节奏更快。"><input type="checkbox" id="m-kill-edge" onchange="S.killEdgeMode=this.checked" checked>🗡️ 屠边</label>
-      <label class="mti" title="开启=骑士连斩模式：骑士每天可决斗一次，决斗命中狼→狼死、骑士存活、下一天还能继续决斗；决斗指向好人→骑士当场牺牲。推理越准的骑士能连续清狼。关闭=经典模式（默认）：骑士一局只能决斗一次，不论输赢用完即止。"><input type="checkbox" id="m-knight-chain" onchange="S.knightChainMode=this.checked">⚔️ 骑士连斩</label>
-      <label class="mti" title="开启=传统单轮发言（默认）：白天每人只发言一次，发完直接投票（更接近线下标准狼人杀，节奏快）。关闭=双轮发言：每人发言两轮，第二轮可反驳/改票/总结（AI交锋更充分）。"><input type="checkbox" id="m-single-round" onchange="S.singleRound=this.checked" checked>🗣️ 单轮发言</label>
-      <label class="mti" title="开启后，只要警长仍在场，无论昨夜平安夜还是有人死亡，每天都由警长指定起始玩家和顺/逆时针方向；警长最后归票。关闭则仅第一天由警长定序，之后按昨夜死者下家或默认座位顺序。"><input type="checkbox" id="m-sheriff-daily-order" onchange="S.sheriffDailyOrderMode=this.checked" checked>👑 警长每日定序</label>
-      <label class="mti" title="开启后：每次开局会从「🎭 人设库」里随机抽取人设，分配给没有手动配置人设的 AI。每局阵容自动不同。需要先在主菜单的人设库里建好人设。"><input type="checkbox" id="m-persona-pool">🎲 人设随机池</label>
-    </div>
-    <div class="bgm-controls" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 0;font-size:0.75em;align-items:center">
+      <summary>⚙ Game settings<span class="mset-sum" id="mset-summary"></span></summary>
+    <div class="mset-groups">
+      <details class="mset-g" data-grp="rules" open>
+        <summary>对局规则<span class="mset-n"></span></summary>
+        <div class="mtog">
+        <label class="mti"><input type="checkbox" id="m-anon" checked>🎭 匿名</label>
+        <label class="mti"><input type="checkbox" id="m-trial" checked>⚠️ 审判</label>
+        <label class="mti"><input type="checkbox" id="m-hdeath">💀 隐死亡</label>
+        <label class="mti" title="遗言规则"><span style="font-size:0.8em;color:#d8d0e8">💬 遗言</span><select id="m-lastwill" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="first">仅第一夜</option><option value="always">每次都有</option><option value="never">从不</option></select></label>
+        <label class="mti" title="开启=屠边局（默认）：狼人只要把神职全杀光、或把平民全杀光，就立刻获胜（即使总人数还没到屠城线）。关闭=屠城局：狼人需把好人杀到≤狼人数才赢。屠边对狼更有利、节奏更快。"><input type="checkbox" id="m-kill-edge" onchange="S.killEdgeMode=this.checked" checked>🗡️ 屠边</label>
+        <label class="mti" title="开启=骑士连斩模式：骑士每天可决斗一次，决斗命中狼→狼死、骑士存活、下一天还能继续决斗；决斗指向好人→骑士当场牺牲。推理越准的骑士能连续清狼。关闭=经典模式（默认）：骑士一局只能决斗一次，不论输赢用完即止。"><input type="checkbox" id="m-knight-chain" onchange="S.knightChainMode=this.checked">⚔️ 骑士连斩</label>
+        <label class="mti" title="开启=传统单轮发言（默认）：白天每人只发言一次，发完直接投票（更接近线下标准狼人杀，节奏快）。关闭=双轮发言：每人发言两轮，第二轮可反驳/改票/总结（AI交锋更充分）。"><input type="checkbox" id="m-single-round" onchange="S.singleRound=this.checked" checked>🗣️ 单轮发言</label>
+        <label class="mti" title="开启后，只要警长仍在场，无论昨夜平安夜还是有人死亡，每天都由警长指定起始玩家和顺/逆时针方向；警长最后归票。关闭则仅第一天由警长定序，之后按昨夜死者下家或默认座位顺序。"><input type="checkbox" id="m-sheriff-daily-order" onchange="S.sheriffDailyOrderMode=this.checked" checked>👑 警长每日定序</label>
+        </div>
+      </details>
+      <details class="mset-g" data-grp="ai">
+        <summary>AI 与演出<span class="mset-n"></span></summary>
+        <div class="mtog">
+        <label class="mti"><input type="checkbox" id="m-mbti" checked>🧠 性情</label>
+        <label class="mti"><input type="checkbox" id="m-cosplay" checked>🎭 Cosplay</label>
+        <label class="mti" title="开启后，公开界面、API公共战报、网页端AI提示词与摘要都只显示P编号；每个AI只在私密提示中知道自己的Cosplay角色名，避免名气刀、仇刀和角色名联想。"><input type="checkbox" id="m-blindnames">🙈 盲名Cosplay</label>
+        <label class="mti" title="关闭后AI发言中提到本局不存在的角色名时不再自动替换"><input type="checkbox" id="m-factcheck" checked>🔍 事实校验</label>
+        <label class="mti"><input type="checkbox" id="m-hardcore">🔥 硬核</label>
+        <label class="mti" title="开启后AI会输出思维过程（更耗token但可观察推理）；关闭则直接输出发言和操作（省token，速度更快）"><input type="checkbox" id="m-thinking" checked>💭 思维链</label>
+        <label class="mti" title="开启后AI自然说话，思考可写在[草稿]里自动过滤；关闭则用XML标签格式（可能导致发言过短）。推荐保持开启。可在命牌弹窗里针对单个AI关闭。"><input type="checkbox" id="m-free-output" checked>🗣️ 自由输出</label>
+        <label class="mti" title="开启后：每次开局会从「🎭 人设库」里随机抽取人设，分配给没有手动配置人设的 AI。每局阵容自动不同。需要先在主菜单的人设库里建好人设。"><input type="checkbox" id="m-persona-pool">🎲 人设随机池</label>
+        </div>
+      </details>
+      <details class="mset-g" data-grp="host">
+        <summary>主持与调试<span class="mset-n"></span></summary>
+        <div class="mtog">
+        <label class="mti"><input type="checkbox" id="m-mc">⚖️ 主持人</label>
+        <label class="mti" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口——可以指定杀谁，也可以选「空刀」制造平安夜。无论你是否扮演狼、纯观战也能用，直接覆盖AI狼队的决定。关闭则狼队自己民主投票（默认）"><input type="checkbox" id="m-director-veto">🎬 导演刀口主控</label>
+        <label class="mti" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>🛠️ 手动重试</label>
+        <label class="mti" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">🏷️ 模型标签</label>
+        </div>
+      </details>
+      <details class="mset-g" data-grp="av">
+        <summary>显示与音效<span class="mset-n"></span></summary>
+        <div class="mtog">
+        <label class="mti"><input type="checkbox" id="m-audio" checked>🔊 音效</label>
+        <label class="mti" title="关掉毛玻璃和常驻动画。若你在浏览器里遇到「玩着玩着某块画面变空白，但游戏照常」，打开它即可解决——那是浏览器合成高负载特效时的老毛病，与游戏逻辑无关。桌面默认关闭（保留华丽特效）。"><input type="checkbox" id="m-litefx">⚡ 精简特效</label>
+        <div class="bgm-controls" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 0;font-size:0.75em;align-items:center">
       <span style="color:#8a8090">🌙夜间BGM</span>
       <select id="bgm-night-src" style="font-size:0.8em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)">
         <option value="builtin">内置 L's Theme</option>
@@ -2617,6 +2657,9 @@ body.has-wp::after {
       <input type="text" id="bgm-day-url" placeholder="粘贴音频直链 URL…" style="display:none;flex:1;font-size:0.78em;padding:3px 7px;background:rgba(0,0,0,0.25);border:1px solid rgba(245,160,184,0.15);border-radius:var(--r);color:#d8d0e8">
       <span id="bgm-day-status" style="color:#8a8090;font-size:0.85em"></span>
     </div>
+        </div>
+      </details>
+    </div>
     <div id="cosplay-presets" class="cosplay-presets"></div>
     </details>
     <!-- 主持人发言面板 -->
@@ -2632,17 +2675,26 @@ body.has-wp::after {
       <details class="ctrls-more">
         <summary><span>••• 更多功能</span><span class="ctrls-more-chevron">⌄</span></summary>
         <div class="ctrls-more-grid">
-          <button class="be" id="btn-ask">💬 提问</button>
-          <button class="be" id="btn-share" title="把观战链接分享给朋友">🔗 分享</button>
-          <button class="be" id="btn-mvp">🏆 MVP</button>
-          <button class="be" id="btn-match-replay" style="display:none" title="按真实事件顺序观看本局">🎬 对局回放</button>
-          <button class="be" id="btn-export">📄 导出</button>
-          <button class="be" id="btn-prompt-lib" title="Manage long prompt templates for individual models">📚 Prompt library</button>
-          <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
-          <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
-          <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
-          <button class="be" id="btn-tts" title="用系统语音朗读AI发言（免费，无需API）">🔇 朗读</button>
-          <button class="be" id="btn-tts-cfg" title="朗读设置：切换系统语音/自定义TTS接口">🎚️ 设置</button>
+          <div class="cmg-row">
+            <span class="cmg-label">本局</span>
+            <button class="be" id="btn-ask">💬 提问</button>
+            <button class="be" id="btn-match-replay" style="display:none" title="按真实事件顺序观看本局">🎬 对局回放</button>
+            <button class="be" id="btn-mvp">🏆 MVP</button>
+          </div>
+          <div class="cmg-row">
+            <span class="cmg-label">存取与分享</span>
+            <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
+            <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
+            <button class="be" id="btn-export">📄 导出</button>
+            <button class="be" id="btn-share" title="把观战链接分享给朋友">🔗 分享</button>
+          </div>
+          <div class="cmg-row">
+            <span class="cmg-label">工具</span>
+            <button class="be" id="btn-prompt-lib" title="管理可分配给不同模型的长篇提示词模板">📚 提示词库</button>
+            <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
+            <button class="be" id="btn-tts" title="用系统语音朗读AI发言（免费，无需API）">🔇 朗读</button>
+            <button class="be" id="btn-tts-cfg" title="朗读设置：切换系统语音/自定义TTS接口">🎚️ 设置</button>
+          </div>
           <button class="br" id="btn-reset">🔁 重置本局</button>
         </div>
       </details>
@@ -24702,5 +24754,48 @@ if ('serviceWorker' in navigator &&
 })();
 </script>
 <script src="./role-effects.js"></script>
+<script>
+/* 设置面板的状态可视化。
+ * 22 个开关平铺时，「开着」和「关着」只差一个小方块，扫一眼根本分不出来。
+ * 视觉状态主要靠 CSS 的 :has() 直接给（永远准、不依赖事件）；这里的 JS 负责
+ * 两件 CSS 做不到的事：给不支持 :has() 的老 WebView 兜底那个 .on 类，
+ * 以及算折叠标题上的计数。只在 change 和 details 展开时同步——面板收起来时
+ * 这些数字没人看得见，不必去挂钩存档/读档那些会绕过 change 事件的赋值路径。 */
+(function(){
+  'use strict';
+  // 这行文字是在 i18n 扫完 DOM 之后才插进去的，拿不到运行时翻译，只能自己判语言
+  var EN = /\/en(?:\/|$)/.test(location.pathname);
+  function sync(){
+    var boxes = document.querySelectorAll('.mset-groups .mti input[type="checkbox"]');
+    var on = 0;
+    boxes.forEach(function(b){
+      var lab = b.closest && b.closest('.mti');
+      if (lab) lab.classList.toggle('on', b.checked);
+      if (b.checked) on++;
+    });
+    document.querySelectorAll('.mset-g[data-grp]').forEach(function(g){
+      var all = g.querySelectorAll('input[type="checkbox"]');
+      var hit = g.querySelectorAll('input[type="checkbox"]:checked');
+      var el = g.querySelector('.mset-n');
+      if (el) el.textContent = all.length ? (hit.length + '/' + all.length) : '';
+    });
+    var sum = document.getElementById('mset-summary');
+    if (sum) sum.textContent = boxes.length ? ((EN ? 'On ' : '已开启 ') + on + ' / ' + boxes.length) : '';
+  }
+  function bind(){
+    sync();
+    document.addEventListener('change', function(e){
+      if (e.target && e.target.type === 'checkbox' && e.target.closest('.mset-groups')) sync();
+    });
+    // details 的 toggle 事件不冒泡，只能逐个挂
+    document.querySelectorAll('.mset-g, #mobile-secondary').forEach(function(d){
+      d.addEventListener('toggle', sync);
+    });
+  }
+  if (document.readyState !== 'loading') bind();
+  else document.addEventListener('DOMContentLoaded', bind);
+  window.syncSettingChips = sync;   // 存档/读档改完 checked 后可以主动叫一次
+})();
+</script>
 </body>
 </html>

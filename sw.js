@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v18-action-cg-mystery-qa';
+const CACHE_NAME = 'wolf-pwa-v19-settings-ui';
 const APP_SHELL = [
   './',
   './index.html',
