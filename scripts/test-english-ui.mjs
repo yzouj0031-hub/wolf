@@ -27,6 +27,9 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, "showRoleCinematic('werewolf'", `${label} wolf-action cinematic`);
   requireText(source, "showRoleCinematic('knight'", `${label} knight-duel cinematic`);
   requireText(source, "showRoleCinematic(_isMechShooter ? 'mechwolf' : 'hunter'", `${label} hunter-shot cinematic`);
+  requireText(source, 'Number.isFinite(parsed)', `${label} UI zoom validation`);
+  requireText(source, 'localStorage.removeItem(\'uiZoom\')', `${label} invalid UI zoom cleanup`);
+  requireText(source, 'Math.min(1,Math.max(0.62,z))', `${label} UI zoom safety clamp`);
   if (source.includes('role-card-fallback">${r.emoji}') || source.includes('<strong>${r.emoji} ${escapeHtml(')) {
     throw new Error(`${label} still renders role emoji in the encyclopedia`);
   }
