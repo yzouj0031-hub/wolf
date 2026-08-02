@@ -19,6 +19,7 @@ const FILES = [
   'role-effects.js',
   'role-sigils.js',
   'action-cg.js',
+  'ui-icons.js',
   'native-http.js',
   'horror.html',
   'style-preview.html'

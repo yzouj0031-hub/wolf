@@ -628,9 +628,15 @@ body.fx-lite *, body.fx-lite *::before, body.fx-lite *::after {
 .cr label { font-size: 0.72em; color: #8880a8; white-space: nowrap; }
 .nhint { font-size: 0.6em; color: #6860a0; margin: -1px 0 4px 0; }
 
-.mtog { display: flex; gap: 6px; justify-content: center; margin-bottom: 6px; flex-wrap: wrap; }
-.mti { display: flex; align-items: center; gap: 3px; font-size: 0.7em; padding: 3px 8px; background: rgba(245,160,184,0.03); border: 1px solid rgba(245,160,184,0.08); border-radius: var(--r); cursor: pointer; }
-.mti input[type="checkbox"] { width: auto; flex: none; min-width: auto; accent-color: var(--gold); }
+.ui-iconized::before { content:''; display:inline-block; width:1.05em; height:1.05em; flex:0 0 auto; background:currentColor; -webkit-mask:var(--ui-icon) center/contain no-repeat; mask:var(--ui-icon) center/contain no-repeat; }
+.mtog { display:flex; gap:7px; justify-content:flex-start; margin-bottom:7px; flex-wrap:wrap; }
+.mti { position:relative; display:flex; align-items:center; gap:7px; min-height:29px; font-size:.68em; padding:5px 10px; color:#968fa8; background:linear-gradient(180deg,rgba(29,26,43,.86),rgba(15,14,27,.92)); border:1px solid rgba(170,151,198,.14); border-radius:999px; box-shadow:inset 0 1px rgba(255,255,255,.025),0 3px 12px rgba(0,0,0,.12); cursor:pointer; transition:border-color .2s,background .2s,color .2s,box-shadow .2s,transform .2s; user-select:none; }
+.mti.ui-iconized::before { width:13px; height:13px; opacity:.72; }
+.mti input[type="checkbox"] { position:absolute; width:1px; height:1px; min-width:0; opacity:0; pointer-events:none; }
+.mti::after { content:''; width:5px; height:5px; margin-left:1px; border-radius:50%; background:#4d465b; box-shadow:0 0 0 3px rgba(77,70,91,.12); transition:all .2s; }
+.mti:not(:has(input[type="checkbox"]))::after { display:none; }
+.mti:hover { color:#c8bfd7; border-color:rgba(190,166,220,.3); background:linear-gradient(180deg,rgba(39,34,55,.92),rgba(19,17,32,.96)); transform:translateY(-1px); }
+.mti:focus-within { outline:1px solid rgba(229,190,118,.55); outline-offset:2px; }
 /* 设置面板分组：22 个开关平铺时既扫不出分类、也看不出哪些开着 */
 .mset-groups { display: flex; flex-direction: column; gap: 5px; padding: 6px 7px 4px; }
 .mset-g { border: 1px solid rgba(245,160,184,.07); border-radius: var(--r); background: rgba(255,255,255,.012); }
@@ -644,7 +650,11 @@ body.fx-lite *, body.fx-lite *::before, body.fx-lite *::after {
 .mset-g .bgm-controls { width: 100%; padding: 2px 0 0 !important; }
 /* 开着的项给金色描边——原来选中与否只差一个小方块，一排 22 个根本分辨不出来 */
 .mti.on,
-.mset-groups .mti:has(input[type="checkbox"]:checked) { background: rgba(200,168,76,.10); border-color: rgba(200,168,76,.36); color: #e8d8a8; }
+.mset-groups .mti:has(input[type="checkbox"]:checked) { color:#ead8ab; background:linear-gradient(145deg,rgba(116,87,39,.24),rgba(69,48,83,.3)); border-color:rgba(222,183,102,.48); box-shadow:inset 0 1px rgba(255,246,214,.08),0 5px 18px rgba(78,45,92,.16); }
+.mti.on::before,
+.mset-groups .mti:has(input[type="checkbox"]:checked)::before { opacity:1; filter:drop-shadow(0 0 5px rgba(231,188,105,.28)); }
+.mti.on::after,
+.mset-groups .mti:has(input[type="checkbox"]:checked)::after { background:#edc87d; box-shadow:0 0 0 3px rgba(237,200,125,.13),0 0 9px rgba(237,200,125,.46); }
 .mset-sum { margin-left: 7px; color: #7a7290; font-size: .92em; font-weight: 400; }
 /* 更多功能的分区标题 */
 .cmg-label { flex: 0 0 52px; display: flex; align-items: center; justify-content: flex-end; font-size: .58em; letter-spacing: .04em; color: #6f6688; padding-right: 3px; }
@@ -934,28 +944,35 @@ body.blind-review .le.ending { display:none !important; }
 /* ══════════════════════════════════════
    § 按钮组
    ══════════════════════════════════════ */
-.ctrls { display: flex; flex-direction: column; gap: 5px; }
-.ctrls-main { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 5px; }
-.ctrls button { padding: 8px; font-size: 0.78em; font-weight: 600; border-radius: var(--r); letter-spacing: 0.05em; transition: all 0.25s; }
-.bs { background: linear-gradient(135deg, rgba(245,160,184,0.2), rgba(192,104,136,0.12)); border: 1px solid var(--gold); color: var(--gold); }
-.bs:hover { background: rgba(245,160,184,0.3); box-shadow: 0 0 15px rgba(245,160,184,0.15); }
-.bn { background: rgba(104,184,232,0.12); border: 1px solid var(--jade); color: var(--jade); }
-.bn:hover { background: rgba(104,184,232,0.25); }
-.ba { background: rgba(245,160,184,0.1); border: 1px solid rgba(245,160,184,0.35); color: var(--gold-light); }
-.ba:hover { background: rgba(245,160,184,0.2); }
-.be { background: rgba(136,136,204,0.12); border: 1px solid var(--indigo); color: #a0a0d0; }
-.be:hover { background: rgba(136,136,204,0.25); }
-.br { background: rgba(200,48,64,0.1); border: 1px solid rgba(200,48,64,0.3); color: var(--cinnabar-light); }
-.br:hover { background: rgba(200,48,64,0.2); }
+.ctrls { display:flex; flex-direction:column; gap:7px; padding-top:2px; }
+.ctrls-main { display:grid; grid-template-columns:1.25fr 1fr 1fr; gap:7px; }
+.ctrls button { position:relative; display:flex; align-items:center; justify-content:center; gap:9px; min-height:40px; padding:8px 14px; overflow:hidden; font-size:.76em; font-weight:650; border-radius:8px; letter-spacing:.08em; box-shadow:inset 0 1px rgba(255,255,255,.045),0 5px 18px rgba(0,0,0,.16); transition:transform .2s,border-color .2s,background .2s,color .2s,box-shadow .2s; }
+.ctrls button.ui-iconized::before { width:16px; height:16px; opacity:.86; }
+.ctrls-main button { min-height:47px; font-family:var(--font-title); font-size:.82em; }
+.ctrls button:hover:not(:disabled) { transform:translateY(-1px); }
+.ctrls button:active:not(:disabled) { transform:translateY(0); }
+.ctrls button:disabled { opacity:.36; filter:saturate(.55); box-shadow:none; }
+.bs { color:#f0c7d4; background:linear-gradient(135deg,rgba(122,61,84,.46),rgba(49,29,55,.74)); border:1px solid rgba(242,159,187,.72); }
+.bs:hover { background:linear-gradient(135deg,rgba(153,70,100,.56),rgba(61,34,67,.82)); box-shadow:inset 0 1px rgba(255,255,255,.06),0 8px 26px rgba(126,54,83,.26); }
+.bn { color:#a9d8e8; background:linear-gradient(135deg,rgba(35,75,92,.42),rgba(20,30,48,.72)); border:1px solid rgba(102,181,205,.52); }
+.bn:hover { background:linear-gradient(135deg,rgba(42,91,111,.54),rgba(22,38,58,.8)); box-shadow:0 8px 24px rgba(44,112,133,.2); }
+.ba { color:#d9c5e9; background:linear-gradient(135deg,rgba(80,54,96,.44),rgba(39,28,53,.75)); border:1px solid rgba(184,145,207,.5); }
+.ba:hover { background:linear-gradient(135deg,rgba(101,65,119,.54),rgba(48,32,65,.84)); box-shadow:0 8px 24px rgba(104,62,126,.2); }
+.be { color:#bbb4d1; background:linear-gradient(180deg,rgba(31,29,48,.9),rgba(20,19,34,.94)); border:1px solid rgba(139,130,183,.32); }
+.be:hover { color:#e2dced; background:linear-gradient(180deg,rgba(46,41,65,.94),rgba(25,22,41,.98)); border-color:rgba(179,157,214,.54); box-shadow:inset 0 1px rgba(255,255,255,.06),0 6px 18px rgba(44,32,67,.22); }
+.br { color:#d98da0; background:linear-gradient(180deg,rgba(62,22,35,.48),rgba(31,14,25,.72)); border:1px solid rgba(185,64,87,.42); }
+.br:hover { color:#f2a9bb; background:linear-gradient(180deg,rgba(83,27,43,.58),rgba(40,17,30,.8)); border-color:rgba(218,87,112,.62); }
 .ctrls-more { min-width: 0; }
 .ctrls-more > summary {
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 6px 10px; cursor: pointer; list-style: none;
-  color: #8f88a5; font-size: 0.7em; letter-spacing: 0.08em;
-  border: 1px solid rgba(136,136,204,0.18); border-radius: var(--r);
-  background: rgba(136,136,204,0.055); transition: all 0.2s;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  padding:7px 10px; cursor:pointer; list-style:none;
+  color:#817993; font-size:.63em; letter-spacing:.12em;
+  border:1px solid rgba(139,130,183,.16); border-radius:8px;
+  background:linear-gradient(180deg,rgba(27,25,41,.72),rgba(17,16,29,.78)); transition:all .2s;
 }
 .ctrls-more > summary::-webkit-details-marker { display: none; }
+.ctrls-more > summary:focus, .mobile-secondary > summary:focus { outline:none; }
+.ctrls-more > summary:focus-visible, .mobile-secondary > summary:focus-visible { outline:1px solid rgba(222,183,102,.48); outline-offset:2px; }
 .ctrls-more > summary:hover { color: #c0b8d8; background: rgba(136,136,204,0.11); }
 .ctrls-more-chevron { display: inline-block; transition: transform 0.2s; }
 .ctrls-more[open] .ctrls-more-chevron { transform: rotate(180deg); }
@@ -963,10 +980,11 @@ body.blind-review .le.ending { display:none !important; }
    抽屉反而变高了。改成弹性排布：按钮按可用宽度自己分，一组挤在一两行里。 */
 /* 原来是 3 列硬网格；分组后每组 2~4 个按钮，硬网格留下一堆空格子反而更高。
    改成每组一行、组名内联在行首——分区看得出来，又不额外吃掉三行标题的高度。 */
-.ctrls-more-grid { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
-.cmg-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: stretch; }
-.cmg-row .be { flex: 1 1 auto; min-width: 86px; }
-.ctrls-more-grid .br { width: 100%; margin-top: 2px; }
+.ctrls-more-grid { display:flex; flex-direction:column; gap:6px; padding-top:6px; }
+.cmg-row { display:flex; flex-wrap:wrap; gap:5px; align-items:stretch; padding:5px; border:1px solid rgba(139,130,183,.1); border-radius:9px; background:rgba(14,13,25,.54); }
+.cmg-row .be { flex:1 1 auto; min-width:96px; min-height:38px; justify-content:flex-start; }
+.cmg-row .be.ui-iconized::before { width:15px; height:15px; color:#a99bc8; }
+.ctrls-more-grid .br { width:100%; margin-top:1px; }
 
 .lobby-demo {
   width: min(420px, calc(100% - 20px)); margin: 0 auto 18px; padding: 11px 14px;
@@ -1994,6 +2012,7 @@ body.has-wp::after {
 <link rel="stylesheet" href="./role-effects.css">
 <script src="../role-sigils.js"></script>
 <script src="../action-cg.js"></script>
+<script src="../ui-icons.js"></script>
 </head>
 <body>
 
@@ -2503,7 +2522,7 @@ body.has-wp::after {
     </div>
     <div class="pbar-toggle" id="pbarTog">── Show role cards ▼ ──</div>
     <div class="pbar" id="pbar"></div>
-    <details class="cfg"><summary>⚙ Settings</summary>
+    <details class="cfg"><summary data-ui-icon="settings">Settings</summary>
       <div class="cr"><input type="text" id="g-url" placeholder="API URL"><input type="password" id="g-key" placeholder="API key"></div>
       <div class="cr"><input type="text" id="g-model" placeholder="Model name" value="gemini-2.0-flash"><select id="p-sel"></select></div>
       <!-- 导演模式：多角色选择 -->
@@ -2604,48 +2623,48 @@ body.has-wp::after {
       </details>
     </details>
     <details class="mobile-secondary" id="mobile-secondary">
-      <summary>⚙ Game settings<span class="mset-sum" id="mset-summary"></span></summary>
+      <summary data-ui-icon="settings">Game settings<span class="mset-sum" id="mset-summary"></span></summary>
     <div class="mset-groups">
       <details class="mset-g" data-grp="rules" open>
         <summary>对局规则<span class="mset-n"></span></summary>
         <div class="mtog">
-        <label class="mti"><input type="checkbox" id="m-anon" checked>🎭 匿名</label>
-        <label class="mti"><input type="checkbox" id="m-trial" checked>⚠️ 审判</label>
-        <label class="mti"><input type="checkbox" id="m-hdeath">💀 隐死亡</label>
-        <label class="mti" title="遗言规则"><span style="font-size:0.8em;color:#d8d0e8">💬 遗言</span><select id="m-lastwill" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="first">仅第一夜</option><option value="always">每次都有</option><option value="never">从不</option></select></label>
-        <label class="mti" title="开启=屠边局（默认）：狼人只要把神职全杀光、或把平民全杀光，就立刻获胜（即使总人数还没到屠城线）。关闭=屠城局：狼人需把好人杀到≤狼人数才赢。屠边对狼更有利、节奏更快。"><input type="checkbox" id="m-kill-edge" onchange="S.killEdgeMode=this.checked" checked>🗡️ 屠边</label>
-        <label class="mti" title="开启=骑士连斩模式：骑士每天可决斗一次，决斗命中狼→狼死、骑士存活、下一天还能继续决斗；决斗指向好人→骑士当场牺牲。推理越准的骑士能连续清狼。关闭=经典模式（默认）：骑士一局只能决斗一次，不论输赢用完即止。"><input type="checkbox" id="m-knight-chain" onchange="S.knightChainMode=this.checked">⚔️ 骑士连斩</label>
-        <label class="mti" title="开启=传统单轮发言（默认）：白天每人只发言一次，发完直接投票（更接近线下标准狼人杀，节奏快）。关闭=双轮发言：每人发言两轮，第二轮可反驳/改票/总结（AI交锋更充分）。"><input type="checkbox" id="m-single-round" onchange="S.singleRound=this.checked" checked>🗣️ 单轮发言</label>
-        <label class="mti" title="开启后，只要警长仍在场，无论昨夜平安夜还是有人死亡，每天都由警长指定起始玩家和顺/逆时针方向；警长最后归票。关闭则仅第一天由警长定序，之后按昨夜死者下家或默认座位顺序。"><input type="checkbox" id="m-sheriff-daily-order" onchange="S.sheriffDailyOrderMode=this.checked" checked>👑 警长每日定序</label>
+        <label class="mti" data-ui-icon="mask"><input type="checkbox" id="m-anon" checked>匿名</label>
+        <label class="mti" data-ui-icon="gavel"><input type="checkbox" id="m-trial" checked>审判</label>
+        <label class="mti" data-ui-icon="skull"><input type="checkbox" id="m-hdeath">隐死亡</label>
+        <label class="mti" data-ui-icon="message" title="遗言规则"><span style="font-size:0.8em;color:#d8d0e8">遗言</span><select id="m-lastwill" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="first">仅第一夜</option><option value="always">每次都有</option><option value="never">从不</option></select></label>
+        <label class="mti" data-ui-icon="sword" title="开启=屠边局（默认）：狼人只要把神职全杀光、或把平民全杀光，就立刻获胜（即使总人数还没到屠城线）。关闭=屠城局：狼人需把好人杀到≤狼人数才赢。屠边对狼更有利、节奏更快。"><input type="checkbox" id="m-kill-edge" onchange="S.killEdgeMode=this.checked" checked>屠边</label>
+        <label class="mti" data-ui-icon="sword" title="开启=骑士连斩模式：骑士每天可决斗一次，决斗命中狼→狼死、骑士存活、下一天还能继续决斗；决斗指向好人→骑士当场牺牲。推理越准的骑士能连续清狼。关闭=经典模式（默认）：骑士一局只能决斗一次，不论输赢用完即止。"><input type="checkbox" id="m-knight-chain" onchange="S.knightChainMode=this.checked">骑士连斩</label>
+        <label class="mti" data-ui-icon="message" title="开启=传统单轮发言（默认）：白天每人只发言一次，发完直接投票（更接近线下标准狼人杀，节奏快）。关闭=双轮发言：每人发言两轮，第二轮可反驳/改票/总结（AI交锋更充分）。"><input type="checkbox" id="m-single-round" onchange="S.singleRound=this.checked" checked>单轮发言</label>
+        <label class="mti" data-ui-icon="crown" title="开启后，只要警长仍在场，无论昨夜平安夜还是有人死亡，每天都由警长指定起始玩家和顺/逆时针方向；警长最后归票。关闭则仅第一天由警长定序，之后按昨夜死者下家或默认座位顺序。"><input type="checkbox" id="m-sheriff-daily-order" onchange="S.sheriffDailyOrderMode=this.checked" checked>警长每日定序</label>
         </div>
       </details>
       <details class="mset-g" data-grp="ai">
         <summary>AI 与演出<span class="mset-n"></span></summary>
         <div class="mtog">
-        <label class="mti"><input type="checkbox" id="m-mbti" checked>🧠 性情</label>
-        <label class="mti"><input type="checkbox" id="m-cosplay" checked>🎭 Cosplay</label>
-        <label class="mti" title="开启后，公开界面、API公共战报、网页端AI提示词与摘要都只显示P编号；每个AI只在私密提示中知道自己的Cosplay角色名，避免名气刀、仇刀和角色名联想。"><input type="checkbox" id="m-blindnames">🙈 盲名Cosplay</label>
-        <label class="mti" title="关闭后AI发言中提到本局不存在的角色名时不再自动替换"><input type="checkbox" id="m-factcheck" checked>🔍 事实校验</label>
-        <label class="mti"><input type="checkbox" id="m-hardcore">🔥 硬核</label>
-        <label class="mti" title="开启后AI会输出思维过程（更耗token但可观察推理）；关闭则直接输出发言和操作（省token，速度更快）"><input type="checkbox" id="m-thinking" checked>💭 思维链</label>
-        <label class="mti" title="开启后AI自然说话，思考可写在[草稿]里自动过滤；关闭则用XML标签格式（可能导致发言过短）。推荐保持开启。可在命牌弹窗里针对单个AI关闭。"><input type="checkbox" id="m-free-output" checked>🗣️ 自由输出</label>
-        <label class="mti" title="开启后：每次开局会从「🎭 人设库」里随机抽取人设，分配给没有手动配置人设的 AI。每局阵容自动不同。需要先在主菜单的人设库里建好人设。"><input type="checkbox" id="m-persona-pool">🎲 人设随机池</label>
+        <label class="mti" data-ui-icon="brain"><input type="checkbox" id="m-mbti" checked>性情</label>
+        <label class="mti" data-ui-icon="mask"><input type="checkbox" id="m-cosplay" checked>Cosplay</label>
+        <label class="mti" data-ui-icon="eyeoff" title="开启后，公开界面、API公共战报、网页端AI提示词与摘要都只显示P编号；每个AI只在私密提示中知道自己的Cosplay角色名，避免名气刀、仇刀和角色名联想。"><input type="checkbox" id="m-blindnames">盲名Cosplay</label>
+        <label class="mti" data-ui-icon="search" title="关闭后AI发言中提到本局不存在的角色名时不再自动替换"><input type="checkbox" id="m-factcheck" checked>事实校验</label>
+        <label class="mti" data-ui-icon="flame"><input type="checkbox" id="m-hardcore">硬核</label>
+        <label class="mti" data-ui-icon="thought" title="开启后AI会输出思维过程（更耗token但可观察推理）；关闭则直接输出发言和操作（省token，速度更快）"><input type="checkbox" id="m-thinking" checked>思维链</label>
+        <label class="mti" data-ui-icon="message" title="开启后AI自然说话，思考可写在[草稿]里自动过滤；关闭则用XML标签格式（可能导致发言过短）。推荐保持开启。可在命牌弹窗里针对单个AI关闭。"><input type="checkbox" id="m-free-output" checked>自由输出</label>
+        <label class="mti" data-ui-icon="dice" title="开启后：每次开局会从「人设库」里随机抽取人设，分配给没有手动配置人设的 AI。每局阵容自动不同。需要先在主菜单的人设库里建好人设。"><input type="checkbox" id="m-persona-pool">人设随机池</label>
         </div>
       </details>
       <details class="mset-g" data-grp="host">
         <summary>主持与调试<span class="mset-n"></span></summary>
         <div class="mtog">
-        <label class="mti"><input type="checkbox" id="m-mc">⚖️ 主持人</label>
-        <label class="mti" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口——可以指定杀谁，也可以选「空刀」制造平安夜。无论你是否扮演狼、纯观战也能用，直接覆盖AI狼队的决定。关闭则狼队自己民主投票（默认）"><input type="checkbox" id="m-director-veto">🎬 导演刀口主控</label>
-        <label class="mti" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>🛠️ 手动重试</label>
-        <label class="mti" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">🏷️ 模型标签</label>
+        <label class="mti" data-ui-icon="gavel"><input type="checkbox" id="m-mc">主持人</label>
+        <label class="mti" data-ui-icon="gavel" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口——可以指定杀谁，也可以选「空刀」制造平安夜。无论你是否扮演狼、纯观战也能用，直接覆盖AI狼队的决定。关闭则狼队自己民主投票（默认）"><input type="checkbox" id="m-director-veto">导演刀口主控</label>
+        <label class="mti" data-ui-icon="wrench" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>手动重试</label>
+        <label class="mti" data-ui-icon="tag" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">模型标签</label>
         </div>
       </details>
       <details class="mset-g" data-grp="av">
         <summary>显示与音效<span class="mset-n"></span></summary>
         <div class="mtog">
-        <label class="mti"><input type="checkbox" id="m-audio" checked>🔊 音效</label>
-        <label class="mti" title="关掉毛玻璃和常驻动画。若你在浏览器里遇到「玩着玩着某块画面变空白，但游戏照常」，打开它即可解决——那是浏览器合成高负载特效时的老毛病，与游戏逻辑无关。桌面默认关闭（保留华丽特效）。"><input type="checkbox" id="m-litefx">⚡ 精简特效</label>
+        <label class="mti" data-ui-icon="volume"><input type="checkbox" id="m-audio" checked>音效</label>
+        <label class="mti" data-ui-icon="sparkles" title="关掉毛玻璃和常驻动画。若你在浏览器里遇到「玩着玩着某块画面变空白，但游戏照常」，打开它即可解决——那是浏览器合成高负载特效时的老毛病，与游戏逻辑无关。桌面默认关闭（保留华丽特效）。"><input type="checkbox" id="m-litefx">精简特效</label>
         <div class="bgm-controls" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 0;font-size:0.75em;align-items:center">
       <span style="color:#8a8090">🌙夜间BGM</span>
       <select id="bgm-night-src" style="font-size:0.8em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)">
@@ -2683,34 +2702,34 @@ body.has-wp::after {
     <button id="gl-jump-bottom" class="scroll-jump-bottom" type="button">↓ 回到最新</button>
     <div class="ctrls">
       <div class="ctrls-main">
-        <button class="bs" id="bst">🎮 开局</button>
-        <button class="bn" id="bne" disabled>▶ 继续</button>
-        <button class="ba" id="bau">🔄 自动</button>
+        <button class="bs" id="bst" data-ui-icon="play">开局</button>
+        <button class="bn" id="bne" data-ui-icon="step" disabled>继续</button>
+        <button class="ba" id="bau" data-ui-icon="cycle">自动</button>
       </div>
       <details class="ctrls-more">
         <summary><span>••• 更多功能</span><span class="ctrls-more-chevron">⌄</span></summary>
         <div class="ctrls-more-grid">
           <div class="cmg-row">
             <span class="cmg-label">本局</span>
-            <button class="be" id="btn-ask">💬 提问</button>
-            <button class="be" id="btn-match-replay" style="display:none" title="按真实事件顺序观看本局">🎬 对局回放</button>
-            <button class="be" id="btn-mvp">🏆 MVP</button>
+            <button class="be" id="btn-ask" data-ui-icon="ask">提问</button>
+            <button class="be" id="btn-match-replay" data-ui-icon="replay" style="display:none" title="按真实事件顺序观看本局">对局回放</button>
+            <button class="be" id="btn-mvp" data-ui-icon="trophy">MVP</button>
           </div>
           <div class="cmg-row">
             <span class="cmg-label">存取与分享</span>
-            <button class="be" id="btn-save-game" title="保存当前游戏进度">💾 存档</button>
-            <button class="be" id="btn-load-game" title="读取上次存档">📂 读档</button>
-            <button class="be" id="btn-export">📄 导出</button>
-            <button class="be" id="btn-share" title="把观战链接分享给朋友">🔗 分享</button>
+            <button class="be" id="btn-save-game" data-ui-icon="save" title="保存当前游戏进度">存档</button>
+            <button class="be" id="btn-load-game" data-ui-icon="load" title="读取上次存档">读档</button>
+            <button class="be" id="btn-export" data-ui-icon="export">导出</button>
+            <button class="be" id="btn-share" data-ui-icon="share" title="把观战链接分享给朋友">分享</button>
           </div>
           <div class="cmg-row">
             <span class="cmg-label">工具</span>
-            <button class="be" id="btn-prompt-lib" title="管理可分配给不同模型的长篇提示词模板">📚 提示词库</button>
-            <button class="be" id="btn-rules" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">📖 规则</button>
-            <button class="be" id="btn-tts" title="用系统语音朗读AI发言（免费，无需API）">🔇 朗读</button>
-            <button class="be" id="btn-tts-cfg" title="朗读设置：切换系统语音/自定义TTS接口">🎚️ 设置</button>
+            <button class="be" id="btn-prompt-lib" data-ui-icon="library" title="管理可分配给不同模型的长篇提示词模板">Prompt library</button>
+            <button class="be" id="btn-rules" data-ui-icon="book" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">规则</button>
+            <button class="be" id="btn-tts" data-ui-icon="volume" title="用系统语音朗读AI发言（免费，无需API）">朗读</button>
+            <button class="be" id="btn-tts-cfg" data-ui-icon="sliders" title="朗读设置：切换系统语音/自定义TTS接口">设置</button>
           </div>
-          <button class="br" id="btn-reset">🔁 重置本局</button>
+          <button class="br" id="btn-reset" data-ui-icon="reset">重置本局</button>
         </div>
       </details>
     </div>
@@ -5901,7 +5920,7 @@ const TTS = (() => {
     try { localStorage.setItem('wg_tts_on', on ? '1' : '0'); } catch (_) {}
     if (!on) stop();
     const btn = document.getElementById('btn-tts');
-    if (btn) btn.textContent = on ? '🔊 朗读' : '🔇 朗读';
+    if (btn) btn.textContent = '朗读';
   }
 
   function toggle() {
@@ -17529,7 +17548,7 @@ function forceReset() {
   $('gl').innerHTML = '<div class="le system">── 准备就绪 ──</div>';
   $('bst').disabled = false;
   $('bne').disabled = true;
-  $('bau').innerText = '🔄 自动';
+  $('bau').innerText = '自动';
   hideSpeakOrderSummary();
   const n = (MODE_CONFIGS[S.mode]||{}).count || 10;
   for (let i=0; i<n; i++) {
@@ -17701,7 +17720,7 @@ async function nextStep() {
 
 function toggleAuto() {
   S.auto = !S.auto;
-  $('bau').innerText = S.auto ? '⏸ 暂停' : '🔄 自动';
+  $('bau').innerText = S.auto ? '暂停' : '自动';
   if (S.auto) nextStep();
 }
 
@@ -17716,7 +17735,7 @@ function startDemo() {
     startGame();
     if (!S.gameOver) {
       S.auto = true;
-      const b = $('bau'); if (b) b.innerText = '⏸ 暂停';
+      const b = $('bau'); if (b) b.innerText = '暂停';
       nextStep();
     }
   } catch (e) { console.error('startDemo', e); }
@@ -20459,7 +20478,7 @@ function bindEvents() {
   $('btn-load-game').addEventListener('click', () => SaveUI.open());
   if ($('btn-tts')) {
     $('btn-tts').addEventListener('click', () => TTS.toggle());
-    if (TTS.isOn()) $('btn-tts').textContent = '🔊 朗读';
+    if (TTS.isOn()) $('btn-tts').textContent = '朗读';
   }
   if ($('btn-tts-cfg')) {
     const fillTtsPop = () => {
