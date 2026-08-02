@@ -1989,6 +1989,219 @@ body.has-wp::after {
 #jbs-web-overlay.on{display:flex}.jbs-web-box{width:min(760px,100%);max-height:94dvh;overflow-y:auto;background:#121624;border:1px solid rgba(84,200,184,.3);border-radius:13px;padding:16px}.jbs-web-box textarea{width:100%;font-family:ui-monospace,monospace;font-size:.76em;line-height:1.5;background:#0b0e17;color:#cbd2e2;border:1px solid rgba(140,150,190,.2);border-radius:8px;padding:9px}.jbs-web-prompt{height:220px}.jbs-web-reply{height:150px;margin-top:8px}
 @media(max-width:760px){.jbs-grid{grid-template-columns:1fr}.jbs-stage{grid-template-columns:1fr}.jbs-side{position:static}.jbs-cast{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.jbs-scroll{padding-top:10px}.jbs-log{min-height:280px}}
 @media(orientation:landscape) and (max-height:650px){.jbs-top{padding-top:5px;padding-bottom:5px}.jbs-scroll{padding-top:8px}.jbs-stage{grid-template-columns:minmax(0,1fr) 210px}.jbs-side{position:sticky}.jbs-panel{padding:12px}.jbs-log{min-height:230px}.jbs-web-prompt{height:135px}.jbs-web-reply{height:90px}}
+/* ══════════════════════════════════════════════════════════════════
+   § 剧本杀 / 群聊 视觉层
+   ──────────────────────────────────────────────────────────────────
+   这两个界面原来都是同一套写法：1px 实线描边 + 平涂底 + 统一圆角。
+   没有光源、没有层级，所以旁白框、线索框、发言气泡、侧栏卡片长得一模一样，
+   叠在一起就像一堆贴纸——也就是所谓的「塑料感」。
+
+   这一层做三件事：
+   ① 把描边降到几乎看不见，改用【顶部内高光 + 贴地投影】造纵深。
+      光从上方来，是让一个方块看起来像实体而不是色块的最省力手段。
+   ② 让不同性质的内容有不同的视觉语言：旁白是画外音（无框，只有一条竖线）、
+      线索是证物（纸色卡片 + 琥珀侧封）、发言是人在说话（气泡 + 头像）。
+      三者长得一样，玩家就得逐字读才知道这条是什么。
+   ③ 降级噪音：事件编号是给主持人对时序的调试信息，原来和角色名一样粗；
+      原生 range 滑杆则是整个界面里最「网页表单」的一处。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 纵深配方：三处共用 ── */
+:root{
+  --lift-1: inset 0 1px 0 rgba(255,255,255,.045), 0 6px 18px -14px rgba(0,0,0,.95);
+  --lift-2: inset 0 1px 0 rgba(255,255,255,.06),  0 14px 34px -22px rgba(0,0,0,1);
+  --hair:   rgba(150,160,200,.10);
+}
+
+/* ═══ 剧本杀 ═══ */
+
+/* 纯平的 #0d0f18 换成有光心的夜色，页面顶部微亮，往下沉下去 */
+#jbs-view{ background: radial-gradient(125% 85% at 50% -10%, #16192b 0%, #0d0f19 55%, #080910 100%); }
+.jbs-top{ background: linear-gradient(180deg, rgba(20,23,38,.9), rgba(13,15,25,0)); backdrop-filter: blur(6px); }
+.jbs-top-title{ text-shadow: 0 0 18px rgba(232,184,120,.35); }
+
+.jbs-panel,.jbs-phase,.jbs-cast,.jbs-log{
+  border-color: var(--hair);
+  background: linear-gradient(180deg, rgba(28,32,50,.88), rgba(16,19,31,.92));
+  box-shadow: var(--lift-1);
+}
+.jbs-log{ box-shadow: var(--lift-2); }
+
+/* 事件编号：等宽、极小、压暗，只有把鼠标放上去才亮起来 */
+.jbs-eid{
+  font: 400 .62em/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-style: normal; color: #5c6480; opacity: .5; letter-spacing: 0;
+  margin-right: 6px; vertical-align: 1px; transition: opacity .18s;
+}
+.jbs-msg:hover .jbs-eid,.jbs-who:hover .jbs-eid{ opacity: .95; }
+.jbs-who .jbs-eid{ margin: 0 0 0 auto; }
+
+/* 旁白＝画外音。原来被包成一个和线索长得一样的盒子，现在只留一条竖线 */
+.jbs-msg.narr{
+  background: none; border: 0; border-left: 2px solid rgba(232,184,120,.4);
+  border-radius: 0; padding: 3px 0 3px 13px; color: #b9b2c6;
+}
+.jbs-msg.narr b{ color: #e0c9a4; font-weight: 600; letter-spacing: .06em; }
+
+/* 线索＝证物卡。纸色底 + 琥珀侧封 + 投影，一眼就和对话区分开 */
+.jbs-msg.clue{
+  background: linear-gradient(180deg, rgba(62,50,32,.5), rgba(32,26,18,.62));
+  border: 1px solid rgba(232,184,120,.16); border-left: 3px solid rgba(232,184,120,.75);
+  border-radius: 4px 10px 10px 4px;
+  box-shadow: inset 0 1px 0 rgba(255,226,178,.07), 0 8px 22px -16px #000;
+}
+.jbs-msg.clue b{ color: #f0cf9c; letter-spacing: .03em; }
+
+/* 发言＝人在说话。气泡去掉描边，靠底色和投影分层 */
+.jbs-bubble{
+  border: 0;
+  background: linear-gradient(180deg, rgba(48,53,78,.6), rgba(28,32,50,.72));
+  box-shadow: var(--lift-1);
+  border-radius: 3px 12px 12px 12px;
+}
+.jbs-who{ gap: 8px; }
+/* emoji 直接当头像时，🕵️ 和 💎 的视觉重量差很多；套进固定尺寸的圆里就齐了 */
+.jbs-who > span{
+  width: 24px; height: 24px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center; font-size: .86em;
+  background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.11), rgba(255,255,255,.02));
+  box-shadow: inset 0 0 0 1px rgba(232,184,120,.22);
+}
+.jbs-who b{ letter-spacing: .04em; }
+.jbs-who small{ color: #6f7690; font-size: .72em; }
+.jbs-msg.sys{ color: #6c7288; font-size: .72em; letter-spacing: .04em; }
+
+/* 阶段进度：当前段发亮并微微鼓起，未走到的段落压到几乎看不见 */
+.jbs-steps{ gap: 4px; }
+.jbs-step{ height: 3px; background: rgba(150,160,200,.09); transition: all .3s; }
+.jbs-step.done{ background: rgba(84,200,184,.55); }
+.jbs-step.cur{
+  background: linear-gradient(90deg, #e8b878, #f0cf9c);
+  box-shadow: 0 0 10px rgba(232,184,120,.6); height: 4px; margin-top: -0.5px;
+}
+
+/* 在场角色：原来名字和身份两端对齐，中间空一大条。改成堆叠、左对齐 */
+.jbs-pcard{ align-items: flex-start; gap: 8px; padding: 7px 8px; transition: background .2s; }
+.jbs-pcard > span:first-child{
+  width: 22px; height: 22px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center; font-size: .84em;
+  background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.1), rgba(255,255,255,.02));
+}
+.jbs-pcard .nm{ display: flex; flex-direction: column; gap: 1px; line-height: 1.35; }
+.jbs-pcard .pub{ max-width: none; font-size: .78em; opacity: .8; }
+.jbs-pcard.speaking{
+  background: linear-gradient(90deg, rgba(232,184,120,.14), rgba(232,184,120,.03));
+  /* 写死琥珀：--gold 在全局是粉金色，剧本杀这套是暖琥珀，串了会很跳 */
+  box-shadow: inset 2px 0 0 #e8b878;
+  border-color: transparent;
+}
+/* 日志区原来固定 min-height:360px，内容少时下面空一大片。跟着视口长，
+   同时给个上限，免得在超高屏上拉成一条。 */
+.jbs-log{ min-height: clamp(360px, 56vh, 700px); }
+
+/* 按钮：主按钮给一点体积感和落地阴影，次按钮保持轻 */
+.jbs-btn{ transition: transform .12s, box-shadow .2s, background .2s; }
+.jbs-btn.primary{
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px -8px rgba(232,184,120,.55);
+}
+.jbs-btn:not(:disabled):hover{ transform: translateY(-1px); }
+.jbs-btn:not(:disabled):active{ transform: translateY(0); }
+
+/* 线索格 / 选本卡：hover 抬起，选中给内侧金边 */
+.jbs-clue,.jbs-script{ transition: transform .14s, box-shadow .2s, border-color .2s, background .2s; }
+.jbs-clue:not(:disabled):hover,.jbs-script:hover{ transform: translateY(-2px); box-shadow: var(--lift-1); }
+.jbs-script.sel{ box-shadow: inset 0 0 0 1px rgba(232,184,120,.5), var(--lift-1); }
+
+/* 新消息淡入上浮，比瞬间出现更像「有人刚说了话」 */
+@keyframes jbs-in{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
+.jbs-msg{ animation: jbs-in .26s ease-out both; }
+
+/* ═══ 群聊 ═══ */
+
+.gchat-view{ background: radial-gradient(120% 80% at 50% -10%, #171428 0%, #0d0b1a 55%, #08070f 100%) !important; }
+.gchat-topbar{ background: linear-gradient(180deg, rgba(22,17,36,.95), rgba(12,12,24,.6)) !important; backdrop-filter: blur(8px); }
+
+/* 一条消息 = 头像 + 名字 + 气泡；颜色由 --c 传进来（该成员的主题色） */
+.gcm{ display: flex; gap: 9px; align-items: flex-start; animation: jbs-in .24s ease-out both; }
+.gcm.me{ flex-direction: row-reverse; }
+.gcm-av{
+  width: 32px; height: 32px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: .78em;
+  /* 角色色做成渐变环，比原来那圈半透明描边有辨识度 */
+  background: radial-gradient(circle at 32% 26%, color-mix(in srgb, var(--c) 26%, transparent), rgba(255,255,255,.02));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent),
+              0 4px 12px -6px color-mix(in srgb, var(--c) 55%, transparent);
+}
+.gcm-body{ max-width: 74%; min-width: 0; }
+.gcm-name{ font-size: .66em; color: var(--c); margin-bottom: 3px; letter-spacing: .05em; opacity: .9; }
+.gcm.me .gcm-name{ text-align: right; }
+.gcm-bubble{
+  padding: 8px 12px; font-size: .83em; line-height: 1.62; color: #d9d2e6;
+  white-space: pre-wrap; word-break: break-word;
+  border: 0; border-radius: 4px 13px 13px 13px;
+  background: linear-gradient(180deg,
+      color-mix(in srgb, var(--c) 7%, rgba(44,40,64,.78)),
+      color-mix(in srgb, var(--c) 4%, rgba(26,24,42,.86)));
+  box-shadow: var(--lift-1);
+}
+.gcm.me .gcm-bubble{
+  border-radius: 13px 4px 13px 13px;
+  background: linear-gradient(180deg, rgba(86,68,40,.6), rgba(52,42,26,.72));
+  color: #ecdfc4;
+}
+/* 打字中：三个点自己跳，比一个静止的「…」有生气 */
+.gcm-bubble.typing{ display: flex; gap: 4px; align-items: center; padding: 11px 13px; }
+.gcm-bubble.typing i{
+  width: 5px; height: 5px; border-radius: 50%; background: var(--c); opacity: .5;
+  animation: gc-dot 1.05s infinite ease-in-out;
+}
+.gcm-bubble.typing i:nth-child(2){ animation-delay: .16s; }
+.gcm-bubble.typing i:nth-child(3){ animation-delay: .32s; }
+@keyframes gc-dot{ 0%,60%,100%{ transform: translateY(0); opacity:.35 } 30%{ transform: translateY(-4px); opacity:.95 } }
+
+/* 复盘条：做成一枚卷宗标签，而不是一行堆在一起的按钮 */
+#gchat-review-bar{
+  background: linear-gradient(180deg, rgba(104,184,232,.09), rgba(104,184,232,.02)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+#gchat-review-bar > div:first-child > span:first-child{
+  background: linear-gradient(180deg, rgba(104,184,232,.2), rgba(104,184,232,.06));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+#gchat-review-topic{ font-style: italic; opacity: .92; }
+
+/* 原生 range 是整个界面里最「网页表单」的一处，自己画一根。
+   注意轨道必须画在 ::track 伪元素上——这个 input 的行内样式写死了
+   background:transparent，直接给 input 设背景会被它盖掉。 */
+.gchat-auto-bar input[type=range]{
+  -webkit-appearance: none; appearance: none; height: 18px; outline: none;
+}
+.gchat-auto-bar input[type=range]::-webkit-slider-runnable-track{
+  height: 4px; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(245,160,184,.5), rgba(245,160,184,.12));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.55);
+}
+.gchat-auto-bar input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; cursor: pointer;
+  margin-top: -4.5px;   /* 把滑块压回 4px 轨道的中线 */
+  background: linear-gradient(180deg, #f8c0d4, #e07a9e);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 3px 9px -2px rgba(224,122,158,.75);
+}
+.gchat-auto-bar input[type=range]::-moz-range-track{
+  height: 4px; border-radius: 3px; background: rgba(245,160,184,.18);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.55);
+}
+.gchat-auto-bar input[type=range]::-moz-range-thumb{
+  width: 13px; height: 13px; border: 0; border-radius: 50%; cursor: pointer;
+  background: linear-gradient(180deg, #f8c0d4, #e07a9e);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 3px 9px -2px rgba(224,122,158,.75);
+}
+.gchat-auto-bar,.gchat-input-bar{
+  background: linear-gradient(0deg, rgba(10,9,20,.98), rgba(14,12,26,.9)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+.gchat-log{ padding-bottom: 6px; }
+
 </style>
 <link rel="stylesheet" href="./tablet.css?v=2">
 <link rel="stylesheet" href="./role-effects.css">
@@ -22141,13 +22354,14 @@ WP.init();
       var mi = members.findIndex(function(m){return m.name===msg.name;});
       var color = isUser ? '#f5c860' : (COLORS[mi%COLORS.length]||'#d8d0e8');
       var emoji = isUser ? '👤' : (EMOJIS[mi%EMOJIS.length]||'🤖');
+      // 样式全部走 class + --c（该成员的主题色）。原来是一长串内联样式，
+      // 既没法统一调，也是那种「塑料感」的来源之一。
       var wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;gap:8px;align-items:flex-start;' + (isUser?'flex-direction:row-reverse':'');
-      var avStyle = 'width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid '+color+'50;display:flex;align-items:center;justify-content:center;font-size:.9em;flex-shrink:0';
-      var bubStyle = 'background:'+(isUser?'rgba(245,200,96,0.09)':'rgba(255,255,255,0.04)')+';border:1px solid '+color+'25;border-radius:'+(isUser?'12px 3px 12px 12px':'3px 12px 12px 12px')+';padding:7px 11px;font-size:.83em;color:#d8d0e8;line-height:1.6;white-space:pre-wrap;word-break:break-word';
-      wrap.innerHTML = '<div style="'+avStyle+'">'+emoji+'</div>'
-        +'<div style="max-width:74%"><div style="font-size:.67em;color:'+color+';margin-bottom:2px;'+(isUser?'text-align:right':'')+'">'+gcEsc(msg.name)+'</div>'
-        +'<div style="'+bubStyle+'">'+gcEsc(msg.text)+'</div></div>';
+      wrap.className = 'gcm' + (isUser ? ' me' : '');
+      wrap.style.setProperty('--c', color);
+      wrap.innerHTML = '<div class="gcm-av">'+emoji+'</div>'
+        +'<div class="gcm-body"><div class="gcm-name">'+gcEsc(msg.name)+'</div>'
+        +'<div class="gcm-bubble">'+gcEsc(msg.text)+'</div></div>';
       log.appendChild(wrap);
     });
     requestAnimationFrame(function() {
@@ -22168,10 +22382,11 @@ WP.init();
     var emoji = EMOJIS[mi%EMOJIS.length];
     var el = document.createElement('div');
     el.id = 'gctyp_'+mi;
-    el.style.cssText = 'display:flex;gap:8px;align-items:flex-start';
-    el.innerHTML = '<div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid '+color+'50;display:flex;align-items:center;justify-content:center;font-size:.9em;flex-shrink:0">'+emoji+'</div>'
-      +'<div><div style="font-size:.67em;color:'+color+';margin-bottom:2px">'+gcEsc(name)+'</div>'
-      +'<div style="background:rgba(255,255,255,0.04);border:1px solid '+color+'25;border-radius:3px 12px 12px 12px;padding:7px 11px;font-size:.83em;color:#5a5070">…</div></div>';
+    el.className = 'gcm';
+    el.style.setProperty('--c', color);
+    el.innerHTML = '<div class="gcm-av">'+emoji+'</div>'
+      +'<div class="gcm-body"><div class="gcm-name">'+gcEsc(name)+'</div>'
+      +'<div class="gcm-bubble typing"><i></i><i></i><i></i></div></div>';
     log.appendChild(el);
     gcScrollLatest(false);
   }
@@ -24075,6 +24290,8 @@ const MurderMystery = (() => {
   }
 
   function eventLabel(e){ return '[E'+String(e.id).padStart(4,'0')+'|'+e.phase+'|R'+e.round+']'; }
+  // 事件编号是给主持人对时序用的调试信息，不该和角色名抢注意力——单独包一层好降级
+  function eid(e){ return '<i class="jbs-eid">'+eventLabel(e)+'</i>'; }
   function record(type,text,speaker){
     const e={id:++J.seq,phase:J.phase,round:J.round,type:type,text:String(text||''),speaker:speaker||''};
     J.events.push(e); return e;
@@ -24086,7 +24303,7 @@ const MurderMystery = (() => {
   function sys(text){ log('sys',h(text)); }
   function narr(text){
     const e=record('narr',text,'旁白');
-    log('narr','<b>'+eventLabel(e)+' 旁白</b><br>'+h(text).replace(/\n/g,'<br>'));
+    log('narr',eid(e)+'<b>旁白</b><br>'+h(text).replace(/\n/g,'<br>'));
   }
   function clueTaken(id){
     if(J.found.includes(id)) return true;
@@ -24100,7 +24317,7 @@ const MurderMystery = (() => {
       // 公开日志里只留"某人单独去查了一处"，不带标题——别人确实看得见他去查了，
       // 但看不见他查到了什么。
       const e=record('clue',finder.name+' 单独去查了一处，没有当众说明结果','搜证');
-      log('sys',eventLabel(e)+' 🤫 '+h(finder.name)+' 单独去查了一处，没有当众说明结果');
+      log('sys',eid(e)+' 🤫 '+h(finder.name)+' 单独去查了一处，没有当众说明结果');
       // 主持人（纯观战）和线索的主人本人可以看到内容，其他情况不剧透
       if(J.youId===null||finder.id===J.youId){
         log('clue','<b>🔒 '+h(finder.name)+' 私下发现 · '+h(c.title)+'</b><br>'+h(c.text)
@@ -24110,7 +24327,7 @@ const MurderMystery = (() => {
     }
     J.found.push(c.id);
     const e=record('clue',c.title+'：'+c.text,'公开线索');
-    log('clue','<b>'+eventLabel(e)+' 🔍 '+h(c.title)+'</b>'
+    log('clue',eid(e)+'<b>🔍 '+h(c.title)+'</b>'
       +(finder?'<small style="opacity:.7"> · '+h(finder.name)+' 搜出</small>':'')
       +'<br>'+h(c.text));
   }
@@ -24118,7 +24335,7 @@ const MurderMystery = (() => {
     const e=record('say',text,pl.name);
     const showThink=!isHuman && J.driver==='api' && J.youId===null && thinking;
     const think=showThink?'<details class="jbs-think"><summary>💭 主持人查看内心</summary><div>'+h(thinking)+'</div></details>':'';
-    log('say','<div class="jbs-who"><span>'+pl.emoji+'</span><b>'+h(pl.name)+'</b><small>'+h(pl.public)+' · '+eventLabel(e)+'</small></div><div class="jbs-bubble">'+h(text)+'</div>'+think);
+    log('say','<div class="jbs-who"><span>'+pl.emoji+'</span><b>'+h(pl.name)+'</b><small>'+h(pl.public)+'</small>'+eid(e)+'</div><div class="jbs-bubble">'+h(text)+'</div>'+think);
   }
   function speaking(id){
     document.querySelectorAll('#jbs-cast .jbs-pcard').forEach(x=>x.classList.toggle('speaking',x.dataset.id===id));
@@ -24350,7 +24567,7 @@ const MurderMystery = (() => {
       if(!picked)return;
       target=picked.target;question=picked.question;
       const eu=record('ask',asker.name+' 问 '+target.name+'：'+question,asker.name);
-      log('sys',eventLabel(eu)+' ❓ <b>'+h(asker.name)+'</b> → <b>'+h(target.name)+'</b>：'+h(question));
+      log('sys',eid(eu)+' ❓ <b>'+h(asker.name)+'</b> → <b>'+h(target.name)+'</b>：'+h(question));
     }else{
       const pref=topSuspect(asker,others);
       const list=others.map(x=>x.id+'='+x.name+'（'+x.public+'）').join('、');
@@ -24366,7 +24583,7 @@ const MurderMystery = (() => {
       question=parsed?parsed.question:(r.text&&r.text!=='（沉默）'?r.text:'你还有什么没说出来的？');
       say(asker,r.text&&r.text!=='（沉默）'?r.text:('我想问问 '+target.name+'：'+question),r.thinking,false);
       const e=record('ask',asker.name+' 问 '+target.name+'：'+question,asker.name);
-      log('sys',eventLabel(e)+' ❓ <b>'+h(asker.name)+'</b> → <b>'+h(target.name)+'</b>：'+h(question));
+      log('sys',eid(e)+' ❓ <b>'+h(asker.name)+'</b> → <b>'+h(target.name)+'</b>：'+h(question));
     }
     if(!aliveToken(token))return;
     // 被问的人当场回应

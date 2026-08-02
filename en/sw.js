@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v8-card-align';
+const CACHE_NAME = 'wolf-en-pwa-v9-jbs-gchat-skin';
 const APP_SHELL = [
   './',
   './index.html',
