@@ -1,22 +1,56 @@
-// 从 icons/icon.svg 渲染出 @capacitor/assets 需要的源图（在 CI 里跑，sharp 联网可用）。
-//   assets/icon.png        —— 1024 满幅图标（深底居中狼头，圆形/方形遮罩都好看）
-//   assets/splash.png/-dark —— 2732 深色启动图，狼头居中，避免开屏白闪
+// Build every install surface from one high-resolution master.
+// Keep the emblem inside Android's adaptive-icon safe zone so launcher masks
+// (circle, squircle, rounded square) never crop the ears or moon.
 import sharp from 'sharp';
 import fs from 'node:fs';
 
+const MASTER = 'icons/app-icon-master-v2.png';
+// Sampled from the master artwork's outer edge so the safe-zone padding is seamless.
+const BACKGROUND = { r: 2, g: 1, b: 13, alpha: 1 };
+
 fs.mkdirSync('assets', { recursive: true });
-const svg = fs.readFileSync('icons/icon.svg');
-const BG = { r: 10, g: 10, b: 20, alpha: 1 }; // #0a0a14，与 manifest 背景色一致
+fs.mkdirSync('icons', { recursive: true });
 
-// 1024 图标（满幅，本身就是深底，遮罩成圆也只露出狼头+深底）
-await sharp(svg, { density: 600 }).resize(1024, 1024).png().toFile('assets/icon.png');
+async function makeIcon(size) {
+  const emblemSize = Math.round(size * 0.78);
+  const emblem = await sharp(MASTER)
+    .resize(emblemSize, emblemSize, { fit: 'cover' })
+    .png()
+    .toBuffer();
 
-// 启动图：2732 深色画布 + 居中狼头 ~980px
-const wolf = await sharp(svg, { density: 600 }).resize(980, 980).png().toBuffer();
-await sharp({ create: { width: 2732, height: 2732, channels: 4, background: BG } })
-  .composite([{ input: wolf, gravity: 'center' }])
+  return sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: BACKGROUND,
+    },
+  })
+    .composite([{ input: emblem, gravity: 'center' }])
+    .png()
+    .toBuffer();
+}
+
+const icon1024 = await makeIcon(1024);
+await sharp(icon1024).toFile('assets/icon.png');
+await sharp(icon1024).resize(512, 512).toFile('icons/icon-512.png');
+await sharp(icon1024).resize(512, 512).toFile('icons/icon-maskable-512.png');
+await sharp(icon1024).resize(192, 192).toFile('icons/icon-192.png');
+await sharp(icon1024).resize(180, 180).toFile('icons/apple-touch-icon.png');
+
+// Splash artwork stays restrained and centered against the same midnight base.
+const splashEmblem = await sharp(icon1024).resize(980, 980).png().toBuffer();
+await sharp({
+  create: {
+    width: 2732,
+    height: 2732,
+    channels: 4,
+    background: BACKGROUND,
+  },
+})
+  .composite([{ input: splashEmblem, gravity: 'center' }])
   .png()
   .toFile('assets/splash.png');
 fs.copyFileSync('assets/splash.png', 'assets/splash-dark.png');
 
-console.log('✅ 已生成 assets/icon.png + splash.png + splash-dark.png');
+console.log('Generated Android, PWA, Apple touch, and splash artwork from app-icon-master-v2.png');
