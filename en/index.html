@@ -512,6 +512,21 @@ body.fx-lite .role-cinema-panel { animation:none; }
 /* ★ 命牌里的模型标签槽：放在名字下方，不挤屏幕 */
 .modeltag-slot { font-size: 0.55em; line-height: 1.3; margin: 1px 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modeltag-slot:empty { display: none; }
+/* ── 命牌对齐 ──
+   原来一列排下来是参差的：有模型标签的卡 64px、没有的 52px（.modeltag-slot:empty
+   把那一行整个收掉了），而 .ch 又是 align-items:center，头像跟着内容高度上下浮动
+   （实测偏移 20px / 14px）。身份和性情两个 inline-block 挨着排，也没有固定列位。 */
+.pc { min-height: 62px; display: flex; flex-direction: column; justify-content: flex-start; }
+.ch { align-items: flex-start; }          /* 头像顶对齐，不再跟着内容高度浮动 */
+.av { margin-top: 1px; }
+.rt { min-width: 46px; text-align: center; }   /* 身份固定宽度，性情标签才能对齐成一列 */
+.mbtitag:empty { display: none; }         /* 空的性情标签原来会渲染出一个小色块 */
+/* 开着「模型标签」时才给那一行留位：关掉时全场都没有，留了就是白占高度 */
+body.show-modeltag .modeltag-slot:empty { display: block; }
+/* 固定高度而不是 min-height：空槽和有内容的槽在行盒计算上会差 0.1~0.2px 的亚像素，
+   四舍五入之后卡片就分裂成 63/64 两种高度。写死高度才能保证一列排下来严丝合缝。
+   标签本身是 nowrap 单行，裁不到东西。 */
+body.show-modeltag .modeltag-slot { height: 1.3em; overflow: hidden; }
 .modeltag-slot .model-tag { margin-left: 0 !important; font-size: 0.92em !important; padding: 0 4px !important; }
 
 body.anon .pc:not(.isp):not(.stp) .rt { color: transparent; background: rgba(20,18,35,0.8); text-shadow: 0 0 5px #5a5080; }
@@ -24781,6 +24796,9 @@ if ('serviceWorker' in navigator &&
     });
     var sum = document.getElementById('mset-summary');
     if (sum) sum.textContent = boxes.length ? ((EN ? 'On ' : '已开启 ') + on + ' / ' + boxes.length) : '';
+    // 命牌里那一行模型标签只在开关打开时占位，否则每张卡白多一行高度
+    var mt = document.getElementById('m-modeltag');
+    document.body.classList.toggle('show-modeltag', !!(mt && mt.checked));
   }
   function bind(){
     sync();

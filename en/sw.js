@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v7-settings-ui';
+const CACHE_NAME = 'wolf-en-pwa-v8-card-align';
 const APP_SHELL = [
   './',
   './index.html',
