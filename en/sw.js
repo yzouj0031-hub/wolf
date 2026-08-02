@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v9-jbs-gchat-skin';
+const CACHE_NAME = 'wolf-en-pwa-v10-premium-controls-skin';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './i18n.js',
   './manifest.webmanifest',
   './tablet.css',
+  '../ui-icons.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
