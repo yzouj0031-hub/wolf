@@ -25163,9 +25163,16 @@ if ('serviceWorker' in navigator &&
     var w=window.innerWidth,hh=window.innerHeight;
     var z=1;
     if(w>=601&&w>hh){ z=Math.min(1,w/1340); if(z>0.97)z=1; z=Math.max(0.62,z); }
-    var manual=localStorage.getItem('uiZoom');
+    var manual=null;
+    try{manual=localStorage.getItem('uiZoom');}catch(_){}
     if(manual==='off'){z=1;}
-    else if(manual&&!isNaN(parseFloat(manual))){z=parseFloat(manual);}
+    else if(manual!==null){
+      var parsed=Number(manual);
+      if(Number.isFinite(parsed)){z=parsed;}
+      else{try{localStorage.removeItem('uiZoom');}catch(_){}}
+    }
+    // Imported/legacy settings must never collapse the whole UI into a thin strip.
+    z=Math.min(1,Math.max(0.62,z));
     z=Math.round(z*1000)/1000;
     document.querySelectorAll('.gc').forEach(function(el){
       if(z<1){
