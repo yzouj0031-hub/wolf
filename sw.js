@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v16-mystery-scripts';
+const CACHE_NAME = 'wolf-pwa-v17-mystery-qa';
 const APP_SHELL = [
   './',
   './index.html',
