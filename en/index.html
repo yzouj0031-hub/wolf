@@ -428,13 +428,13 @@ select { min-width: 60px; }
 .role-cinematic.bad { --cinema-accent:#d26474; background:radial-gradient(circle at 50% 46%,rgba(118,24,45,.34),rgba(4,5,12,.94) 70%); }
 .role-cinematic.good { --cinema-accent:#78c7ec; background:radial-gradient(circle at 50% 46%,rgba(36,80,125,.34),rgba(4,5,12,.94) 70%); }
 .role-cinematic.third { --cinema-accent:#dfbd55; }
-.role-cinema-panel { position:relative; width:min(880px,90vw); height:min(510px,70vh); display:grid; grid-template-columns:minmax(250px,43%) 1fr; align-items:stretch; border-top:1px solid rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.08); background:linear-gradient(90deg,rgba(8,8,18,.2),rgba(14,12,27,.88)); box-shadow:0 24px 80px rgba(0,0,0,.58); overflow:hidden; animation:cinema-panel-in .5s cubic-bezier(.2,.75,.25,1) both; }
-.role-cinema-art-wrap { position:relative; min-width:0; overflow:hidden; }
-.role-cinema-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 24%; filter:saturate(.8) contrast(1.08) brightness(.76); }
-.role-cinema-art-wrap::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent 45%,rgba(14,12,27,.96)),linear-gradient(0deg,rgba(4,5,12,.55),transparent 45%); }
+.role-cinema-panel { position:relative; width:min(1180px,94vw); aspect-ratio:16/9; max-height:82vh; border-top:1px solid rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.08); background:#090814; box-shadow:0 24px 90px rgba(0,0,0,.7); overflow:hidden; animation:cinema-panel-in .5s cubic-bezier(.2,.75,.25,1) both; }
+.role-cinema-art-wrap { position:absolute; inset:0; overflow:hidden; }
+.role-cinema-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center; filter:saturate(.92) contrast(1.08) brightness(.78); transform:scale(1.015); animation:cinema-art-drift 2.3s ease-out both; }
+.role-cinema-art-wrap::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,rgba(5,5,13,.84),transparent 47%),linear-gradient(0deg,rgba(4,5,12,.82),transparent 52%),linear-gradient(180deg,rgba(4,5,12,.28),transparent 25%); }
 .role-cinema-fallback { position:absolute; inset:0; display:grid; place-items:center; color:var(--cinema-accent); background:radial-gradient(circle,rgba(255,255,255,.06),transparent 65%); }
 .role-cinema-fallback .role-sigil { width:min(230px,65%); height:auto; aspect-ratio:1; opacity:.65; }
-.role-cinema-copy { position:relative; z-index:2; display:flex; flex-direction:column; justify-content:center; padding:clamp(24px,5vw,70px); margin-left:-1px; }
+.role-cinema-copy { position:absolute; z-index:2; inset:0; display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-start; padding:clamp(28px,5vw,72px); }
 .role-cinema-kicker { color:var(--cinema-accent); letter-spacing:.42em; font-size:.72em; text-transform:uppercase; opacity:.82; }
 .role-cinema-title { margin:.35em 0 .15em; color:#f3edf7; font-family:var(--font-title); font-size:clamp(2.1em,5vw,4.8em); line-height:1.05; letter-spacing:.12em; text-shadow:0 4px 24px color-mix(in srgb,var(--cinema-accent) 36%,transparent); }
 .role-cinema-actor { color:var(--cinema-accent); font-family:var(--font-title); font-size:clamp(1em,2.2vw,1.45em); letter-spacing:.12em; }
@@ -442,9 +442,10 @@ select { min-width: 60px; }
 .role-cinema-line { width:min(250px,65%); height:1px; margin-top:20px; background:linear-gradient(90deg,var(--cinema-accent),transparent); }
 @keyframes cinema-shell { 0%{opacity:0} 12%,76%{opacity:1} 100%{opacity:0} }
 @keyframes cinema-panel-in { from{opacity:0;transform:scale(1.04) translateY(12px)} to{opacity:1;transform:none} }
+@keyframes cinema-art-drift { from{transform:scale(1.045)} to{transform:scale(1.015)} }
 body.fx-lite .role-cinematic { animation-duration:.7s; }
 body.fx-lite .role-cinema-panel { animation:none; }
-@media(max-width:700px){.role-cinema-panel{width:92vw;height:72vh;grid-template-columns:1fr;grid-template-rows:56% 44%}.role-cinema-art-wrap::after{background:linear-gradient(0deg,rgba(14,12,27,.98),transparent 68%)}.role-cinema-copy{margin-top:-54px;padding:24px 30px;justify-content:flex-end}.role-cinema-title{font-size:2.2em}.role-cinema-subtitle{margin-top:7px}.role-cinematic::before{inset:4%}}
+@media(max-width:700px){.role-cinema-panel{width:96vw;height:72vh;max-height:72vh;aspect-ratio:auto}.role-cinema-art{object-position:center}.role-cinema-art-wrap::after{background:linear-gradient(0deg,rgba(7,6,16,.96),transparent 72%),linear-gradient(180deg,rgba(4,5,12,.24),transparent 25%)}.role-cinema-copy{padding:26px 24px}.role-cinema-title{font-size:2.2em}.role-cinema-subtitle{margin-top:7px}.role-cinematic::before{inset:4%}}
 @media(prefers-reduced-motion:reduce){.role-cinematic{animation:cinema-shell .7s linear both}.role-cinema-panel{animation:none}}
 .role-sigil.pov-role-sigil{width:26px!important;height:26px!important;min-width:26px;flex:0 0 26px;color:#d8b66b;filter:drop-shadow(0 0 5px rgba(216,182,107,.28))}
 .pov-role-copy{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1954,6 +1955,7 @@ body.has-wp::after {
 <link rel="stylesheet" href="./tablet.css?v=2">
 <link rel="stylesheet" href="./role-effects.css">
 <script src="../role-sigils.js"></script>
+<script src="../action-cg.js"></script>
 </head>
 <body>
 
@@ -10583,6 +10585,7 @@ async function execWhitewolfExplodeIfAny(p, r) {
   S._whitewolfUsed = true;
   Render.log('system', `💥 ${p.name} 选择自爆，带走 ${target.name}！`);
   gameRecord.push({type:'whitewolf_explode', round:S.round, exploder:p.name, target:target.name});
+  await showRoleCinematic('whitewolf', p.name, null, uiEnglish() ? `Target: ${target.name}` : `自爆带走：${target.name}`, {team:'bad', key:`whitewolf-explode:${S.gameId}:${S.round}:${p.id}:${target.id}`});
   const msg = `【公告】白狼王${p.name}发动自爆技能，带走${target.name}。${target.name}直接出局，无遗言，无警徽传递，直接进入夜晚。`;
   S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:msg}));
   await killPlayer(target, 'explode', {skipWords:true, suffix:' [被白狼王自爆带走]', noReveal:false, noBadge:true});
@@ -11181,6 +11184,7 @@ async function proc(players, promptFn, label, opts) {
           S._whitewolfUsed = true;
           Render.log('system', `💥 ${p.name} 选择自爆，带走 ${target.name}！`);
           gameRecord.push({type:'whitewolf_explode', round:S.round, exploder:p.name, target:target.name});
+          await showRoleCinematic('whitewolf', p.name, null, uiEnglish() ? `Target: ${target.name}` : `自爆带走：${target.name}`, {team:'bad', key:`whitewolf-explode:${S.gameId}:${S.round}:${p.id}:${target.id}`});
           // 通知所有AI
           const msg = `【公告】白狼王${p.name}发动自爆技能，带走${target.name}。${target.name}直接出局，无遗言，无警徽传递，直接进入夜晚。`;
           S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:msg}));
@@ -12146,8 +12150,13 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     const role = ALL_ROLES[roleId] || {};
     const team = opts.team || role.team || 'good';
     const reduced = document.body.classList.contains('fx-lite') || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const duration = reduced ? 700 : (opts.duration || 1800);
-    const artBase = /\/en(?:\/|$)/.test(location.pathname) ? '../icons/roles/' : 'icons/roles/';
+    const duration = reduced ? 700 : (opts.duration || 2300);
+    const actionCG = window.RoleActionCG && window.RoleActionCG[roleId];
+    const inEnglishDir = /\/en(?:\/|$)/.test(location.pathname);
+    const actionBase = inEnglishDir ? '../assets/action-cg/' : 'assets/action-cg/';
+    const portraitBase = inEnglishDir ? '../icons/roles/' : 'icons/roles/';
+    const artSrc = actionCG ? actionBase + actionCG.src : portraitBase + encodeURIComponent(roleId) + '.jpg';
+    const resolvedTitle = title || (actionCG && (uiEnglish() ? actionCG.titleEn : actionCG.titleZh)) || role.name || roleId;
     const sigil = window.RoleSigils ? window.RoleSigils.render(roleId, 'cinema-sigil') : '';
     const el = document.createElement('div');
     el.className = `role-cinematic ${team}`;
@@ -12156,11 +12165,11 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     el.innerHTML = `<div class="role-cinema-panel">
       <div class="role-cinema-art-wrap">
         <div class="role-cinema-fallback">${sigil}</div>
-        <img class="role-cinema-art" src="${artBase}${encodeURIComponent(roleId)}.jpg" alt="" onerror="this.remove()">
+        <img class="role-cinema-art" src="${artSrc}" alt="" decoding="async"${actionCG && actionCG.position ? ` style="object-position:${actionCG.position}"` : ''} onerror="this.remove()">
       </div>
       <div class="role-cinema-copy">
         <div class="role-cinema-kicker">ROLE AWAKENING</div>
-        <div class="role-cinema-title">${escapeHtml(title || role.name || roleId)}</div>
+        <div class="role-cinema-title">${escapeHtml(resolvedTitle)}</div>
         <div class="role-cinema-actor">${escapeHtml(actorName || '')}</div>
         <div class="role-cinema-subtitle">${escapeHtml(subtitle || '')}</div>
         <div class="role-cinema-line"></div>
@@ -12172,6 +12181,60 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     console.warn('[role-cinematic]', e);
     return Promise.resolve(false);
   }
+}
+
+const NIGHT_ACTION_CINEMATICS = Object.freeze({
+  cupid:{roleId:'cupid', roles:['cupid']},
+  wolfconcubine:{roleId:'wolfconcubine', roles:['wolfconcubine']},
+  'mechwolf-fox':{roleId:'mechwolf', roles:['mechwolf_fox']},
+  fox:{roleId:'fox', roles:['fox']},
+  merchant:{roleId:'merchant', roles:['merchant']},
+  youshang:{roleId:'youshang', roles:['youshang']},
+  fool:{roleId:'fool', roles:['fool']},
+  magician:{roleId:'magician', roles:['magician']},
+  mechwolf:{roleId:'mechwolf', rolePrefix:'mechwolf'},
+  guard:{roleId:'guard', roles:['guard']},
+  'mechwolf-kill':{roleId:'mechwolf', roles:['mechwolf_kill']},
+  witch:{roleId:'witch', roles:['witch']},
+  seer:{roleId:'seer', roles:['seer']},
+  'serial-killer':{roleId:'serialkiller', roles:['serialkiller']},
+  'wolf-beauty':{roleId:'wolfbeauty', roles:['wolfbeauty']}
+});
+
+function meaningfulNightAction(record) {
+  if (!record || record.type !== 'night_action' || record.technical) return false;
+  if (record.role === 'witch') return !!(record.saved || record.poisoned);
+  return record.target !== null && record.target !== undefined && record.target !== '' && record.target !== '无';
+}
+
+function actionCinematicSubtitle(record) {
+  const en = uiEnglish();
+  if (record.role === 'witch') {
+    const parts = [];
+    if (record.saved) parts.push((en ? 'Saved: ' : '解药：') + record.saved);
+    if (record.poisoned) parts.push((en ? 'Poisoned: ' : '毒药：') + record.poisoned);
+    return parts.join(en ? ' · ' : '　');
+  }
+  if (record.role === 'cupid' && Array.isArray(record.targets)) return record.targets.join(' × ');
+  return record.target ? (en ? `Target: ${record.target}` : `目标：${record.target}`) : '';
+}
+
+async function showNightStepCinematic(step, records) {
+  const spec = NIGHT_ACTION_CINEMATICS[step];
+  if (!spec || !Array.isArray(records)) return false;
+  const event = records.find(r => meaningfulNightAction(r) &&
+    ((spec.roles && spec.roles.includes(r.role)) || (spec.rolePrefix && String(r.role || '').startsWith(spec.rolePrefix))));
+  if (!event) return false;
+  const actor = S.players.find(p => p.role && p.role.id === spec.roleId);
+  if (!actor) return false;
+  if (isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) return false;
+  const cg = window.RoleActionCG && window.RoleActionCG[spec.roleId];
+  const title = cg ? (uiEnglish() ? cg.titleEn : cg.titleZh) : actor.role.name;
+  return showRoleCinematic(spec.roleId, actor.name, title, actionCinematicSubtitle(event), {
+    team:actor.role.team,
+    duration:1800,
+    key:`night-action:${S.gameId}:${S.round}:${step}`
+  });
 }
 
 function playRoleEffect(p, type) {
@@ -12239,6 +12302,7 @@ async function killPlayer(p, cause, opts) {
     p.deathCause = null; p.deathRound = null; p.deathPhase = null;
     Render.card(p);
     const whenTxt = p._rp.phase === 'night' ? '下一个夜晚结算' : '下一个白天投票阶段';
+    await showRoleCinematic('whitecat', p.name, null, uiEnglish() ? 'Death has been deferred.' : '死亡被延迟至'+whenTxt, {team:'good', key:`reprieve:${S.gameId}:${S.round}:${p.id}`});
     Render.log('system', '🐈‍⬛【缓死】' + p.name + '（白猫）本次出局被延迟：翻牌公开身份，将在' + whenTxt + '才真正死亡。');
     S.players.filter(x => x.id !== p.id).forEach(x => x.memory.push({ role: 'system', content: '【公告】' + p.name + '被判出局，但身份是【白猫】——触发「缓死」：本次不死、身份已公开，将在' + whenTxt + '才死亡；在此之前它仍是活人（可发言、投票）。' }));
     if (typeof gameRecord !== 'undefined' && gameRecord && gameRecord.push) gameRecord.push({ type: 'reprieve', name: p.name, role: p.role.name, round: S.round, phase: p._rp.phase });
@@ -12252,6 +12316,7 @@ async function killPlayer(p, cause, opts) {
     p[_liFlag] = true; p.revealed = true;
     Render.card(p);
     const _liName = (p.role.id==='fool') ? '愚者' : p.role.name;
+    if (p.role.id==='fool') await showRoleCinematic('fool', p.name, null, uiEnglish() ? 'The first exile fails. The charge is spent.' : '首次放逐无效，保命已消耗', {team:'good', key:`fool-immune:${S.gameId}:${S.round}:${p.id}`});
     Render.log('system','🃏【首放逐免疫】'+p.name+'被投票放逐，但触发免疫：翻牌公开、本次不死'+(p.role.id==='fool'?'，从此失去全部技能':'')+'。');
     S.players.filter(x => x.id !== p.id).forEach(x => x.memory.push({role:'system', content:'【公告】'+p.name+'被投票放逐，但触发「首放逐免疫」：本次不死、身份已公开（'+_liName+'）。'}));
     // ★ 关键：明确告诉愚者本人技能已消耗，别再以为自己还有保命/护盾。
@@ -12298,6 +12363,7 @@ async function killPlayer(p, cause, opts) {
   await _triggerLoverDeath(p, hd);
   // ★ 第三方·小丑：被白天投票放逐/审判定罪处决 → 小丑单独获胜，游戏立即终结（无遗言、无死亡技能结算）
   if ((cause === 'vote' || cause === 'trial') && p.role.id === 'jester' && !S.gameOver) {
+    await showRoleCinematic('jester', p.name, null, uiEnglish() ? 'The verdict is exactly what the Jester wanted.' : '被公决正是它等待的结局', {team:'third', key:`jester-win:${S.gameId}:${S.round}:${p.id}`});
     S.gameOver = true; S._winType = 'jester';
     Render.log('system','🃏 小丑获胜！被处决的'+p.name+'正是小丑——"被投票处决"就是它唯一的胜利条件，全场皆输！');
     S.players.forEach(x => { x.revealed = true; Render.card(x); });
@@ -12469,6 +12535,7 @@ async function wolfBite(p) {
   if (t) {
     Render.log('death','👹 '+p.name+'咬死了'+t.name);
     gameRecord.push({type:'bite', round:S.round, wolfking:p.name, target:t.name});
+    await showRoleCinematic('wolfking', p.name, null, uiEnglish() ? `Target: ${t.name}` : `咬杀目标：${t.name}`, {team:'bad', key:`bite:${S.gameId}:${S.round}:${p.id}:${t.id}`});
     // ★ 修复：被咬者继承狼王的死亡阶段。狼王若是夜间死亡(被刀/自刀)，咬人属于夜间连带死亡，
     //   被咬者不该有白天公开遗言；狼王若是白天被投死，咬人才是白天死亡、可有遗言。
     const inheritNight = (p.deathPhase === 'night');
@@ -12712,6 +12779,7 @@ const NightActions = {
       recordTechnicalActionFailure(cupid, '丘比特连恋人', '两次格式纠正后仍无法解析；因该技能首夜强制发动，技术兜底随机补齐：'+pair.map(x=>x.name).join('、'));
     }
     _establishLovers(cupid, pair[0], pair[1]);
+    gameRecord.push({type:'night_action', role:'cupid', round:S.round, target:pair[0].name+' × '+pair[1].name, targets:[pair[0].name,pair[1].name]});
     if (!isAnon()) Render.log('night-result','💘 丘比特将'+pair[0].name+'与'+pair[1].name+'连为恋人');
     attachNightThinking(cupid.id);
     Render.setSpeaking(cupid.id, false);
@@ -14839,7 +14907,9 @@ const PhaseHandlers = {
     }
     const nightStep = async (key, fn) => {
       if (S._nightRun.done.includes(key)) return;
+      const actionRecordStart = gameRecord.length;
       await fn();
+      await showNightStepCinematic(key, gameRecord.slice(actionRecordStart));
       S._nightRun.done.push(key);
     };
     const alive = S.players.filter(p => p.alive);
@@ -15658,6 +15728,7 @@ const PhaseHandlers = {
             S._whitewolfUsed = true;
             Render.log('system', `💥 ${wwAlive.name} 在投票阶段选择自爆，带走 ${target.name}！本轮投票终止。`);
             gameRecord.push({type:'whitewolf_explode', round:S.round, exploder:wwAlive.name, target:target.name, phase:'vote'});
+            await showRoleCinematic('whitewolf', wwAlive.name, null, uiEnglish() ? `Target: ${target.name}` : `自爆带走：${target.name}`, {team:'bad', key:`whitewolf-explode:${S.gameId}:${S.round}:${wwAlive.id}:${target.id}`});
             const msg = `【公告】白狼王${wwAlive.name}在投票阶段发动自爆，带走${target.name}。${target.name}直接出局，无遗言，无警徽传递。本轮投票终止，直接进入夜晚。`;
             S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:msg}));
             await killPlayer(target, 'explode', {skipWords:true, suffix:' [被白狼王投票阶段自爆带走]', noReveal:false, noBadge:true});
@@ -15740,6 +15811,7 @@ const PhaseHandlers = {
         S._whitewolfUsed = true;
         Render.log('system', `💥 ${wwAlive.name} 在投票阶段选择自爆，带走 ${target.name}！本轮投票终止。`);
         gameRecord.push({type:'whitewolf_explode', round:S.round, exploder:wwAlive.name, target:target.name, phase:'vote'});
+        await showRoleCinematic('whitewolf', wwAlive.name, null, uiEnglish() ? `Target: ${target.name}` : `自爆带走：${target.name}`, {team:'bad', key:`whitewolf-explode:${S.gameId}:${S.round}:${wwAlive.id}:${target.id}`});
         const msg = `【公告】白狼王${wwAlive.name}在投票阶段发动自爆，带走${target.name}。${target.name}直接出局，无遗言，无警徽传递。本轮投票终止，直接进入夜晚。`;
         S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:msg}));
         await killPlayer(target, 'explode', {skipWords:true, suffix:' [被白狼王投票阶段自爆带走]', noReveal:false, noBadge:true});
