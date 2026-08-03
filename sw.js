@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v24-cfg-e2e';
+const CACHE_NAME = 'wolf-pwa-v25-rolecard-fit';
 const APP_SHELL = [
   './',
   './index.html',
