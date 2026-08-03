@@ -95,6 +95,12 @@ function check(label, cond) {
 
 for (const file of FILES) {
   console.log(`\n── ${file} ──`);
+  const source = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+  check('空群聊不再自动创建柯南与 L', !source.includes("members = [\n          {name:'柯南'") && !source.includes("{name:'L',"));
+  check('群聊角色头像不再使用 emoji 数组', !source.includes('var EMOJIS ='));
+  check('新增成员保持空白等待玩家填写', source.includes("members.push({name:'',model:'',url:'',key:'',persona:''})"));
+  check('角色名与人设均有必填校验', source.includes("请补全角色 '+String(invalid+1).padStart(2,'0')+' 的角色名和人设"));
+  check('群聊空状态提供创建指引', source.includes('先创建你的群聊角色') && source.includes('开始配置角色'));
 
   // ① 正常复盘：事实、个人视角、议题都要齐
   const gc = run(file, false);

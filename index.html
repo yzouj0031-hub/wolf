@@ -2277,6 +2277,74 @@ body.has-wp::after {
 }
 .gchat-log{ padding-bottom: 6px; }
 
+/* 群聊创建器：角色由玩家填写，界面不使用 emoji 充当身份或操作图标。 */
+.gchat-topbar{ min-height:58px; padding:10px clamp(12px,2vw,24px)!important; border-color:rgba(184,154,91,.2)!important; }
+.gchat-top-title{ display:flex; flex-direction:column; align-items:center; gap:2px; flex:1; min-width:0; }
+.gchat-top-title strong{ color:#ead7e5; font:600 .92em/1.2 var(--font-title); letter-spacing:.18em; }
+.gchat-top-title small{ color:#716681; font-size:.58em; letter-spacing:.12em; }
+.gchat-top-action{ display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; padding:5px 11px; border:1px solid rgba(184,154,91,.26); border-radius:8px; background:rgba(255,255,255,.025); color:#aa9bb7; font:.72em var(--font-body); cursor:pointer; }
+.gchat-top-action.ui-iconized::before{ width:14px; height:14px; }
+.gchat-top-action:hover{ color:#ead8ad; border-color:rgba(220,185,112,.48); background:rgba(184,154,91,.08); }
+#gchat-cfg-panel{ max-height:min(76dvh,760px)!important; padding:0!important; border-bottom:1px solid rgba(184,154,91,.24)!important; background:linear-gradient(180deg,rgba(17,14,28,.99),rgba(9,8,17,.99))!important; box-shadow:0 24px 60px rgba(0,0,0,.38); }
+.gchat-cfg-shell{ width:min(1180px,100%); margin:0 auto; padding:22px clamp(14px,3vw,34px) 26px; }
+.gchat-cfg-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid rgba(184,154,91,.16); }
+.gchat-cfg-kicker{ color:#b99a63; font-size:.6em; letter-spacing:.24em; text-transform:uppercase; }
+.gchat-cfg-head h2{ margin:5px 0 4px; color:#eee5f1; font:600 1.05em var(--font-title); letter-spacing:.1em; }
+.gchat-cfg-head p{ margin:0; color:#81758d; font-size:.7em; line-height:1.6; }
+.gchat-member-count{ color:#a99ab6; font-size:.68em; white-space:nowrap; }
+.gchat-member-count b{ color:#dfc483; font-size:1.15em; }
+.gchat-members-list{ display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px!important; }
+.gchat-member-empty{ grid-column:1/-1; display:grid; place-items:center; min-height:120px; padding:24px; border:1px dashed rgba(184,154,91,.25); border-radius:12px; color:#766b82; text-align:center; background:rgba(255,255,255,.012); }
+.gchat-member-empty strong{ display:block; margin-bottom:5px; color:#c8b9ca; font:600 .82em var(--font-title); letter-spacing:.08em; }
+.gchat-member-empty span{ font-size:.68em; line-height:1.65; }
+.gchat-member-card{ position:relative; padding:14px!important; border:1px solid color-mix(in srgb,var(--member-color) 25%,rgba(184,154,91,.12))!important; border-radius:12px!important; background:linear-gradient(145deg,color-mix(in srgb,var(--member-color) 5%,rgba(29,24,39,.82)),rgba(12,10,21,.9))!important; box-shadow:inset 0 1px 0 rgba(255,255,255,.035); }
+.gchat-member-card-head{ display:flex; align-items:center; gap:10px; margin-bottom:11px; }
+.gchat-member-seal,.gcm-av{ position:relative; display:grid; place-items:center; overflow:hidden; color:var(--member-color,var(--c)); font-family:var(--font-title); text-transform:uppercase; }
+.gchat-member-seal{ width:36px; height:36px; flex:0 0 36px; border:1px solid color-mix(in srgb,var(--member-color) 52%,transparent); border-radius:50%; background:radial-gradient(circle, color-mix(in srgb,var(--member-color) 14%,transparent),transparent 68%); font-size:.7em; }
+.gchat-member-seal::before,.gcm-av::before{ content:''; position:absolute; inset:4px; border:1px solid currentColor; border-radius:50%; opacity:.28; }
+.gchat-member-meta{ flex:1; min-width:0; }
+.gchat-member-meta strong{ display:block; color:#d9cfdf; font:.72em var(--font-title); letter-spacing:.1em; }
+.gchat-member-meta small{ color:#6f657a; font-size:.6em; }
+.gchat-member-remove{ padding:5px 8px; border:1px solid rgba(188,72,88,.28); border-radius:7px; background:rgba(188,72,88,.06); color:#a86a76; font-size:.62em; cursor:pointer; }
+.gchat-member-remove:hover{ color:#e18d9d; border-color:rgba(218,94,112,.5); }
+.gchat-field-grid{ display:grid; grid-template-columns:minmax(130px,.8fr) minmax(170px,1.2fr); gap:8px; }
+.gchat-field{ display:flex; flex-direction:column; gap:5px; min-width:0; }
+.gchat-field.full{ grid-column:1/-1; }
+.gchat-field > span{ color:#85798f; font-size:.61em; letter-spacing:.07em; }
+.gchat-field input,.gchat-field textarea{ width:100%; border:1px solid rgba(184,154,91,.16); border-radius:8px; background:rgba(5,5,12,.42); color:#ddd3e2; font:.72em var(--font-body); padding:8px 9px; }
+.gchat-field textarea{ min-height:72px; resize:vertical; line-height:1.55; }
+.gchat-field input:focus,.gchat-field textarea:focus{ outline:none; border-color:color-mix(in srgb,var(--member-color) 55%,#b89a5b); box-shadow:0 0 0 2px color-mix(in srgb,var(--member-color) 10%,transparent); }
+.gchat-member-api{ margin-top:9px; padding-top:8px; border-top:1px solid rgba(255,255,255,.04); }
+.gchat-member-api summary{ color:#766b82; font-size:.64em; cursor:pointer; }
+.gchat-cfg-actions{ display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; margin-top:12px; }
+.gchat-cfg-action{ min-height:36px; border:1px solid rgba(184,154,91,.22); border-radius:8px; background:rgba(184,154,91,.055); color:#b8aabd; font:.68em var(--font-body); cursor:pointer; }
+.gchat-cfg-action.primary{ border-color:rgba(120,184,150,.48); color:#a9d8bf; background:rgba(82,142,110,.13); }
+.gchat-cfg-action.danger{ color:#a86a76; border-color:rgba(188,72,88,.25); background:rgba(188,72,88,.05); }
+.gchat-topic-card{ margin-top:16px; padding:15px; border:1px solid rgba(184,154,91,.14); border-radius:12px; background:rgba(255,255,255,.014); }
+.gchat-topic-card h3{ margin:0 0 4px; color:#d1c3d5; font:.76em var(--font-title); letter-spacing:.08em; }
+.gchat-topic-card p{ margin:0 0 9px; color:#756a80; font-size:.64em; line-height:1.55; }
+.gchat-empty-stage{ margin:auto; width:min(620px,calc(100% - 24px)); padding:clamp(28px,5vw,54px); text-align:center; border:1px solid rgba(184,154,91,.2); border-radius:18px; background:radial-gradient(circle at 50% 0,rgba(138,110,207,.12),transparent 48%),rgba(15,12,25,.58); box-shadow:0 20px 70px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.035); }
+.gchat-empty-sigil{ display:grid; place-items:center; width:66px; height:66px; margin:0 auto 18px; border:1px solid rgba(210,176,103,.48); border-radius:50%; color:#d2b067; background:radial-gradient(circle,rgba(210,176,103,.1),transparent 68%); }
+.gchat-empty-sigil.ui-iconized::before{ width:26px; height:26px; }
+.gchat-empty-stage h2{ margin:0 0 9px; color:#eee5f1; font:600 1.08em var(--font-title); letter-spacing:.12em; }
+.gchat-empty-stage p{ margin:0 auto; max-width:42em; color:#82768f; font-size:.72em; line-height:1.75; }
+.gchat-empty-steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:22px 0; text-align:left; }
+.gchat-empty-step{ padding:11px; border:1px solid rgba(184,154,91,.12); border-radius:9px; background:rgba(255,255,255,.018); }
+.gchat-empty-step b{ display:block; margin-bottom:4px; color:#bda56e; font:.62em var(--font-title); letter-spacing:.08em; }
+.gchat-empty-step span{ color:#776c82; font-size:.62em; line-height:1.5; }
+.gchat-empty-cta{ min-height:40px; padding:0 22px; border:1px solid rgba(210,176,103,.52); border-radius:9px; color:#ead49b; background:linear-gradient(135deg,rgba(138,110,207,.16),rgba(184,154,91,.1)); font:.72em var(--font-title); letter-spacing:.1em; cursor:pointer; }
+.gcm-av{ color:var(--c); font-size:.68em; }
+.gchat-input-bar.is-locked textarea{ opacity:.48; }
+.gchat-input-bar.is-locked button,.gchat-auto-bar.is-locked button{ opacity:.45; cursor:not-allowed!important; }
+@media(max-width:760px){
+  .gchat-members-list{ grid-template-columns:1fr; }
+  .gchat-cfg-shell{ padding:16px 10px 20px; }
+  .gchat-cfg-head{ align-items:flex-start; }
+  .gchat-cfg-actions{ grid-template-columns:1fr 1fr; }
+  .gchat-empty-steps{ grid-template-columns:1fr; }
+  .gchat-empty-stage{ padding:26px 18px; }
+}
+
 </style>
 <link rel="stylesheet" href="./tablet.css?v=2">
 <link rel="stylesheet" href="./role-effects.css">
@@ -2647,48 +2715,54 @@ body.has-wp::after {
 <!-- ══════ 群聊模式 ══════ -->
 <div id="gchat-view" class="gchat-view" style="display:none;flex-direction:column;background:var(--bg-night);position:fixed;inset:0;z-index:500">
   <div class="gchat-topbar" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(245,160,184,0.1);background:rgba(12,12,24,0.97);flex-shrink:0">
-    <button id="gchat-back" style="padding:4px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(200,180,140,0.18);border-radius:var(--r);color:#8a7e6a;font-size:.78em;cursor:pointer;font-family:var(--font-body)">← 返回</button>
-    <span style="font-family:var(--font-title);font-size:.95em;color:#f5a0b8;flex:1;text-align:center">🗨️ 群聊</span>
-    <button id="gchat-cfg-btn" style="padding:4px 10px;background:rgba(245,160,184,0.1);border:1px solid rgba(245,160,184,0.2);border-radius:var(--r);color:#c8a0d8;font-size:.78em;cursor:pointer;font-family:var(--font-body)">⚙ 成员</button>
+    <button id="gchat-back" class="gchat-top-action">‹ 返回</button>
+    <span class="gchat-top-title"><strong>角色群聊</strong><small>CHARACTER SALON</small></span>
+    <button id="gchat-cfg-btn" class="gchat-top-action" data-ui-icon="settings">成员配置</button>
   </div>
   <!-- 复盘状态条：打完一局进来时显示当前在吵哪个议题，可手动跳下一个或退出复盘回到自由群聊 -->
   <div id="gchat-review-bar" style="display:none;flex-shrink:0;padding:7px 14px;background:rgba(104,184,232,0.06);border-bottom:1px solid rgba(104,184,232,0.16)">
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:.66em;color:var(--jade);border:1px solid rgba(104,184,232,.35);border-radius:10px;padding:1px 7px;white-space:nowrap">🐺 赛后复盘</span>
+      <span style="font-size:.66em;color:var(--jade);border:1px solid rgba(104,184,232,.35);border-radius:10px;padding:1px 7px;white-space:nowrap">赛后复盘</span>
       <span id="gchat-review-topic" style="flex:1;font-size:.72em;color:#a8c8d8;line-height:1.45"></span>
     </div>
     <div style="display:flex;gap:6px;margin-top:6px">
-      <button id="gchat-review-next" style="padding:3px 9px;background:rgba(104,184,232,0.1);border:1px solid rgba(104,184,232,0.3);border-radius:var(--r);color:var(--jade);font-size:.72em;cursor:pointer">⏭ 换个议题</button>
-      <button id="gchat-review-reseed" style="padding:3px 9px;background:rgba(245,160,184,0.08);border:1px solid rgba(245,160,184,0.25);border-radius:var(--r);color:#c8a0d8;font-size:.72em;cursor:pointer">🔄 重新导入本局</button>
+      <button id="gchat-review-next" style="padding:3px 9px;background:rgba(104,184,232,0.1);border:1px solid rgba(104,184,232,0.3);border-radius:var(--r);color:var(--jade);font-size:.72em;cursor:pointer">换个议题</button>
+      <button id="gchat-review-reseed" style="padding:3px 9px;background:rgba(245,160,184,0.08);border:1px solid rgba(245,160,184,0.25);border-radius:var(--r);color:#c8a0d8;font-size:.72em;cursor:pointer">重新导入本局</button>
       <button id="gchat-review-off" style="padding:3px 9px;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.2);border-radius:var(--r);color:#8a7e6a;font-size:.72em;cursor:pointer">退出复盘</button>
     </div>
   </div>
-  <div id="gchat-cfg-panel" style="display:none;flex-direction:column;flex-shrink:0;background:rgba(10,10,20,0.97);border-bottom:1px solid rgba(245,160,184,0.1);padding:10px 14px;overflow-y:auto;max-height:55vh">
-    <div style="font-size:.72em;color:#8880a8;margin-bottom:8px">配置群成员（最多8人），留空则用全局API和模型</div>
-    <div id="gchat-members-list" style="display:flex;flex-direction:column;gap:6px"></div>
-    <div style="display:flex;gap:6px;margin-top:8px">
-      <button id="gchat-add-member" style="flex:1;padding:5px;background:rgba(245,160,184,0.08);border:1px solid rgba(245,160,184,0.2);border-radius:var(--r);color:#c8a0d8;font-size:.78em;cursor:pointer">＋ 添加成员</button>
-      <button id="gchat-import-game" style="flex:1;padding:5px;background:rgba(104,184,232,0.1);border:1px solid rgba(104,184,232,0.25);border-radius:var(--r);color:var(--jade);font-size:.78em;cursor:pointer">🎮 导入上局角色</button>
-      <button id="gchat-cfg-save" style="flex:1;padding:5px;background:rgba(92,138,111,0.2);border:1px solid var(--jade);border-radius:var(--r);color:var(--jade);font-size:.78em;cursor:pointer">✅ 保存</button>
-      <button id="gchat-clear" style="padding:5px 10px;background:rgba(200,48,64,0.1);border:1px solid rgba(200,48,64,0.25);border-radius:var(--r);color:#c87080;font-size:.78em;cursor:pointer">🗑 清空</button>
-    </div>
-    <div style="margin-top:10px;border-top:1px solid rgba(245,160,184,0.08);padding-top:8px">
-      <div style="font-size:.72em;color:#8880a8;margin-bottom:5px">💬 群设定：让成员拥有共同关系、当前事件和要解决的事</div>
+  <div id="gchat-cfg-panel" style="display:none;flex-direction:column;flex-shrink:0;overflow-y:auto">
+    <div class="gchat-cfg-shell">
+      <div class="gchat-cfg-head">
+        <div><div class="gchat-cfg-kicker">CAST DESIGN</div><h2>创建群聊角色</h2><p>每位角色至少填写名字和人设；模型与独立 API 留空时沿用全局设置。</p></div>
+        <div class="gchat-member-count"><b id="gchat-member-count">0</b> / 8 位角色</div>
+      </div>
+      <div id="gchat-members-list" class="gchat-members-list"></div>
+      <div class="gchat-cfg-actions">
+        <button id="gchat-add-member" class="gchat-cfg-action">添加空白角色</button>
+        <button id="gchat-import-game" class="gchat-cfg-action">导入上局角色</button>
+        <button id="gchat-cfg-save" class="gchat-cfg-action primary">保存并返回群聊</button>
+        <button id="gchat-clear" class="gchat-cfg-action danger">清空聊天记录</button>
+      </div>
+      <div class="gchat-topic-card">
+        <h3>共同场景</h3>
+        <p>告诉角色彼此是什么关系、现在发生了什么，以及他们需要解决哪个问题。</p>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
-        <button class="gchat-preset-btn" id="gchat-preset-review" data-review="1">🐺 复盘上一局</button>
-        <button class="gchat-preset-btn" data-topic="大家正在一起喝下午茶，随意闲聊，可以聊任何话题。">☕ 下午茶闲聊</button>
-        <button class="gchat-preset-btn" data-topic="这是一场即兴推理游戏，有人发现了一个谜题，大家一起讨论破案。">🔍 推理讨论</button>
-        <button class="gchat-preset-btn" data-topic="大家正在自由对话，话题完全随意。">🎭 自由对话</button>
+        <button class="gchat-preset-btn" id="gchat-preset-review" data-review="1">复盘上一局</button>
+        <button class="gchat-preset-btn" data-topic="大家正在一起喝下午茶，随意闲聊，可以聊任何话题。">下午茶闲聊</button>
+        <button class="gchat-preset-btn" data-topic="这是一场即兴推理游戏，有人发现了一个谜题，大家一起讨论破案。">推理讨论</button>
+        <button class="gchat-preset-btn" data-topic="大家正在自由对话，话题完全随意。">自由对话</button>
       </div>
       <textarea id="gchat-topic" rows="3" placeholder="写下群的共同设定：大家为何在这里、此刻发生了什么、希望解决什么。例：合租屋群；房东说明早突击检查，大家要找出是谁把公共账单花超了。" style="width:100%;resize:none;background:rgba(0,0,0,0.3);border:1px solid rgba(245,160,184,0.12);color:#c8b8d8;border-radius:var(--r);padding:6px 8px;font-size:.75em;font-family:var(--font-body)"></textarea>
-      <div style="font-size:.65em;color:#786880;margin-top:4px;line-height:1.45">💡 好群聊不是“随便聊”：给一个共同事件或未解决的问题，角色才会互相回应、站队或推进故事。</div>
+      <div style="font-size:.65em;color:#786880;margin-top:5px;line-height:1.45">建议写清一个共同事件或未解决的问题，角色会更容易互相回应、站队并推进故事。</div>
+      </div>
     </div>
   </div>
   <div id="gchat-log" class="gchat-log" style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch"></div>
   <button id="gchat-jump-bottom" class="gchat-jump-bottom" type="button">↓ 回到最新</button>
   <!-- ── 自动聊天控制栏 ── -->
   <div id="gchat-auto-bar" class="gchat-auto-bar" style="flex-shrink:0;border-top:1px solid rgba(245,160,184,0.08);padding:6px 12px;background:rgba(8,8,18,0.98);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <button id="gchat-auto-btn" style="padding:5px 18px;border-radius:20px;font-size:.82em;font-weight:600;font-family:var(--font-body);background:linear-gradient(135deg,rgba(104,184,100,0.25),rgba(60,140,80,0.15));border:1px solid rgba(104,200,100,0.45);color:#88e880;cursor:pointer;transition:all .2s;letter-spacing:.04em">▶ 开始自聊</button>
+    <button id="gchat-auto-btn" style="padding:5px 18px;border-radius:20px;font-size:.82em;font-weight:600;font-family:var(--font-body);background:linear-gradient(135deg,rgba(104,184,100,0.25),rgba(60,140,80,0.15));border:1px solid rgba(104,200,100,0.45);color:#88e880;cursor:pointer;transition:all .2s;letter-spacing:.04em">开始自聊</button>
     <div class="gchat-interval-box" style="display:flex;align-items:center;gap:5px;flex:1;min-width:160px">
       <span style="font-size:.68em;color:#5a5070;white-space:nowrap">间隔</span>
       <input id="gchat-interval" type="range" min="2" max="20" value="6" style="flex:1;accent-color:#f5a0b8;background:transparent;border:none;padding:0;height:18px">
@@ -22164,7 +22238,6 @@ WP.init();
 (function(){
   var GCKEY = 'wg_gchat2';
   var COLORS = ['#f5a0b8','#68b8e8','#a0e8a0','#e8c848','#c8a0e8','#e8a068','#e8d0a0','#a0c8e8'];
-  var EMOJIS = ['🌸','🔵','🌿','⭐','🟣','🔶','🌙','💎'];
   var members = [], history = [], running = false, activeTopic = '';
   // 赛后复盘状态：reviewOn=当前是不是在复盘上一局，reviewMatch=这批成员来自哪一局，
   // topics/topicIdx=自动生成的议题队列，reviewFacts=战报缓存（每轮重建代价高，不入存档）
@@ -22266,17 +22339,17 @@ WP.init();
     gcRenderLog();
     gcSave();
     running = false;
-    gcAutoSetStatus('💬 ' + member.name + ' 刚说了话');
+    gcAutoSetStatus(member.name + ' 刚说了话');
     autoTimer = setTimeout(autoTick, autoGetInterval());
   }
 
   function gcAutoStart() {
     if (autoRunning) return;
-    if (!members.length) { alert('请先配置成员'); return; }
+    if (!members.length || gcReadyMembers().length !== members.length) { gcOpenConfig(); return; }
     autoRunning = true;
     var btn = document.getElementById('gchat-auto-btn');
     if (btn) {
-      btn.textContent = '⏸ 暂停';
+      btn.textContent = '暂停自聊';
       btn.style.cssText = btn.style.cssText.replace(/background:[^;]+/, '');
       btn.style.background = 'linear-gradient(135deg,rgba(200,100,60,0.25),rgba(160,70,40,0.15))';
       btn.style.borderColor = 'rgba(220,140,80,0.45)';
@@ -22291,7 +22364,7 @@ WP.init();
     if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
     var btn = document.getElementById('gchat-auto-btn');
     if (btn) {
-      btn.textContent = '▶ 开始自聊';
+      btn.textContent = '开始自聊';
       btn.style.background = 'linear-gradient(135deg,rgba(104,184,100,0.25),rgba(60,140,80,0.15))';
       btn.style.borderColor = 'rgba(104,200,100,0.45)';
       btn.style.color = '#88e880';
@@ -22342,14 +22415,15 @@ WP.init();
         }
       }
 
-      if (!members.length) {
-        members = [
-          {name:'柯南', model:'', url:'', key:'', persona:'你是江户川柯南，聪明好奇、习惯追问细节。你和 L 是会互相较劲也会合作的朋友。'},
-          {name:'L',    model:'', url:'', key:'', persona:'你是L·劳莱特，冷静精准，喜欢甜食。你认可柯南的能力，但会用不同角度挑战他的结论。'}
-        ];
-      }
-      if (!reviewOn && !activeTopic) {
-        activeTopic = '柯南和 L 的侦探事务所群：委托人刚发来一张模糊照片，声称其中藏着求救信息。两人要决定先核实照片，还是直接赶往拍摄地点。';
+      // 迁移旧版自动写入的演示角色。真正由玩家保存的其他成员不受影响。
+      var legacyDemo = members.length === 2 && members[0].name === '柯南' && members[1].name === 'L'
+        && String(members[0].persona||'').indexOf('江户川柯南') >= 0
+        && String(members[1].persona||'').indexOf('L·劳莱特') >= 0;
+      if (legacyDemo) {
+        members = [];
+        history = [];
+        if (String(activeTopic).indexOf('柯南和 L 的侦探事务所群') >= 0) activeTopic = '';
+        gcSave();
       }
     } catch(e) { members=[]; history=[]; activeTopic=''; reviewOn=false; topics=[]; }
   }
@@ -22617,11 +22691,11 @@ WP.init();
         // 每次动态拼，这样成员列表存到 localStorage 里不会塞进整份战报。
         var persona = cfg.persona || '';
         if (!persona && p && p.role) {
-          persona = '你是' + name + '，刚刚在一局狼人杀里扮演了「' + p.role.emoji + p.role.name + '」。';
+          persona = '你是' + name + '，刚刚在一局狼人杀里扮演了「' + p.role.name + '」。';
         } else if (!persona) {
           persona = '你是' + name + '，刚刚打完一局狼人杀。';
         } else if (p && p.role) {
-          persona = persona + '\n\n（本局身份：' + p.role.emoji + p.role.name + (p.alive ? '，活到最后' : '，中途出局') + '）';
+          persona = persona + '\n\n（本局身份：' + p.role.name + (p.alive ? '，活到最后' : '，中途出局') + '）';
         }
         result.push({
           name: name,
@@ -22649,6 +22723,36 @@ WP.init();
 
   function gcEsc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function gcReadyMembers() {
+    return members.filter(function(m){ return String(m.name||'').trim() && String(m.persona||'').trim(); });
+  }
+  function gcSealText(index, isUser) {
+    return isUser ? 'ME' : String(index + 1).padStart(2, '0');
+  }
+  function gcOpenConfig() {
+    var panel = document.getElementById('gchat-cfg-panel');
+    if (!panel) return;
+    panel.style.display = 'flex';
+    panel.style.flexDirection = 'column';
+    gcRenderMembersCfg();
+  }
+  function gcUpdateAvailability() {
+    var ready = members.length > 0 && gcReadyMembers().length === members.length;
+    var send = document.getElementById('gchat-send');
+    var auto = document.getElementById('gchat-auto-btn');
+    var input = document.getElementById('gchat-input');
+    var inputBar = input && input.closest('.gchat-input-bar');
+    var autoBar = document.getElementById('gchat-auto-bar');
+    if (send) send.disabled = !ready;
+    if (auto) auto.disabled = !ready;
+    if (input) {
+      input.disabled = !ready;
+      input.placeholder = ready ? '随时插话… Enter发送，Shift+Enter换行' : '请先在成员配置中填写角色名和人设';
+    }
+    if (inputBar) inputBar.classList.toggle('is-locked', !ready);
+    if (autoBar) autoBar.classList.toggle('is-locked', !ready);
   }
 
   function gcGetAPI(member) {
@@ -22691,22 +22795,35 @@ WP.init();
     var shouldFollow = gcAutoFollow || gcNearBottom(log);
     log.innerHTML = '';
     if (!history.length) {
-      log.innerHTML = '<div style="text-align:center;color:#4a4060;font-size:.8em;padding:30px 0">发条消息开始聊天吧～</div>';
+      var hasReady = members.length > 0 && gcReadyMembers().length === members.length;
+      log.innerHTML = '<section class="gchat-empty-stage">'
+        +'<div class="gchat-empty-sigil" data-ui-icon="'+(hasReady?'message':'mask')+'" aria-hidden="true"></div>'
+        +'<h2>'+(hasReady?'舞台已经就绪':'先创建你的群聊角色')+'</h2>'
+        +'<p>'+(hasReady?'在下方写下第一句话，或开启自动聊天，让角色围绕共同场景自然展开对话。':'这里不会预设任何内置人物。你决定谁加入、他们如何说话，以及彼此之间是什么关系。')+'</p>'
+        +(hasReady ? '' : '<div class="gchat-empty-steps">'
+          +'<div class="gchat-empty-step"><b>01 · 角色名</b><span>填写玩家在群里看到的称呼。</span></div>'
+          +'<div class="gchat-empty-step"><b>02 · 人设与关系</b><span>说明性格、立场、秘密和与谁熟悉。</span></div>'
+          +'<div class="gchat-empty-step"><b>03 · 共同场景</b><span>给他们一个正在发生的事件或问题。</span></div>'
+          +'</div>')
+        +'<button id="gchat-empty-config" class="gchat-empty-cta">'+(hasReady?'调整角色与场景':'开始配置角色')+'</button>'
+        +'</section>';
+      var emptyCfg = document.getElementById('gchat-empty-config');
+      if (emptyCfg) emptyCfg.onclick = gcOpenConfig;
       gcAutoFollow = true;
       gcSyncJumpButton();
+      gcUpdateAvailability();
       return;
     }
     history.forEach(function(msg) {
       var isUser = msg.role==='user';
       var mi = members.findIndex(function(m){return m.name===msg.name;});
       var color = isUser ? '#f5c860' : (COLORS[mi%COLORS.length]||'#d8d0e8');
-      var emoji = isUser ? '👤' : (EMOJIS[mi%EMOJIS.length]||'🤖');
       // 样式全部走 class + --c（该成员的主题色）。原来是一长串内联样式，
       // 既没法统一调，也是那种「塑料感」的来源之一。
       var wrap = document.createElement('div');
       wrap.className = 'gcm' + (isUser ? ' me' : '');
       wrap.style.setProperty('--c', color);
-      wrap.innerHTML = '<div class="gcm-av">'+emoji+'</div>'
+      wrap.innerHTML = '<div class="gcm-av">'+gcSealText(Math.max(mi,0),isUser)+'</div>'
         +'<div class="gcm-body"><div class="gcm-name">'+gcEsc(msg.name)+'</div>'
         +'<div class="gcm-bubble">'+gcEsc(msg.text)+'</div></div>';
       log.appendChild(wrap);
@@ -22726,12 +22843,11 @@ WP.init();
     var log = document.getElementById('gchat-log');
     if (!log) return;
     var color = COLORS[mi%COLORS.length];
-    var emoji = EMOJIS[mi%EMOJIS.length];
     var el = document.createElement('div');
     el.id = 'gctyp_'+mi;
     el.className = 'gcm';
     el.style.setProperty('--c', color);
-    el.innerHTML = '<div class="gcm-av">'+emoji+'</div>'
+    el.innerHTML = '<div class="gcm-av">'+gcSealText(mi,false)+'</div>'
       +'<div class="gcm-body"><div class="gcm-name">'+gcEsc(name)+'</div>'
       +'<div class="gcm-bubble typing"><i></i><i></i><i></i></div></div>';
     log.appendChild(el);
@@ -22766,33 +22882,47 @@ WP.init();
     var list = document.getElementById('gchat-members-list');
     if (!list) return;
     list.innerHTML = '';
+    var count = document.getElementById('gchat-member-count');
+    if (count) count.textContent = members.length;
+    if (!members.length) {
+      list.innerHTML = '<div class="gchat-member-empty"><div><strong>尚未创建角色</strong><span>点击“添加空白角色”，然后填写角色名与人设。<br>这里不会自动放入任何内置人物。</span></div></div>';
+      gcUpdateAvailability();
+      return;
+    }
     members.forEach(function(m, i) {
       var div = document.createElement('div');
-      div.style.cssText = 'background:rgba(255,255,255,0.02);border:1px solid rgba(245,160,184,0.1);border-radius:var(--r);padding:7px 9px;margin-bottom:4px';
-      div.innerHTML = '<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">'
-        +'<span style="font-size:.75em;color:'+COLORS[i%COLORS.length]+';min-width:18px">'+EMOJIS[i%EMOJIS.length]+'</span>'
-        +'<input placeholder="名字" value="'+gcEsc(m.name||'')+'" style="flex:1;font-size:.76em" data-mi="'+i+'" data-f="name">'
-        +'<input placeholder="模型（留空用全局）" value="'+gcEsc(m.model||'')+'" style="flex:2;font-size:.76em" data-mi="'+i+'" data-f="model">'
-        +'<button class="gchat-del" data-mi="'+i+'" style="padding:1px 6px;background:rgba(200,48,64,0.15);border:1px solid rgba(200,48,64,0.3);border-radius:4px;color:#c87080;font-size:.75em;cursor:pointer">✕</button>'
-        +'</div>'
-        +'<textarea placeholder="人设与关系（例如：和谁熟、在意什么、瞒着什么）" rows="2" style="width:100%;resize:none;font-size:.73em;background:rgba(245,160,184,0.04);border:1px solid rgba(245,160,184,0.1);color:#c8b8d8;border-radius:4px;padding:4px 6px;font-family:var(--font-body)" data-mi="'+i+'" data-f="persona">'+gcEsc(m.persona||'')+'</textarea>'
-        +'<details style="margin-top:4px"><summary style="font-size:.68em;color:#5a5070;cursor:pointer">🔑 独立API（留空用全局）</summary>'
-        +'<div style="display:flex;gap:4px;margin-top:3px">'
-        +'<input placeholder="API地址" value="'+gcEsc(m.url||'')+'" style="flex:2;font-size:.72em" data-mi="'+i+'" data-f="url">'
-        +'<input type="password" placeholder="密钥" value="'+gcEsc(m.key||'')+'" style="flex:1;font-size:.72em" data-mi="'+i+'" data-f="key">'
+      div.className = 'gchat-member-card';
+      div.style.setProperty('--member-color', COLORS[i%COLORS.length]);
+      div.innerHTML = '<div class="gchat-member-card-head">'
+        +'<span class="gchat-member-seal">'+gcSealText(i,false)+'</span>'
+        +'<span class="gchat-member-meta"><strong>角色 '+String(i+1).padStart(2,'0')+'</strong><small>名字与人设为必填项</small></span>'
+        +'<button class="gchat-member-remove gchat-del" data-mi="'+i+'">移除</button></div>'
+        +'<div class="gchat-field-grid">'
+        +'<label class="gchat-field"><span>角色名</span><input placeholder="填写角色称呼" value="'+gcEsc(m.name||'')+'" data-mi="'+i+'" data-f="name"></label>'
+        +'<label class="gchat-field"><span>模型（可选）</span><input placeholder="留空则使用全局模型" value="'+gcEsc(m.model||'')+'" data-mi="'+i+'" data-f="model"></label>'
+        +'<label class="gchat-field full"><span>人设与关系</span><textarea placeholder="写清性格、说话方式、立场、秘密，以及他与其他角色的关系。" data-mi="'+i+'" data-f="persona">'+gcEsc(m.persona||'')+'</textarea></label>'
+        +'</div><details class="gchat-member-api"><summary>独立 API（可选，留空使用全局设置）</summary>'
+        +'<div class="gchat-field-grid" style="margin-top:8px">'
+        +'<label class="gchat-field"><span>API 地址</span><input placeholder="https://…" value="'+gcEsc(m.url||'')+'" data-mi="'+i+'" data-f="url"></label>'
+        +'<label class="gchat-field"><span>API 密钥</span><input type="password" placeholder="仅保存在本机" value="'+gcEsc(m.key||'')+'" data-mi="'+i+'" data-f="key"></label>'
         +'</div></details>';
       div.querySelectorAll('input[data-mi],textarea[data-mi]').forEach(function(el) {
-        el.addEventListener('input', function() { members[parseInt(el.dataset.mi)][el.dataset.f] = el.value; });
+        el.addEventListener('input', function() {
+          members[parseInt(el.dataset.mi)][el.dataset.f] = el.value;
+          gcUpdateAvailability();
+        });
       });
       div.querySelector('.gchat-del').onclick = function() {
         members.splice(i,1); gcRenderMembersCfg(); gcRenderReplyBtns();
       };
       list.appendChild(div);
     });
+    gcUpdateAvailability();
   }
 
   async function gcSend() {
     if (running) return;
+    if (!members.length || gcReadyMembers().length !== members.length) { gcOpenConfig(); return; }
     var inputEl = document.getElementById('gchat-input');
     var text = inputEl&&inputEl.value.trim()||'';
     if (!text) return;
@@ -22840,6 +22970,7 @@ WP.init();
     gcRenderLog();
     gcRenderReplyBtns();
     gcRenderTopicBar();
+    gcUpdateAvailability();
     document.getElementById('gchat-topic').value = activeTopic;
     document.querySelectorAll('.gchat-preset-btn').forEach(function(b) {
       b.classList.toggle('active', b.dataset.topic===activeTopic);
@@ -22872,12 +23003,17 @@ WP.init();
     document.getElementById('gchat-cfg-btn').onclick = function() {
       var panel = document.getElementById('gchat-cfg-panel');
       var open = panel.style.display==='none'||!panel.style.display;
-      panel.style.display = open ? 'flex' : 'none';
-      panel.style.flexDirection = 'column';
-      if (open) { gcLoad(); gcRenderMembersCfg(); }
+      if (open) { gcLoad(); gcOpenConfig(); }
+      else panel.style.display = 'none';
     };
     document.getElementById('gchat-cfg-save').onclick = function() {
-      gcSave(); document.getElementById('gchat-cfg-panel').style.display='none'; gcRenderReplyBtns();
+      if (!members.length) { alert('请至少添加一位角色。'); return; }
+      var invalid = members.findIndex(function(m){ return !String(m.name||'').trim() || !String(m.persona||'').trim(); });
+      if (invalid >= 0) { alert('请补全角色 '+String(invalid+1).padStart(2,'0')+' 的角色名和人设。'); return; }
+      members.forEach(function(m){ m.name=String(m.name).trim(); m.persona=String(m.persona).trim(); });
+      gcSave();
+      document.getElementById('gchat-cfg-panel').style.display='none';
+      gcRenderReplyBtns(); gcRenderLog(); gcUpdateAvailability();
     };
     document.getElementById('gchat-review-next').onclick = function() {
       if (topicIdx < topics.length - 1) { topicIdx++; gcSave(); gcRenderTopicBar(); }
@@ -22901,7 +23037,7 @@ WP.init();
     };
     document.getElementById('gchat-add-member').onclick = function() {
       if (members.length>=8){alert('最多8名成员');return;}
-      members.push({name:'新成员'+(members.length+1),model:'',url:'',key:'',persona:''});
+      members.push({name:'',model:'',url:'',key:'',persona:''});
       gcRenderMembersCfg(); gcRenderReplyBtns();
     };
     document.getElementById('gchat-import-game').onclick = function() {
@@ -22925,8 +23061,8 @@ WP.init();
       gcSave();
       // 给个反馈
       var btn = document.getElementById('gchat-import-game');
-      btn.textContent = '✅ 已导入'+imported.length+'人';
-      setTimeout(function(){ btn.textContent='🎮 导入上局角色'; }, 2000);
+      btn.textContent = '已导入 '+imported.length+' 位角色';
+      setTimeout(function(){ btn.textContent='导入上局角色'; }, 2000);
     };
     document.getElementById('gchat-clear').onclick = function() {
       if (confirm('清空聊天记录？')){history=[];gcSave();gcRenderLog();}
