@@ -30,6 +30,13 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, 'Number.isFinite(parsed)', `${label} UI zoom validation`);
   requireText(source, 'localStorage.removeItem(\'uiZoom\')', `${label} invalid UI zoom cleanup`);
   requireText(source, 'Math.min(1,Math.max(0.62,z))', `${label} UI zoom safety clamp`);
+  requireText(source, '━━ 信息边界·必须遵守 ━━', `${label} exported hard information boundary`);
+  requireText(source, '━━ 推理建议·非强制 ━━', `${label} exported advisory reasoning section`);
+  requireText(source, '自主采用、调整或拒绝这些建议', `${label} reasoning autonomy guidance`);
+  requireText(source, '不得要求其他玩家遵循这些建议', `${label} non-enforcement guidance`);
+  if (source.includes('━━ 阅读与推理 ━━')) {
+    throw new Error(`${label} still exports reasoning guidance as an undifferentiated rules section`);
+  }
   if (source.includes('role-card-fallback">${r.emoji}') || source.includes('<strong>${r.emoji} ${escapeHtml(')) {
     throw new Error(`${label} still renders role emoji in the encyclopedia`);
   }
