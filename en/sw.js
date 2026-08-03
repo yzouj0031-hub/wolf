@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v21-jbs-api-per-role';
+const CACHE_NAME = 'wolf-en-pwa-v22-mystery-extract';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const APP_SHELL = [
   './manifest.webmanifest',
   './tablet.css',
   '../ui-icons.js',
+  './mystery.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

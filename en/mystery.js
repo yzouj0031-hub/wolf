@@ -1,4 +1,3 @@
- * ================================================================ */
 const MurderMystery = (() => {
   'use strict';
   const q = id => document.getElementById(id);
