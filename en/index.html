@@ -2777,11 +2777,17 @@ body.has-wp::after {
             <option value="">🍿 纯观战（全部角色由AI扮演）</option>
           </select>
         </label>
+        <label>网页端AI 扮演
+          <select class="jbs-input" id="jbs-webai">
+            <option value="">无（其余角色都走 API）</option>
+          </select>
+        </label>
         <label style="display:flex;align-items:center;gap:7px;font-size:.82em;cursor:pointer">
           <input type="checkbox" id="jbs-ai-search" checked style="width:auto;margin:0">
           <span>AI 自主搜证（每人每幕自己挑一条线索查）</span>
         </label>
         <div id="jbs-web-warning" class="jbs-note" style="display:none">网页端AI模式会逐个显示角色的私密提示词，只适合你作为主持人/观战者使用，因此会自动切换为纯观战。</div>
+        <div id="jbs-webai-note" class="jbs-note" style="display:none">你会看到这名角色的私密剧本（要复制给网页端AI）。如果你同时也在扮演另一个角色，等于提前知道了他的秘密——想保留悬念就选纯观战。</div>
         <div class="jbs-note">推荐亲自扮演一名角色：你会获得私密剧本，并在搜证、发言和指认中改变这一局。API 模式复用狼人杀设置里的 API 地址、密钥和模型。</div>
         <button class="jbs-btn primary" id="jbs-start" type="button">开始剧本杀</button>
       </div>
@@ -24625,7 +24631,10 @@ const MurderMystery = (() => {
   let SCRIPT = SCRIPTS[0];
   const STEPS = ['开场','一幕搜证','初步讨论','二幕搜证','圆桌交锋','最终指认','真相','小测'];
   const J = {
-    players:[],youId:null,driver:'api',phase:'setup',round:0,found:[],
+    // webIds：指定走网页端AI接力的角色 id。driver==='web' 时全员都走，
+    // driver==='api' 时只有这里列出的走——这样就能「一个角色用网页端AI、
+    // 其余用 API」，而不是原来那样只能全有或全无。
+    players:[],youId:null,driver:'api',webIds:[],phase:'setup',round:0,found:[],
     events:[],votes:{},seq:0,runId:0,busy:false,currentAbort:null,actionsLeft:0,
     pendingCancel:null,webResolve:null,webReject:null,inited:false,
     // known[角色id] = [线索id]：该角色私下搜到、别人不知道的线索
@@ -24919,9 +24928,11 @@ const MurderMystery = (() => {
       setTimeout(()=>q('jbs-web-reply').focus(),50);
     });
   }
+  // 这一局里这个角色走不走网页端接力
+  function useWeb(pl){ return J.driver==='web' || (J.webIds||[]).indexOf(pl.id)>=0; }
   function ask(pl,instruction,token){
     const sp=systemPrompt(pl),up=contextPrompt(pl,instruction);
-    return J.driver==='web'?webAsk(pl,sp,up,token):apiAsk(pl,sp,up,token);
+    return useWeb(pl)?webAsk(pl,sp,up,token):apiAsk(pl,sp,up,token);
   }
   // 搜证决策不需要整份事件日志，只要知道自己是谁、还有哪些线索没搜。
   // 单独走一条轻量提示词，免得为了选一条线索就把上下文全量重发一遍。
@@ -24935,7 +24946,7 @@ const MurderMystery = (() => {
       +'\n\n【任务】只挑一条你最想查的，在 action 里严格写 SEARCH|线索id，'
       +'并在 say 里用一句话说明你为什么想查它（这句话会当众说出来）。'
       +'\n\n【输出格式】\n<thinking>内心盘算</thinking>\n<say>一句话</say>\n<action>SEARCH|线索id</action>';
-    return J.driver==='web'?webAsk(pl,sp,up,token):apiAsk(pl,sp,up,token);
+    return useWeb(pl)?webAsk(pl,sp,up,token):apiAsk(pl,sp,up,token);
   }
   function resolveSearch(action,options){
     const a=String(action||'').trim();
@@ -25285,6 +25296,8 @@ const MurderMystery = (() => {
   function start(){
     cancelRun();const token=++J.runId;
     J.driver=selectedValue(q('jbs-driver'))||'api';J.youId=J.driver==='web'?null:(selectedValue(q('jbs-role'))||null);
+    const wid=J.driver==='web'?'':selectedValue(q('jbs-webai'));
+    J.webIds=(wid&&wid!==J.youId)?[wid]:[];
     J.aiSearch=!q('jbs-ai-search')||q('jbs-ai-search').checked;
     J.players=SCRIPT.cast.map((x,i)=>Object.assign({slot:i},x));J.phase='开场';J.round=0;J.found=[];J.events=[];J.votes={};J.seq=0;J.lastAccused=null;J.lastTie=false;
     J.known={};J.runoffDone=false;J.suspicion={};J.quizScores={};
@@ -25299,7 +25312,20 @@ const MurderMystery = (() => {
     }
   }
   function syncDriver(){
-    const web=selectedValue(q('jbs-driver'))==='web';q('jbs-role').disabled=web;q('jbs-web-warning').style.display=web?'block':'none';if(web&&q('jbs-role').options[0])q('jbs-role').options[0].selected=true;
+    const web=selectedValue(q('jbs-driver'))==='web';
+    q('jbs-role').disabled=web;q('jbs-web-warning').style.display=web?'block':'none';
+    if(web&&q('jbs-role').options[0])q('jbs-role').options[0].selected=true;
+    // 全员网页端时这个下拉没意义；否则把「我自己扮演的那个」从候选里排掉，
+    // 免得选出「我和网页端AI同时演一个人」这种状态。
+    const sel=q('jbs-webai'); if(!sel) return;
+    sel.disabled=web;
+    const mine=web?'':selectedValue(q('jbs-role'));
+    const keep=selectedValue(sel);
+    sel.innerHTML='<option value="">无（其余角色都走 API）</option>'
+      +SCRIPT.cast.filter(x=>x.id!==mine).map(x=>'<option value="'+x.id+'">'+x.emoji+' '+h(x.name)+'（'+h(x.public)+'）</option>').join('');
+    if(keep&&keep!==mine&&[...sel.options].some(o=>o.value===keep)) sel.value=keep;
+    const on=!web&&!!selectedValue(sel);
+    q('jbs-webai-note').style.display=on?'block':'none';
   }
   // 换本时角色选择器要整个重建。推荐扮演的是剧本里第一个 role==='good' 的角色
   //（清白、没有涉案秘密的那个），而不是像原来那样把「江户川柯南」写死在这里。
@@ -25321,7 +25347,7 @@ const MurderMystery = (() => {
   function init(){
     if(J.inited)return;J.inited=true;
     renderScriptPicker();
-    q('jbs-driver').onchange=syncDriver;q('jbs-start').onclick=start;q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
+    q('jbs-driver').onchange=syncDriver;q('jbs-role').onchange=syncDriver;q('jbs-webai').onchange=syncDriver;q('jbs-start').onclick=start;q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
     q('jbs-web-copy').onclick=async()=>{try{await navigator.clipboard.writeText(q('jbs-web-prompt').value);q('jbs-web-copy').textContent='✅ 已复制';setTimeout(()=>q('jbs-web-copy').textContent='📋 复制提示词',1500);}catch(e){q('jbs-web-prompt').select();}};
     q('jbs-web-submit').onclick=()=>{const raw=q('jbs-web-reply').value.trim();if(!raw)return;if(J.webResolve)J.webResolve(raw);};
     q('jbs-web-cancel').onclick=()=>{if(J.webReject)J.webReject();};
