@@ -7067,11 +7067,28 @@ function loadCfg() {
 /* ================================================================
  *  § 7. Render 模块
  * ================================================================ */
+/* 对局日志里几乎每条都以 emoji 开头（240 条里 220 条），一屏下来就是一列
+   彩色小图标，这是界面显得廉价的主要来源。日志条目本身已经有 .le.<type>
+   的分类样式（system / night / vote …）在承担区分作用，emoji 是纯装饰。
+
+   在这里统一剥掉，而不是去改那 220 处调用：
+   · 只剥「装饰位」——行首、以及 ══/──/━━ 分隔线之后紧跟的那几个，
+     句子中间的（比如 你是X【🐺狼人】里的角色 emoji）保持不动；
+   · 制表符 ══ ── 和箭头 → 不在 emoji 范围内，不会被误伤；
+   · 这里是纯显示层，发给模型的提示词一个字都不经过这个函数。
+   要改回去，删掉 stripLogDecor 的调用即可。 */
+/* ⚠ ❌ ✅ 不剥：它们是状态标记不是装饰。日志条目没有单独的 warn/error
+   类型（报警和普通消息都用 'system'），剥掉等于把唯一的严重性信号删了。 */
+const LOG_DECOR_RE = /^(\s*(?:<[^>]+>\s*)*(?:[═─━—―-]{2,}\s*)?)(?:(?:(?![⚠❌✅])[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}])+\s*)+/u;
+function stripLogDecor(html) {
+  return typeof html === 'string' ? html.replace(LOG_DECOR_RE, '$1') : html;
+}
+
 const Render = {
   log(type, html) {
     const d = document.createElement('div');
     d.className = 'le ' + type;
-    d.innerHTML = html;
+    d.innerHTML = stripLogDecor(html);
     blindMaskElementText(d);
     $('gl').appendChild(d);
     scrollGL();
@@ -18122,14 +18139,14 @@ function startGame() {
     const pl = S.players[S.playerId];
     Render.log('system','🎭 你是 '+pl.name+'【'+pl.role.emoji+pl.role.name+'】');
   }
-  Render.log('system','🎲 '+getRoleList()+(S.pureAI?' [🤖纯AI]':''));
+  Render.log('system','🎲 '+getRoleList()+(S.pureAI?' [纯AI]':''));
   if (!S.pureAI && $('m-mbti').checked) {
     Render.log('system',S.players.map(p=>p.name+'('+(p.mbtiKey||'')+')').join(' '));
   }
   if ($('m-cosplay').checked) {
     const withPersona = S.players.filter(p => playerConfigs[p.id] && playerConfigs[p.id].persona);
     if (withPersona.length) {
-      Render.log('system','🎭 角色扮演：'+withPersona.map(p => '🎭'+p.name).join(' '));
+      Render.log('system','角色扮演：'+withPersona.map(p => p.name).join(' '));
     }
   }
   Render.log('night','🌙 第一夜…');
