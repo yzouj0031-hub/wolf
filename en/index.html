@@ -1998,17 +1998,24 @@ body.has-wp::after {
 .jbs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.jbs-grid>button,.jbs-grid>.jbs-note{grid-column:1/-1}
 .jbs-grid label{display:flex;flex-direction:column;gap:6px;color:#aeb3c5;font-size:.78em}
 .jbs-kicker{color:#e8b878;font-family:var(--font-title);font-size:.78em;letter-spacing:.08em}
-/* 剧本杀自己的 API 面板：每个角色一行，右边填单独的模型 */
-.jbs-api-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(140,150,190,.09)}
-.jbs-api-row:last-child{border-bottom:0}
-.jbs-api-who{display:flex;align-items:center;gap:7px;color:#c3c8db;font-size:.78em;min-width:0}
-.jbs-api-who b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 剧本杀 API 面板：每个角色折一行，展开后能单独配地址/密钥/模型。
+   默认收起是因为多数人只改模型甚至什么都不改，六个角色摊开 18 个输入框太吵。 */
+.jbs-api-item{border-bottom:1px solid rgba(140,150,190,.09)}
+.jbs-api-item:last-child{border-bottom:0}
+.jbs-api-item>summary{display:flex;align-items:center;gap:7px;padding:8px 2px;cursor:pointer;color:#c3c8db;font-size:.78em;list-style:none}
+.jbs-api-item>summary::-webkit-details-marker{display:none}
+.jbs-api-item>summary::after{content:'';flex:0 0 auto;width:6px;height:6px;margin-left:auto;border-right:1px solid #6f7691;border-bottom:1px solid #6f7691;transform:rotate(45deg) translate(-2px,-2px);transition:transform .18s}
+.jbs-api-item[open]>summary::after{transform:rotate(225deg) translate(-2px,-2px)}
+.jbs-api-item>summary b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jbs-api-slot{flex:0 0 auto;padding:1px 5px;border:1px solid rgba(140,150,190,.24);border-radius:3px;color:#8b93ab;font-size:.86em}
+.jbs-api-sum{margin-left:auto;padding-left:10px;color:#7f869e;font-size:.92em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jbs-api-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:2px 2px 12px}
+.jbs-api-fields label{display:flex;flex-direction:column;gap:4px;color:#8b93ab;font-size:.72em}
 /* .jbs-input 的 min-height:90px 是给文本域用的，这里全是单行输入 */
 #jbs-api-panel input.jbs-input{min-height:38px;font-size:.82em;padding:8px 10px}
-.jbs-api-row input.jbs-input{min-height:34px;font-size:.78em;padding:6px 8px}
+.jbs-api-fields input.jbs-input{min-height:32px;font-size:.76em;padding:6px 8px}
 .jbs-api-inherit{color:#6f7691}
-@media(max-width:640px){.jbs-api-row{grid-template-columns:1fr;gap:5px}}.jbs-note{padding:9px 11px;border-left:3px solid rgba(232,184,120,.55);background:rgba(232,184,120,.06);color:#9ca2b8;font-size:.74em;line-height:1.6}
+@media(max-width:640px){.jbs-api-fields{grid-template-columns:1fr}}.jbs-note{padding:9px 11px;border-left:3px solid rgba(232,184,120,.55);background:rgba(232,184,120,.06);color:#9ca2b8;font-size:.74em;line-height:1.6}
 .jbs-field label{display:block;color:#8b90a8;font-size:.75em;margin-bottom:5px}
 .jbs-field select{width:100%;background:#171b2b;color:#e6e2f0;border:1px solid rgba(140,150,190,.22);padding:9px;border-radius:8px}
 .jbs-warning{margin-top:9px;padding:8px 10px;border-left:3px solid #d6a04c;background:rgba(214,160,76,.08);color:#c9af82;font-size:.74em;line-height:1.55}
@@ -2816,9 +2823,9 @@ body.has-wp::after {
           <label>API 密钥<input class="jbs-input" id="jbs-api-key" type="password" placeholder="sk-..."></label>
           <label style="grid-column:1/-1">默认模型<input class="jbs-input" id="jbs-api-model" placeholder="gpt-4o"></label>
         </div>
-        <div class="jbs-kicker" style="margin:14px 0 4px">各角色单独指定模型（留空＝用上面的默认）</div>
+        <div class="jbs-kicker" style="margin:14px 0 4px">各角色单独配置（留空＝用上面的默认）</div>
         <div id="jbs-api-cast"></div>
-        <div class="jbs-note" style="margin-top:10px">这里改的就是狼人杀设置里那一份，两边通用。角色第 N 位对应狼人杀的 P<span style="font-family:var(--font-title)">N</span> 命牌。</div>
+        <div class="jbs-note" style="margin-top:10px">点开角色可以给它单独指定地址／密钥／模型——三项各自独立，只填模型就只覆盖模型，其余继续用上面的默认值。这里改的就是狼人杀设置里那一份，两边通用；角色第 N 位对应狼人杀的 P<span style="font-family:var(--font-title)">N</span> 命牌。</div>
       </div>
     </section>
 
@@ -25360,19 +25367,33 @@ const MurderMystery = (() => {
       if(x.id===mine) tagArr.push('你扮演');
       if(x.id===relay) tagArr.push('网页端AI');
       const tag=tagArr.length?'<span class="jbs-api-inherit" style="font-size:.86em">（'+tagArr.join('·')+'）</span>':'';
-      return '<div class="jbs-api-row"><div class="jbs-api-who"><span class="jbs-api-slot">P'+(i+1)+'</span><b>'+h(x.name)+'</b>'+tag+'</div>'
-        +'<input class="jbs-input" data-slot="'+i+'" placeholder="继承默认" value="'+h(c.model||'')+'"></div>';
+      const f=(k,label,ph,type)=>'<label>'+label+'<input class="jbs-input" data-slot="'+i+'" data-f="'+k+'"'
+        +(type?' type="'+type+'"':'')+' placeholder="'+ph+'" value="'+h(c[k]||'')+'"></label>';
+      return '<details class="jbs-api-item"><summary><span class="jbs-api-slot">P'+(i+1)+'</span><b>'+h(x.name)+'</b>'+tag
+        +'<span class="jbs-api-sum" data-sum="'+i+'">'+h(slotSummary(i))+'</span></summary>'
+        +'<div class="jbs-api-fields">'+f('url','地址','继承默认')+f('key','密钥','继承默认','password')+f('model','模型','继承默认')+'</div></details>';
     }).join('');
     q('jbs-api-cast').querySelectorAll('input[data-slot]').forEach(inp=>{
       inp.onchange=()=>{
-        const i=+inp.dataset.slot, v=inp.value.trim();
+        const i=+inp.dataset.slot, k=inp.dataset.f, v=inp.value.trim();
         if(!playerConfigs[i]) playerConfigs[i]={};
-        if(v) playerConfigs[i].model=v; else delete playerConfigs[i].model;
+        if(v) playerConfigs[i][k]=v; else delete playerConfigs[i][k];
         try{ saveCfg(); }catch(e){}
+        const sum=q('jbs-api-cast').querySelector('[data-sum="'+i+'"]');
+        if(sum) sum.textContent=slotSummary(i);
         renderApiStatus();
       };
     });
     renderApiStatus();
+  }
+  // 收起状态下用一行字说明这个角色到底覆盖了什么，免得要逐个展开才知道
+  function slotSummary(i){
+    const c=playerConfigs[i]||{};
+    const parts=[];
+    if(c.model) parts.push(c.model);
+    if(c.url) parts.push('独立地址');
+    if(c.key) parts.push('独立密钥');
+    return parts.length?parts.join(' · '):'继承默认';
   }
   function renderApiStatus(){
     const el=q('jbs-api-status'); if(!el) return;
