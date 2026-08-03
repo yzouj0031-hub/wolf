@@ -513,7 +513,9 @@ body.fx-lite .role-cinema-panel { animation:none; }
 .pn { font-family: var(--font-title); font-weight: 700; font-size: 0.8em; color: #f0e8ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ptag { font-size: 0.55em; color: #6860a0; }
 .rt { font-size: 0.6em; padding: 1px 4px; border-radius: 3px; display: inline-block; background: rgba(245,160,184,0.06); color: #a898c0; }
-.mbtitag { font-size: 0.5em; padding: 1px 4px; border-radius: 3px; background: rgba(136,128,200,0.12); color: #a898c8; display: inline-block; }
+/* 性情标签原来是「🏛️INTJ」，emoji 不携带信息（没人知道 🏛️ 是 INTJ），
+   删掉后只剩四字母码，做成小号字母牌的样子反而更清楚也更统一。 */
+.mbtitag { font-size: 0.5em; padding: 1px 5px; border-radius: 3px; background: rgba(136,128,200,0.12); color: #a898c8; display: inline-block; letter-spacing: .07em; font-variant-numeric: tabular-nums; }
 /* ★ 命牌里的模型标签槽：放在名字下方，不挤屏幕 */
 .modeltag-slot { font-size: 0.55em; line-height: 1.3; margin: 1px 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modeltag-slot:empty { display: none; }
@@ -742,13 +744,6 @@ body.blind-review .le.ending { display:none !important; }
 .ending-state { display:inline-flex; align-items:center; min-height:18px; padding:1px 6px; border:1px solid currentColor; border-radius:3px; font-size:.62em; letter-spacing:.06em; opacity:.78; }
 .ending-state.win { color:var(--jade); }
 .ending-state.loss { color:var(--cinnabar); }
-.log-inline-mark { display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; color:#a99bc8; vertical-align:-.12em; }
-.log-inline-mark.ui-iconized::before { width:13px; height:13px; opacity:.82; }
-.log-role-sigil { display:inline-flex; width:16px; height:16px; flex:0 0 16px; color:#b9a2c8; vertical-align:-.18em; }
-.log-role-sigil svg { width:100%; height:100%; }
-.le.death > .log-inline-mark { color:var(--cinnabar-light); }
-.le.sheriff > .log-inline-mark,.le.trial > .log-inline-mark { color:var(--gold); }
-.le.night > .log-inline-mark { color:#9484c0; }
 .log-thought { font-size: 0.75em; color: #7068a0; font-style: italic; padding: 3px 8px; background: rgba(0,0,0,0.2); border-radius: 3px; margin-bottom: 3px; border-left: 2px solid #505080; }
 .log-game { font-size: 0.88em; color: #d8d0e8; padding: 3px 6px; background: rgba(245,160,184,0.015); border-radius: 3px; line-height: 1.6; }
 
@@ -7199,24 +7194,32 @@ function loadCfg() {
 /* ================================================================
  *  § 7. Render 模块
  * ================================================================ */
+/* 对局日志里几乎每条都以 emoji 开头（240 条里 220 条），一屏下来就是一列
+   彩色小图标，这是界面显得廉价的主要来源。日志条目本身已经有 .le.<type>
+   的分类样式（system / night / vote …）在承担区分作用，emoji 是纯装饰。
+
+   在这里统一剥掉，而不是去改那 220 处调用：
+   · 只剥「装饰位」——行首、以及 ══/──/━━ 分隔线之后紧跟的那几个，
+     句子中间的（比如 你是X【🐺狼人】里的角色 emoji）保持不动；
+   · 制表符 ══ ── 和箭头 → 不在 emoji 范围内，不会被误伤；
+   · 这里是纯显示层，发给模型的提示词一个字都不经过这个函数。
+   要改回去，删掉 stripLogDecor 的调用即可。 */
+/* ⚠ ❌ ✅ 不剥：它们是状态标记不是装饰。日志条目没有单独的 warn/error
+   类型（报警和普通消息都用 'system'），剥掉等于把唯一的严重性信号删了。 */
+const LOG_DECOR_RE = /^(\s*(?:<[^>]+>\s*)*(?:[═─━—―-]{2,}\s*)?)(?:(?:(?![⚠❌✅])[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}])+\s*)+/u;
+function stripLogDecor(html) {
+  return typeof html === 'string' ? html.replace(LOG_DECOR_RE, '$1') : html;
+}
+
 const Render = {
   log(type, html) {
     const d = document.createElement('div');
     d.className = 'le ' + type;
-    // 只清理引擎明确标记的结构化事件；system/玩家内容原样保留，避免误伤正文。
-    const stripStructuralPrefix = ['night','death','sheriff','trial'].includes(type);
-    const refined = stripStructuralPrefix && typeof html === 'string'
-      ? html.replace(/^(?:(?:🌙|🐺|💀|💔|🌹|🏹|👹|👑|🔪|🔮|⚖️?|⚠️?|📊|📢|😅|🎤|🔄|👋)\s*)+/u, '')
-      : html;
-    d.innerHTML = refined;
-    const typeIcon = {night:'moon',death:'skull',sheriff:'crown',trial:'gavel'}[type];
-    if (typeIcon && !d.querySelector('.log-inline-mark,.log-role-sigil,.log-avatar')) {
-      const mark = document.createElement('span');
-      mark.className = 'log-inline-mark';
-      mark.dataset.uiIcon = typeIcon;
-      mark.setAttribute('aria-hidden','true');
-      d.prepend(mark);
-    }
+    // 日志类型已由颜色和排版表达，行首不再叠加装饰性 emoji。
+    // （main 上原本是一张 12 个 emoji 的白名单，这里换成 stripLogDecor：
+    //   覆盖全部 181 条日志、能处理 ══ 分隔线后面的和连着两个的，
+    //   并且保留 ⚠❌✅——详见上面注释。）
+    d.innerHTML = stripLogDecor(html);
     blindMaskElementText(d);
     $('gl').appendChild(d);
     scrollGL();
@@ -7303,18 +7306,18 @@ const Render = {
       const avatarSrc = cfg && cfg.avatar;
       if (avatarSrc) {
         // 头像始终显示，匿名模式也不隐藏
-        av.innerHTML = `<img src="${avatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentNode.textContent='${show ? p.role.emoji : '？'}'">`;
+        av.innerHTML = `<img src="${avatarSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentNode.textContent='${show ? p.role.name.charAt(0) : '？'}'">`;
       } else {
         av.innerHTML = '';
-        av.textContent = show ? p.role.emoji : '？';
+        av.textContent = show ? p.role.name.charAt(0) : '？';
       }
     }
     const rt = $('rt-'+p.id);
-    if (rt) rt.innerText = show ? p.role.emoji+p.role.name : '未知';
+    if (rt) rt.innerText = show ? p.role.name : '未知';
     const pn = $('pn-'+p.id);
     if (pn) pn.textContent = publicPlayerLabel(p);
     const mt = $('mbt-'+p.id);
-    if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbti.emoji+p.mbtiKey : '';
+    if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbtiKey : '';
     // ★ 模型标签（小号，放在命牌里）
     const mts = $('mts-'+p.id);
     if (mts) mts.innerHTML = getModelTagHtml(p, {size:'small'});
@@ -8989,7 +8992,7 @@ function manualWriteDialog(p, prompt) {
     overlay.innerHTML = `
       <div style="max-width:420px;width:100%;background:linear-gradient(180deg,rgba(40,30,55,0.96),rgba(28,22,42,0.96));border:1px solid rgba(160,232,160,0.4);border-radius:12px;padding:18px;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-height:90vh;overflow-y:auto">
         <h3 style="margin:0 0 6px 0;color:#a0e8a0;font-family:var(--font-seal);font-size:1.05em">── 🖊️ 替 ${publicPlayerLabel(p)} 发言 ──</h3>
-        <div style="font-size:0.7em;color:#6a6080;margin-bottom:8px">身份：${p.role.emoji}${p.role.name} · P${p.id+1}</div>
+        <div style="font-size:0.7em;color:#6a6080;margin-bottom:8px">身份：${p.role.name} · P${p.id+1}</div>
         <details style="margin-bottom:10px">
           <summary style="font-size:0.72em;color:#7068a0;cursor:pointer;padding:4px 0">▶ 当前 prompt 上下文</summary>
           <div style="font-size:0.7em;color:#8a7e9a;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;max-height:140px;overflow-y:auto;white-space:pre-wrap;line-height:1.5;margin-top:4px">${promptHint.replace(/[<>]/g, c=>({'<':'&lt;','>':'&gt;'}[c]))}</div>
@@ -11123,7 +11126,7 @@ async function mcProcDay(players, promptFn, label) {
           }
           sp = choice;
         } else {
-          sp = await waitInput(promptFn(p), p.role.emoji+p.role.name, p);
+          sp = await waitInput(promptFn(p), p.role.name, p);
         }
         // ★ 白狼王自爆：玩家输入可能是 "<game>...</game><action>EXPLODE:xxx</action>" 组合格式
         //   若检测到标签，走parseAI解析；否则保留原行为（裸文字同时当发言和行动）
@@ -11176,7 +11179,7 @@ async function directorChoose(p, promptFn, opts) {
     notif.className = 'le system';
     notif.style.cssText = 'padding:8px 12px;border:1px solid rgba(112,80,200,0.4);background:rgba(112,80,200,0.08);border-radius:var(--r);animation:vn-breathe 2s ease-in-out infinite';
     notif.innerHTML = `
-      <div style="font-size:.78em;color:#c0a0f0;margin-bottom:6px;font-family:var(--font-title)">🎬 导演 — <b style="color:#e0c8ff">${publicPlayerLabel(p)}</b>【${p.role.emoji}${p.role.name}】轮到发言</div>
+      <div style="font-size:.78em;color:#c0a0f0;margin-bottom:6px;font-family:var(--font-title)">🎬 导演 — <b style="color:#e0c8ff">${publicPlayerLabel(p)}</b>【${p.role.name}】轮到发言</div>
       <div style="display:flex;gap:6px">
         <button id="_dir-self-${p.id}" style="flex:1;padding:6px 10px;background:rgba(112,80,200,0.25);border:1px solid rgba(160,120,240,0.5);border-radius:var(--r);color:#d0b0ff;font-size:.78em;cursor:pointer;font-family:var(--font-body)">✍️ 我来说</button>
         <button id="_dir-ai-${p.id}" style="flex:1;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:var(--r);color:#8880a8;font-size:.78em;cursor:pointer;font-family:var(--font-body)">🤖 让AI说</button>
@@ -11189,7 +11192,7 @@ async function directorChoose(p, promptFn, opts) {
 
     selfBtn.onclick = () => {
       try {
-        _openInputModal(promptFn(p), p.role.emoji + p.role.name, resolve, p);
+        _openInputModal(promptFn(p), p.role.name, resolve, p);
         notif.remove();
       } catch(e) {
         Render.devLog && Render.devLog('err', '[导演] 输入框打开失败: ' + (e && e.stack || e));
@@ -11606,7 +11609,7 @@ async function proc(players, promptFn, label, opts) {
               : {thinking:'', game:sp, action:sp};
           }
         } else {
-          const sp = await waitInput(promptFn(p), p.role.emoji+p.role.name, p);
+          const sp = await waitInput(promptFn(p), p.role.name, p);
           // ★ 白狼王自爆：玩家输入可能带 <game>/<action> 标签
           results[j] = (sp && /<(?:game|action)>/i.test(sp))
             ? (() => { const p2 = parseAI(sp); return {thinking: p2.thinking||'', game: p2.game||'', action: p2.action||''}; })()
@@ -12703,7 +12706,7 @@ async function procWolf(wolves, promptFn, label, opts) {
         }
         sp = choice;
       } else {
-        sp = await waitInput(promptFn(p), p.role.emoji+p.role.name, p);
+        sp = await waitInput(promptFn(p), p.role.name, p);
       }
       // ★ 白狼王自爆：玩家输入可能带 <game>/<action> 标签
       results[j] = (sp && /<(?:game|action)>/i.test(sp))
@@ -13316,7 +13319,7 @@ async function lastWords(p) {
         Render.setSpeaking(p.id, false);
       }
     } else {
-      words = await waitInput('留下遗言：', p.role.emoji, p);
+      words = await waitInput('留下遗言：', p.role.name, p);
       // ★ v9.9.24：真人玩家遗言改用 streamSpeak 渲染（打字机效果），
       //   streamSpeak 内部会 push gameRecord，导出聊天摘要不再缺失这条遗言。
       Render.setSpeaking(p.id, true);
@@ -13997,6 +14000,18 @@ const NightActions = {
     const safeRandomWolfTargets = alive.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf');
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // 可恢复的最终投票
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
+    /* 这段原来声明在下面「开场轮」的 for 块里（旧位置约 14151 行），
+       但「回响轮」的提示词也要用它，那是同一个函数里的另一个块——
+       于是只要狼队开场出现分歧、走进回响轮，就必然
+       ReferenceError: tacticalSacrificeHint is not defined，
+       整个 wolfKill 被外层 try/catch 吞掉，当晚狼刀直接作废。
+       内容是纯静态文本（无任何 ${} 插值），提到函数体顶层零风险。 */
+    const tacticalSacrificeHint = `
+
+【战术性自刀/刀队友·允许但必须算净收益】
+【可刀目标】包含你自己和已知狼队友，这不是名单错误。不要仅用“会少一只狼”否决，也不要为了花活随便牺牲。
+若考虑刀狼队友，必须比较：①该队友明天被放逐概率；②正常刀一名好人能减少多少神/民与票；③自刀能否骗解药、制造银水或深水身份、触发狼美人连带/其他死亡收益；④自刀后是否立刻触发好人胜利或让狼队人数崩盘。
+只有“牺牲后的团队预期收益”明确高于“该队友继续存活 + 今晚正常刀好人”时才支持。队友已近乎必出不等于自动该自刀：仍要说明活过今晚概率、女巫是否可能救、谁能靠这刀做成身份。反过来，只要账算得过来，就把它当正常候选，不得以原则性口号拒绝。`;
     const livingMagician = S.players.some(x => x.alive && x.role && x.role.id === 'magician');
     const magicKillDecisionHint = livingMagician ? `
 
@@ -14097,7 +14112,7 @@ const NightActions = {
         const hint = isOpening
           ? '【狼队·开场陈述】说出你的判断、提议刀谁、理由;或输入 PASS'
           : '【狼队·回响】可以附议/反驳队友,坚持自己或改主意;或输入 PASS';
-        let sp = await waitInput(hint, p.role.emoji + '密谈', p);
+        let sp = await waitInput(hint, p.role.name + '密谈', p);
         // ★ v9.9.24：读取导演填写的 thinking（与白天发言一致）
         let thk = (S.directorMode && $('pi-think')) ? ($('pi-think').value || '').trim() : '';
         // ★ 若内容带标签(网页端AI格式)，用 parseAI 拆开，避免标签原样显示
@@ -14252,12 +14267,6 @@ const NightActions = {
       const singleWolfHint = isSingleWolf
         ? `\n\n⚠️ 单狼场景：场上只有你一只狼，没有队友讨论。直接给出今晚的决定。\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若有明确战术理由要空刀（制造平安夜嫁祸神职/保留刀口/残局博弈），可填 None 表示今晚不刀，但必须在 thinking 里写清目的，不能因纠结/犹豫而空刀】。\n⚠️ 不要在 <game> 文本里写 "<interrupt>" 标签——那是结构化字段，混在自然语言里会导致解析失败。`
         : `\n\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若主张空刀（制造平安夜嫁祸神职/保留刀口/残局博弈这类明确战术目的），填 None 并在 thinking 里说清理由；纯因纠结拿不定主意不许空刀，那就正常选目标】。`;
-      const tacticalSacrificeHint = `
-
-【战术性自刀/刀队友·允许但必须算净收益】
-【可刀目标】包含你自己和已知狼队友，这不是名单错误。不要仅用“会少一只狼”否决，也不要为了花活随便牺牲。
-若考虑刀狼队友，必须比较：①该队友明天被放逐概率；②正常刀一名好人能减少多少神/民与票；③自刀能否骗解药、制造银水或深水身份、触发狼美人连带/其他死亡收益；④自刀后是否立刻触发好人胜利或让狼队人数崩盘。
-只有“牺牲后的团队预期收益”明确高于“该队友继续存活 + 今晚正常刀好人”时才支持。队友已近乎必出不等于自动该自刀：仍要说明活过今晚概率、女巫是否可能救、谁能靠这刀做成身份。反过来，只要账算得过来，就把它当正常候选，不得以原则性口号拒绝。`;
       const prompt = `【狼队密谈·开场陈述】这是狼队内部,直接说,不用伪装。
 你的队友:${mates}
 可刀目标:${ts}${deadNote}
@@ -15719,7 +15728,7 @@ const PhaseHandlers = {
     const _aiCandidateWilling = {};  // pid -> bool
     for (const p of alive) {
       if (p.isPlayer) {
-        const choice = await waitChoice('警长竞选开始\n你是：' + p.name + '【' + p.role.emoji + p.role.name + '】\n要参选吗？（准备好了再点）', '👑 竞选报名', [{label:'✋ 参选',value:'yes'},{label:'👋 不参选',value:'no'}]);
+        const choice = await waitChoice('警长竞选开始\n你是：' + p.name + '【' + p.role.name + '】\n要参选吗？（准备好了再点）', '👑 竞选报名', [{label:'✋ 参选',value:'yes'},{label:'👋 不参选',value:'no'}]);
         if (choice === 'yes') _aiCandidateWilling[p.id] = true;
       }
     }
@@ -15781,7 +15790,7 @@ const PhaseHandlers = {
       const remaining = [];
       for (const p of candidates) {
         if (p.isPlayer) {
-          const choice = await waitChoice('你是：' + p.name + '【' + p.role.emoji + p.role.name + '】\n听完演讲，要退选吗？', '👑 退选', [{label:'✋ 继续竞选',value:'stay'},{label:'👋 退选',value:'quit'}]);
+          const choice = await waitChoice('你是：' + p.name + '【' + p.role.name + '】\n听完演讲，要退选吗？', '👑 退选', [{label:'✋ 继续竞选',value:'stay'},{label:'👋 退选',value:'quit'}]);
           if (choice === 'stay') remaining.push(p);
           else { Render.log('sheriff', '👋 ' + p.name + ' 退出竞选'); gameRecord.push({type:'system', text:p.name+' 退出警长竞选'}); }
         } else {
@@ -16119,7 +16128,7 @@ const PhaseHandlers = {
         };
       } else {
         speakOrderMeta = {
-          title: `🌅 平安夜 · 从${actualStart ? actualStart.name : 'P1'}开始`,
+          title: `平安夜 · 从${actualStart ? actualStart.name : 'P1'}开始`,
           rule: `${S.sheriffDailyOrderMode ? '警长不在场，回退' : '经典兼容'} · 默认座位顺序`
         };
       }
@@ -17126,7 +17135,7 @@ async function resolveNight() {
     }
   }
   if (!deaths.length) { 
-    Render.log('system','🌅 平安夜，无人死亡'); S._lastNightDeaths = [];
+    Render.log('system','平安夜，无人死亡'); S._lastNightDeaths = [];
     await callHost('death_announce', '平安夜，无人死亡');
     callHost('night_end','平安夜，无人死亡');
     callSpectator('night_end','平安夜，无人死亡');
@@ -17617,7 +17626,7 @@ async function endingSpeeches(winType) {
         const sideLabel = win ? '胜方' : '败方';
         const g = await waitInput(
           `【${sideLabel}感言 · 本组第${groupIndex+1}/${group.length}位】\n现在请以 ${seat} ${p.name}（${p.role.emoji}${p.role.name}）的身份，写下这局${win?'获胜':'失利'}后的感受。`,
-          `${win?'🏆':'💔'} ${p.role.emoji}${p.role.name} · ${sideLabel}`,
+          `${p.role.name} · ${sideLabel}`,
           p
         );
         Render.setSpeaking(p.id,true);
@@ -18273,20 +18282,19 @@ function startGame() {
     Render.log('system','🎬 导演模式启动 — ' + presel);
   } else if (S.playerId >= 0) {
     const pl = S.players[S.playerId];
-    const roleMark = window.RoleSigils ? RoleSigils.render(pl.role.id,'log-role-sigil') : '';
-    Render.log('system',roleMark+'你是 '+pl.name+'【'+pl.role.name+'】');
+    Render.log('system','🎭 你是 '+pl.name+'【'+pl.role.emoji+pl.role.name+'】');
   }
-  Render.log('system','<span class="log-inline-mark" data-ui-icon="dice" aria-hidden="true"></span>'+getRoleList()+(S.pureAI?' [纯AI]':''));
+  Render.log('system','🎲 '+getRoleList()+(S.pureAI?' [纯AI]':''));
   if (!S.pureAI && $('m-mbti').checked) {
-    Render.log('system','<span class="log-inline-mark" data-ui-icon="brain" aria-hidden="true"></span>性情：'+S.players.map(p=>p.name+'('+(p.mbtiKey||'未设定')+')').join(' · '));
+    Render.log('system',S.players.map(p=>p.name+'('+(p.mbtiKey||'')+')').join(' '));
   }
   if ($('m-cosplay').checked) {
     const withPersona = S.players.filter(p => playerConfigs[p.id] && playerConfigs[p.id].persona);
     if (withPersona.length) {
-      Render.log('system','<span class="log-inline-mark" data-ui-icon="mask" aria-hidden="true"></span>角色扮演：'+withPersona.map(p => p.name).join(' · '));
+      Render.log('system','角色扮演：'+withPersona.map(p => p.name).join(' '));
     }
   }
-  Render.log('night','第一夜…');
+  Render.log('night','🌙 第一夜…');
 gameRecord.push({type:'system',text:'开局'});
 Render.stats(); Render.modes(); Render.phaseClass();
 // 运行时开关（隐死亡/审判/匿名/遗言等）整局保持可调：开局忘了开可中途补上，实时生效（不会追溯已公布的信息）
@@ -18755,7 +18763,7 @@ function toggleDirectorControl(pid) {
   if (idx === -1) {
     S.directorIds.push(pid);
     p.isPlayer = true;
-    Render.log('system', `🎬 导演接管 ${p.name}【${p.role.emoji}${p.role.name}】`);
+    Render.log('system', `🎬 导演接管 ${p.name}【${p.role.name}】`);
   } else {
     S.directorIds.splice(idx, 1);
     p.isPlayer = false;
@@ -18807,8 +18815,8 @@ function renderCosplayPresets() {
   let cnt = 0;
   for (const pid in playerConfigs) { if (playerConfigs[pid].persona) cnt++; }
   box.innerHTML = cnt > 0
-    ? '<span style="font-size:0.65em;color:var(--gold);font-family:var(--font-title)">🎭 已配置 '+cnt+' 个角色人设（点击命牌编辑）</span>'
-    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">🎭 点击命牌可为角色配置自定义人设</span>';
+    ? '<span style="font-size:0.65em;color:var(--gold);font-family:var(--font-title)">已配置 '+cnt+' 个角色人设（点击命牌编辑）</span>'
+    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">点击命牌可为角色配置自定义人设</span>';
 }
 function applyAll() {
   const u=$('g-url').value, k=$('g-key').value, m=$('g-model').value;
@@ -18867,7 +18875,7 @@ function generateReplay() {
     return `<div class="pl-card${dead}">
       <div class="pl-av-wrap">${av}</div>
       <div class="pl-name">${publicPlayerLabel(p)}</div>
-      <div class="pl-role" style="color:${rc}">${p.role.emoji}${p.role.name}</div>
+      <div class="pl-role" style="color:${rc}">${p.role.name}</div>
       <div class="pl-pos">P${p.id+1}</div>
       ${deathInfo}
     </div>`;
@@ -24371,7 +24379,7 @@ directorChoose = function(p, promptFn, opts) {
   const phaseLabel = {night:'🌙夜晚',day:'☀️白天',sheriff:'👑竞选',vote:'🗳️投票',duel:'⏳投票准备'}[S.phase] || S.phase;
   const alive = S.players.filter(x=>x.alive).map(x=>`${x.name}${x.id===S.sheriff?'👑':''}`).join(' ');
   dirUpdateStatus(
-    `现在轮到 <b style="color:#ffe090">${publicPlayerLabel(p)}</b>【${p.role.emoji}${p.role.name}】发言 · ${phaseLabel} R${S.round} · 存活：${alive}`,
+    `现在轮到 <b style="color:#ffe090">${publicPlayerLabel(p)}</b>【${p.role.name}】发言 · ${phaseLabel} R${S.round} · 存活：${alive}`,
     'rgba(112,80,200,0.25)'
   );
 
@@ -24381,7 +24389,7 @@ directorChoose = function(p, promptFn, opts) {
     notif.className = 'le system';
     notif.style.cssText = 'padding:8px 12px;border:1px solid rgba(112,80,200,0.4);background:rgba(112,80,200,0.08);border-radius:var(--r);animation:vn-breathe 2s ease-in-out infinite';
     notif.innerHTML = `
-      <div style="font-size:.78em;color:#c0a0f0;margin-bottom:6px;font-family:var(--font-title)">🎬 导演 — <b style="color:#e0c8ff">${publicPlayerLabel(p)}</b>【${p.role.emoji}${p.role.name}】轮到发言</div>
+      <div style="font-size:.78em;color:#c0a0f0;margin-bottom:6px;font-family:var(--font-title)">🎬 导演 — <b style="color:#e0c8ff">${publicPlayerLabel(p)}</b>【${p.role.name}】轮到发言</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button id="_dir-self-${p.id}" style="flex:1;padding:6px 10px;background:rgba(112,80,200,0.25);border:1px solid rgba(160,120,240,0.5);border-radius:var(--r);color:#d0b0ff;font-size:.78em;cursor:pointer;font-family:var(--font-body)">✍️ 我来说</button>
         <button id="_dir-web-${p.id}" style="flex:1;padding:6px 10px;background:rgba(64,192,160,0.15);border:1px solid rgba(64,192,160,0.4);border-radius:var(--r);color:#60d8b8;font-size:.78em;cursor:pointer;font-family:var(--font-body)">🌐 复制给网页AI</button>
@@ -24404,7 +24412,7 @@ directorChoose = function(p, promptFn, opts) {
       if (!_dirLock()) return;
       Render.devLog && Render.devLog('info', `[导演] ${p.name} 选择「我来说」，打开输入框`);
       try {
-        _openInputModal(promptFn(p), p.role.emoji + p.role.name, resolve, p);
+        _openInputModal(promptFn(p), p.role.name, resolve, p);
         notif.remove();
       } catch(e) {
         // ★ 修复：打开失败不再无声卡死——解锁按钮、保留提示条、显示错误
@@ -24437,7 +24445,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
   overlay.style.cssText = 'position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(4px);animation:vn-fadein 0.2s ease';
   overlay.innerHTML = `
     <div style="max-width:480px;width:100%;background:linear-gradient(180deg,rgba(32,24,50,0.97),rgba(20,16,36,0.97));border:1px solid rgba(64,192,160,0.4);border-radius:12px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.6);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
-      <h3 style="margin:0;color:#60d8b8;font-family:var(--font-seal);font-size:1em">🌐 ${publicPlayerLabel(p)}【${p.role.emoji}${p.role.name}】— 复制给网页端AI</h3>
+      <h3 style="margin:0;color:#60d8b8;font-family:var(--font-seal);font-size:1em">🌐 ${publicPlayerLabel(p)}【${p.role.name}】— 复制给网页端AI</h3>
       <div style="font-size:0.72em;color:#6a9090;line-height:1.5">① 复制下方 prompt → ② 粘贴到 Claude.ai 或 ChatGPT → ③ 把回复粘贴回来</div>
 
       <!-- prompt区域 -->

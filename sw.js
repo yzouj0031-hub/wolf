@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v26-nonblocking-cdn';
+const CACHE_NAME = 'wolf-pwa-v30-card-role';
 const APP_SHELL = [
   './',
   './index.html',

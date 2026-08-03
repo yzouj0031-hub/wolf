@@ -20,7 +20,6 @@
     sliders:'<path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h3M11 18h9"/><circle cx="12" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>',
     reset:'<path d="M4 11a8 8 0 1 1 2.3 5.7"/><path d="M4 4v7h7"/><path d="M9 9l6 6M15 9l-6 6"/>',
     mask:'<path d="M4 7c5-3 11-3 16 0v6c0 5-4 8-8 8s-8-3-8-8Z"/><path d="M7 11c1.5-1 3-1 4 0M13 11c1.5-1 3-1 4 0M9 16c2 1 4 1 6 0"/>',
-    moon:'<path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/>',
     gavel:'<path d="m14 4 6 6M12 6l6 6M13 5 6 6-7 7-6-6ZM3 21h10M8 15l-5 5"/>',
     skull:'<path d="M5 11a7 7 0 1 1 14 0c0 3-1 4-3 5v4H8v-4c-2-1-3-2-3-5Z"/><circle cx="9" cy="11" r="1"/><circle cx="15" cy="11" r="1"/><path d="M10 16v4M14 16v4"/>',
     message:'<path d="M4 5h16v11H9l-5 4Z"/><path d="M8 9h8M8 12h6"/>',
