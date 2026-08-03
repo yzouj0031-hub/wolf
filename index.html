@@ -11485,6 +11485,57 @@ async function offerMechDuelBeforeVote() {
   return used;
 }
 
+// 🙋 投票前·申请额外发言：任一存活AI可申请，其他玩家表决(同意票 > 反对票+1 才通过)，
+//   通过则申请人额外发言一次(紧接着进入投票，能影响票型)。整局共 S.extraSpeechLeft(默认3) 次，
+//   发起即消耗、每投票前最多处理 1 位申请人。
+async function requestExtraSpeech(alive) {
+  if (S.extraSpeechLeft == null) S.extraSpeechLeft = 3;
+  if (S.extraSpeechLeft <= 0) return;
+  if (!alive || alive.length < 3) return;
+  // 1) 征集申请（并行问每个存活AI要不要申请）
+  const wants = [];
+  await batchCall(alive.filter(p => !p.isPlayer), 'c-vote', async p => {
+    try {
+      const r = await callAI(p, '【投票前·可申请额外发言】本局还剩 ' + S.extraSpeechLeft + ' 次额外发言机会。若你觉得自己被误解、或有关键信息/自辩还没说清，可申请一次额外发言——需其他玩家表决通过（同意票 > 反对票+1）。你要不要申请？（不确定就别浪费机会）\n<thinking>思考</thinking>\n<action>申请 或 None</action>', {noMemory:true});
+      const act = (r.action || '').trim();
+      if (/申请|请求/.test(act) && !/^\s*none\s*$/i.test(act)) wants.push(p.id);
+    } catch (e) {}
+  });
+  if (!wants.length) return;
+  // 2) 多人申请只取一位（座位号最小）
+  wants.sort((a, b) => a - b);
+  const requester = S.players[wants[0]];
+  if (!requester || !requester.alive) return;
+  S.extraSpeechLeft--;   // 发起即消耗
+  Render.log('system', '🙋 ' + requester.name + ' 申请额外发言（本局剩 ' + S.extraSpeechLeft + ' 次）。其他存活玩家表决…');
+  S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:'【申请额外发言】' + requester.name + ' 申请一次额外发言，需其他玩家表决（同意票>反对票+1 才通过）。'}));
+  // 3) 其他玩家表决 同意/反对（申请人不参与自己这次）
+  let agree = 0, oppose = 0;
+  const voters = alive.filter(p => p.id !== requester.id);
+  await batchCall(voters, 'c-vote', async p => {
+    try {
+      let yes;
+      if (p.isPlayer) {
+        const v = await waitChoice(requester.name + ' 申请额外发言，你同意吗？', '🗳️ 表决', [{label:'✅ 同意',value:'y'},{label:'❌ 反对',value:'n'}]);
+        yes = v === 'y';
+      } else {
+        const r = await callAI(p, '【表决·额外发言】' + requester.name + ' 申请一次额外发言。你是否同意让 ta 额外发言？想清楚：放 ta 多说是给机会露马脚，还是可能帮到对面？\n<thinking>思考</thinking>\n<action>同意 或 反对</action>', {noMemory:true});
+        const act = (r.action || '');
+        yes = /同意|赞成|支持/.test(act) && !/反对|不同意/.test(act);
+      }
+      if (yes) agree++; else oppose++;
+    } catch (e) { oppose++; }
+  });
+  const passed = agree > oppose + 1;
+  Render.log('system', '🗳️ 额外发言表决：同意 ' + agree + ' / 反对 ' + oppose + ' → ' + (passed ? '✅ 通过（同意>反对+1）' : '❌ 否决'));
+  S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:'【额外发言表决结果】' + requester.name + ' 的申请：同意 ' + agree + '、反对 ' + oppose + '——' + (passed ? '通过，' + requester.name + ' 获得一次额外发言。' : '未通过。')}));
+  gameRecord.push({type:'extra_speech_vote', round:S.round, requester:requester.name, agree, oppose, passed});
+  // 4) 通过 → 申请人额外发言一次
+  if (passed) {
+    await proc([requester], p => '【额外发言】你争取到的额外发言机会（全场表决通过）。说清你的关键信息或自辩，争取改变接下来的投票。<game>里直接写完整发言。', '额外发言', {noTrial:true});
+  }
+}
+
 async function proc(players, promptFn, label, opts) {
   opts = opts || {};
   const trialOn = $('m-trial').checked && !opts.wolfOnly && !opts.noTrial;
@@ -16384,6 +16435,8 @@ const PhaseHandlers = {
     // 🐈‍⬛ 先结算上一白天被投出局、缓死到期的白猫（死在"下一个投票阶段"）
     await resolveDueReprieves('day');
     const alive = S.players.filter(p => p.alive);
+    // 🙋 投票前：可申请额外发言（其他玩家表决，同意>反对+1 才通过；整局共 3 次）
+    await requestExtraSpeech(alive);
     const aiP = alive.filter(p => !p.isPlayer);
     const aiR = {};
     await batchCall(aiP,'c-vote', async p => {
