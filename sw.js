@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v29-log-decor';
+const CACHE_NAME = 'wolf-pwa-v30-card-role';
 const APP_SHELL = [
   './',
   './index.html',
