@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v18-card-role';
+const CACHE_NAME = 'wolf-en-pwa-v19-jbs-webai-one';
 const APP_SHELL = [
   './',
   './index.html',
