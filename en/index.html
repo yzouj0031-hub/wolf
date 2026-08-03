@@ -1790,11 +1790,22 @@ body.blind-review .le.ending { display:none !important; }
 .role-card-title { position:absolute; left:14px; right:14px; bottom:14px; z-index:5; padding:12px 10px 4px; text-align:center; background:linear-gradient(90deg,transparent,rgba(12,8,18,.72) 18%,rgba(12,8,18,.72) 82%,transparent); }
 .role-card-title strong { display:block; color:#f2d69d; font-family:var(--font-title); font-size:1.05rem; letter-spacing:.08em; text-shadow:0 2px 10px #000; }
 .role-card-title small { display:inline-block; color:#c5b9cd; font-size:.64rem; letter-spacing:.12em; margin-top:3px; }
-.role-card-back { transform:rotateY(180deg); padding:18px 18px 16px; display:flex; flex-direction:column; justify-content:center; align-items:stretch; background:radial-gradient(circle at 50% 4%,rgba(138,110,207,.23),transparent 42%),repeating-radial-gradient(circle at 50% 24%,transparent 0 36px,rgba(232,196,106,.035) 37px 38px),linear-gradient(145deg,#1c1527,#100d19); }
+.role-card-back { transform:rotateY(180deg); padding:18px 18px 16px; display:flex; flex-direction:column; justify-content:flex-start; align-items:stretch; background:radial-gradient(circle at 50% 4%,rgba(138,110,207,.23),transparent 42%),repeating-radial-gradient(circle at 50% 24%,transparent 0 36px,rgba(232,196,106,.035) 37px 38px),linear-gradient(145deg,#1c1527,#100d19); }
 .role-card-back::before { content:''; position:absolute; inset:8px; border:1px solid rgba(232,196,106,.22); border-radius:10px; pointer-events:none; }
 .role-card-back strong { color:#f2d69d; font-family:var(--font-title); font-size:1.08rem; text-align:center; margin:7px 0 10px; letter-spacing:.08em; }
-.role-card-rule { color:#d1c7d8; font-size:.78rem; line-height:1.75; text-align:left; max-height:190px; overflow:auto; position:relative; z-index:1; }
-.role-card-back small { color:#736a83; text-align:center; margin-top:14px; font-size:.64rem; }
+/* 正文改成占满卡片剩余空间，不再用固定 max-height。
+   原来写死 190px，但卡片在手机上会缩到 300/250px，正文却不跟着缩——
+   250px 的卡去掉内边距、纹章(68px)、标题和底部小字，只剩 ~85px，
+   于是溢出一百多像素；又因为 .role-card-back 是 justify-content:center，
+   上下同时被裁，看起来就是「字被切了一半」。
+   min-height:0 是关键：flex 子项默认 min-height:auto，不写它照样撑破。 */
+.role-card-rule { color:#d1c7d8; font-size:.78rem; line-height:1.75; text-align:left; flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; position:relative; z-index:1; padding-right:4px; }
+/* 滚动条要看得见，否则用户不知道下面还有内容 */
+.role-card-rule::-webkit-scrollbar { width:3px; }
+.role-card-rule::-webkit-scrollbar-track { background:rgba(255,255,255,.05); border-radius:3px; }
+.role-card-rule::-webkit-scrollbar-thumb { background:color-mix(in srgb,var(--role-accent,#c9a867) 55%,transparent); border-radius:3px; }
+.role-card-rule { scrollbar-width:thin; scrollbar-color:color-mix(in srgb,var(--role-accent,#c9a867) 55%,transparent) rgba(255,255,255,.05); }
+.role-card-back small { color:#736a83; text-align:center; margin-top:auto; padding-top:10px; font-size:.64rem; flex:0 0 auto; }
 .role-sigil { display:inline-grid; place-items:center; width:86px; height:86px; color:#d8b66b; filter:drop-shadow(0 4px 11px rgba(0,0,0,.55)); }
 .role-sigil svg { width:100%; height:100%; overflow:visible; }
 .role-sigil .sigil-ring,.role-sigil .sigil-glyph { fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
@@ -1819,7 +1830,9 @@ body.blind-review .le.ending { display:none !important; }
 #mode-cards .mcd-preset .pl { display:none; }
 #mode-cards .mcd-preset.has-art h3 { margin-top:auto; }
 @media (max-width:900px) { .rgrid { grid-template-columns:repeat(2,minmax(0,1fr)); } .ri0.role-flip { height:300px; } .lobby-tools { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (max-width:520px) { .rpan { padding:14px 10px; } .rbook-head { grid-template-columns:38px 1fr 38px; gap:6px; } .rbook-nav { width:38px; height:34px; } .rgrid { gap:8px; } .ri0.role-flip { height:250px; } .role-card-title { left:10px; right:10px; bottom:10px; } .role-card-title strong { font-size:.9rem; } .role-card-back { padding:16px 12px; } .role-card-rule { font-size:.7rem; line-height:1.6; } .lobby-tools { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } }
+@media (max-width:520px) { .rpan { padding:14px 10px; } .rbook-head { grid-template-columns:38px 1fr 38px; gap:6px; } .rbook-nav { width:38px; height:34px; } .rgrid { gap:8px; } .ri0.role-flip { height:274px; } .role-card-title { left:10px; right:10px; bottom:10px; } .role-card-title strong { font-size:.9rem; } .role-card-back { padding:12px 10px 10px; } .role-card-rule { font-size:.7rem; line-height:1.48; } .role-card-back .role-sigil { width:40px; height:40px; } .role-card-back strong { font-size:.92rem; margin:2px 0 5px; } .role-card-back small { padding-top:5px; font-size:.58rem; } .lobby-tools { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } }
+/* 320px 这类老窄屏（SE 一代等）：再让一点高度出来，正文仍然能一次看完 */
+@media (max-width:340px) { .ri0.role-flip { height:312px; } .role-card-rule { font-size:.66rem; } }
 @media (max-width:1180px) {
   #mode-cards { grid-template-columns:repeat(4,minmax(0,1fr)); width:min(900px,100%); }
   #mode-cards .mcd:nth-child(8) { grid-column:auto; }
