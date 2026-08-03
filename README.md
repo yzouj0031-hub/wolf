@@ -10,6 +10,7 @@
 - 支持桌面端、移动端和 PWA 离线访问
 - 支持简体中文 / English 界面切换、英文规则导出与英文 AI 行动指令
 - 可构建为 Capacitor Android 应用
+- 由 Google Antigravity (Gemini) / Claude / Codex 协助开发与优化
 
 ## 本地运行
 
