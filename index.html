@@ -19,14 +19,16 @@
 <meta property="og:site_name" content="AI 狼人杀">
 <meta property="og:title" content="🐺 AI 狼人杀 · 多个大模型自动对局·可观战">
 <meta property="og:description" content="多个大模型自动开局，互相推理、欺骗、结盟。你只管观战，看它们互相做局。免安装，点开即玩。">
-<meta property="og:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner.png">
+<meta property="og:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner-v2.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="月夜下的哥特狼人——AI 狼人杀，让推理变成一场戏">
 <meta property="og:url" content="https://yzouj0031-hub.github.io/wolf/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="🐺 AI 狼人杀 · 多个大模型自动对局·可观战">
 <meta name="twitter:description" content="多个大模型互相推理、欺骗、结盟，你只管观战。免安装，点开即玩。">
-<meta name="twitter:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner.png">
+<meta name="twitter:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner-v2.png">
+<meta name="twitter:image:alt" content="月夜下的哥特狼人——AI 狼人杀，让推理变成一场戏">
 <!-- 字体表用 media="print" + onload 换 media 的写法异步加载。
      原来是普通 <link rel="stylesheet">，属于阻塞渲染：fonts.googleapis.com
      一旦不是"秒断"而是"挂住"（丢包 / DNS 被污染到黑洞 IP，国内移动网络
@@ -3020,6 +3022,7 @@ body.has-wp::after {
         <label class="mti" data-ui-icon="sword" title="开启=骑士连斩模式：骑士每天可决斗一次，决斗命中狼→狼死、骑士存活、下一天还能继续决斗；决斗指向好人→骑士当场牺牲。推理越准的骑士能连续清狼。关闭=经典模式（默认）：骑士一局只能决斗一次，不论输赢用完即止。"><input type="checkbox" id="m-knight-chain" onchange="S.knightChainMode=this.checked">骑士连斩</label>
         <label class="mti" data-ui-icon="message" title="开启=传统单轮发言（默认）：白天每人只发言一次，发完直接投票（更接近线下标准狼人杀，节奏快）。关闭=双轮发言：每人发言两轮，第二轮可反驳/改票/总结（AI交锋更充分）。"><input type="checkbox" id="m-single-round" onchange="S.singleRound=this.checked" checked>单轮发言</label>
         <label class="mti" data-ui-icon="crown" title="开启后，只要警长仍在场，无论昨夜平安夜还是有人死亡，每天都由警长指定起始玩家和顺/逆时针方向；警长最后归票。关闭则仅第一天由警长定序，之后按昨夜死者下家或默认座位顺序。"><input type="checkbox" id="m-sheriff-daily-order" onchange="S.sheriffDailyOrderMode=this.checked" checked>警长每日定序</label>
+        <label class="mti" data-ui-icon="message" title="开启后，投票前 AI 可申请一次补充发言，由其他存活玩家表决；每局最多三次。默认关闭，保持标准发言流程。"><input type="checkbox" id="m-extra-speech" onchange="S.extraSpeechEnabled=this.checked">投票前补充发言</label>
         </div>
       </details>
       <details class="mset-g" data-grp="ai">
@@ -5573,7 +5576,9 @@ function buildRulesExportLegacy(includeAllRoles = false) {
   lines.push('本局只承认系统明确开启并写入战报的发言节点。实际可能出现：警长竞选发言、候选人最终陈词、警长平票 PK 追加发言、白天常规发言、白天放逐平票 PK 自救发言、符合规则的遗言。除此之外不要自行创造新环节。');
   lines.push('· ❌ 退选/退水只是候选人的状态选择，本身【没有】额外发言；不要脑补一篇“我的退水发言”。仍在竞选的候选人之后进行的【最终陈词】是系统真实环节，不是退水发言。');
   lines.push('· ❌ 没有常规「投票理由陈述轮」——白天常规发言结束后直接投票，所有人不会因为投票而再自动多说一轮。');
-  lines.push('· ✅ 只有系统明确宣布“平票，进入 PK”时，平票候选人才有 PK 追加发言，随后重新投票；未出现平票公告时绝对没有 PK。警长选举平票与白天放逐平票都适用。');
+  lines.push(S && S.extraSpeechEnabled
+    ? '· 除平票 PK 外，本局还开启了投票前补充发言：系统可能征集一名玩家的申请，经其余存活玩家表决通过后，才会额外发言一次；未出现系统申请与通过公告时，不得自行创造发言环节。'
+    : '· 只有系统明确宣布“平票，进入 PK”时，平票候选人才有 PK 追加发言，随后重新投票；未出现平票公告时绝对没有 PK。警长选举平票与白天放逐平票都适用。');
   lines.push('· ❌ 不要声称自己说过战报中不存在的特殊发言，也不要抱怨某段话被系统忽视。严格以带有明确阶段标签并真实出现在战报里的内容为准。');
   lines.push('');
   lines.push('━━━ 四、由时间线推出的关键铁律（AI 最容易犯错的地方）━━━');
@@ -5644,7 +5649,7 @@ function buildRulesExport() {
     isEdge
       ? '· 屠边局：狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
       : '· 屠城局：狼人仅在存活狼数≥存活好人数时获胜；杀光某一身份类别不会单独获胜；好人需清除全部狼人。',
-    `· 流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。只有系统明确宣布平票时才有PK追加发言；退选本身没有额外发言。`,
+    `· 流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。${S.extraSpeechEnabled ? '投票前可能出现经其他存活玩家表决通过的补充发言；' : '只有系统明确宣布平票时才有PK追加发言；'}退选本身没有额外发言。`,
     S.sheriffDailyOrderMode
       ? '· 警长存活时每天指定发言起点与方向，并最后归票。'
       : '· 首日由警长定序；后续按夜间死者位置或默认座位顺序发言，警长最后归票。',
@@ -5712,7 +5717,7 @@ function buildWebRulesExport(viewerP) {
     isEdge
       ? '胜负：屠边局。狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
       : '胜负：屠城局。狼人仅在存活狼数≥存活好人数时获胜；杀光神职或村民不会单独提前获胜；好人需清除全部狼人。',
-    `流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。只有系统明确宣布平票时才有PK追加发言；退选没有额外发言。`,
+    `流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。${S.extraSpeechEnabled ? '投票前可能出现经其他存活玩家表决通过的补充发言；' : '只有系统明确宣布平票时才有PK追加发言；'}退选没有额外发言。`,
     '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
     hdeath
       ? '隐死亡：普通夜间死亡不公开身份和具体死因；只有系统明确标注的公开技能事件/公开验证可以当事实。'
@@ -7125,7 +7130,7 @@ function saveCfg() {
     fbUrl:$('fb-url')?$('fb-url').value:'', fbKey:$('fb-key')?$('fb-key').value:'', fbModel:$('fb-model')?$('fb-model').value:'', fbType:$('fb-type')?$('fb-type').value:'openai',
     sumUrl:$('sum-url')?$('sum-url').value:'', sumKey:$('sum-key')?$('sum-key').value:'', sumModel:$('sum-model')?$('sum-model').value:'', sumType:$('sum-type')?$('sum-type').value:'openai', memCompress:$('mem-compress-enable')?$('mem-compress-enable').checked:true,
     spd:$('g-spd').value, anon:$('m-anon').checked, trial:$('m-trial').checked,
-    hdeath:$('m-hdeath').checked, mbti:$('m-mbti').checked, cosplay:$('m-cosplay').checked, blindNames:$('m-blindnames')?$('m-blindnames').checked:false, hardcore:$('m-hardcore')?$('m-hardcore').checked:false, cnames:$('cnames').value, lastwill:$('m-lastwill')?$('m-lastwill').value:'first', killEdge:$('m-kill-edge')?$('m-kill-edge').checked:false, singleRound:$('m-single-round')?$('m-single-round').checked:false, knightChain:$('m-knight-chain')?$('m-knight-chain').checked:false, sheriffDailyOrder:$('m-sheriff-daily-order')?$('m-sheriff-daily-order').checked:false,
+    hdeath:$('m-hdeath').checked, mbti:$('m-mbti').checked, cosplay:$('m-cosplay').checked, blindNames:$('m-blindnames')?$('m-blindnames').checked:false, hardcore:$('m-hardcore')?$('m-hardcore').checked:false, cnames:$('cnames').value, lastwill:$('m-lastwill')?$('m-lastwill').value:'first', killEdge:$('m-kill-edge')?$('m-kill-edge').checked:false, singleRound:$('m-single-round')?$('m-single-round').checked:false, knightChain:$('m-knight-chain')?$('m-knight-chain').checked:false, sheriffDailyOrder:$('m-sheriff-daily-order')?$('m-sheriff-daily-order').checked:false, extraSpeech:$('m-extra-speech')?$('m-extra-speech').checked:false,
     modeltag:$('m-modeltag')?$('m-modeltag').checked:true,
     thinking:$('m-thinking')?$('m-thinking').checked:true,
     kimiThinkingMode:$('kimi-thinking-mode')?$('kimi-thinking-mode').value:'smart',
@@ -7171,6 +7176,7 @@ function loadCfg() {
     if (d.singleRound !== undefined && $('m-single-round')) { $('m-single-round').checked = d.singleRound; S.singleRound = d.singleRound; }
     if (d.knightChain !== undefined && $('m-knight-chain')) { $('m-knight-chain').checked = d.knightChain; S.knightChainMode = d.knightChain; }
     if (d.sheriffDailyOrder !== undefined && $('m-sheriff-daily-order')) { $('m-sheriff-daily-order').checked = d.sheriffDailyOrder; S.sheriffDailyOrderMode = !!d.sheriffDailyOrder; }
+    if (d.extraSpeech !== undefined && $('m-extra-speech')) { $('m-extra-speech').checked = !!d.extraSpeech; S.extraSpeechEnabled = !!d.extraSpeech; }
     if (d.lastwill !== undefined && $('m-lastwill')) $('m-lastwill').value = d.lastwill;
     if (d.mbti   !== undefined) $('m-mbti').checked   = d.mbti;
     if (d.cosplay !== undefined) $('m-cosplay').checked = d.cosplay;
@@ -11515,6 +11521,73 @@ async function offerMechDuelBeforeVote() {
     Render.devLog && Render.devLog('warn', '[机械狼决斗·私密确认] 目标无法识别；技能未消耗，公共区保持静默');
   }
   return used;
+}
+
+// 投票前补充发言：任一存活AI可申请，其他玩家表决(同意票 > 反对票+1 才通过)，
+//   通过则申请人额外发言一次(紧接着进入投票，能影响票型)。整局共 S.extraSpeechLeft(默认3) 次，
+//   发起即消耗、每投票前最多处理 1 位申请人。
+async function requestExtraSpeech(alive) {
+  if (!S.extraSpeechEnabled) return;
+  if (S.extraSpeechLeft == null) S.extraSpeechLeft = 3;
+  if (S.extraSpeechLeft <= 0) return;
+  if (!alive || alive.length < 3) return;
+  // 1) 征集申请（并行问每个存活AI要不要申请）
+  const wants = [];
+  await batchCall(alive.filter(p => !p.isPlayer), 'c-vote', async p => {
+    try {
+      const r = await callAI(p, '【投票前·可申请额外发言】本局还剩 ' + S.extraSpeechLeft + ' 次额外发言机会。若你觉得自己被误解、或有关键信息/自辩还没说清，可申请一次额外发言——需其他玩家表决通过（同意票 > 反对票+1）。你要不要申请？（不确定就别浪费机会）\n<thinking>思考</thinking>\n<action>申请 或 None</action>', {noMemory:true});
+      const act = (r.action || '').trim();
+      if (/申请|请求/.test(act) && !/^\s*none\s*$/i.test(act)) wants.push(p.id);
+    } catch (e) {}
+  });
+  if (!wants.length) return;
+  // 2) 多人申请只取一位（座位号最小）
+  wants.sort((a, b) => a - b);
+  const requester = S.players[wants[0]];
+  if (!requester || !requester.alive) return;
+  S.extraSpeechLeft--;   // 发起即消耗
+  Render.log('system', '补充发言申请：' + requester.name + '（本局剩 ' + S.extraSpeechLeft + ' 次）。其他存活玩家表决中…');
+  S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:'【申请额外发言】' + requester.name + ' 申请一次额外发言，需其他玩家表决（同意票>反对票+1 才通过）。'}));
+  // 3) 其他玩家表决。AI 可并行；真人/导演位必须串行，因为 waitChoice
+  //    只有一个弹窗，并发打开会互相覆盖，留下永远不会 resolve 的 Promise。
+  let agree = 0, oppose = 0;
+  const voters = alive.filter(p => p.alive && p.id !== requester.id);
+  await batchCall(voters.filter(p => !p.isPlayer), 'c-vote', async p => {
+    try {
+      const r = await callAI(p, '【表决·额外发言】' + requester.name + ' 申请一次额外发言。你是否同意让 ta 额外发言？想清楚：放 ta 多说是给机会露马脚，还是可能帮到对面？\n<thinking>思考</thinking>\n<action>同意 或 反对</action>', {noMemory:true});
+      const act = (r.action || '');
+      const yes = /同意|赞成|支持/.test(act) && !/反对|不同意/.test(act);
+      if (yes) agree++; else oppose++;
+    } catch (e) {
+      oppose++;
+      Render.devLog && Render.devLog('warn', '[额外发言] AI 表决失败，按反对处理：' + (e && e.message || e));
+    }
+  });
+  for (const p of voters.filter(p => p.isPlayer)) {
+    try {
+      const v = await waitChoice(requester.name + ' 申请补充发言，你同意吗？', '补充发言表决', [{label:'同意',value:'y'},{label:'反对',value:'n'}]);
+      if (v === 'y') agree++; else oppose++;
+    } catch (e) {
+      oppose++;
+      Render.devLog && Render.devLog('warn', '[额外发言] 真人表决窗口失败，按反对处理：' + (e && e.message || e));
+    }
+  }
+  const passed = agree > oppose + 1;
+  Render.log('system', '补充发言表决：同意 ' + agree + ' / 反对 ' + oppose + ' → ' + (passed ? '通过（同意>反对+1）' : '未通过'));
+  S.players.filter(x => x.alive).forEach(x => x.memory.push({role:'system', content:'【额外发言表决结果】' + requester.name + ' 的申请：同意 ' + agree + '、反对 ' + oppose + '——' + (passed ? '通过，' + requester.name + ' 获得一次额外发言。' : '未通过。')}));
+  gameRecord.push({type:'extra_speech_vote', round:S.round, requester:requester.name, agree, oppose, passed});
+  // 4) 通过 → 申请人额外发言一次
+  if (passed && requester.alive) {
+    try {
+      await proc([requester], p => '【额外发言】你争取到的额外发言机会（全场表决通过）。说清你的关键信息或自辩，争取改变接下来的投票。<game>里直接写完整发言。', '额外发言', {noTrial:true});
+    } catch (e) {
+      // 这是投票前的可选插曲；生成/展示失败必须只跳过本次机会，不能卡住投票主流程。
+      const msg = requester.name + ' 的额外发言未完成（系统错误），已跳过并继续投票。';
+      Render.devLog && Render.devLog('err', '[额外发言] ' + msg + ' ' + (e && e.stack || e));
+      Render.log('system', '⚠️ ' + msg);
+      gameRecord.push({type:'system', round:S.round, phase:S.phase, technical:true, text:msg});
+    }
+  }
 }
 
 async function proc(players, promptFn, label, opts) {
@@ -16416,6 +16489,8 @@ const PhaseHandlers = {
     // 🐈‍⬛ 先结算上一白天被投出局、缓死到期的白猫（死在"下一个投票阶段"）
     await resolveDueReprieves('day');
     const alive = S.players.filter(p => p.alive);
+    // 🙋 投票前：可申请额外发言（其他玩家表决，同意>反对+1 才通过；整局共 3 次）
+    await requestExtraSpeech(alive);
     const aiP = alive.filter(p => !p.isPlayer);
     const aiR = {};
     await batchCall(aiP,'c-vote', async p => {
@@ -18193,6 +18268,8 @@ function forceReset() {
   if (_srBox) S.singleRound = _srBox.checked;
   const _sdoBox = $('m-sheriff-daily-order');
   if (_sdoBox) S.sheriffDailyOrderMode = _sdoBox.checked;
+  const _extraSpeechBox = $('m-extra-speech');
+  if (_extraSpeechBox) S.extraSpeechEnabled = _extraSpeechBox.checked;
   gameRecord = [];
   $('gl').innerHTML = '<div class="le system">── 准备就绪 ──</div>';
   $('bst').disabled = false;
@@ -20534,6 +20611,7 @@ function exportConfig() {
     cosplay: $('m-cosplay').checked,
     blindNames: $('m-blindnames') ? $('m-blindnames').checked : false,
     sheriffDailyOrder: $('m-sheriff-daily-order') ? $('m-sheriff-daily-order').checked : false,
+    extraSpeech: $('m-extra-speech') ? $('m-extra-speech').checked : false,
     pconfigs: playerConfigs,
     conc: {
       speak: getC('c-speak'), vote: getC('c-vote'), wolf: getC('c-wolf'),
@@ -20577,6 +20655,10 @@ function importConfigApply() {
     if (d.sheriffDailyOrder !== undefined && $('m-sheriff-daily-order')) {
       $('m-sheriff-daily-order').checked = !!d.sheriffDailyOrder;
       S.sheriffDailyOrderMode = !!d.sheriffDailyOrder;
+    }
+    if (d.extraSpeech !== undefined && $('m-extra-speech')) {
+      $('m-extra-speech').checked = !!d.extraSpeech;
+      S.extraSpeechEnabled = !!d.extraSpeech;
     }
     if (d.cnames) $('cnames').value = d.cnames;
     if (d.pconfigs) {
