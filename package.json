@@ -24,6 +24,7 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^6.1.2",
+    "fontmin": "^1.1.1",
     "sharp": "^0.33.5"
   },
   "dependencies": {
