@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v32-jbs-api-panel';
+const CACHE_NAME = 'wolf-pwa-v33-jbs-api-per-role';
 const APP_SHELL = [
   './',
   './index.html',
