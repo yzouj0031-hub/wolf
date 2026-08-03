@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v14-nonblocking-cdn';
+const CACHE_NAME = 'wolf-en-pwa-v15-wolfkill-scope';
 const APP_SHELL = [
   './',
   './index.html',

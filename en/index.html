@@ -13850,6 +13850,18 @@ const NightActions = {
     const safeRandomWolfTargets = alive.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf');
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // resumable final votes
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
+    /* 这段原来声明在下面「开场轮」的 for 块里（旧位置约 14151 行），
+       但「回响轮」的提示词也要用它，那是同一个函数里的另一个块——
+       于是只要狼队开场出现分歧、走进回响轮，就必然
+       ReferenceError: tacticalSacrificeHint is not defined，
+       整个 wolfKill 被外层 try/catch 吞掉，当晚狼刀直接作废。
+       内容是纯静态文本（无任何 ${} 插值），提到函数体顶层零风险。 */
+    const tacticalSacrificeHint = `
+
+【战术性自刀/刀队友·允许但必须算净收益】
+【可刀目标】包含你自己和已知狼队友，这不是名单错误。不要仅用“会少一只狼”否决，也不要为了花活随便牺牲。
+若考虑刀狼队友，必须比较：①该队友明天被放逐概率；②正常刀一名好人能减少多少神/民与票；③自刀能否骗解药、制造银水或深水身份、触发狼美人连带/其他死亡收益；④自刀后是否立刻触发好人胜利或让狼队人数崩盘。
+只有“牺牲后的团队预期收益”明确高于“该队友继续存活 + 今晚正常刀好人”时才支持。队友已近乎必出不等于自动该自刀：仍要说明活过今晚概率、女巫是否可能救、谁能靠这刀做成身份。反过来，只要账算得过来，就把它当正常候选，不得以原则性口号拒绝。`;
     const livingMagician = S.players.some(x => x.alive && x.role && x.role.id === 'magician');
     const magicKillDecisionHint = livingMagician ? `
 
@@ -14105,12 +14117,6 @@ const NightActions = {
       const singleWolfHint = isSingleWolf
         ? `\n\n⚠️ 单狼场景：场上只有你一只狼，没有队友讨论。直接给出今晚的决定。\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若有明确战术理由要空刀（制造平安夜嫁祸神职/保留刀口/残局博弈），可填 None 表示今晚不刀，但必须在 thinking 里写清目的，不能因纠结/犹豫而空刀】。\n⚠️ 不要在 <game> 文本里写 "<interrupt>" 标签——那是结构化字段，混在自然语言里会导致解析失败。`
         : `\n\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若主张空刀（制造平安夜嫁祸神职/保留刀口/残局博弈这类明确战术目的），填 None 并在 thinking 里说清理由；纯因纠结拿不定主意不许空刀，那就正常选目标】。`;
-      const tacticalSacrificeHint = `
-
-【战术性自刀/刀队友·允许但必须算净收益】
-【可刀目标】包含你自己和已知狼队友，这不是名单错误。不要仅用“会少一只狼”否决，也不要为了花活随便牺牲。
-若考虑刀狼队友，必须比较：①该队友明天被放逐概率；②正常刀一名好人能减少多少神/民与票；③自刀能否骗解药、制造银水或深水身份、触发狼美人连带/其他死亡收益；④自刀后是否立刻触发好人胜利或让狼队人数崩盘。
-只有“牺牲后的团队预期收益”明确高于“该队友继续存活 + 今晚正常刀好人”时才支持。队友已近乎必出不等于自动该自刀：仍要说明活过今晚概率、女巫是否可能救、谁能靠这刀做成身份。反过来，只要账算得过来，就把它当正常候选，不得以原则性口号拒绝。`;
       const prompt = `【狼队密谈·开场陈述】这是狼队内部,直接说,不用伪装。
 你的队友:${mates}
 可刀目标:${ts}${deadNote}
