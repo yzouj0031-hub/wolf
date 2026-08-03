@@ -14,7 +14,7 @@ for (const mappedFile of mappedFiles) {
     console.error(`❌ PNG 源图缺失：${source}`);
     process.exit(1);
   }
-  await sharp(source).webp({ quality: 90, effort: 6 }).toFile(output);
+  await sharp(source).webp({ quality: 82, effort: 6 }).toFile(output);
   console.log(`✓ ${path.basename(output)}`);
 }
 
