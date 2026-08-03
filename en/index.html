@@ -27,9 +27,16 @@
 <meta name="twitter:title" content="🐺 AI Werewolf · Multi-model autonomous games">
 <meta name="twitter:description" content="Watch AI agents deduce, deceive, and form alliances. No installation required.">
 <meta name="twitter:image" content="https://yzouj0031-hub.github.io/wolf/icons/og-banner.png">
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+<!-- 字体表用 media="print" + onload 换 media 的写法异步加载。
+     原来是普通 <link rel="stylesheet">，属于阻塞渲染：fonts.googleapis.com
+     一旦不是"秒断"而是"挂住"（丢包 / DNS 被污染到黑洞 IP，国内移动网络
+     很常见），整页要等它超时才开始画——实测挂住 25 秒仍是白屏。
+     注意会白屏的是这个几 KB 的 CSS，不是 fonts.gstatic.com 上几 MB 的字体文件：
+     字体文件挂住只会晚点换字（display=swap 兜底），实测首屏 191ms 正常。 -->
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet"></noscript>
 <script src="./storage-scope.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js"></script>
+<!-- Supabase 不再在这里同步加载（同样会阻塞解析导致白屏），改由 CloudSave 运行时异步注入 -->
 <script src="./i18n.js"></script>
 <script src="./native-http.js"></script>
 <!-- 🔥 Hot update: must load before the main script — its boot guard needs to record
@@ -6545,8 +6552,30 @@ const CloudSave = (() => {
     '127.0.0.1'                  // 本地开发
   ];
   const cloudAllowed = CLOUD_HOSTS.includes(String(location.hostname || '').toLowerCase());
-  const client = (cloudAllowed && window.supabase)
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+  /* Supabase 的 UMD 包原来写在 <head> 里同步加载，那行是阻塞解析的：
+     CDN 挂住（不是秒断）时后面两万行脚本一行都不执行，表现就是白屏打不开。
+     改成运行时异步注入——请求照样早早发出，但不再挡渲染；真拿不到也只是
+     云存档不可用，游戏本身照常能玩。client 因此从 const 改成 let，
+     在 init() 里等脚本到位后才创建。 */
+  const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.95.0/dist/umd/supabase.min.js';
+  let client = null;
+  let _sbLoading = null;
+  function loadSupabase(timeoutMs = 8000) {
+    if (window.supabase) return Promise.resolve(window.supabase);
+    if (_sbLoading) return _sbLoading;
+    _sbLoading = new Promise(resolve => {
+      let done = false;
+      const finish = () => { if (done) return; done = true; resolve(window.supabase || null); };
+      const s = document.createElement('script');
+      s.src = SUPABASE_CDN;
+      s.async = true;
+      s.onload = finish;
+      s.onerror = finish;
+      setTimeout(finish, timeoutMs);   // 挂住的情况 onerror 不会触发，必须自己兜底
+      document.head.appendChild(s);
+    });
+    return _sbLoading;
+  }
   let user = null;
   let uploadTimer = null;
   let pendingRaw = null;
@@ -6886,9 +6915,13 @@ const CloudSave = (() => {
       setStatus('此部署未启用云存档 · 游戏进度仅保存在本机');
       return;
     }
-    if (!client) { setStatus('云存档组件加载失败，请检查网络'); return; }
+    // 弹窗开关先接上：组件还在路上时用户点了也有反应，不至于像按钮坏了
     el('cloud-account-open')?.addEventListener('click', () => el('cloud-pop')?.classList.add('show'));
     el('cloud-close')?.addEventListener('click', () => el('cloud-pop')?.classList.remove('show'));
+    setStatus('云存档组件加载中…');
+    await loadSupabase();
+    client = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+    if (!client) { setStatus('云存档组件加载失败，请检查网络'); return; }
     el('cloud-signin')?.addEventListener('click', signIn);
     el('cloud-signup')?.addEventListener('click', signUp);
     el('cloud-logout')?.addEventListener('click', signOut);
