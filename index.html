@@ -513,7 +513,9 @@ body.fx-lite .role-cinema-panel { animation:none; }
 .pn { font-family: var(--font-title); font-weight: 700; font-size: 0.8em; color: #f0e8ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ptag { font-size: 0.55em; color: #6860a0; }
 .rt { font-size: 0.6em; padding: 1px 4px; border-radius: 3px; display: inline-block; background: rgba(245,160,184,0.06); color: #a898c0; }
-.mbtitag { font-size: 0.5em; padding: 1px 4px; border-radius: 3px; background: rgba(136,128,200,0.12); color: #a898c8; display: inline-block; }
+/* 性情标签原来是「🏛️INTJ」，emoji 不携带信息（没人知道 🏛️ 是 INTJ），
+   删掉后只剩四字母码，做成小号字母牌的样子反而更清楚也更统一。 */
+.mbtitag { font-size: 0.5em; padding: 1px 5px; border-radius: 3px; background: rgba(136,128,200,0.12); color: #a898c8; display: inline-block; letter-spacing: .07em; font-variant-numeric: tabular-nums; }
 /* ★ 命牌里的模型标签槽：放在名字下方，不挤屏幕 */
 .modeltag-slot { font-size: 0.55em; line-height: 1.3; margin: 1px 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modeltag-slot:empty { display: none; }
@@ -7118,15 +7120,32 @@ function loadCfg() {
 /* ================================================================
  *  § 7. Render 模块
  * ================================================================ */
+/* 对局日志里几乎每条都以 emoji 开头（240 条里 220 条），一屏下来就是一列
+   彩色小图标，这是界面显得廉价的主要来源。日志条目本身已经有 .le.<type>
+   的分类样式（system / night / vote …）在承担区分作用，emoji 是纯装饰。
+
+   在这里统一剥掉，而不是去改那 220 处调用：
+   · 只剥「装饰位」——行首、以及 ══/──/━━ 分隔线之后紧跟的那几个，
+     句子中间的（比如 你是X【🐺狼人】里的角色 emoji）保持不动；
+   · 制表符 ══ ── 和箭头 → 不在 emoji 范围内，不会被误伤；
+   · 这里是纯显示层，发给模型的提示词一个字都不经过这个函数。
+   要改回去，删掉 stripLogDecor 的调用即可。 */
+/* ⚠ ❌ ✅ 不剥：它们是状态标记不是装饰。日志条目没有单独的 warn/error
+   类型（报警和普通消息都用 'system'），剥掉等于把唯一的严重性信号删了。 */
+const LOG_DECOR_RE = /^(\s*(?:<[^>]+>\s*)*(?:[═─━—―-]{2,}\s*)?)(?:(?:(?![⚠❌✅])[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}])+\s*)+/u;
+function stripLogDecor(html) {
+  return typeof html === 'string' ? html.replace(LOG_DECOR_RE, '$1') : html;
+}
+
 const Render = {
   log(type, html) {
     const d = document.createElement('div');
     d.className = 'le ' + type;
     // 日志类型已由颜色和排版表达，行首不再叠加装饰性 emoji。
-    const refined = typeof html === 'string'
-      ? html.replace(/^(?:🌙|🐺|💀|🏆|💔|🎲|🧠|💬|⚖️?|⚠️?|🌞|☀️?)\s*/u, '')
-      : html;
-    d.innerHTML = refined;
+    // （main 上原本是一张 12 个 emoji 的白名单，这里换成 stripLogDecor：
+    //   覆盖全部 181 条日志、能处理 ══ 分隔线后面的和连着两个的，
+    //   并且保留 ⚠❌✅——详见上面注释。）
+    d.innerHTML = stripLogDecor(html);
     blindMaskElementText(d);
     $('gl').appendChild(d);
     scrollGL();
@@ -7224,7 +7243,7 @@ const Render = {
     const pn = $('pn-'+p.id);
     if (pn) pn.textContent = publicPlayerLabel(p);
     const mt = $('mbt-'+p.id);
-    if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbti.emoji+p.mbtiKey : '';
+    if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbtiKey : '';
     // ★ 模型标签（小号，放在命牌里）
     const mts = $('mts-'+p.id);
     if (mts) mts.innerHTML = getModelTagHtml(p, {size:'small'});
@@ -13907,6 +13926,18 @@ const NightActions = {
     const safeRandomWolfTargets = alive.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf');
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // 可恢复的最终投票
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
+    /* 这段原来声明在下面「开场轮」的 for 块里（旧位置约 14151 行），
+       但「回响轮」的提示词也要用它，那是同一个函数里的另一个块——
+       于是只要狼队开场出现分歧、走进回响轮，就必然
+       ReferenceError: tacticalSacrificeHint is not defined，
+       整个 wolfKill 被外层 try/catch 吞掉，当晚狼刀直接作废。
+       内容是纯静态文本（无任何 ${} 插值），提到函数体顶层零风险。 */
+    const tacticalSacrificeHint = `
+
+【战术性自刀/刀队友·允许但必须算净收益】
+【可刀目标】包含你自己和已知狼队友，这不是名单错误。不要仅用“会少一只狼”否决，也不要为了花活随便牺牲。
+若考虑刀狼队友，必须比较：①该队友明天被放逐概率；②正常刀一名好人能减少多少神/民与票；③自刀能否骗解药、制造银水或深水身份、触发狼美人连带/其他死亡收益；④自刀后是否立刻触发好人胜利或让狼队人数崩盘。
+只有“牺牲后的团队预期收益”明确高于“该队友继续存活 + 今晚正常刀好人”时才支持。队友已近乎必出不等于自动该自刀：仍要说明活过今晚概率、女巫是否可能救、谁能靠这刀做成身份。反过来，只要账算得过来，就把它当正常候选，不得以原则性口号拒绝。`;
     const livingMagician = S.players.some(x => x.alive && x.role && x.role.id === 'magician');
     const magicKillDecisionHint = livingMagician ? `
 
@@ -14162,12 +14193,6 @@ const NightActions = {
       const singleWolfHint = isSingleWolf
         ? `\n\n⚠️ 单狼场景：场上只有你一只狼，没有队友讨论。直接给出今晚的决定。\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若有明确战术理由要空刀（制造平安夜嫁祸神职/保留刀口/残局博弈），可填 None 表示今晚不刀，但必须在 thinking 里写清目的，不能因纠结/犹豫而空刀】。\n⚠️ 不要在 <game> 文本里写 "<interrupt>" 标签——那是结构化字段，混在自然语言里会导致解析失败。`
         : `\n\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若主张空刀（制造平安夜嫁祸神职/保留刀口/残局博弈这类明确战术目的），填 None 并在 thinking 里说清理由；纯因纠结拿不定主意不许空刀，那就正常选目标】。`;
-      const tacticalSacrificeHint = `
-
-【战术性自刀/刀队友·允许但必须算净收益】
-【可刀目标】包含你自己和已知狼队友，这不是名单错误。不要仅用“会少一只狼”否决，也不要为了花活随便牺牲。
-若考虑刀狼队友，必须比较：①该队友明天被放逐概率；②正常刀一名好人能减少多少神/民与票；③自刀能否骗解药、制造银水或深水身份、触发狼美人连带/其他死亡收益；④自刀后是否立刻触发好人胜利或让狼队人数崩盘。
-只有“牺牲后的团队预期收益”明确高于“该队友继续存活 + 今晚正常刀好人”时才支持。队友已近乎必出不等于自动该自刀：仍要说明活过今晚概率、女巫是否可能救、谁能靠这刀做成身份。反过来，只要账算得过来，就把它当正常候选，不得以原则性口号拒绝。`;
       const prompt = `【狼队密谈·开场陈述】这是狼队内部,直接说,不用伪装。
 你的队友:${mates}
 可刀目标:${ts}${deadNote}
@@ -16029,7 +16054,7 @@ const PhaseHandlers = {
         };
       } else {
         speakOrderMeta = {
-          title: `🌅 平安夜 · 从${actualStart ? actualStart.name : 'P1'}开始`,
+          title: `平安夜 · 从${actualStart ? actualStart.name : 'P1'}开始`,
           rule: `${S.sheriffDailyOrderMode ? '警长不在场，回退' : '经典兼容'} · 默认座位顺序`
         };
       }
@@ -17036,7 +17061,7 @@ async function resolveNight() {
     }
   }
   if (!deaths.length) { 
-    Render.log('system','🌅 平安夜，无人死亡'); S._lastNightDeaths = [];
+    Render.log('system','平安夜，无人死亡'); S._lastNightDeaths = [];
     await callHost('death_announce', '平安夜，无人死亡');
     callHost('night_end','平安夜，无人死亡');
     callSpectator('night_end','平安夜，无人死亡');
@@ -18185,14 +18210,14 @@ function startGame() {
     const pl = S.players[S.playerId];
     Render.log('system','🎭 你是 '+pl.name+'【'+pl.role.emoji+pl.role.name+'】');
   }
-  Render.log('system','🎲 '+getRoleList()+(S.pureAI?' [🤖纯AI]':''));
+  Render.log('system','🎲 '+getRoleList()+(S.pureAI?' [纯AI]':''));
   if (!S.pureAI && $('m-mbti').checked) {
-    Render.log('system','🧠 '+S.players.map(p=>p.name+'('+(p.mbti?p.mbti.emoji:'')+')').join(' '));
+    Render.log('system',S.players.map(p=>p.name+'('+(p.mbtiKey||'')+')').join(' '));
   }
   if ($('m-cosplay').checked) {
     const withPersona = S.players.filter(p => playerConfigs[p.id] && playerConfigs[p.id].persona);
     if (withPersona.length) {
-      Render.log('system','🎭 角色扮演：'+withPersona.map(p => '🎭'+p.name).join(' '));
+      Render.log('system','角色扮演：'+withPersona.map(p => p.name).join(' '));
     }
   }
   Render.log('night','🌙 第一夜…');
@@ -18716,8 +18741,8 @@ function renderCosplayPresets() {
   let cnt = 0;
   for (const pid in playerConfigs) { if (playerConfigs[pid].persona) cnt++; }
   box.innerHTML = cnt > 0
-    ? '<span style="font-size:0.65em;color:var(--gold);font-family:var(--font-title)">🎭 已配置 '+cnt+' 个角色人设（点击命牌编辑）</span>'
-    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">🎭 点击命牌可为角色配置自定义人设</span>';
+    ? '<span style="font-size:0.65em;color:var(--gold);font-family:var(--font-title)">已配置 '+cnt+' 个角色人设（点击命牌编辑）</span>'
+    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">点击命牌可为角色配置自定义人设</span>';
 }
 function applyAll() {
   const u=$('g-url').value, k=$('g-key').value, m=$('g-model').value;
