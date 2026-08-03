@@ -711,32 +711,39 @@ body.fx-lite *, body.fx-lite *::before, body.fx-lite *::after {
 }
 .gl::before { content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: linear-gradient(90deg, transparent, rgba(245,160,184,0.15), transparent); }
 
-.le { margin-bottom: 8px; padding: 8px 12px; border-radius: var(--r); line-height: 1.5; font-size: 0.85em; animation: vn-fadein 0.35s ease; content-visibility: auto; contain-intrinsic-size: 0 60px; }
+.le { margin-bottom: 6px; padding: 9px 12px; border-radius: 6px; line-height: 1.5; font-size: 0.85em; animation: vn-fadein 0.28s ease; content-visibility: auto; contain-intrinsic-size: 0 60px; }
 @keyframes vn-fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-.le.system { text-align: center; color: #8880a8; font-size: 0.75em; background: transparent; padding: 4px 12px; position: relative; }
-.le.system::before, .le.system::after { content: '───'; color: rgba(245,160,184,0.12); font-size: 0.7em; margin: 0 8px; }
+.le.system { display:flex; align-items:center; justify-content:center; gap:10px; text-align:center; color:#8f89a4; font-size:.72em; background:transparent; padding:6px 12px; position:relative; letter-spacing:.04em; }
+.le.system::before, .le.system::after { content:''; width:28px; height:1px; background:linear-gradient(90deg,transparent,rgba(205,176,220,.24)); }
+.le.system::after { background:linear-gradient(90deg,rgba(205,176,220,.24),transparent); }
 
-.le.speech { border-left: 3px solid var(--gold); background: linear-gradient(90deg, rgba(245,160,184,0.04), transparent); }
+.le.speech { border:1px solid rgba(209,174,202,.055); border-left:2px solid rgba(245,160,184,.72); background:linear-gradient(110deg,rgba(35,25,48,.48),rgba(10,8,20,.16) 72%); box-shadow:inset 0 1px rgba(255,255,255,.018); }
 .le-copy-btn { display:none; margin-left:auto; padding:1px 5px; font-size:0.72em; background:rgba(245,160,184,0.1); border:1px solid rgba(245,160,184,0.2); border-radius:4px; color:#c8b0d8; cursor:pointer; line-height:1.4; transition:all 0.15s; }
 .le-copy-btn:hover { background:rgba(245,160,184,0.22); color:#f0d0e8; }
 .le.speech:hover .le-copy-btn { display:inline-block; }
-.le.night { border-left: 3px solid #7868b0; background: linear-gradient(90deg, rgba(120,104,176,0.05), transparent); }
-.le.night-detail { border-left: 3px solid #6858a0; background: linear-gradient(90deg, rgba(104,88,160,0.06), transparent); font-size: 0.75em; color: #a898c8; }
-.le.night-result { border-left: 3px solid #5848a0; background: linear-gradient(90deg, rgba(88,72,160,0.06), transparent); font-size: 0.72em; color: #9888b8; }
-.le.night-atmo { border-left: 3px solid #404060; background: transparent; font-size: 0.78em; color: #6868a0; text-align: center; padding: 6px; letter-spacing: 0.08em; }
+.le.night { border-left:2px solid #7566a8; background:linear-gradient(90deg,rgba(88,75,133,.09),transparent 72%); color:#aaa2c8; }
+.le.night-detail { border-left:2px solid #5e527f; background:linear-gradient(90deg,rgba(77,66,110,.08),transparent 72%); font-size:.75em; color:#9b92b8; }
+.le.night-result { border-left:2px solid #504673; background:linear-gradient(90deg,rgba(69,59,103,.08),transparent 72%); font-size:.72em; color:#9188aa; }
+.le.night-atmo { border:0; background:transparent; font-family:var(--font-title); font-size:.74em; color:#6f698a; text-align:center; padding:9px 6px; letter-spacing:.14em; }
+.le.night-atmo::before, .le.night-atmo::after { content:''; display:inline-block; vertical-align:middle; width:22px; height:1px; margin:0 10px; background:linear-gradient(90deg,transparent,rgba(126,114,165,.34)); }
+.le.night-atmo::after { background:linear-gradient(90deg,rgba(126,114,165,.34),transparent); }
 .le.death { border-left: 3px solid var(--cinnabar); background: linear-gradient(90deg, rgba(200,48,64,0.06), transparent); color: var(--cinnabar-light); }
 .le.sheriff { border-left: 3px solid var(--gold); background: linear-gradient(90deg, rgba(245,160,184,0.06), transparent); }
-.le.wolfchat { border-left: 3px solid var(--wolf-red); background: linear-gradient(90deg, rgba(200,48,64,0.06), transparent); position: relative; }
-.le.wolfchat::before { content: '🐺'; position: absolute; top: 4px; right: 6px; font-size: 0.6em; opacity: 0.3; }
+.le.wolfchat { border:1px solid rgba(200,48,64,.07); border-left:2px solid var(--wolf-red); background:linear-gradient(110deg,rgba(72,20,36,.13),rgba(10,8,20,.16) 72%); position:relative; }
+.le.wolfchat::before { content:'密议'; position:absolute; top:7px; right:9px; padding:1px 5px; border:1px solid rgba(214,81,100,.18); border-radius:3px; font-size:.52em; letter-spacing:.12em; color:#a85f70; opacity:.72; }
 .le.trial { border-left: 3px solid #e0a060; background: linear-gradient(90deg, rgba(224,160,96,0.06), transparent); }
 .le.ending { border-left: 3px solid var(--gold); background: linear-gradient(90deg, rgba(245,160,184,0.06), transparent); }
 /* 终局盲复盘开启后，隐藏已经泄底的终局感言；关闭模式即可恢复查看。 */
 body.blind-review .le.ending { display:none !important; }
 .le.meeting { border-left: 3px solid var(--cinnabar); background: linear-gradient(90deg, rgba(200,48,64,0.08), transparent); }
 
-.lh { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-family: var(--font-title); font-weight: 600; font-size: 0.85em; }
+.lh { display:flex; align-items:center; gap:7px; margin-bottom:4px; font-family:var(--font-title); font-weight:600; font-size:.85em; }
 .lh .name { color: var(--gold-light); }
+.log-avatar { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; flex:0 0 24px; border:1px solid rgba(224,188,209,.2); border-radius:50%; background:linear-gradient(145deg,rgba(75,55,87,.72),rgba(28,23,43,.88)); color:#d9bfd0; font:600 .66em/1 var(--font-title); box-shadow:inset 0 1px rgba(255,255,255,.05); }
+.ending-state { display:inline-flex; align-items:center; min-height:18px; padding:1px 6px; border:1px solid currentColor; border-radius:3px; font-size:.62em; letter-spacing:.06em; opacity:.78; }
+.ending-state.win { color:var(--jade); }
+.ending-state.loss { color:var(--cinnabar); }
 .log-thought { font-size: 0.75em; color: #7068a0; font-style: italic; padding: 3px 8px; background: rgba(0,0,0,0.2); border-radius: 3px; margin-bottom: 3px; border-left: 2px solid #505080; }
 .log-game { font-size: 0.88em; color: #d8d0e8; padding: 3px 6px; background: rgba(245,160,184,0.015); border-radius: 3px; line-height: 1.6; }
 
@@ -5558,11 +5565,14 @@ function buildRulesExport() {
     interactions.forEach(x => lines.push('· ' + x));
   }
 
-  lines.push('', '━━ 阅读与推理 ━━');
+  lines.push('', '━━ 信息边界·必须遵守 ━━');
   lines.push('· 系统公开验证和本人明确收到的私密行动记录优先；玩家发言、自报身份和遗言只是声明。');
-  lines.push('· 单次口误、记错摘要、措辞过满或语气强弱只能形成疑点，不能单独当成身份铁证。');
-  lines.push('· 多人复读同一理由仍只是一条证据；结合票型、持续行为、信息来源与阵营收益判断。');
-  lines.push('· 公开摘要可能比角色私密说明简略；若玩家声称收到系统反馈，应先核对实际结算，不能仅凭摘要判定其“必然说谎”。');
+  lines.push('· 公开摘要可能比角色私密说明简略；在没有系统实际结算或本人确定私密记录构成冲突前，不得仅凭摘要判定玩家“必然说谎”。');
+  lines.push('', '━━ 推理建议·非强制 ━━');
+  lines.push('以下内容只供当前AI形成判断时参考，不属于游戏规则，也不约束其他玩家。AI可以结合人设、局势和已有证据，自主采用、调整或拒绝这些建议。');
+  lines.push('· 单次口误、记错摘要、措辞过满或语气强弱通常只是疑点，不必单独当成身份铁证。');
+  lines.push('· 多人重复同一理由不必然增加证据强度；可自行结合票型、持续行为、信息来源与阵营收益判断。');
+  lines.push('· 不得要求其他玩家遵循这些建议，也不得将其未遵循视为违规、说谎或身份铁证。');
 
   return lines.join('\n');
 }
@@ -7131,6 +7141,10 @@ const Render = {
   log(type, html) {
     const d = document.createElement('div');
     d.className = 'le ' + type;
+    // 日志类型已由颜色和排版表达，行首不再叠加装饰性 emoji。
+    // （main 上原本是一张 12 个 emoji 的白名单，这里换成 stripLogDecor：
+    //   覆盖全部 181 条日志、能处理 ══ 分隔线后面的和连着两个的，
+    //   并且保留 ⚠❌✅——详见上面注释。）
     d.innerHTML = stripLogDecor(html);
     blindMaskElementText(d);
     $('gl').appendChild(d);
@@ -17936,7 +17950,7 @@ async function runPostGame(speakerFilter, targetId) {
 function logUserPostGame(userName, msg, targetPlayer) {
   const e = document.createElement('div');
   e.className = 'le ending';
-  e.innerHTML = `<div class="lh"><span>👤</span><span class="name">${userName}</span><span style="font-size:.65em;color:#80c8e8">[观众${targetPlayer?'→'+publicPlayerLabel(targetPlayer):''}]</span></div>`;
+  e.innerHTML = `<div class="lh"><span class="log-avatar">观</span><span class="name">${userName}</span><span class="ending-state" style="color:#80c8e8">观众${targetPlayer?'·'+publicPlayerLabel(targetPlayer):''}</span></div>`;
   const gd = document.createElement('div');
   gd.className = 'log-game';
   gd.textContent = msg;
@@ -17988,7 +18002,7 @@ async function streamEnding(p, r, w, recordLabel) {
   if (blindNamesOn() && r) r = {...r, thinking:blindMaskPublic(r.thinking || ''), game:blindMaskPublic(r.game || '')};
   const e = document.createElement('div');
   e.className = 'le ending';
-  e.innerHTML = `<div class="lh"><span>${p.role.emoji}</span><span class="name">${publicPlayerLabel(p)}</span><span style="font-size:.65em;color:${w?'var(--jade)':'var(--cinnabar)'}">[${w?'🏆胜':'💔败'}|${p.role.name}]</span></div>`;
+  e.innerHTML = `<div class="lh"><span>${getAvatarHtml(p, 24)}</span><span class="name">${publicPlayerLabel(p)}</span><span class="ending-state ${w?'win':'loss'}">${w?'胜方':'败方'} · ${p.role.name}</span></div>`;
   const gd = document.createElement('div');
   gd.className = 'log-game';
   e.appendChild(gd);
@@ -18006,7 +18020,7 @@ async function logEnding(p, g, w) {
   if (blindNamesOn()) g = blindMaskPublic(g || '');
   const d = document.createElement('div');
   d.className = 'le ending';
-  d.innerHTML = `<div class="lh"><span>${p.role.emoji}</span><span class="name">${publicPlayerLabel(p)}</span><span style="font-size:.65em;color:${w?'var(--jade)':'var(--cinnabar)'}">[${w?'🏆胜':'💔败'}|${p.role.name}]</span></div><div class="log-game"></div>`;
+  d.innerHTML = `<div class="lh"><span>${getAvatarHtml(p, 24)}</span><span class="name">${publicPlayerLabel(p)}</span><span class="ending-state ${w?'win':'loss'}">${w?'胜方':'败方'} · ${p.role.name}</span></div><div class="log-game"></div>`;
   $('gl').appendChild(d);
   scrollGL();
   // ★ 真人/导演输入的终局感言也走与 AI 相同的逐字流动效果。
@@ -21675,7 +21689,10 @@ function getAvatarHtml(p, size) {
   if (av) {
     return `<img src="${av}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;border:1px solid rgba(245,160,184,0.2)" onerror="this.style.display='none'">`;
   }
-  return `<span style="font-size:${size*0.75}px;line-height:${size}px">${getEmoji(p)}</span>`;
+  const label = blindNamesOn() && !canSee(p)
+    ? `P${p.id + 1}`
+    : String(p.name || `P${p.id + 1}`).trim().slice(0, 1).toUpperCase();
+  return `<span class="log-avatar" style="width:${size}px;height:${size}px;flex-basis:${size}px">${escapeHtml(label)}</span>`;
 }
 
 /* ================================================================
@@ -25287,9 +25304,16 @@ if ('serviceWorker' in navigator &&
     var w=window.innerWidth,hh=window.innerHeight;
     var z=1;
     if(w>=601&&w>hh){ z=Math.min(1,w/1340); if(z>0.97)z=1; z=Math.max(0.62,z); }
-    var manual=localStorage.getItem('uiZoom');
+    var manual=null;
+    try{manual=localStorage.getItem('uiZoom');}catch(_){}
     if(manual==='off'){z=1;}
-    else if(manual&&!isNaN(parseFloat(manual))){z=parseFloat(manual);}
+    else if(manual!==null){
+      var parsed=Number(manual);
+      if(Number.isFinite(parsed)){z=parsed;}
+      else{try{localStorage.removeItem('uiZoom');}catch(_){}}
+    }
+    // Imported/legacy settings must never collapse the whole UI into a thin strip.
+    z=Math.min(1,Math.max(0.62,z));
     z=Math.round(z*1000)/1000;
     document.querySelectorAll('.gc').forEach(function(el){
       if(z<1){
