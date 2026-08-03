@@ -2024,7 +2024,18 @@ body.has-wp::after {
 .jbs-muted{color:#8b90a8;font-size:.8em;line-height:1.65}
 .jbs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.jbs-grid>button,.jbs-grid>.jbs-note{grid-column:1/-1}
 .jbs-grid label{display:flex;flex-direction:column;gap:6px;color:#aeb3c5;font-size:.78em}
-.jbs-kicker{color:#e8b878;font-family:var(--font-title);font-size:.78em;letter-spacing:.08em}.jbs-note{padding:9px 11px;border-left:3px solid rgba(232,184,120,.55);background:rgba(232,184,120,.06);color:#9ca2b8;font-size:.74em;line-height:1.6}
+.jbs-kicker{color:#e8b878;font-family:var(--font-title);font-size:.78em;letter-spacing:.08em}
+/* 剧本杀自己的 API 面板：每个角色一行，右边填单独的模型 */
+.jbs-api-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(140,150,190,.09)}
+.jbs-api-row:last-child{border-bottom:0}
+.jbs-api-who{display:flex;align-items:center;gap:7px;color:#c3c8db;font-size:.78em;min-width:0}
+.jbs-api-who b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jbs-api-slot{flex:0 0 auto;padding:1px 5px;border:1px solid rgba(140,150,190,.24);border-radius:3px;color:#8b93ab;font-size:.86em}
+/* .jbs-input 的 min-height:90px 是给文本域用的，这里全是单行输入 */
+#jbs-api-panel input.jbs-input{min-height:38px;font-size:.82em;padding:8px 10px}
+.jbs-api-row input.jbs-input{min-height:34px;font-size:.78em;padding:6px 8px}
+.jbs-api-inherit{color:#6f7691}
+@media(max-width:640px){.jbs-api-row{grid-template-columns:1fr;gap:5px}}.jbs-note{padding:9px 11px;border-left:3px solid rgba(232,184,120,.55);background:rgba(232,184,120,.06);color:#9ca2b8;font-size:.74em;line-height:1.6}
 .jbs-field label{display:block;color:#8b90a8;font-size:.75em;margin-bottom:5px}
 .jbs-field select{width:100%;background:#171b2b;color:#e6e2f0;border:1px solid rgba(140,150,190,.22);padding:9px;border-radius:8px}
 .jbs-warning{margin-top:9px;padding:8px 10px;border-left:3px solid #d6a04c;background:rgba(214,160,76,.08);color:#c9af82;font-size:.74em;line-height:1.55}
@@ -2818,8 +2829,24 @@ body.has-wp::after {
         </label>
         <div id="jbs-web-warning" class="jbs-note" style="display:none">网页端AI模式会逐个显示角色的私密提示词，只适合你作为主持人/观战者使用，因此会自动切换为纯观战。</div>
         <div id="jbs-webai-note" class="jbs-note" style="display:none">你会看到这名角色的私密剧本（要复制给网页端AI）。如果你同时也在扮演另一个角色，等于提前知道了他的秘密——想保留悬念就选纯观战。</div>
-        <div class="jbs-note">推荐亲自扮演一名角色：你会获得私密剧本，并在搜证、发言和指认中改变这一局。API 模式复用狼人杀设置里的 API 地址、密钥和模型。</div>
+        <div class="jbs-note">推荐亲自扮演一名角色：你会获得私密剧本，并在搜证、发言和指认中改变这一局。</div>
         <button class="jbs-btn primary" id="jbs-start" type="button">开始剧本杀</button>
+      </div>
+      <!-- 剧本杀的 API 面板。以前只能回狼人杀主菜单去配，而且第 N 个角色
+           对应哪张命牌完全看不出来（代码里是 getAPI(pl.slot)，角色1↔P1）。
+           这里把同一份配置直接摊开：上面是全局，下面每个角色一行，
+           留空就继承全局——跟狼人杀命牌单独配模型是同一套数据。 -->
+      <div class="jbs-panel" id="jbs-api-panel">
+        <div class="jbs-kicker">API 配置</div>
+        <div id="jbs-api-status" class="jbs-note" style="margin:9px 0 12px"></div>
+        <div class="jbs-grid">
+          <label>API 地址<input class="jbs-input" id="jbs-api-url" placeholder="https://api.openai.com/v1"></label>
+          <label>API 密钥<input class="jbs-input" id="jbs-api-key" type="password" placeholder="sk-..."></label>
+          <label style="grid-column:1/-1">默认模型<input class="jbs-input" id="jbs-api-model" placeholder="gpt-4o"></label>
+        </div>
+        <div class="jbs-kicker" style="margin:14px 0 4px">各角色单独指定模型（留空＝用上面的默认）</div>
+        <div id="jbs-api-cast"></div>
+        <div class="jbs-note" style="margin-top:10px">这里改的就是狼人杀设置里那一份，两边通用。角色第 N 位对应狼人杀的 P<span style="font-family:var(--font-title)">N</span> 命牌。</div>
       </div>
     </section>
 
@@ -25447,6 +25474,57 @@ const MurderMystery = (() => {
       J.busy=true;phaseIntro().catch(e=>{if(aliveToken(token))fatal(e);});
     }
   }
+  // 把全局 API 三件套和每个角色的模型覆盖摊在剧本杀设置页里。
+  // 数据源就是狼人杀那份：全局是 g-url / g-key / g-model，
+  // 单角色是 playerConfigs[slot]（getAPI(pl.slot) 读的正是它）。
+  function renderApiPanel(){
+    const panel=q('jbs-api-panel'); if(!panel) return;
+    const web=selectedValue(q('jbs-driver'))==='web';
+    // 全员网页端接力时一个 API 请求都不会发，面板整个收起来
+    panel.style.display=web?'none':'';
+    if(web) return;
+    const gu=$('g-url'),gk=$('g-key'),gm=$('g-model');
+    q('jbs-api-url').value=gu?gu.value:'';
+    q('jbs-api-key').value=gk?gk.value:'';
+    q('jbs-api-model').value=gm?gm.value:'';
+    const mine=selectedValue(q('jbs-role')), relay=selectedValue(q('jbs-webai'));
+    q('jbs-api-cast').innerHTML=SCRIPT.cast.map((x,i)=>{
+      const c=playerConfigs[i]||{};
+      const tagArr=[];
+      if(x.id===mine) tagArr.push('你扮演');
+      if(x.id===relay) tagArr.push('网页端AI');
+      const tag=tagArr.length?'<span class="jbs-api-inherit" style="font-size:.86em">（'+tagArr.join('·')+'）</span>':'';
+      return '<div class="jbs-api-row"><div class="jbs-api-who"><span class="jbs-api-slot">P'+(i+1)+'</span><b>'+h(x.name)+'</b>'+tag+'</div>'
+        +'<input class="jbs-input" data-slot="'+i+'" placeholder="继承默认" value="'+h(c.model||'')+'"></div>';
+    }).join('');
+    q('jbs-api-cast').querySelectorAll('input[data-slot]').forEach(inp=>{
+      inp.onchange=()=>{
+        const i=+inp.dataset.slot, v=inp.value.trim();
+        if(!playerConfigs[i]) playerConfigs[i]={};
+        if(v) playerConfigs[i].model=v; else delete playerConfigs[i].model;
+        try{ saveCfg(); }catch(e){}
+        renderApiStatus();
+      };
+    });
+    renderApiStatus();
+  }
+  function renderApiStatus(){
+    const el=q('jbs-api-status'); if(!el) return;
+    const gk=$('g-key')&&$('g-key').value.trim(), gm=($('g-model')&&$('g-model').value.trim())||'(未填)';
+    // 只统计这一局真会用到 API 的角色：我自己演的和走网页端接力的都不算
+    const mine=selectedValue(q('jbs-role')), relay=selectedValue(q('jbs-webai'));
+    const needApi=SCRIPT.cast.filter(x=>x.id!==mine&&x.id!==relay);
+    const perSlot=SCRIPT.cast.filter((x,i)=>needApi.indexOf(x)>=0&&playerConfigs[i]&&playerConfigs[i].model).length;
+    const miss=needApi.filter((x,i)=>{
+      const slot=SCRIPT.cast.indexOf(x); const c=playerConfigs[slot]||{};
+      return !(c.key||gk);
+    }).length;
+    el.innerHTML = miss
+      ? '⚠️ 还有 '+miss+' 个角色没有可用的 API 密钥，开局会报错。在下面填一个默认密钥即可。'
+      : (needApi.length
+          ? '本局有 '+needApi.length+' 个角色走 API，默认模型 <b>'+h(gm)+'</b>'+(perSlot?'，其中 '+perSlot+' 个用了单独模型。':'。')
+          : '本局没有角色走 API。');
+  }
   function syncDriver(){
     const web=selectedValue(q('jbs-driver'))==='web';
     q('jbs-role').disabled=web;q('jbs-web-warning').style.display=web?'block':'none';
@@ -25462,6 +25540,7 @@ const MurderMystery = (() => {
     if(keep&&keep!==mine&&[...sel.options].some(o=>o.value===keep)) sel.value=keep;
     const on=!web&&!!selectedValue(sel);
     q('jbs-webai-note').style.display=on?'block':'none';
+    renderApiPanel();
   }
   // 换本时角色选择器要整个重建。推荐扮演的是剧本里第一个 role==='good' 的角色
   //（清白、没有涉案秘密的那个），而不是像原来那样把「江户川柯南」写死在这里。
@@ -25483,7 +25562,10 @@ const MurderMystery = (() => {
   function init(){
     if(J.inited)return;J.inited=true;
     renderScriptPicker();
-    q('jbs-driver').onchange=syncDriver;q('jbs-role').onchange=syncDriver;q('jbs-webai').onchange=syncDriver;q('jbs-start').onclick=start;q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
+    q('jbs-driver').onchange=syncDriver;q('jbs-role').onchange=syncDriver;q('jbs-webai').onchange=syncDriver;q('jbs-start').onclick=start;
+    [['jbs-api-url','g-url'],['jbs-api-key','g-key'],['jbs-api-model','g-model']].forEach(([from,to])=>{
+      q(from).onchange=()=>{ const t=$(to); if(t){ t.value=q(from).value.trim(); try{ saveCfg(); }catch(e){} } renderApiStatus(); };
+    });q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
     q('jbs-web-copy').onclick=async()=>{try{await navigator.clipboard.writeText(q('jbs-web-prompt').value);q('jbs-web-copy').textContent='✅ 已复制';setTimeout(()=>q('jbs-web-copy').textContent='📋 复制提示词',1500);}catch(e){q('jbs-web-prompt').select();}};
     q('jbs-web-submit').onclick=()=>{const raw=q('jbs-web-reply').value.trim();if(!raw)return;if(J.webResolve)J.webResolve(raw);};
     q('jbs-web-cancel').onclick=()=>{if(J.webReject)J.webReject();};

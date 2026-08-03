@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v31-jbs-webai-one';
+const CACHE_NAME = 'wolf-pwa-v32-jbs-api-panel';
 const APP_SHELL = [
   './',
   './index.html',
