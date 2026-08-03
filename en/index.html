@@ -515,7 +515,9 @@ body.fx-lite .role-cinema-panel { animation:none; }
 .pn { font-family: var(--font-title); font-weight: 700; font-size: 0.8em; color: #f0e8ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ptag { font-size: 0.55em; color: #6860a0; }
 .rt { font-size: 0.6em; padding: 1px 4px; border-radius: 3px; display: inline-block; background: rgba(245,160,184,0.06); color: #a898c0; }
-.mbtitag { font-size: 0.5em; padding: 1px 4px; border-radius: 3px; background: rgba(136,128,200,0.12); color: #a898c8; display: inline-block; }
+/* 性情标签原来是「🏛️INTJ」，emoji 不携带信息（没人知道 🏛️ 是 INTJ），
+   删掉后只剩四字母码，做成小号字母牌的样子反而更清楚也更统一。 */
+.mbtitag { font-size: 0.5em; padding: 1px 5px; border-radius: 3px; background: rgba(136,128,200,0.12); color: #a898c8; display: inline-block; letter-spacing: .07em; font-variant-numeric: tabular-nums; }
 /* ★ 命牌里的模型标签槽：放在名字下方，不挤屏幕 */
 .modeltag-slot { font-size: 0.55em; line-height: 1.3; margin: 1px 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .modeltag-slot:empty { display: none; }
@@ -7167,7 +7169,7 @@ const Render = {
     const pn = $('pn-'+p.id);
     if (pn) pn.textContent = publicPlayerLabel(p);
     const mt = $('mbt-'+p.id);
-    if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbti.emoji+p.mbtiKey : '';
+    if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbtiKey : '';
     // ★ 模型标签（小号，放在命牌里）
     const mts = $('mts-'+p.id);
     if (mts) mts.innerHTML = getModelTagHtml(p, {size:'small'});
@@ -15964,7 +15966,7 @@ const PhaseHandlers = {
         };
       } else {
         speakOrderMeta = {
-          title: `🌅 平安夜 · 从${actualStart ? actualStart.name : 'P1'}开始`,
+          title: `平安夜 · 从${actualStart ? actualStart.name : 'P1'}开始`,
           rule: `${S.sheriffDailyOrderMode ? '警长不在场，回退' : '经典兼容'} · 默认座位顺序`
         };
       }
@@ -16970,7 +16972,7 @@ async function resolveNight() {
     }
   }
   if (!deaths.length) { 
-    Render.log('system','🌅 平安夜，无人死亡'); S._lastNightDeaths = [];
+    Render.log('system','平安夜，无人死亡'); S._lastNightDeaths = [];
     await callHost('death_announce', '平安夜，无人死亡');
     callHost('night_end','平安夜，无人死亡');
     callSpectator('night_end','平安夜，无人死亡');
@@ -18122,7 +18124,7 @@ function startGame() {
   }
   Render.log('system','🎲 '+getRoleList()+(S.pureAI?' [🤖纯AI]':''));
   if (!S.pureAI && $('m-mbti').checked) {
-    Render.log('system','🧠 '+S.players.map(p=>p.name+'('+(p.mbti?p.mbti.emoji:'')+')').join(' '));
+    Render.log('system',S.players.map(p=>p.name+'('+(p.mbtiKey||'')+')').join(' '));
   }
   if ($('m-cosplay').checked) {
     const withPersona = S.players.filter(p => playerConfigs[p.id] && playerConfigs[p.id].persona);
@@ -18653,8 +18655,8 @@ function renderCosplayPresets() {
   let cnt = 0;
   for (const pid in playerConfigs) { if (playerConfigs[pid].persona) cnt++; }
   box.innerHTML = cnt > 0
-    ? '<span style="font-size:0.65em;color:var(--gold);font-family:var(--font-title)">🎭 已配置 '+cnt+' 个角色人设（点击命牌编辑）</span>'
-    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">🎭 Click a role card to customize its persona</span>';
+    ? '<span style="font-size:0.65em;color:var(--gold);font-family:var(--font-title)">已配置 '+cnt+' 个角色人设（点击命牌编辑）</span>'
+    : '<span style="font-size:0.65em;color:#5a5040;font-family:var(--font-title)">Click a role card to customize its persona</span>';
 }
 function applyAll() {
   const u=$('g-url').value, k=$('g-key').value, m=$('g-model').value;

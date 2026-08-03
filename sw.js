@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v27-wolfkill-scope';
+const CACHE_NAME = 'wolf-pwa-v28-less-emoji';
 const APP_SHELL = [
   './',
   './index.html',
