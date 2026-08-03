@@ -12,7 +12,7 @@
 //   ③ 私密线索绝不能进公开日志或别人的上下文，否则"我知道你不知道"就不成立
 import { readFileSync } from 'node:fs';
 
-const FILES = ['mystery.js', 'en/mystery.js'];
+const FILES = ['mystery.js'];
 let failures = 0;
 
 function extract(html, file) {
