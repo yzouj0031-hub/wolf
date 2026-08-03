@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const root = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const english = fs.readFileSync(new URL('../en/index.html', import.meta.url), 'utf8');
+const uiIcons = fs.readFileSync(new URL('../ui-icons.js', import.meta.url), 'utf8');
 const i18n = fs.readFileSync(new URL('../en/i18n.js', import.meta.url), 'utf8');
 const sigils = fs.readFileSync(new URL('../role-sigils.js', import.meta.url), 'utf8');
 
@@ -34,6 +35,19 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, '━━ 推理建议·非强制 ━━', `${label} exported advisory reasoning section`);
   requireText(source, '自主采用、调整或拒绝这些建议', `${label} reasoning autonomy guidance`);
   requireText(source, '不得要求其他玩家遵循这些建议', `${label} non-enforcement guidance`);
+  requireText(source, '(?:🌙|🐺|💀|💔|🌹|🏹|👹|👑|🔪|🔮|⚖️?|⚠️?|📊|📢|😅|🎤|🔄|👋)', `${label} allowlisted log-prefix cleanup`);
+  requireText(source, "['night','death','sheriff','trial'].includes(type)", `${label} structural-only log cleanup guard`);
+  requireText(source, "RoleSigils.render(pl.role.id,'log-role-sigil')", `${label} role sigil in setup log`);
+  requireText(source, 'data-ui-icon="dice"', `${label} dice setup-log icon`);
+  requireText(source, 'data-ui-icon="brain"', `${label} personality setup-log icon`);
+  requireText(source, 'data-ui-icon="mask"', `${label} cosplay setup-log icon`);
+  requireText(source, "{night:'moon',death:'skull',sheriff:'crown',trial:'gavel'}", `${label} semantic log icon map`);
+  requireText(source, "mark.setAttribute('aria-hidden','true')", `${label} decorative log icons hidden from assistive technology`);
+  requireText(source, '</span>性情：\'+S.players.map', `${label} text-only personality setup log`);
+  requireText(source, "withPersona.map(p => p.name).join(' · ')", `${label} text-only cosplay setup log`);
+  if (source.includes("Render.log('system','🧠 '") || source.includes("withPersona.map(p => '🎭'+p.name)")) {
+    throw new Error(`${label} still emits decorative emoji in setup summaries`);
+  }
   if (source.includes('━━ 阅读与推理 ━━')) {
     throw new Error(`${label} still exports reasoning guidance as an undifferentiated rules section`);
   }
@@ -46,6 +60,25 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   if (source.includes("p.role ? p.role.emoji + p.role.name : '未知'")) {
     throw new Error(`${label} still renders role emoji in the export-view picker`);
   }
+}
+
+requireText(uiIcons, "moon:'<path", 'moon SVG icon definition');
+
+const logPrefixEmojiRe = /^(?:(?:🌙|🐺|💀|💔|🌹|🏹|👹|👑|🔪|🔮|⚖️?|⚠️?|📊|📢|😅|🎤|🔄|👋)\s*)+/u;
+if ('👑📊 警长投票'.replace(logPrefixEmojiRe, '') !== '警长投票') {
+  throw new Error('Repeated allowlisted structural emoji are not fully removed');
+}
+if ('<div>💬 玩家原话</div>'.replace(logPrefixEmojiRe, '') !== '<div>💬 玩家原话</div>') {
+  throw new Error('Player-authored HTML content must not be rewritten by prefix cleanup');
+}
+const cleanLogForType = (type, value) => ['night','death','sheriff','trial'].includes(type)
+  ? value.replace(logPrefixEmojiRe, '')
+  : value;
+if (cleanLogForType('system', '🎭 玩家原话') !== '🎭 玩家原话') {
+  throw new Error('System/player content must bypass structural emoji cleanup');
+}
+if (cleanLogForType('night', '🧿 未登记的新符号') !== '🧿 未登记的新符号') {
+  throw new Error('Unknown leading emoji must be preserved unless explicitly allowlisted');
 }
 
 for (const [needle, label] of [
