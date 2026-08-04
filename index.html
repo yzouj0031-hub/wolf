@@ -12924,7 +12924,31 @@ const SoundFX = {
   }
 };
 
-function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
+const _actionCGReady = new Map();
+function waitForActionCG(src, timeoutMs=4500) {
+  if (!src) return Promise.resolve(false);
+  let pending = _actionCGReady.get(src);
+  if (!pending) {
+    pending = new Promise(resolve => {
+      const probe = new Image();
+      probe.onload = () => resolve(true);
+      probe.onerror = () => resolve(false);
+      probe.src = src;
+    }).then(ready => {
+      if (!ready) _actionCGReady.delete(src); // 临时断网后允许下一次演出重新尝试
+      return ready;
+    });
+    _actionCGReady.set(src, pending);
+  }
+  // 平板首次读取本地/网络资源可能较慢；先等图片就绪再开始演出计时。
+  // 超时仍要放行，避免坏资源把整局游戏卡住。
+  return Promise.race([
+    pending,
+    new Promise(resolve => setTimeout(() => resolve(false), timeoutMs))
+  ]);
+}
+
+async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
   try {
     const gc = document.getElementById('gc');
     if (!gc || !gc.classList.contains('active')) return Promise.resolve(false);
@@ -12939,11 +12963,13 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     const team = opts.team || role.team || 'good';
     const reduced = document.body.classList.contains('fx-lite') || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const duration = reduced ? 700 : (opts.duration || 2300);
-    const actionCG = window.RoleActionCG && window.RoleActionCG[roleId];
+    const cgKey = opts.cgKey || roleId;
+    const actionCG = window.RoleActionCG && (window.RoleActionCG[cgKey] || window.RoleActionCG[roleId]);
     const inEnglishDir = /\/en(?:\/|$)/.test(location.pathname);
     const actionBase = inEnglishDir ? '../assets/action-cg/' : 'assets/action-cg/';
     const portraitBase = inEnglishDir ? '../icons/roles/' : 'icons/roles/';
     const artSrc = actionCG ? actionBase + actionCG.src : portraitBase + encodeURIComponent(roleId) + '.jpg';
+    const artReady = await waitForActionCG(artSrc);
     const resolvedTitle = title || (actionCG && (uiEnglish() ? actionCG.titleEn : actionCG.titleZh)) || role.name || roleId;
     const sigil = window.RoleSigils ? window.RoleSigils.render(roleId, 'cinema-sigil') : '';
     const el = document.createElement('div');
@@ -12953,7 +12979,7 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     el.innerHTML = `<div class="role-cinema-panel">
       <div class="role-cinema-art-wrap">
         <div class="role-cinema-fallback">${sigil}</div>
-        <img class="role-cinema-art" src="${artSrc}" alt="" decoding="async"${actionCG && actionCG.position ? ` style="object-position:${actionCG.position}"` : ''} onerror="this.remove()">
+        ${artReady ? `<img class="role-cinema-art" src="${artSrc}" alt="" decoding="async"${actionCG && actionCG.position ? ` style="object-position:${actionCG.position}"` : ''} onerror="this.remove()">` : ''}
       </div>
       <div class="role-cinema-copy">
         <div class="role-cinema-kicker">ROLE AWAKENING</div>
@@ -13016,6 +13042,22 @@ async function showNightStepCinematic(step, records) {
   const actor = S.players.find(p => p.role && p.role.id === spec.roleId);
   if (!actor) return false;
   if (isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) return false;
+  if (event.role === 'witch') {
+    let shown = false;
+    const variants = [
+      event.saved && {cgKey:'witchSave', target:event.saved},
+      event.poisoned && {cgKey:'witchPoison', target:event.poisoned}
+    ].filter(Boolean);
+    for (const variant of variants) {
+      const variantCG = window.RoleActionCG && window.RoleActionCG[variant.cgKey];
+      shown = await showRoleCinematic('witch', actor.name,
+        variantCG ? (uiEnglish() ? variantCG.titleEn : variantCG.titleZh) : actor.role.name,
+        uiEnglish() ? `Target: ${variant.target}` : `目标：${variant.target}`,
+        {team:actor.role.team, cgKey:variant.cgKey, duration:1800,
+          key:`night-action:${S.gameId}:${S.round}:${step}:${variant.cgKey}`}) || shown;
+    }
+    return shown;
+  }
   const cg = window.RoleActionCG && window.RoleActionCG[spec.roleId];
   const title = cg ? (uiEnglish() ? cg.titleEn : cg.titleZh) : actor.role.name;
   return showRoleCinematic(spec.roleId, actor.name, title, actionCinematicSubtitle(event), {
@@ -13200,6 +13242,14 @@ async function killPlayer(p, cause, opts) {
   if (!_gameDecided && p.role.id==='wolfbeauty' && S.charmedPlayer !== null) {
     const charmed = S.players[S.charmedPlayer];
     if (charmed && charmed.alive) {
+      // 魅惑真正结算时再给一次演出：夜间是秘密施术，这里才是全场看到的殉情爆点。
+      // 隐死亡模式不能把狼美人本体姓名放进画面，避免演出反向泄露身份。
+      await showRoleCinematic('wolfbeauty', hd ? '' : p.name, null,
+        uiEnglish()
+          ? `${charmed.name} is claimed by the broken charm.`
+          : `魅惑破碎，${charmed.name}随之殒命`,
+        {team:'bad', cgKey:'wolfbeautyDeath', duration:2200,
+          key:`charm-link:${S.gameId}:${S.round}:${p.id}:${charmed.id}`});
       // ★ 魅惑连带属于公开事件，但隐死亡模式不能借公告直接翻出狼美人是谁。
       //   非隐死亡：公开“狼美人P3死亡，P8殉情”。
       //   隐死亡：公开“P8魅惑连带死亡 + 已有一名狼美人出局”，但不点名哪名死者是狼美人。
@@ -13872,6 +13922,13 @@ const NightActions = {
     const normalWolves = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf');
     if (normalWolves.length > 0) return;            // 其他狼系还在，机械狼不带刀
     if (S.nightData.kill !== null) return;          // 已有刀口（理论上不会，兜底）
+    if (S.nightData.foxBlockKill) {
+      S.nightData.kill = null;
+      S.nightData.killChosenByWolf = null;
+      if (!isAnon()) Render.log('night-result','机械狼本夜受到全狼禁刀影响，无法选择刀口');
+      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:null, blocked:true, reason:'foxBlockKill'});
+      return;
+    }
     const ts = alive.filter(p => p.id!==mw.id);
     if (!ts.length) return;
     if (!isAnon()) Render.log('night-detail','🤖🔪 机械狼带刀行凶…');
@@ -14085,6 +14142,7 @@ const NightActions = {
       S._wolfKillRun = {key:wolfRunKey, openingRecords:{}, openingDone:[], echoDone:[], wolfLastActions:{}, phase2Required:null, complete:false};
     }
     const wolfRun = S._wolfKillRun;
+    const killBlocked = !!S.nightData.foxBlockKill;
     wolfRun.openingRecords ||= {};
     wolfRun.openingDone = Array.isArray(wolfRun.openingDone) ? wolfRun.openingDone : [];
     wolfRun.echoDone = Array.isArray(wolfRun.echoDone) ? wolfRun.echoDone : [];
@@ -14222,7 +14280,9 @@ const NightActions = {
     // 统一调度狼人发言(AI 走 callAI,人类走 waitInput)
     async function speakOneWolf(p, prompt, isOpening) {
       if (p.isPlayer) {
-        const hint = isOpening
+        const hint = killBlocked
+          ? '【狼队·禁刀夜讨论】本夜狼刀已被封锁，只讨论明天的身份策略、发言配合和抗推方向；或输入 PASS'
+          : isOpening
           ? '【狼队·开场陈述】说出你的判断、提议刀谁、理由;或输入 PASS'
           : '【狼队·回响】可以附议/反驳队友,坚持自己或改主意;或输入 PASS';
         let sp = await waitInput(hint, p.role.name + '密谈', p);
@@ -14380,7 +14440,17 @@ const NightActions = {
       const singleWolfHint = isSingleWolf
         ? `\n\n⚠️ 单狼场景：场上只有你一只狼，没有队友讨论。直接给出今晚的决定。\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若有明确战术理由要空刀（制造平安夜嫁祸神职/保留刀口/残局博弈），可填 None 表示今晚不刀，但必须在 thinking 里写清目的，不能因纠结/犹豫而空刀】。\n⚠️ 不要在 <game> 文本里写 "<interrupt>" 标签——那是结构化字段，混在自然语言里会导致解析失败。`
         : `\n\n⚠️ <action> 字段必须填【可刀目标】里完整的玩家名（${ts}），不要简称；【若主张空刀（制造平安夜嫁祸神职/保留刀口/残局博弈这类明确战术目的），填 None 并在 thinking 里说清理由；纯因纠结拿不定主意不许空刀，那就正常选目标】。`;
-      const prompt = `【狼队密谈·开场陈述】这是狼队内部,直接说,不用伪装。
+      const prompt = killBlocked ? `【狼队密谈·禁刀夜】这是狼队内部，直接说，不用伪装。
+系统已经确认：本夜全体狼人受到禁刀影响，无法造成狼刀击杀。今晚不需要、也不允许选择刀口；不要浪费时间讨论“刀谁”。
+你的队友:${mates}
+
+请只讨论明天白天的配合：谁负责跳身份或对跳、谁隐藏、优先推动谁、怎样解释即将出现的平安夜，以及如何避免暴露队友。你可以提出具体玩家作为明日施压或拉拢对象，但那不是今晚刀口。
+
+【格式·严格遵守】
+<thinking>分析明天的身份策略、发言分工与票型路线</thinking>
+<game>对队友说的话（口语化，30-140字，只谈明日战术）</game>
+<action>None</action>
+<interrupt>no</interrupt>` : `【狼队密谈·开场陈述】这是狼队内部,直接说,不用伪装。
 你的队友:${mates}
 可刀目标:${ts}${deadNote}
 ⚠️ 狼队成员(${selfNames})也属于合法刀口，但只在明确的战术牺牲收益成立时考虑。⚠️ 空刀选项(填None=今晚不刀、制造平安夜)也仅在有明确战术目的时考虑——典型用途:①嫁祸神职(空刀造平安夜,让好人误以为是守卫守中/女巫救人,甚至怀疑跳女巫的人在说谎);②残局迷惑;③保留刀口。但空刀绝不能是"纠结/拿不定主意"的借口,没有清晰战术目的就正常刀人。${tacticsHint}${singleWolfHint}${tacticalSacrificeHint}
@@ -14415,6 +14485,17 @@ ${magicKillDecisionHint}
       }
       openingRecords[p.id] = result;
       if (!wolfRun.openingDone.includes(p.id)) wolfRun.openingDone.push(p.id);
+    }
+
+    // 子狐类媚惑或自创禁刀已经让本夜狼刀必定无效：保留上面的狼队战术讨论，
+    // 但不再强迫刀口投票、平票再投、随机补刀或主持人确认一个注定无效的目标。
+    if (killBlocked) {
+      S.nightData.kill = null;
+      S.nightData.killChosenByWolf = null;
+      Render.log('night-result', '本夜全狼禁刀：狼队完成战术讨论，但不产生刀口');
+      gameRecord.push({type:'night_action', role:'wolf', round:S.round, target:null, blocked:true, reason:'foxBlockKill'});
+      wolfRun.complete = true;
+      return;
     }
 
     // === 代码判定:有没有分歧 ===
