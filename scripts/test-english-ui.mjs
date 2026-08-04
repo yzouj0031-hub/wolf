@@ -4,6 +4,7 @@ const root = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const english = fs.readFileSync(new URL('../en/index.html', import.meta.url), 'utf8');
 const i18n = fs.readFileSync(new URL('../en/i18n.js', import.meta.url), 'utf8');
 const sigils = fs.readFileSync(new URL('../role-sigils.js', import.meta.url), 'utf8');
+const actionCG = fs.readFileSync(new URL('../action-cg.js', import.meta.url), 'utf8');
 
 const requireText = (source, needle, label) => {
   if (!source.includes(needle)) throw new Error(`Missing ${label}: ${needle}`);
@@ -27,6 +28,9 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, "showRoleCinematic('werewolf'", `${label} wolf-action cinematic`);
   requireText(source, "showRoleCinematic('knight'", `${label} knight-duel cinematic`);
   requireText(source, "showRoleCinematic(_isMechShooter ? 'mechwolf' : 'hunter'", `${label} hunter-shot cinematic`);
+  requireText(source, "cgKey:'witchSave'", `${label} witch antidote cinematic`);
+  requireText(source, "cgKey:'witchPoison'", `${label} witch poison cinematic`);
+  requireText(source, "cgKey:'wolfbeautyDeath'", `${label} Wolf Beauty death-link cinematic`);
   requireText(source, 'Number.isFinite(parsed)', `${label} UI zoom validation`);
   requireText(source, 'localStorage.removeItem(\'uiZoom\')', `${label} invalid UI zoom cleanup`);
   requireText(source, 'Math.min(1,Math.max(0.62,z))', `${label} UI zoom safety clamp`);
@@ -65,5 +69,8 @@ for (const roleId of ['werewolf','wolfking','wolfbeauty','seer','witch','guard',
   requireText(sigils, `${roleId}:`, `role sigil for ${roleId}`);
 }
 requireText(sigils, 'window.RoleSigils = Object.freeze({ render })', 'role sigil public renderer');
+requireText(actionCG, "wolfbeautyDeath:{src:'wolf-beauty-broken-charm-v1.webp'", 'Wolf Beauty broken-charm artwork');
+requireText(actionCG, "witchSave:     { src:'witch-antidote-v1.webp'", 'witch antidote artwork');
+requireText(actionCG, "witchPoison:   { src:'witch-poison-v1.webp'", 'witch poison artwork');
 
 console.log('English UI regression checks passed');

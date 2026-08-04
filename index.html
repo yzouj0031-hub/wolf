@@ -12939,7 +12939,8 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     const team = opts.team || role.team || 'good';
     const reduced = document.body.classList.contains('fx-lite') || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const duration = reduced ? 700 : (opts.duration || 2300);
-    const actionCG = window.RoleActionCG && window.RoleActionCG[roleId];
+    const cgKey = opts.cgKey || roleId;
+    const actionCG = window.RoleActionCG && (window.RoleActionCG[cgKey] || window.RoleActionCG[roleId]);
     const inEnglishDir = /\/en(?:\/|$)/.test(location.pathname);
     const actionBase = inEnglishDir ? '../assets/action-cg/' : 'assets/action-cg/';
     const portraitBase = inEnglishDir ? '../icons/roles/' : 'icons/roles/';
@@ -13016,6 +13017,22 @@ async function showNightStepCinematic(step, records) {
   const actor = S.players.find(p => p.role && p.role.id === spec.roleId);
   if (!actor) return false;
   if (isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) return false;
+  if (event.role === 'witch') {
+    let shown = false;
+    const variants = [
+      event.saved && {cgKey:'witchSave', target:event.saved},
+      event.poisoned && {cgKey:'witchPoison', target:event.poisoned}
+    ].filter(Boolean);
+    for (const variant of variants) {
+      const variantCG = window.RoleActionCG && window.RoleActionCG[variant.cgKey];
+      shown = await showRoleCinematic('witch', actor.name,
+        variantCG ? (uiEnglish() ? variantCG.titleEn : variantCG.titleZh) : actor.role.name,
+        uiEnglish() ? `Target: ${variant.target}` : `目标：${variant.target}`,
+        {team:actor.role.team, cgKey:variant.cgKey, duration:1800,
+          key:`night-action:${S.gameId}:${S.round}:${step}:${variant.cgKey}`}) || shown;
+    }
+    return shown;
+  }
   const cg = window.RoleActionCG && window.RoleActionCG[spec.roleId];
   const title = cg ? (uiEnglish() ? cg.titleEn : cg.titleZh) : actor.role.name;
   return showRoleCinematic(spec.roleId, actor.name, title, actionCinematicSubtitle(event), {
@@ -13200,6 +13217,14 @@ async function killPlayer(p, cause, opts) {
   if (!_gameDecided && p.role.id==='wolfbeauty' && S.charmedPlayer !== null) {
     const charmed = S.players[S.charmedPlayer];
     if (charmed && charmed.alive) {
+      // 魅惑真正结算时再给一次演出：夜间是秘密施术，这里才是全场看到的殉情爆点。
+      // 隐死亡模式不能把狼美人本体姓名放进画面，避免演出反向泄露身份。
+      await showRoleCinematic('wolfbeauty', hd ? '' : p.name, null,
+        uiEnglish()
+          ? `${charmed.name} is claimed by the broken charm.`
+          : `魅惑破碎，${charmed.name}随之殒命`,
+        {team:'bad', cgKey:'wolfbeautyDeath', duration:2200,
+          key:`charm-link:${S.gameId}:${S.round}:${p.id}:${charmed.id}`});
       // ★ 魅惑连带属于公开事件，但隐死亡模式不能借公告直接翻出狼美人是谁。
       //   非隐死亡：公开“狼美人P3死亡，P8殉情”。
       //   隐死亡：公开“P8魅惑连带死亡 + 已有一名狼美人出局”，但不点名哪名死者是狼美人。
