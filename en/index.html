@@ -12810,7 +12810,31 @@ const SoundFX = {
   }
 };
 
-function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
+const _actionCGReady = new Map();
+function waitForActionCG(src, timeoutMs=4500) {
+  if (!src) return Promise.resolve(false);
+  let pending = _actionCGReady.get(src);
+  if (!pending) {
+    pending = new Promise(resolve => {
+      const probe = new Image();
+      probe.onload = () => resolve(true);
+      probe.onerror = () => resolve(false);
+      probe.src = src;
+    }).then(ready => {
+      if (!ready) _actionCGReady.delete(src); // Retry on a later cinematic after a transient failure.
+      return ready;
+    });
+    _actionCGReady.set(src, pending);
+  }
+  // Tablets can need a moment to fetch/decode an action CG for the first time. Start the
+  // cinematic clock only after the artwork is ready, but time out so a bad asset cannot stall play.
+  return Promise.race([
+    pending,
+    new Promise(resolve => setTimeout(() => resolve(false), timeoutMs))
+  ]);
+}
+
+async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
   try {
     const gc = document.getElementById('gc');
     if (!gc || !gc.classList.contains('active')) return Promise.resolve(false);
@@ -12831,6 +12855,7 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     const actionBase = inEnglishDir ? '../assets/action-cg/' : 'assets/action-cg/';
     const portraitBase = inEnglishDir ? '../icons/roles/' : 'icons/roles/';
     const artSrc = actionCG ? actionBase + actionCG.src : portraitBase + encodeURIComponent(roleId) + '.jpg';
+    const artReady = await waitForActionCG(artSrc);
     const resolvedTitle = title || (actionCG && (uiEnglish() ? actionCG.titleEn : actionCG.titleZh)) || role.name || roleId;
     const sigil = window.RoleSigils ? window.RoleSigils.render(roleId, 'cinema-sigil') : '';
     const el = document.createElement('div');
@@ -12840,7 +12865,7 @@ function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     el.innerHTML = `<div class="role-cinema-panel">
       <div class="role-cinema-art-wrap">
         <div class="role-cinema-fallback">${sigil}</div>
-        <img class="role-cinema-art" src="${artSrc}" alt="" decoding="async"${actionCG && actionCG.position ? ` style="object-position:${actionCG.position}"` : ''} onerror="this.remove()">
+        ${artReady ? `<img class="role-cinema-art" src="${artSrc}" alt="" decoding="async"${actionCG && actionCG.position ? ` style="object-position:${actionCG.position}"` : ''} onerror="this.remove()">` : ''}
       </div>
       <div class="role-cinema-copy">
         <div class="role-cinema-kicker">ROLE AWAKENING</div>
