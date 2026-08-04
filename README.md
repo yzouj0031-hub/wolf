@@ -165,5 +165,5 @@ keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 \
 
 ## 致谢
 
-感谢 Allen、小克 和 小柴 对项目的设计、开发与维护贡献。
+感谢 Allen、小克 和 小柴 金爷对项目的设计、开发与维护贡献。
 
