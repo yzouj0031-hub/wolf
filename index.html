@@ -14286,11 +14286,13 @@ const NightActions = {
           ? '【狼队·开场陈述】说出你的判断、提议刀谁、理由;或输入 PASS'
           : '【狼队·回响】可以附议/反驳队友,坚持自己或改主意;或输入 PASS';
         let sp = await waitInput(hint, p.role.name + '密谈', p);
+        let explicitHumanAction = '';
         // ★ v9.9.24：读取导演填写的 thinking（与白天发言一致）
         let thk = (S.directorMode && $('pi-think')) ? ($('pi-think').value || '').trim() : '';
         // ★ 若内容带标签(网页端AI格式)，用 parseAI 拆开，避免标签原样显示
         if (sp && /<(?:thinking|game|action)>/i.test(sp)) {
           const _wp = parseAI(sp);
+          explicitHumanAction = String(_wp.action || '').trim();
           if (_wp.game) sp = _wp.game;
           if (!thk && _wp.thinking) thk = _wp.thinking;
         }
@@ -14301,8 +14303,9 @@ const NightActions = {
         Render.setSpeaking(p.id, false);
         p.memory.push({ role: 'user', content: prompt });
         p.memory.push({ role: 'assistant', content: sp });
-        // 人类输入没有结构化字段,用启发式解析
-        const target = parseWolfTarget(sp, validWolfTargets);
+        // 真人/导演的公开讨论正文只用于展示，不能再从“提到过谁”猜最终刀口。
+        // 若粘贴的是带 <action> 的结构化回复，保留并只解析该字段；否则留给后面的刀口按钮投票。
+        const target = explicitHumanAction ? parseWolfTarget(explicitHumanAction, validWolfTargets) : null;
         return {
           game: sp,
           action: target ? target.name : null,
@@ -14669,14 +14672,14 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     for (let i = 0; i < humanKillWolves.length; i++) {
       const pW = humanKillWolves[i];
       const titlePrefix = humanKillWolves.length > 1 ? `🎬 ${pW.name} 选刀口 (${i+1}/${humanKillWolves.length}) ` : '';
-      const killOpts = allTargets.map(x=>({label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:x.name}));
+      const killOpts = allTargets.map(x=>({label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:String(x.id)}));
       killOpts.push({label:'🌙 空刀（不刀任何人，制造平安夜）', value:'__EMPTY_KILL__', abs:true});
       const pWv = await waitChoice(titlePrefix+'杀谁？', pW.role.emoji+' '+pW.name+' 下手', killOpts);
       if (pWv === '__EMPTY_KILL__') {
         if (directorVeto) { directorEmptyKill = true; }
         Render.devLog && Render.devLog('info', `[导演] ${pW.name} 选择空刀`);
-      } else if (pWv) {
-        const t = findPlayer(pWv, allTargets);
+      } else if (pWv !== null && pWv !== undefined) {
+        const t = allTargets.find(x => String(x.id) === String(pWv));
         if (t) {
           if(!wolfVotes[t.id]) wolfVotes[t.id]=[];
           wolfVotes[t.id].push(pW.name);
@@ -14697,15 +14700,15 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     // ★ 观战导演主控：开关打开、但你没有扮演任何狼（纯观战）时，也弹框让你以导演身份决定本夜刀口（含空刀）
     //   这样在旁观 AI 对局途中，你随时可以手动干预：指定刀口，或让狼队空刀制造平安夜。
     if (directorVeto && humanKillWolves.length === 0) {
-      const dOpts = allTargets.map(x=>({label:x.name+'（'+x.role.name+'）'+(x.role.team==='bad'?' ⚠️自刀':''), value:x.name}));
+      const dOpts = allTargets.map(x=>({label:x.name+'（'+x.role.name+'）'+(x.role.team==='bad'?' ⚠️自刀':''), value:String(x.id)}));
       dOpts.push({label:'🌙 空刀（不刀任何人，制造平安夜）', value:'__EMPTY_KILL__', abs:true});
       dOpts.push({label:'🤖 不干预（听 AI 狼队自己的决定）', value:'__AI_DECIDE__', abs:true});
       const dChoice = await waitChoice('🎬 导演主控·今晚狼队刀谁？', '🎬 上帝之手', dOpts);
       if (dChoice === '__EMPTY_KILL__') {
         Object.keys(wolfVotes).forEach(k => delete wolfVotes[k]);
         Render.log('system', `🎬 导演主控：本夜狼队空刀，制造平安夜（AI决定作废）`);
-      } else if (dChoice && dChoice !== '__AI_DECIDE__') {
-        const dt = findPlayer(dChoice, allTargets);
+      } else if (dChoice !== null && dChoice !== undefined && dChoice !== '__AI_DECIDE__') {
+        const dt = allTargets.find(x => String(x.id) === String(dChoice));
         if (dt) {
           Object.keys(wolfVotes).forEach(k => delete wolfVotes[k]);
           wolfVotes[dt.id] = ['🎬导演主控'];
@@ -14764,7 +14767,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const humanWolfVotes = {};
       for (const pW2 of humanWolves) {
         const titlePrefix = humanWolves.length > 1 ? `🎬 ${pW2.name} 狼平票再投 (${Object.keys(humanWolfVotes).length+1}/${humanWolves.length}) ` : '';
-        humanWolfVotes[pW2.id] = await waitChoice(titlePrefix+'平票！从中选一个？',pW2.role.emoji+' '+pW2.name+' 平票再投', tieTargets.map(x=>({label:x.name,value:x.name})));
+        humanWolfVotes[pW2.id] = await waitChoice(titlePrefix+'平票！从中选一个？',pW2.role.emoji+' '+pW2.name+' 平票再投', tieTargets.map(x=>({label:x.name,value:String(x.id)})));
       }
       ws.forEach(w => {
         let tn;
@@ -14778,7 +14781,9 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         } else {
           tn = '';
         }
-        const t = findPlayer(tn, tieTargets);
+        const t = w.isPlayer
+          ? tieTargets.find(x => String(x.id) === String(tn))
+          : findPlayer(tn, tieTargets);
         if (t) { if(!tieDecidingVotes[t.id]) tieDecidingVotes[t.id]=[]; tieDecidingVotes[t.id].push(w.name); }
       });
       let mx2=0;
