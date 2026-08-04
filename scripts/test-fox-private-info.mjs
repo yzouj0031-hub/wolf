@@ -33,7 +33,12 @@ for (const path of ['../index.html', '../en/index.html']) {
     "recordNightSkillMuted(p, '获赐礼物选择')",
     "recordNightSkillMuted(p, '获赐的主动技能')",
     '你的技能封锁记录：',
-    "case 'skill-muted'"
+    "case 'skill-muted'",
+    'const killBlocked = !!S.nightData.foxBlockKill',
+    '【狼队密谈·禁刀夜】',
+    '狼队完成战术讨论，但不产生刀口',
+    "role:'wolf', round:S.round, target:null, blocked:true, reason:'foxBlockKill'",
+    "role:'mechwolf_kill', round:S.round, target:null, blocked:true, reason:'foxBlockKill'"
   ];
   for (const marker of required) {
     if (!html.includes(marker)) throw new Error(`${path} lacks Fox/private-result marker: ${marker}`);
