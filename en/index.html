@@ -8460,9 +8460,9 @@ ${userPersona}
   if (p.role.id === 'fox') {
     const foxHistory = (gameRecord || [])
       .filter(r => r && r.type === 'night_action' && r.role === 'fox')
-      .map(r => `第${r.round}夜：媚惑${r.target} → ${r.result === 'rebounded' ? '🌒被反弹到自己（只确认自己是好人；原目标阵营未知、未受影响）' : r.result === 'blockKill' ? '🐺狼阵营（当晚全狼禁刀）' : '✅好人阵营（其当晚主动夜间技能被封）'}`);
+      .map(r => `第${r.round}夜：媚惑${r.chosenTarget || r.target} → ${r.result === 'rebounded' ? `被反弹到${r.verifiedTarget || r.actualTarget || '自己'}（本夜唯一验证对象是你自己；原选择目标${r.chosenTarget || r.target}完全未验证，不能据此认定其为好人或狼人）` : r.result === 'blockKill' ? '🐺狼阵营（当晚全狼禁刀）' : '✅好人阵营（其当晚主动夜间技能被封）'}`);
     if (foxHistory.length) {
-      keyParts.push('【子狐媚惑结果·完整永久记录】\n' + foxHistory.join('\n') + '\n这些是你亲自得到的阵营铁信息，但不等于知道目标的精确角色。');
+      keyParts.push('【子狐媚惑结果·完整永久记录】\n' + foxHistory.join('\n') + '\n只有未被反弹的记录才能验证所选目标的阵营。发生反弹时，你会明确知道能力被反弹，但只验证到实际受术者（你自己）；原选择目标没有任何阵营结论。');
     }
   }
 
@@ -8470,7 +8470,7 @@ ${userPersona}
   // 这条提示独立于是否真的发动主动技能；具体的技能失败仍由 skill-muted 记录说明。
   const foxTargetHistory = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && (r.role === 'fox' || r.role === 'mechwolf_fox') && foxCharmActualTargetId(r) === p.id)
-    .map(r => r.result === 'rebounded' ? `第${r.round}夜：一次媚惑被反弹到你自己；原选择目标未受影响，反弹不再产生禁刀或封技效果` : `第${r.round}夜：你被子狐类媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道施法玩家是谁）`);
+    .map(r => r.result === 'rebounded' ? `第${r.round}夜：你明确知道一次媚惑被反弹到你自己；本夜实际验证对象只有你自己，原选择目标${r.chosenTarget || r.target || ''}未受影响且完全未验证；你不知道设置反弹的玩家是谁` : `第${r.round}夜：你被子狐类媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道施法玩家是谁）`);
   if (foxTargetHistory.length) {
     keyParts.push('【你遭到子狐媚惑的完整永久记录】\n' + foxTargetHistory.join('\n'));
   }
@@ -15048,10 +15048,10 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
       if (rebounded) {
         S.nightData._concubineTriggered = true;
-        mw.memory.push({role:'system', content:'【🤖媚惑·私密】你选择媚惑'+t.name+'，但能力被反弹到你自己；你只确认了自己属于【🐺狼阵营】，原目标阵营仍未知且未受影响。'});
-        mw.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你不知道反弹锁定由哪名玩家施放。'});
+        mw.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力发生了弹反：原本选择'+t.name+'，实际媚惑并验证的是你自己。你只确认自己属于【狼阵营】；'+t.name+'完全没有被验证，不能据此认定其为好人或狼人。'});
+        mw.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你知道发生了弹反，但不知道设置反弹的玩家是谁。'});
         if (!isAnon()) Render.log('night-result','🤖🦊 机械狼媚惑'+t.name+'时被🌒反弹，原目标未受影响');
-        gameRecord.push({type:'night_action', role:'mechwolf_fox', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, actualTargetId:mw.id, actualTarget:mw.name, result:'rebounded'});
+        gameRecord.push({type:'night_action', role:'mechwolf_fox', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, chosenTargetId:t.id, chosenTarget:t.name, actualTargetId:mw.id, actualTarget:mw.name, verifiedTargetId:mw.id, verifiedTarget:mw.name, verifiedTeam:'bad', originalTargetUnverified:true, reflectionKnown:true, result:'rebounded'});
       } else {
         const isWolf = t.role.team === 'bad';
         if (isWolf) S.nightData.foxBlockKill = true;
@@ -15094,10 +15094,10 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
       if (rebounded) {
         S.nightData._concubineTriggered = true;
-        fo.memory.push({role:'system', content:'【媚惑·私密】你选择媚惑'+t.name+'，但能力被反弹到你自己；你只确认了自己属于【✅好人阵营】，原目标阵营仍未知且未受影响。'});
-        fo.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你不知道反弹锁定由哪名玩家施放。'});
+        fo.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力发生了弹反：原本选择'+t.name+'，实际媚惑并验证的是你自己。你只确认自己属于【好人阵营】；'+t.name+'完全没有被验证，不能据此认定其为好人或狼人。'});
+        fo.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你知道发生了弹反，但不知道设置反弹的玩家是谁。'});
         if (!isAnon()) Render.log('night-result','🦊 子狐媚惑'+t.name+'时被🌒反弹，原目标未受影响');
-        gameRecord.push({type:'night_action', role:'fox', round:S.round, casterId:fo.id, targetId:t.id, target:t.name, actualTargetId:fo.id, actualTarget:fo.name, result:'rebounded'});
+        gameRecord.push({type:'night_action', role:'fox', round:S.round, casterId:fo.id, targetId:t.id, target:t.name, chosenTargetId:t.id, chosenTarget:t.name, actualTargetId:fo.id, actualTarget:fo.name, verifiedTargetId:fo.id, verifiedTarget:fo.name, verifiedTeam:'good', originalTargetUnverified:true, reflectionKnown:true, result:'rebounded'});
       } else {
         const isWolf = t.role.team==='bad';
         if (isWolf) S.nightData.foxBlockKill = true;
@@ -19725,7 +19725,7 @@ function _buildPrivateInfoLines(p) {
     const mechActs = [];
     (gameRecord || []).forEach(rec => {
       if (rec.type !== 'night_action') return;
-      if (rec.role === 'mechwolf_fox') mechActs.push(`第${rec.round}夜：机械媚惑${rec.target} → ${rec.result==='rebounded'?'被反弹到自己，原目标未受影响':rec.result==='blockKill'?'狼阵营（全狼禁刀）':'好人阵营（已封技）'}`);
+      if (rec.role === 'mechwolf_fox') mechActs.push(`第${rec.round}夜：机械媚惑${rec.chosenTarget || rec.target} → ${rec.result==='rebounded'?'被反弹到自己；唯一验证对象是自己，原目标完全未验证':rec.result==='blockKill'?'狼阵营（全狼禁刀）':'好人阵营（已封技）'}`);
       else if (rec.role === 'mechwolf_guard') mechActs.push(`第${rec.round}夜：${rec.technical?'守护指令技术解析失败（非主动空守）':'机械守护'+(rec.target || '空守')}`);
       else if (rec.role === 'mechwolf_poison') mechActs.push(`第${rec.round}夜：${rec.technical?'毒药指令技术解析失败（非主动保留）':'机械毒杀'+(rec.target || '未毒')}`);
       else if (rec.role === 'mechwolf_magician') mechActs.push(`第${rec.round}夜：魔术情报${rec.target || '魔术师空过'}`);
@@ -20110,8 +20110,8 @@ function _formatCustomNightAction(r) {
   const who = r.custom || '自创角色';   // 积木自创角色用玩家自定义的角色名
   switch (r.role) {
     case 'skill-muted':   return '🔇 ' + (r.name || t) + (r.source === 'fox' ? '遭到子狐媚惑，' : '的') + (r.ability || '夜间主动技能') + '被封锁、没有生效（不公开施法玩家）';
-    case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到子狐本人；原目标未受影响）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
-    case 'mechwolf_fox':   return '🤖🦊 机械媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到机械狼本人；原目标未受影响）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
+    case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到子狐本人；原选择目标未受影响且未被验证）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
+    case 'mechwolf_fox':   return '🤖🦊 机械媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到机械狼本人；原选择目标未受影响且未被验证）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（凡查/守/毒他的神职反噬其自身，仅首个命中触发）';
     case 'fool':           return '🃏 愚者护盾：护住 ' + t + '（他若没挨刀，盾自动转护愚者本人）';
     case 'merchant':
@@ -20377,7 +20377,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         else if (r.role === 'mechwolf_guard') txt += '\n🤖🛡️ 机械狼守护=' + (r.target||'空守') + '\n';
         else if (r.role === 'mechwolf_poison') txt += '\n🤖☠️ 机械狼毒=' + (r.target||'未毒') + '\n';
         else if (r.role === 'mechwolf_magician') txt += '\n🤖🎩 机械狼魔术情报=' + (r.target||'魔术师空过') + '\n';
-        else if (r.role === 'mechwolf_fox') txt += '\n🤖🦊 机械媚惑=' + (r.target||'无') + (r.result==='rebounded'?'（被反弹到自己；原目标未受影响）':r.result==='blockKill'?'（狼→禁刀）':'（好人→封技）') + '\n';
+        else if (r.role === 'mechwolf_fox') txt += '\n🤖🦊 机械媚惑=' + (r.chosenTarget||r.target||'无') + (r.result==='rebounded'?'（被反弹到自己；唯一验证对象是自己，原目标完全未验证）':r.result==='blockKill'?'（狼→禁刀）':'（好人→封技）') + '\n';
         else if (r.role === 'mechwolf_kill') txt += '\n🤖🔪 ' + (r.target ? '机械狼刀='+r.target : '机械狼选择空刀') + '\n';
         else { const _cl = _formatCustomNightAction(r); if (_cl) txt += '\n' + _cl + '\n'; }
       };
