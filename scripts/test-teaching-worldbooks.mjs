@@ -59,6 +59,8 @@ for (const path of ['../index.html','../en/index.html']) {
     'btn-teaching-wb',
     'teaching-worldbooks.js',
     'teachingWorldbooks:window.TeachingWorldbooks',
+    'generateTeachingWorldbookDraft(idea, meta)',
+    'generateDraft: (idea, meta) => generateTeachingWorldbookDraft(idea, meta)',
     'window.TeachingWorldbooks.load(d.teachingWorldbooks || null)',
     "const officialTeaching = (teachingMode === 'official' || teachingMode === 'hybrid')",
     'const customTeaching = twb && typeof twb.buildInjection',
@@ -72,5 +74,8 @@ for (const path of ['../index.html','../en/index.html']) {
 if (!source.includes('Import file (optional)') || !source.includes('从文件导入（可选）') || !source.includes("if (!/\\.txt$/i.test(file.name))")) {
   throw new Error('plain-text worldbook upload support is missing');
 }
+if (!source.includes('id="twb-ai-polish"') || !source.includes('让 AI 帮我整理') || !source.includes('never saves or enables the result automatically') || !source.includes("el('twb-ai-polish').addEventListener('click', polishDraft)")) {
+  throw new Error('optional AI-assisted drafting UI is missing');
+}
 
-console.log('teaching worldbooks: modes, filters, priority, Tavern import, persistence and prompt integration passed');
+console.log('teaching worldbooks: modes, filters, priority, Tavern import, AI drafting, persistence and prompt integration passed');

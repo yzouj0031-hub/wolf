@@ -28,6 +28,7 @@
   let state = { mode: 'official', maxChars: 12000, books: [] };
   let onChange = function () {};
   let getContext = function () { return {}; };
+  let generateDraft = null;
 
   const el = id => document.getElementById(id);
   const uid = () => 'wb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
@@ -239,6 +240,7 @@
 
   function openEditor(id) {
     const book = state.books.find(x => x.id === id) || null;
+    setDraftStatus(UI_EN ? 'Write a rough idea first. This reuses the global API and never saves or enables the result automatically.' : '先随便写一句想法即可。复用全局 API，生成结果不会自动保存或启用。');
     el('twb-edit-id').value = book ? book.id : '';
     el('twb-edit-name').value = book ? book.name : '';
     el('twb-edit-desc').value = book ? book.description : '';
@@ -252,8 +254,41 @@
   }
 
   function closeEditor() {
+    setDraftStatus('');
     el('twb-edit-view').style.display = 'none';
     el('twb-main-view').style.display = 'block';
+  }
+
+  function setDraftStatus(message, kind) {
+    const node = el('twb-ai-status');
+    if (!node) return;
+    node.textContent = message || '';
+    node.dataset.kind = kind || '';
+  }
+
+  async function polishDraft() {
+    const input = el('twb-edit-content');
+    const button = el('twb-ai-polish');
+    const idea = input.value.trim();
+    if (!idea) return alert(UI_EN ? 'Write your rough idea first' : '请先写下一句或几句大致想法');
+    if (typeof generateDraft !== 'function') return setDraftStatus(UI_EN ? 'AI drafting is unavailable on this page' : '当前页面暂不支持 AI 整理', 'error');
+    button.disabled = true;
+    setDraftStatus(UI_EN ? 'AI is organizing your draft…' : 'AI 正在整理草稿…', 'loading');
+    try {
+      const result = await generateDraft(idea, {
+        name: el('twb-edit-name').value.trim(),
+        description: el('twb-edit-desc').value.trim()
+      });
+      const content = String(result || '').trim();
+      if (!content) throw new Error(UI_EN ? 'The model returned empty content' : '模型返回了空内容');
+      input.value = content.slice(0, MAX_CONTENT);
+      input.focus();
+      setDraftStatus(UI_EN ? 'Draft organized. Review and edit it before saving.' : '草稿已整理，请检查、修改后再保存。', 'success');
+    } catch (err) {
+      setDraftStatus((UI_EN ? 'Generation failed: ' : '生成失败：') + (err && err.message ? err.message : err), 'error');
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function saveEditor() {
@@ -298,6 +333,7 @@
       .twb-info{min-width:0;display:flex;flex-direction:column;gap:2px}.twb-info strong{color:#e2c98d}.twb-info span{font-size:.67em;color:#9087a0}.twb-info small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#aaa1ba}
       .twb-actions{display:flex;gap:5px}.twb-actions button{padding:5px 8px;font-size:.7em}.twb-actions .danger{color:#d98a98;border-color:rgba(217,92,112,.35)}
       .twb-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.twb-edit-grid .wide{grid-column:1/-1}.twb-edit-grid label{display:flex;flex-direction:column;gap:4px;font-size:.72em;color:#9f96ae}.twb-edit-grid input,.twb-edit-grid textarea{max-width:none;width:100%}
+      .twb-ai-help{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 10px;border:1px solid rgba(139,112,190,.22);background:rgba(104,76,148,.06);border-radius:8px}.twb-ai-help button{padding:6px 12px}.twb-ai-help small{color:#8f879d;line-height:1.45}.twb-ai-help [data-kind="loading"]{color:#c6a7e8}.twb-ai-help [data-kind="success"]{color:#8bc9b3}.twb-ai-help [data-kind="error"]{color:#df8e9e}
       .twb-advanced{margin-top:2px;padding:8px 10px;border:1px solid rgba(184,154,91,.18);border-radius:8px;background:rgba(255,255,255,.025)}.twb-advanced summary{cursor:pointer;color:#a99db8;font-size:.74em;margin-bottom:7px}.twb-advanced>.twb-edit-grid{padding-top:4px}
       @media(max-width:700px){.twb-row{grid-template-columns:auto minmax(0,1fr)}.twb-actions{grid-column:1/-1;justify-content:flex-end}.twb-edit-grid{grid-template-columns:1fr}}
     `;
@@ -336,7 +372,7 @@
               <label>Teams<input id="twb-edit-teams" placeholder="good, bad, third; blank = all"></label>
               <label>Phases<input id="twb-edit-phases" placeholder="night, day, sheriff, vote, ending; blank = all"></label>
             </div></details>
-          </div><div class="btns"><button type="button" id="twb-edit-save">Save worldbook</button><button type="button" id="twb-edit-cancel">Cancel</button></div>
+          </div><div class="twb-ai-help"><button type="button" id="twb-ai-polish">Polish with AI</button><small id="twb-ai-status">Write a rough idea first. This reuses the global API and never saves or enables the result automatically.</small></div><div class="btns"><button type="button" id="twb-edit-save">Save worldbook</button><button type="button" id="twb-edit-cancel">Cancel</button></div>
         </div>
       </div>` : `
       <div class="ebox" style="max-width:820px;width:94%">
@@ -364,7 +400,7 @@
               <label>限定阵营<input id="twb-edit-teams" placeholder="good, bad, third；留空=全部"></label>
               <label>限定阶段<input id="twb-edit-phases" placeholder="night, day, sheriff, vote, ending；留空=全部"></label>
             </div></details>
-          </div><div class="btns"><button type="button" id="twb-edit-save">保存世界书</button><button type="button" id="twb-edit-cancel">取消</button></div>
+          </div><div class="twb-ai-help"><button type="button" id="twb-ai-polish">让 AI 帮我整理</button><small id="twb-ai-status">先随便写一句想法即可。复用全局 API，生成结果不会自动保存或启用。</small></div><div class="btns"><button type="button" id="twb-edit-save">保存世界书</button><button type="button" id="twb-edit-cancel">取消</button></div>
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -374,6 +410,7 @@
     options = options || {};
     onChange = typeof options.onChange === 'function' ? options.onChange : onChange;
     getContext = typeof options.getContext === 'function' ? options.getContext : getContext;
+    generateDraft = typeof options.generateDraft === 'function' ? options.generateDraft : generateDraft;
     injectStyles();
     ensureModal();
     const open = el('btn-teaching-wb');
@@ -384,6 +421,7 @@
     el('twb-add').addEventListener('click', () => openEditor(''));
     el('twb-edit-cancel').addEventListener('click', closeEditor);
     el('twb-edit-save').addEventListener('click', saveEditor);
+    el('twb-ai-polish').addEventListener('click', polishDraft);
     el('twb-mode').addEventListener('change', e => { state.mode = VALID_MODES.has(e.target.value) ? e.target.value : 'official'; notifyChanged(); });
     el('twb-max-chars').addEventListener('change', e => { state.maxChars = clamp(e.target.value,1000,50000,12000); e.target.value=state.maxChars; notifyChanged(); });
     el('twb-export-all').addEventListener('click', () => download('狼人杀教学世界书.json', exportPayload(state.books)));
