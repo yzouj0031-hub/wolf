@@ -13,13 +13,13 @@
   const UI_EN = /\/en(?:\/|$)/.test(location.pathname);
   const UI = UI_EN ? {
     modes:{official:'Official teaching',custom:'Custom worldbooks',hybrid:'Hybrid',clean:'Clean mode'},
-    empty:'No custom teaching worldbooks yet. Create one or import a JSON file.', priority:'Priority', global:'Global',
+    empty:'No custom teaching worldbooks yet. Choose “Write a worldbook” and type the teaching prompt directly.', priority:'Priority', global:'Global',
     edit:'Edit', export:'Export', remove:'Delete', enable:'Enable this worldbook', confirmDelete:name=>`Delete “${name}”?`,
     needName:'Enter a worldbook name', needContent:'Enter teaching prompt content', tooLarge:'Worldbook file cannot exceed 2MB',
     imported:n=>`Imported ${n} teaching worldbook(s)`, importFailed:e=>'Import failed: '+e
   } : {
     modes:{official:'官方教学',custom:'自定义世界书',hybrid:'混合模式',clean:'纯净模式'},
-    empty:'还没有自定义教学世界书。可以新建，也可以导入 JSON 文件。', priority:'优先级', global:'全局生效',
+    empty:'还没有自定义教学世界书。点击“手写新世界书”，直接写下希望 AI 遵循的教学提示词。', priority:'优先级', global:'全局生效',
     edit:'编辑', export:'导出', remove:'删除', enable:'启用这本世界书', confirmDelete:name=>`删除世界书“${name}”？`,
     needName:'请填写世界书名称', needContent:'请填写教学提示词内容', tooLarge:'世界书文件不能超过 2MB',
     imported:n=>`已导入 ${n} 本教学世界书`, importFailed:e=>'导入失败：'+e
@@ -298,6 +298,7 @@
       .twb-info{min-width:0;display:flex;flex-direction:column;gap:2px}.twb-info strong{color:#e2c98d}.twb-info span{font-size:.67em;color:#9087a0}.twb-info small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#aaa1ba}
       .twb-actions{display:flex;gap:5px}.twb-actions button{padding:5px 8px;font-size:.7em}.twb-actions .danger{color:#d98a98;border-color:rgba(217,92,112,.35)}
       .twb-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.twb-edit-grid .wide{grid-column:1/-1}.twb-edit-grid label{display:flex;flex-direction:column;gap:4px;font-size:.72em;color:#9f96ae}.twb-edit-grid input,.twb-edit-grid textarea{max-width:none;width:100%}
+      .twb-advanced{margin-top:2px;padding:8px 10px;border:1px solid rgba(184,154,91,.18);border-radius:8px;background:rgba(255,255,255,.025)}.twb-advanced summary{cursor:pointer;color:#a99db8;font-size:.74em;margin-bottom:7px}.twb-advanced>.twb-edit-grid{padding-top:4px}
       @media(max-width:700px){.twb-row{grid-template-columns:auto minmax(0,1fr)}.twb-actions{grid-column:1/-1;justify-content:flex-end}.twb-edit-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -317,8 +318,8 @@
           <div class="twb-toolbar">
             <label>Injection mode <select id="twb-mode"><option value="official">Official teaching</option><option value="custom">Custom only</option><option value="hybrid">Official + custom</option><option value="clean">Clean (no teaching)</option></select></label>
             <label>Maximum characters <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
-            <button type="button" id="twb-add">New</button>
-            <label class="be" style="cursor:pointer">Import JSON/TXT<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
+            <button type="button" id="twb-add">Write a worldbook</button>
+            <label class="be" style="cursor:pointer">Import file (optional)<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
             <button type="button" id="twb-export-all">Export all</button>
           </div>
           <div id="twb-status" style="font-size:.7em;color:#9b91aa"></div><div id="twb-list" class="twb-list"></div>
@@ -326,13 +327,15 @@
         </div>
         <div id="twb-edit-view" style="display:none;flex-direction:column;gap:10px">
           <input type="hidden" id="twb-edit-id"><div class="twb-edit-grid">
-            <label>Worldbook name<input id="twb-edit-name" maxlength="80" placeholder="e.g. Competitive logic"></label>
-            <label>Priority (0-100)<input id="twb-edit-priority" type="number" min="0" max="100" value="50"></label>
-            <label class="wide">Description<input id="twb-edit-desc" maxlength="500" placeholder="Describe the play style"></label>
-            <label>Player role IDs<input id="twb-edit-roles" placeholder="seer, witch; blank = all"></label>
-            <label>Teams<input id="twb-edit-teams" placeholder="good, bad, third; blank = all"></label>
-            <label class="wide">Phases<input id="twb-edit-phases" placeholder="night, day, sheriff, vote, ending; blank = all"></label>
-            <label class="wide">Teaching prompt<textarea id="twb-edit-content" maxlength="100000" placeholder="Write the play style, reasoning method, and speaking guidance for the AI..." style="height:300px;resize:vertical"></textarea></label>
+            <label class="wide">Worldbook name<input id="twb-edit-name" maxlength="80" placeholder="e.g. Competitive logic"></label>
+            <label class="wide">Write the teaching prompt<textarea id="twb-edit-content" maxlength="100000" placeholder="Tell the AI how to reason, claim roles, vote, cooperate, and speak. Plain language is enough; no JSON format is needed." style="height:360px;resize:vertical"></textarea></label>
+            <label class="wide">Description (optional)<input id="twb-edit-desc" maxlength="500" placeholder="A short note for yourself"></label>
+            <details class="wide twb-advanced"><summary>Advanced activation settings (optional)</summary><div class="twb-edit-grid">
+              <label>Priority (0-100)<input id="twb-edit-priority" type="number" min="0" max="100" value="50"></label>
+              <label>Player role IDs<input id="twb-edit-roles" placeholder="seer, witch; blank = all"></label>
+              <label>Teams<input id="twb-edit-teams" placeholder="good, bad, third; blank = all"></label>
+              <label>Phases<input id="twb-edit-phases" placeholder="night, day, sheriff, vote, ending; blank = all"></label>
+            </div></details>
           </div><div class="btns"><button type="button" id="twb-edit-save">Save worldbook</button><button type="button" id="twb-edit-cancel">Cancel</button></div>
         </div>
       </div>` : `
@@ -343,8 +346,8 @@
           <div class="twb-toolbar">
             <label>注入模式 <select id="twb-mode"><option value="official">官方教学</option><option value="custom">仅自定义世界书</option><option value="hybrid">官方教学＋自定义</option><option value="clean">纯净模式（无教学）</option></select></label>
             <label>每次最多注入字符 <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
-            <button type="button" id="twb-add">新建</button>
-            <label class="be" style="cursor:pointer">导入 JSON/TXT<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
+            <button type="button" id="twb-add">手写新世界书</button>
+            <label class="be" style="cursor:pointer">从文件导入（可选）<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
             <button type="button" id="twb-export-all">导出全部</button>
           </div>
           <div id="twb-status" style="font-size:.7em;color:#9b91aa"></div><div id="twb-list" class="twb-list"></div>
@@ -352,13 +355,15 @@
         </div>
         <div id="twb-edit-view" style="display:none;flex-direction:column;gap:10px">
           <input type="hidden" id="twb-edit-id"><div class="twb-edit-grid">
-            <label>世界书名称<input id="twb-edit-name" maxlength="80" placeholder="例：高阶竞技逻辑流"></label>
-            <label>优先级（0-100）<input id="twb-edit-priority" type="number" min="0" max="100" value="50"></label>
-            <label class="wide">简介<input id="twb-edit-desc" maxlength="500" placeholder="说明这本世界书的打法方向"></label>
-            <label>限定玩家身份 ID<input id="twb-edit-roles" placeholder="例：seer, witch；留空=全部"></label>
-            <label>限定阵营<input id="twb-edit-teams" placeholder="good, bad, third；留空=全部"></label>
-            <label class="wide">限定阶段<input id="twb-edit-phases" placeholder="night, day, sheriff, vote, ending；留空=全部"></label>
-            <label class="wide">教学提示词<textarea id="twb-edit-content" maxlength="100000" placeholder="写下希望 AI 遵循的狼人杀打法、推理方法、发言风格……" style="height:300px;resize:vertical"></textarea></label>
+            <label class="wide">世界书名称<input id="twb-edit-name" maxlength="80" placeholder="例：高阶竞技逻辑流"></label>
+            <label class="wide">直接手写教学提示词<textarea id="twb-edit-content" maxlength="100000" placeholder="直接告诉 AI 应该怎样推理、跳身份、投票、配合和发言。写普通文字即可，不需要 JSON 格式。" style="height:360px;resize:vertical"></textarea></label>
+            <label class="wide">简介（可不填）<input id="twb-edit-desc" maxlength="500" placeholder="给自己看的简短说明"></label>
+            <details class="wide twb-advanced"><summary>高级生效范围（可不设置）</summary><div class="twb-edit-grid">
+              <label>优先级（0-100）<input id="twb-edit-priority" type="number" min="0" max="100" value="50"></label>
+              <label>限定玩家身份 ID<input id="twb-edit-roles" placeholder="例：seer, witch；留空=全部"></label>
+              <label>限定阵营<input id="twb-edit-teams" placeholder="good, bad, third；留空=全部"></label>
+              <label>限定阶段<input id="twb-edit-phases" placeholder="night, day, sheriff, vote, ending；留空=全部"></label>
+            </div></details>
           </div><div class="btns"><button type="button" id="twb-edit-save">保存世界书</button><button type="button" id="twb-edit-cancel">取消</button></div>
         </div>
       </div>`;
