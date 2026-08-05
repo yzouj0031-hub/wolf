@@ -69,7 +69,7 @@ for (const path of ['../index.html','../en/index.html']) {
   ]) if (!html.includes(marker)) throw new Error(`${path} lacks teaching-worldbook integration marker: ${marker}`);
 }
 
-if (!source.includes('Import JSON/TXT') || !source.includes('导入 JSON/TXT') || !source.includes("if (!/\\.txt$/i.test(file.name))")) {
+if (!source.includes('Import file (optional)') || !source.includes('从文件导入（可选）') || !source.includes("if (!/\\.txt$/i.test(file.name))")) {
   throw new Error('plain-text worldbook upload support is missing');
 }
 
