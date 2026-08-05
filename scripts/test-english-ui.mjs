@@ -33,7 +33,8 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, "cgKey:'witchPoison'", `${label} witch poison cinematic`);
   requireText(source, "cgKey:'wolfbeautyDeath'", `${label} Wolf Beauty death-link cinematic`);
   requireText(source, "let explicitHumanAction = ''", `${label} preserves explicit human wolf action`);
-  requireText(source, 'const target = explicitHumanAction ? parseWolfTarget(explicitHumanAction, validWolfTargets) : null', `${label} does not infer human wolf target from discussion prose`);
+  requireText(source, 'let target = explicitHumanAction ? parseWolfTarget(explicitHumanAction, validWolfTargets) : null', `${label} does not infer human wolf target from discussion prose`);
+  requireText(source, "value:'__NO_PROPOSAL__'", `${label} records human wolf proposals through an explicit choice`);
   requireText(source, "value:String(x.id)", `${label} uses stable player ids for manual choices`);
   requireText(source, 'Number.isFinite(parsed)', `${label} UI zoom validation`);
   requireText(source, 'localStorage.removeItem(\'uiZoom\')', `${label} invalid UI zoom cleanup`);

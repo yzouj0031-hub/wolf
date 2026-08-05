@@ -14190,8 +14190,27 @@ const NightActions = {
         p.memory.push({ role: 'user', content: prompt });
         p.memory.push({ role: 'assistant', content: sp });
         // Human/director discussion text is display-only. Never infer a kill from players merely
-        // mentioned in prose. Preserve an explicit pasted <action>; otherwise the button vote decides.
-        const target = explicitHumanAction ? parseWolfTarget(explicitHumanAction, validWolfTargets) : null;
+        // mentioned in prose. Preserve an explicit pasted <action>; otherwise confirm this round's proposal with a choice.
+        let target = explicitHumanAction ? parseWolfTarget(explicitHumanAction, validWolfTargets) : null;
+        // 真人讨论正文可能同时提到多个候选人，不能再靠文本猜刀口；但若完全不记录
+        // 真人的提议，系统又会把“真人反对 AI 共识”误判成没有分歧并跳过回响轮。
+        // 因此在发言后用结构化选择明确本轮立场。这里只是讨论提议，不是导演强制改刀；
+        // 最终刀口仍由回响后的独立投票决定。
+        if (!killBlocked && !target) {
+          const proposalOpts = validWolfTargets.map(x => ({
+            label: x.name + (x.role.team === 'bad' ? '（战术自刀）' : ''),
+            value: String(x.id)
+          }));
+          proposalOpts.push({label:'本轮暂不明确刀口', value:'__NO_PROPOSAL__', abs:true});
+          const proposal = await waitChoice(
+            isOpening ? '确认你刚才提出的刀口；若与队友不同，系统会继续讨论。' : '确认你在回响后的最新刀口立场。',
+            isOpening ? '狼队·本轮提议' : '狼队·回响立场',
+            proposalOpts
+          );
+          if (proposal !== '__NO_PROPOSAL__' && proposal !== null && proposal !== undefined) {
+            target = validWolfTargets.find(x => String(x.id) === String(proposal)) || null;
+          }
+        }
         return {
           game: sp,
           action: target ? target.name : null,

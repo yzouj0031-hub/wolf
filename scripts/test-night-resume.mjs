@@ -51,6 +51,15 @@ for (const path of ['../index.html', '../en/index.html']) {
     if (!html.includes(marker)) throw new Error(`${path} lacks wolf-discussion checkpoint marker: ${marker}`);
   }
 
+  for (const marker of [
+    "value:'__NO_PROPOSAL__'",
+    "isOpening ? '狼队·本轮提议' : '狼队·回响立场'",
+    "target = validWolfTargets.find(x => String(x.id) === String(proposal)) || null",
+    '系统会继续讨论'
+  ]) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks structured human wolf-proposal marker: ${marker}`);
+  }
+
   if (/从失败步骤恢复|resume at the failed step/.test(html)) {
     throw new Error(`${path} still labels a resumable interruption as a failed step`);
   }
