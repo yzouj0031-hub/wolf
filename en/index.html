@@ -3022,6 +3022,7 @@ body.has-wp::after {
         <summary>显示与音效<span class="mset-n"></span></summary>
         <div class="mtog">
         <label class="mti" data-ui-icon="volume"><input type="checkbox" id="m-audio" checked>音效</label>
+        <label class="mti" data-ui-icon="volume"><input type="checkbox" id="m-playerbgm" checked>Player-specific BGM</label>
         <label class="mti" data-ui-icon="sparkles" title="关掉毛玻璃和常驻动画。若你在浏览器里遇到「玩着玩着某块画面变空白，但游戏照常」，打开它即可解决——那是浏览器合成高负载特效时的老毛病，与游戏逻辑无关。桌面默认关闭（保留华丽特效）。"><input type="checkbox" id="m-litefx">精简特效</label>
         <div class="bgm-controls" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 0;font-size:0.75em;align-items:center">
       <span style="color:#8a8090">🌙夜间BGM</span>
@@ -3049,14 +3050,6 @@ body.has-wp::after {
       <input type="text" id="bgm-day-url" placeholder="粘贴音频直链 URL…" style="display:none;flex:1;font-size:0.78em;padding:3px 7px;background:rgba(0,0,0,0.25);border:1px solid rgba(245,160,184,0.15);border-radius:var(--r);color:#d8d0e8">
       <span id="bgm-day-status" style="color:#8a8090;font-size:0.85em"></span>
     </div>
-        <details style="margin:6px 0 2px;border:1px solid rgba(245,160,184,0.12);border-radius:var(--r);padding:6px 8px;background:rgba(0,0,0,0.15)">
-          <summary style="cursor:pointer;font-size:0.78em;color:var(--gold);font-family:var(--font-title)">🎵 角色BGM管理</summary>
-          <div id="role-bgm-toggles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px 6px;margin:8px 0 4px;font-size:0.72em"></div>
-          <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px">
-            <button id="role-bgm-all-on" type="button" style="font-size:0.7em;padding:3px 10px;background:rgba(245,160,184,0.08);color:#b0a8c0;border:1px solid rgba(245,160,184,0.15);border-radius:var(--r);cursor:pointer">全部开启</button>
-            <button id="role-bgm-all-off" type="button" style="font-size:0.7em;padding:3px 10px;background:rgba(245,160,184,0.08);color:#b0a8c0;border:1px solid rgba(245,160,184,0.15);border-radius:var(--r);cursor:pointer">全部静音</button>
-          </div>
-        </details>
         </div>
       </details>
     </div>
@@ -3204,9 +3197,10 @@ body.has-wp::after {
       <div id="pcavatar-preview" style="width:32px;height:32px;border-radius:50%;overflow:hidden;border:1px solid rgba(245,160,184,0.2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.2em;background:rgba(0,0,0,0.3)"></div>
     </div>
   </div>
-  <div class="row"><label>角色BGM</label>
+  <div class="row"><label>Player BGM</label>
     <div style="display:flex;gap:6px;align-items:center;flex:1">
-      <input type="text" id="pccharbgm" placeholder="发言时播放的BGM URL（留空用内置）" style="flex:1">
+      <input type="text" id="pccharbgm" placeholder="BGM URL to play while speaking (leave empty for built-in)" style="flex:1">
+      <label style="font-size:0.75em;display:flex;align-items:center;gap:4px;color:#a098b0;cursor:pointer;white-space:nowrap" title="When enabled, this player's specific BGM will not play"><input type="checkbox" id="pcmutebgm"><i data-ui-icon="volume" style="width:14px;height:14px;opacity:0.5"></i>Mute</label>
       <button id="pccharbgm-search" style="font-size:0.72em;padding:4px 8px;background:rgba(240,192,96,0.12);color:var(--gold);border:1px solid rgba(240,192,96,0.25);border-radius:var(--r);cursor:pointer;white-space:nowrap">🔍 搜库</button>
       <label style="font-size:0.72em;padding:4px 8px;background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo);border-radius:var(--r);cursor:pointer;white-space:nowrap">
         🎵上传<input type="file" accept="audio/*" id="pccharbgm-upload" style="display:none">
@@ -4519,7 +4513,6 @@ function freshState(prev) {
 let S = freshState();
 let playerConfigs = {}, currentCfgP = -1;
 let promptLibrary = {};
-let mutedRoleBgm = new Set();
 function purgeRemovedPronounConfigs(configs) {
   const out = configs && typeof configs === 'object' ? configs : {};
   Object.values(out).forEach(cfg => { if (cfg && typeof cfg === 'object') delete cfg.pronoun; });
@@ -4978,9 +4971,9 @@ const Audio = (() => {
   let charBgmAudio = null;
   function playCharBgm(playerName) {
     if (!enabled) return;
-    // 检查该角色的BGM是否被单独静音
+    if ($('m-playerbgm') && !$('m-playerbgm').checked) return;
     const p = S.players.find(x => x.name === playerName);
-    if (p && p.role && mutedRoleBgm.has(p.role.id)) return;
+    if (p && playerConfigs[p.id] && playerConfigs[p.id].muteBgm) return;
     // 优先用用户自定义的角色BGM，其次用内置的
     let src = null;
     if (p) {
@@ -7090,6 +7083,7 @@ function applyLiteFx() {
 function saveCfg() {
   try { localStorage.setItem('wg_gufeng', JSON.stringify({
     litefx:$('m-litefx')?$('m-litefx').checked:false,
+    playerbgm:$('m-playerbgm')?$('m-playerbgm').checked:true,
     url:$('g-url').value, key:$('g-key').value, model:$('g-model').value,
     maxtk:$('g-maxtk')?$('g-maxtk').value:'131072', mem:$('g-mem')?$('g-mem').value:'40',
     fbUrl:$('fb-url')?$('fb-url').value:'', fbKey:$('fb-key')?$('fb-key').value:'', fbModel:$('fb-model')?$('fb-model').value:'', fbType:$('fb-type')?$('fb-type').value:'openai',
@@ -7110,8 +7104,7 @@ function saveCfg() {
     customModes: window._customModes || [],
     personaPool: window.personaPool || [],
     personaPoolEnabled: $('m-persona-pool') ? $('m-persona-pool').checked : false,
-    extraFallbacks: extraFallbacks,
-    mutedRoleBgm: [...mutedRoleBgm]
+    extraFallbacks: extraFallbacks
   })); } catch(e) { console.error('saveCfg failed:', e); }
 }
 function loadCfg() {
@@ -7137,6 +7130,7 @@ function loadCfg() {
     if (d.trial  !== undefined) $('m-trial').checked  = d.trial;
     if (d.hdeath !== undefined) $('m-hdeath').checked  = d.hdeath;
     if (d.litefx !== undefined && $('m-litefx')) $('m-litefx').checked = d.litefx;
+    if (d.playerbgm !== undefined && $('m-playerbgm')) $('m-playerbgm').checked = d.playerbgm;
     applyLiteFx();
     if (d.killEdge !== undefined && $('m-kill-edge')) { $('m-kill-edge').checked = d.killEdge; S.killEdgeMode = d.killEdge; }
     if (d.singleRound !== undefined && $('m-single-round')) { $('m-single-round').checked = d.singleRound; S.singleRound = d.singleRound; }
@@ -7199,35 +7193,7 @@ function loadCfg() {
     if (d.personaPoolEnabled !== undefined && $('m-persona-pool')) {
       $('m-persona-pool').checked = d.personaPoolEnabled;
     }
-    if (d.mutedRoleBgm && Array.isArray(d.mutedRoleBgm)) {
-      mutedRoleBgm = new Set(d.mutedRoleBgm);
-    }
   } catch(e) {}
-}
-
-function renderRoleBgmToggles() {
-  const ct = $('role-bgm-toggles');
-  if (!ct) return;
-  ct.innerHTML = '';
-  Object.values(ALL_ROLES).forEach(role => {
-    const muted = mutedRoleBgm.has(role.id);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.dataset.roleId = role.id;
-    btn.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:var(--r);cursor:pointer;transition:all 0.2s;font-size:1em;'
-      + 'border:1px solid ' + (muted ? 'rgba(255,255,255,0.06)' : 'rgba(245,160,184,0.2)') + ';'
-      + 'background:' + (muted ? 'rgba(255,255,255,0.02)' : 'rgba(245,160,184,0.08)') + ';'
-      + 'color:' + (muted ? '#5a5060' : '#d8d0e8') + ';'
-      + (muted ? 'opacity:0.55;' : '');
-    btn.innerHTML = '<span>' + (role.emoji||'') + '</span> ' + role.name + ' <span style="margin-left:auto">' + (muted ? '🔇' : '🔊') + '</span>';
-    btn.addEventListener('click', () => {
-      if (mutedRoleBgm.has(role.id)) mutedRoleBgm.delete(role.id);
-      else mutedRoleBgm.add(role.id);
-      renderRoleBgmToggles();
-      saveCfg();
-    });
-    ct.appendChild(btn);
-  });
 }
 
 /* ================================================================
@@ -21314,18 +21280,7 @@ function bindEvents() {
   setupBgmSelector('bgm-night-src','bgm-night-label','bgm-night-upload','bgm-night-status','_customNightBgm','bgm-night-url');
   setupBgmSelector('bgm-day-src','bgm-day-label','bgm-day-upload','bgm-day-status','_customDayBgm','bgm-day-url');
 
-  // 角色BGM静音管理
-  renderRoleBgmToggles();
-  if ($('role-bgm-all-on')) $('role-bgm-all-on').addEventListener('click', () => {
-    mutedRoleBgm.clear();
-    renderRoleBgmToggles();
-    saveCfg();
-  });
-  if ($('role-bgm-all-off')) $('role-bgm-all-off').addEventListener('click', () => {
-    Object.keys(ALL_ROLES).forEach(id => mutedRoleBgm.add(id));
-    renderRoleBgmToggles();
-    saveCfg();
-  });
+  if ($('m-playerbgm')) $('m-playerbgm').addEventListener('change', saveCfg);
 
   // ★ 提问系统
   $('btn-ask').addEventListener('click', openAskDialog);
@@ -22031,6 +21986,7 @@ function openPCfg(i) {
   // 角色BGM
   $('pccharbgm').value = c.charBgm||'';
   $('pccharbgm-status').textContent = c.charBgm ? '✅ 已设置' : '';
+  if ($('pcmutebgm')) $('pcmutebgm').checked = !!c.muteBgm;
   // AI参数
   const loadParam = (cbId, sliderId, valId, val, def) => {
     const hasVal = val !== undefined && val !== null;
@@ -22092,6 +22048,7 @@ function savePCfg() {
   const disableFreeOutput = $('pc-free-output-disable') ? $('pc-free-output-disable').checked : false;
   const avatar = $('pcavatar').value.trim();
   const charBgm = $('pccharbgm').value.trim();
+  const muteBgm = $('pcmutebgm') ? $('pcmutebgm').checked : false;
   const role = $('pcrole').value;
   const maxTokens = parseInt($('pc-maxtk').value) || null;
   const memLimitRaw = $('pc-memlimit') ? $('pc-memlimit').value.trim() : '';
@@ -22100,7 +22057,7 @@ function savePCfg() {
   const top_p = $('pc-topp-on').checked ? parseFloat($('pc-topp').value) : null;
   const frequency_penalty = $('pc-fp-on').checked ? parseFloat($('pc-fp').value) : null;
   const presence_penalty = $('pc-pp-on').checked ? parseFloat($('pc-pp').value) : null;
-  if (nm||u||k||m||persona||cot||disableFreeOutput||role||avatar||charBgm||temperature!==null||top_p!==null||frequency_penalty!==null||presence_penalty!==null||memLimit!==undefined) {
+  if (nm||u||k||m||persona||cot||disableFreeOutput||role||avatar||charBgm||muteBgm||temperature!==null||top_p!==null||frequency_penalty!==null||presence_penalty!==null||memLimit!==undefined) {
     if (!playerConfigs[currentCfgP]) playerConfigs[currentCfgP]={};
     if (maxTokens) playerConfigs[currentCfgP].maxTokens=maxTokens; else delete playerConfigs[currentCfgP].maxTokens;
     if (memLimit !== undefined) playerConfigs[currentCfgP].memLimit=memLimit; else delete playerConfigs[currentCfgP].memLimit;
@@ -22115,6 +22072,7 @@ function savePCfg() {
     // 保留旧 freeOutput 字段以向下兼容（让用户已有的勾选数据继续生效）
     if (avatar) playerConfigs[currentCfgP].avatar=avatar; else delete playerConfigs[currentCfgP].avatar;
     if (charBgm) playerConfigs[currentCfgP].charBgm=charBgm; else delete playerConfigs[currentCfgP].charBgm;
+    if (muteBgm) playerConfigs[currentCfgP].muteBgm=true; else delete playerConfigs[currentCfgP].muteBgm;
     if (role) playerConfigs[currentCfgP].role=role; else delete playerConfigs[currentCfgP].role;
     if (temperature!==null) playerConfigs[currentCfgP].temperature=temperature; else delete playerConfigs[currentCfgP].temperature;
     if (top_p!==null) playerConfigs[currentCfgP].top_p=top_p; else delete playerConfigs[currentCfgP].top_p;

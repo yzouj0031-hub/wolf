@@ -199,7 +199,7 @@
     '精简特效':'Reduced effects','主持人':'Host','音效':'Sound','模型标签':'Model labels','思维链':'Reasoning','自由输出':'Natural output',
     '手动重试':'Manual retry','屠边':'Edge victory','骑士连斩':'Knight streak','单轮发言':'Single speech round','警长每日定序':'Daily sheriff order',
     '人设随机池':'Random persona pool','夜间BGM':'Night music','白天BGM':'Day music','无音乐':'None','自定义上传':'Upload','自定义链接':'URL',
-    '角色BGM管理':'Character BGM','全部开启':'Unmute all','全部静音':'Mute all',
+    '玩家专属BGM':'Player-specific BGM',
     '拉取':'Fetch','测试':'Test','全部应用':'Apply all','批量分配':'Batch assign','全选':'Select all','反选':'Invert','应用':'Apply',
     '关闭':'Close','复制':'Copy','下载':'Download','导入':'Import','排行榜':'Leaderboard','聊天摘要':'Chat summary','导出记录':'Export record',
     '导出配置':'Export config','导入配置':'Import config','复盘页面':'Review page','本局规则':'Game rules','完整角色百科':'Full role encyclopedia',
