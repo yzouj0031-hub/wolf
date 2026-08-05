@@ -2343,6 +2343,7 @@ body.has-wp::after {
 <script src="../role-sigils.js"></script>
 <script src="../action-cg.js"></script>
 <script src="../ui-icons.js"></script>
+<script src="../teaching-worldbooks.js"></script>
 </head>
 <body>
 
@@ -3084,6 +3085,7 @@ body.has-wp::after {
           <div class="cmg-row">
             <span class="cmg-label">工具</span>
             <button class="be" id="btn-prompt-lib" data-ui-icon="library" title="管理可分配给不同模型的长篇提示词模板">Prompt library</button>
+            <button class="be" id="btn-teaching-wb" data-ui-icon="book" title="Import or write Werewolf teaching worldbooks for AI strategy">Teaching WB</button>
             <button class="be" id="btn-rules" data-ui-icon="book" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">规则</button>
             <button class="be" id="btn-tts" data-ui-icon="volume" title="用系统语音朗读AI发言（免费，无需API）">朗读</button>
             <button class="be" id="btn-tts-cfg" data-ui-icon="sliders" title="朗读设置：切换系统语音/自定义TTS接口">设置</button>
@@ -3935,7 +3937,18 @@ const WB_RULES_COMPACT = `
 function buildWorldBook(p) {
   // 当前角色的完整能力由 guide 单独注入；其他角色只给公开的一行摘要。
   // 下方旧拼装逻辑暂时保留以便历史对照，但不再进入模型上下文。
-  return WB_CORE_COMPACT + WB_RULES_COMPACT;
+  const twb = window.TeachingWorldbooks;
+  const teachingMode = twb && typeof twb.mode === 'function' ? twb.mode() : 'official';
+  const officialTeaching = (teachingMode === 'official' || teachingMode === 'hybrid') ? WB_CORE_COMPACT : '';
+  const customTeaching = twb && typeof twb.buildInjection === 'function' ? twb.buildInjection({
+    roleId: p && p.role ? p.role.id : '',
+    team: p && p.role ? p.role.team : '',
+    phase: S && S.phase ? S.phase : 'day',
+    round: S && S.round ? S.round : 0,
+    rolesInGame: (S && Array.isArray(S.players)) ? S.players.map(x => x && x.role && x.role.id).filter(Boolean) : []
+  }) : '';
+  // 公共流程属于硬规则，在任何教学模式下都保留，并放在玩家世界书之后再次压住边界。
+  return officialTeaching + customTeaching + WB_RULES_COMPACT;
 
   /* legacy world-book assembly (inactive) */
   let wb = WB_CORE + WB_CONFIDENCE_EVIDENCE + WB_RULE_CLARIFY;
@@ -7097,6 +7110,7 @@ function saveCfg() {
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     pconfigs:playerConfigs,
     promptLibrary,
+    teachingWorldbooks:window.TeachingWorldbooks&&typeof window.TeachingWorldbooks.exportState==='function'?window.TeachingWorldbooks.exportState():null,
     hostEnable:$('host-enable')?$('host-enable').checked:true, hostMode:$('host-mode')?$('host-mode').value:'emcee', hostUrl:$('h-url')?$('h-url').value:'', hostKey:$('h-key')?$('h-key').value:'', hostModel:$('h-model')?$('h-model').value:'', hostVerbosity:$('host-verbosity')?$('host-verbosity').value:'normal',
     spectatorList, specEnable:$('spec-enable')?$('spec-enable').checked:false, specFreq:$('spec-freq')?$('spec-freq').value:'mid',
     conc:{speak:getC('c-speak'),vote:getC('c-vote'),wolf:getC('c-wolf'),wvote:getC('c-wvote'),trial:getC('c-trial'),end:getC('c-end')},
@@ -7157,6 +7171,7 @@ function loadCfg() {
       }
     }
     if (d.promptLibrary && typeof d.promptLibrary === 'object') promptLibrary = d.promptLibrary;
+    if (window.TeachingWorldbooks && typeof window.TeachingWorldbooks.load === 'function') window.TeachingWorldbooks.load(d.teachingWorldbooks || null);
     if (d.hostEnable!==undefined&&$('host-enable')) $('host-enable').checked=d.hostEnable;
     if (d.hostMode&&$('host-mode')) $('host-mode').value=d.hostMode;
     if (d.hostUrl&&$('h-url')) $('h-url').value=d.hostUrl;
@@ -8237,7 +8252,15 @@ function buildSystemPrompt(p) {
     ? "\n\n[LANGUAGE — HIGHEST PRIORITY] This match is played in English. Write ALL of your output in natural, fluent English — your <thinking>/<draft> reasoning and especially your spoken <game> statement. Do NOT write in Chinese. Keep every tag (<draft>/<game>/<action>/<interrupt>/<plan>) exactly as specified. In <action>, copy the target player's name EXACTLY as shown in the roster (names may be non-English — reproduce them verbatim, do not translate them).\n\n" + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() : '')
     : "";
   const trialBlock = (!S.pureAI && trialOn) ? TRIAL_BOOK : '';
-  const guide = ALL_ROLES[p.role.id] ? ALL_ROLES[p.role.id].guide : '';
+  const roleDef = ALL_ROLES[p.role.id] || p.role || {};
+  const currentTeachingMode = window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' ? window.TeachingWorldbooks.mode() : 'official';
+  const customMechanicRole = !!(p.role && (p.role.customId || (Array.isArray(p.role.customAbilities) && p.role.customAbilities.length)));
+  // “仅自定义/纯净”必须真正停用内置职业教学，而不是只关掉公共 WB 后又从
+  // role.guide 把官方打法整段塞回来。内置角色此时只保留身份、阵营和技能说明；
+  // 自创角色的 guide 可能就是玩家定义的机制本身，必须完整保留。
+  const guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean') && !customMechanicRole
+    ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${p.role.team === 'bad' ? '狼人阵营' : p.role.team === 'third' ? '第三阵营' : '好人阵营'}。${roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。'}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
+    : (roleDef.guide || '');
 
   // ★ 动态发言风格：硬核模式 vs 自然模式
   let styleBlock = isHardcore ?
@@ -21018,6 +21041,15 @@ function bindEvents() {
   $('prompt-lib-add-btn').addEventListener('click',()=>openPromptLibEditor(''));
   $('prompt-edit-cancel').addEventListener('click',()=>{$('prompt-lib-edit-view').style.display='none';$('prompt-lib-list-view').style.display='block';});
   $('prompt-edit-save').addEventListener('click',savePromptLibEntry);
+  if (window.TeachingWorldbooks && typeof window.TeachingWorldbooks.initUI === 'function') {
+    window.TeachingWorldbooks.initUI({
+      onChange: () => saveCfg(),
+      getContext: () => {
+        const current = S && Array.isArray(S.players) ? S.players.find(x => x && x.alive) : null;
+        return {roleId:current&&current.role?current.role.id:'', team:current&&current.role?current.role.team:'', phase:S&&S.phase?S.phase:'day', rolesInGame:S&&Array.isArray(S.players)?S.players.map(x=>x&&x.role&&x.role.id).filter(Boolean):[]};
+      }
+    });
+  }
   $('mode-cards').addEventListener('click', e => {
     const card = e.target.closest('[data-mode]');
     if (!card) return;
@@ -24347,11 +24379,20 @@ ${_rulesText}
 `;
   } catch (e) { _configBlock = ''; }
 
+  // 网页端 AI 接力与内置 API 使用同一套教学模式，避免玩家选了自定义世界书，
+  // 复制出去的角色却仍按另一套官方教学行动。
+  let _teachingBlock = '';
+  try {
+    const _teachingText = (typeof buildWorldBook === 'function') ? buildWorldBook(p) : '';
+    if (_teachingText) _teachingBlock = `━━━━ AI 教学层 ━━━━\n${_teachingText}\n`;
+  } catch (e) { _teachingBlock = ''; }
+
   return `你正在扮演一个狼人杀游戏的玩家。请完全代入角色，直接用第一人称说话，不要有助手口吻。
 
 以下战报用于恢复记忆。系统公开结果和你的私密记录优先级最高；旧发言只是当时观点，可能错误，不要把每一句都当成同等重要的规则或事实。
 
 ${_configBlock}
+${_teachingBlock}
 ━━━━ 你是谁 ━━━━
 ${p.name}（P${p.id+1}）· ${p.role.emoji}${webRole.name} · ${teamLabel}
 ${secretBlock}

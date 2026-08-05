@@ -21,6 +21,7 @@ const FILES = [
   'action-cg.js',
   'mystery.js',
   'ui-icons.js',
+  'teaching-worldbooks.js',
   'native-http.js',
   'horror.html',
   'style-preview.html'

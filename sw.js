@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v34-mystery-extract';
+const CACHE_NAME = 'wolf-pwa-v35-teaching-worldbooks';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   './role-sigils.js',
   './action-cg.js',
   './ui-icons.js',
+  './teaching-worldbooks.js',
   './mystery.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
