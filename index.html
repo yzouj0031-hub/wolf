@@ -3078,6 +3078,14 @@ body.has-wp::after {
       <input type="text" id="bgm-day-url" placeholder="粘贴音频直链 URL…" style="display:none;flex:1;font-size:0.78em;padding:3px 7px;background:rgba(0,0,0,0.25);border:1px solid rgba(245,160,184,0.15);border-radius:var(--r);color:#d8d0e8">
       <span id="bgm-day-status" style="color:#8a8090;font-size:0.85em"></span>
     </div>
+        <details style="margin:6px 0 2px;border:1px solid rgba(245,160,184,0.12);border-radius:var(--r);padding:6px 8px;background:rgba(0,0,0,0.15)">
+          <summary style="cursor:pointer;font-size:0.78em;color:var(--gold);font-family:var(--font-title)">🎵 角色BGM管理</summary>
+          <div id="role-bgm-toggles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px 6px;margin:8px 0 4px;font-size:0.72em"></div>
+          <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px">
+            <button id="role-bgm-all-on" type="button" style="font-size:0.7em;padding:3px 10px;background:rgba(245,160,184,0.08);color:#b0a8c0;border:1px solid rgba(245,160,184,0.15);border-radius:var(--r);cursor:pointer">全部开启</button>
+            <button id="role-bgm-all-off" type="button" style="font-size:0.7em;padding:3px 10px;background:rgba(245,160,184,0.08);color:#b0a8c0;border:1px solid rgba(245,160,184,0.15);border-radius:var(--r);cursor:pointer">全部静音</button>
+          </div>
+        </details>
         </div>
       </details>
     </div>
@@ -4532,6 +4540,7 @@ function freshState(prev) {
 let S = freshState();
 let playerConfigs = {}, currentCfgP = -1;
 let promptLibrary = {};
+let mutedRoleBgm = new Set();
 function purgeRemovedPronounConfigs(configs) {
   const out = configs && typeof configs === 'object' ? configs : {};
   Object.values(out).forEach(cfg => { if (cfg && typeof cfg === 'object') delete cfg.pronoun; });
@@ -5013,9 +5022,11 @@ const Audio = (() => {
   let charBgmAudio = null;
   function playCharBgm(playerName) {
     if (!enabled) return;
+    // 检查该角色的BGM是否被单独静音
+    const p = S.players.find(x => x.name === playerName);
+    if (p && p.role && mutedRoleBgm.has(p.role.id)) return;
     // 优先用用户自定义的角色BGM，其次用内置的
     let src = null;
-    const p = S.players.find(x => x.name === playerName);
     if (p) {
       const cfg = playerConfigs[p.id];
       if (cfg && cfg.charBgm) src = cfg.charBgm;
@@ -7145,7 +7156,8 @@ function saveCfg() {
     customModes: window._customModes || [],
     personaPool: window.personaPool || [],
     personaPoolEnabled: $('m-persona-pool') ? $('m-persona-pool').checked : false,
-    extraFallbacks: extraFallbacks
+    extraFallbacks: extraFallbacks,
+    mutedRoleBgm: [...mutedRoleBgm]
   })); } catch(e) { console.error('saveCfg failed:', e); }
 }
 function loadCfg() {
@@ -7234,7 +7246,35 @@ function loadCfg() {
     if (d.personaPoolEnabled !== undefined && $('m-persona-pool')) {
       $('m-persona-pool').checked = d.personaPoolEnabled;
     }
+    if (d.mutedRoleBgm && Array.isArray(d.mutedRoleBgm)) {
+      mutedRoleBgm = new Set(d.mutedRoleBgm);
+    }
   } catch(e) {}
+}
+
+function renderRoleBgmToggles() {
+  const ct = $('role-bgm-toggles');
+  if (!ct) return;
+  ct.innerHTML = '';
+  Object.values(ALL_ROLES).forEach(role => {
+    const muted = mutedRoleBgm.has(role.id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.roleId = role.id;
+    btn.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:var(--r);cursor:pointer;transition:all 0.2s;font-size:1em;'
+      + 'border:1px solid ' + (muted ? 'rgba(255,255,255,0.06)' : 'rgba(245,160,184,0.2)') + ';'
+      + 'background:' + (muted ? 'rgba(255,255,255,0.02)' : 'rgba(245,160,184,0.08)') + ';'
+      + 'color:' + (muted ? '#5a5060' : '#d8d0e8') + ';'
+      + (muted ? 'opacity:0.55;' : '');
+    btn.innerHTML = '<span>' + (role.emoji||'') + '</span> ' + role.name + ' <span style="margin-left:auto">' + (muted ? '🔇' : '🔊') + '</span>';
+    btn.addEventListener('click', () => {
+      if (mutedRoleBgm.has(role.id)) mutedRoleBgm.delete(role.id);
+      else mutedRoleBgm.add(role.id);
+      renderRoleBgmToggles();
+      saveCfg();
+    });
+    ct.appendChild(btn);
+  });
 }
 
 /* ================================================================
@@ -21408,6 +21448,19 @@ function bindEvents() {
   }
   setupBgmSelector('bgm-night-src','bgm-night-label','bgm-night-upload','bgm-night-status','_customNightBgm','bgm-night-url');
   setupBgmSelector('bgm-day-src','bgm-day-label','bgm-day-upload','bgm-day-status','_customDayBgm','bgm-day-url');
+
+  // 角色BGM静音管理
+  renderRoleBgmToggles();
+  if ($('role-bgm-all-on')) $('role-bgm-all-on').addEventListener('click', () => {
+    mutedRoleBgm.clear();
+    renderRoleBgmToggles();
+    saveCfg();
+  });
+  if ($('role-bgm-all-off')) $('role-bgm-all-off').addEventListener('click', () => {
+    Object.keys(ALL_ROLES).forEach(id => mutedRoleBgm.add(id));
+    renderRoleBgmToggles();
+    saveCfg();
+  });
 
   // ★ 提问系统
   $('btn-ask').addEventListener('click', openAskDialog);
