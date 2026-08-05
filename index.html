@@ -21170,6 +21170,36 @@ function renderPromptLibraryList() {
 function openPromptLibEditor(id) { const x=promptLibrary[id]||{}; $('prompt-edit-id').value=id||''; $('prompt-edit-name').value=x.name||''; $('prompt-edit-content').value=x.content||''; $('prompt-lib-list-view').style.display='none'; $('prompt-lib-edit-view').style.display='flex'; }
 function savePromptLibEntry() { const name=$('prompt-edit-name').value.trim(), content=$('prompt-edit-content').value.trim(); if(!name){alert('请输入模板名称');return;} const id=$('prompt-edit-id').value||('prompt_'+Date.now()); promptLibrary[id]={name,content}; saveCfg(); $('prompt-lib-edit-view').style.display='none'; $('prompt-lib-list-view').style.display='block'; renderPromptLibraryList(); populatePromptTemplateDropdown(id); }
 
+async function generateTeachingWorldbookDraft(idea, meta) {
+  const primary = {
+    url: ($('g-url')?.value || '').trim().replace(/\/$/, ''),
+    key: ($('g-key')?.value || '').trim(),
+    model: ($('g-model')?.value || '').trim()
+  };
+  if (!primary.url || !primary.key || !primary.model) throw new Error('请先在设置面板填写全局 API 地址、密钥和模型名称');
+  const systemPrompt = `你是“狼人杀教学世界书”编辑助手。把玩家的零散想法整理成可直接提供给狼人杀 AI 玩家的教学提示词。
+要求：
+1. 只整理策略、推理偏好、配合方式和发言风格，不编造或修改身份、技能、胜负、行动顺序、信息边界、合法目标等游戏硬规则；
+2. 保留玩家原意，不擅自加入与原意相反的打法；模糊处写成可灵活判断的原则，不伪造绝对结论；
+3. 使用清晰短标题和简洁条目，让 AI 容易遵守；必要时说明适用情境和例外；
+4. 直接输出世界书正文，不要前言、解释、JSON、Markdown 代码围栏，也不要声称已经保存或启用。`;
+  const details = [meta?.name ? `世界书名称：${meta.name}` : '', meta?.description ? `玩家备注：${meta.description}` : ''].filter(Boolean).join('\n');
+  const messages = [{role:'system',content:systemPrompt},{role:'user',content:`${details ? details+'\n\n' : ''}玩家的原始想法：\n${idea}`}];
+  const candidates = [primary].concat(typeof getFallbacks === 'function' ? getFallbacks().map(x => ({url:String(x.url||'').trim().replace(/\/$/,''),key:String(x.key||'').trim(),model:String(x.model||primary.model).trim()})).filter(x => x.url && x.key && x.model) : []);
+  let lastError = null;
+  for (const api of candidates) {
+    try {
+      const res = await fetch(api.url + '/chat/completions', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.key},body:JSON.stringify({model:api.model,messages,max_tokens:2600,temperature:0.45,stream:true})});
+      if (!res.ok) { const message = await res.text().catch(()=> ''); throw new Error(`HTTP ${res.status}${message ? ' · '+message.slice(0,180) : ''}`); }
+      const data = await parseAPIResponseWithSSEFallback(res, {tag:'[世界书助手]'});
+      const content = data?.choices?.[0]?.message?.content?.trim();
+      if (!content) throw new Error('模型没有返回可用正文');
+      return content.replace(/^```(?:markdown|md|text)?\s*/i,'').replace(/\s*```$/,'').trim();
+    } catch (err) { lastError = err; }
+  }
+  throw lastError || new Error('API 请求失败');
+}
+
 function bindEvents() {
   $('btn-prompt-lib').addEventListener('click',()=>{$('prompt-lib-modal').classList.add('show');renderPromptLibraryList();});
   $('prompt-lib-close').addEventListener('click',()=>$('prompt-lib-modal').classList.remove('show'));
@@ -21179,6 +21209,7 @@ function bindEvents() {
   if (window.TeachingWorldbooks && typeof window.TeachingWorldbooks.initUI === 'function') {
     window.TeachingWorldbooks.initUI({
       onChange: () => saveCfg(),
+      generateDraft: (idea, meta) => generateTeachingWorldbookDraft(idea, meta),
       getContext: () => {
         const current = S && Array.isArray(S.players) ? S.players.find(x => x && x.alive) : null;
         return {roleId:current&&current.role?current.role.id:'', team:current&&current.role?current.role.team:'', phase:S&&S.phase?S.phase:'day', rolesInGame:S&&Array.isArray(S.players)?S.players.map(x=>x&&x.role&&x.role.id).filter(Boolean):[]};

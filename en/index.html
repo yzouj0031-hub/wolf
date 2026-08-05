@@ -21035,6 +21035,36 @@ function renderPromptLibraryList() {
 function openPromptLibEditor(id) { const x=promptLibrary[id]||{}; $('prompt-edit-id').value=id||''; $('prompt-edit-name').value=x.name||''; $('prompt-edit-content').value=x.content||''; $('prompt-lib-list-view').style.display='none'; $('prompt-lib-edit-view').style.display='flex'; }
 function savePromptLibEntry() { const name=$('prompt-edit-name').value.trim(), content=$('prompt-edit-content').value.trim(); if(!name){alert('Enter a template name');return;} const id=$('prompt-edit-id').value||('prompt_'+Date.now()); promptLibrary[id]={name,content}; saveCfg(); $('prompt-lib-edit-view').style.display='none'; $('prompt-lib-list-view').style.display='block'; renderPromptLibraryList(); populatePromptTemplateDropdown(id); }
 
+async function generateTeachingWorldbookDraft(idea, meta) {
+  const primary = {
+    url: ($('g-url')?.value || '').trim().replace(/\/$/, ''),
+    key: ($('g-key')?.value || '').trim(),
+    model: ($('g-model')?.value || '').trim()
+  };
+  if (!primary.url || !primary.key || !primary.model) throw new Error('Configure the global API URL, key, and model in Settings first');
+  const systemPrompt = `You edit teaching worldbooks for AI Werewolf players. Turn the player's rough notes into a clear instructional prompt.
+Requirements:
+1. Organize strategy, reasoning preferences, cooperation, and speaking style only. Never invent or alter hard game rules such as identities, skills, victory conditions, action order, information boundaries, or legal targets.
+2. Preserve the player's intent. Do not add a contradictory playstyle. Express ambiguous ideas as flexible principles rather than fabricated absolutes.
+3. Use short headings and concise items that an AI can follow. State contexts and exceptions where useful.
+4. Output only the worldbook body, with no preface, commentary, JSON, Markdown code fence, or claim that it was saved or enabled.`;
+  const details = [meta?.name ? `Worldbook name: ${meta.name}` : '', meta?.description ? `Player note: ${meta.description}` : ''].filter(Boolean).join('\n');
+  const messages = [{role:'system',content:systemPrompt},{role:'user',content:`${details ? details+'\n\n' : ''}Player's rough idea:\n${idea}`}];
+  const candidates = [primary].concat(typeof getFallbacks === 'function' ? getFallbacks().map(x => ({url:String(x.url||'').trim().replace(/\/$/,''),key:String(x.key||'').trim(),model:String(x.model||primary.model).trim()})).filter(x => x.url && x.key && x.model) : []);
+  let lastError = null;
+  for (const api of candidates) {
+    try {
+      const res = await fetch(api.url + '/chat/completions', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.key},body:JSON.stringify({model:api.model,messages,max_tokens:2600,temperature:0.45,stream:true})});
+      if (!res.ok) { const message = await res.text().catch(()=> ''); throw new Error(`HTTP ${res.status}${message ? ' · '+message.slice(0,180) : ''}`); }
+      const data = await parseAPIResponseWithSSEFallback(res, {tag:'[Worldbook assistant]'});
+      const content = data?.choices?.[0]?.message?.content?.trim();
+      if (!content) throw new Error('The model returned no usable content');
+      return content.replace(/^```(?:markdown|md|text)?\s*/i,'').replace(/\s*```$/,'').trim();
+    } catch (err) { lastError = err; }
+  }
+  throw lastError || new Error('API request failed');
+}
+
 function bindEvents() {
   $('btn-prompt-lib').addEventListener('click',()=>{$('prompt-lib-modal').classList.add('show');renderPromptLibraryList();});
   $('prompt-lib-close').addEventListener('click',()=>$('prompt-lib-modal').classList.remove('show'));
@@ -21044,6 +21074,7 @@ function bindEvents() {
   if (window.TeachingWorldbooks && typeof window.TeachingWorldbooks.initUI === 'function') {
     window.TeachingWorldbooks.initUI({
       onChange: () => saveCfg(),
+      generateDraft: (idea, meta) => generateTeachingWorldbookDraft(idea, meta),
       getContext: () => {
         const current = S && Array.isArray(S.players) ? S.players.find(x => x && x.alive) : null;
         return {roleId:current&&current.role?current.role.id:'', team:current&&current.role?current.role.team:'', phase:S&&S.phase?S.phase:'day', rolesInGame:S&&Array.isArray(S.players)?S.players.map(x=>x&&x.role&&x.role.id).filter(Boolean):[]};
