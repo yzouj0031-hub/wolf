@@ -952,6 +952,25 @@ body.blind-review .le.ending { display:none !important; }
 #mr-phase { display:inline-block;font-size:.52em;padding:3px 10px;border-radius:12px;margin-left:9px;vertical-align:middle;letter-spacing:.08em;font-weight:600;border:1px solid transparent;transition:all .5s ease; }
 #mr-phase[data-phase="night"] { color:#aec8f2;background:rgba(74,110,185,.18);border-color:rgba(124,154,224,.42);box-shadow:0 0 16px -8px rgba(124,154,224,.9); }
 #mr-phase[data-phase="day"] { color:#f2d194;background:rgba(206,164,84,.16);border-color:rgba(214,174,94,.44);box-shadow:0 0 16px -8px rgba(214,174,94,.85); }
+/* 回放牌桌：顶部状态条 + 命牌牌桌 + 战报，一比一贴近真实对局界面 */
+#o-match-replay .pbox.mr-board { box-sizing:border-box;display:flex;flex-direction:column;width:100%;max-width:1040px;max-height:94vh;padding:13px 14px 14px; }
+#o-match-replay .pbox.mr-board.mr-full { max-width:98vw;height:96vh;max-height:96vh; }
+.mr-topbar { display:flex;justify-content:space-between;align-items:center;gap:10px;flex:0 0 auto;margin-bottom:9px; }
+.mr-topbar-l { display:flex;align-items:center;gap:2px;min-width:0; }
+.mr-title { font-family:var(--font-title);font-size:1.02em;color:#b8a8e8;letter-spacing:.06em;white-space:nowrap; }
+.mr-topbar-r { display:flex;align-items:center;gap:12px;font-family:var(--font-title);font-size:.82em;white-space:nowrap; }
+#mr-round { color:#d8cdf0; }
+#mr-alive { color:#f2c98a; }
+.mr-board-cards { display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:7px;max-height:36vh;overflow-y:auto;padding:2px 3px 9px;flex:0 0 auto; }
+.mr-pc { display:flex!important;flex-direction:column;justify-content:flex-end;min-height:96px;padding:7px 8px;cursor:default;overflow:hidden; }
+.mr-pc:hover { border-color:var(--gold); }
+.mr-pc .ch { width:100%;min-width:0; }
+.mr-pc .pn { font-size:.78em; }
+.mr-scene-nav { display:flex;gap:6px;align-items:center;margin-bottom:8px;flex:0 0 auto; }
+.mr-log { flex:1 1 auto;min-height:110px;overflow-y:auto;padding:8px;background:rgba(0,0,0,.24);border:1px solid rgba(112,96,176,.25);border-radius:8px; }
+.mr-progress-row { display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:.65em;color:#80758e;flex:0 0 auto; }
+.mr-controls { display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;flex:0 0 auto; }
+@media (max-width:560px){ .mr-board-cards{ grid-template-columns:repeat(auto-fill,minmax(92px,1fr));max-height:33vh; } .mr-pc{ min-height:84px; } .mr-title{ font-size:.9em; } .mr-topbar{ flex-wrap:wrap;gap:4px 10px; } .mr-topbar-r{ font-size:.74em; } }
 
 /* 开发者面板 */
 .devc { position: fixed; bottom: 0; left: 0; right: 0; height: 220px; background: #0a0a14; border-top: 2px solid #2a2040; transform: translateY(100%); transition: 0.3s; z-index: 1000; display: flex; flex-direction: column; }
@@ -3362,21 +3381,23 @@ body.has-wp::after {
 
 <!-- 终局只读录像：按夜晚/警长竞选/白天逐段查看，不改变存档和游戏状态 -->
 <div class="overlay" id="o-match-replay">
-  <div class="pbox" style="max-width:720px;border-color:#7060b0">
-    <h3 style="color:#b8a8e8">🎬 对局回放<span id="mr-phase" data-phase="day">☀️ 白天</span></h3>
-    <div style="font-size:.7em;color:#8a809e;margin:-2px 0 8px">只读录像 · 按真实事件顺序播放，还原当时的昼夜 BGM 与发言配乐，像真的在看这局 AI 打牌 · 不调用 AI，也不会改变对局</div>
-    <div id="mr-roster" style="display:flex;gap:5px;overflow-x:auto;padding:5px 1px 8px"></div>
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+  <div class="pbox mr-board" style="border-color:#7060b0">
+    <div class="mr-topbar">
+      <div class="mr-topbar-l"><span class="mr-title">🎬 对局回放</span><span id="mr-phase" data-phase="day">☀️ 白天</span></div>
+      <div class="mr-topbar-r"><span id="mr-round">开局</span><span id="mr-alive">存活 —</span></div>
+    </div>
+    <div id="mr-roster" class="mr-board-cards" aria-label="命牌牌桌"></div>
+    <div class="mr-scene-nav">
       <button id="mr-prev" style="width:auto;min-width:42px">◀</button>
       <select id="mr-scene" style="flex:1;background:#161326;color:#d8d0e8;border:1px solid rgba(112,96,176,.55);border-radius:6px;padding:7px"></select>
       <button id="mr-next" style="width:auto;min-width:42px">▶</button>
     </div>
-    <div id="mr-events" aria-live="polite" style="height:min(54vh,520px);overflow-y:auto;padding:8px;background:rgba(0,0,0,.24);border:1px solid rgba(112,96,176,.25);border-radius:8px"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:.65em;color:#80758e">
+    <div id="mr-events" aria-live="polite" class="mr-log"></div>
+    <div class="mr-progress-row">
       <span id="mr-progress-text">0 / 0</span><span id="mr-now">等待播放</span>
     </div>
     <div id="mr-progress-track"><div id="mr-progress-bar"></div></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+    <div class="mr-controls">
       <button id="mr-play" style="flex:2;border-color:#7060b0;color:#b8a8e8">▶ 自动播放</button>
       <button id="mr-skip" style="flex:1" disabled>⏭ 显示本句</button>
       <button id="mr-all" style="flex:1">显示本段全部</button>
@@ -18053,6 +18074,31 @@ function matchReplaySceneDivider(label) {
   return `<div class="mr-scene-divider"><span>${escapeHtml(label||'对局阶段')}</span></div>`;
 }
 
+// 回放牌桌上的一张命牌：复用真实对局的 .pc 命牌与 role-effects 立绘，
+// 让观看回放时的牌桌和真牌桌长得一模一样（发言高亮、死亡变灰、警徽、身份立绘）。
+function matchReplayCardHtml(p, opts) {
+  opts = opts || {};
+  const showRole = !blindReviewOn() && !!(p.role && p.role.id);   // 终局揭示身份 → 亮立绘；盲复盘则隐藏
+  const cfg = playerConfigs[p.id] || {};
+  const firstChar = showRole ? escapeHtml((p.role.name||'?').charAt(0)) : '？';
+  const av = cfg.avatar
+    ? `<img src="${cfg.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentNode.textContent='${firstChar}'">`
+    : firstChar;
+  const modelTag = ($('m-modeltag') && $('m-modeltag').checked) ? getModelTagHtml(p, {size:'small'}) : '';
+  const mbti = (!S.pureAI && p.mbti && $('m-mbti') && $('m-mbti').checked && p.mbtiKey) ? escapeHtml(p.mbtiKey) : '';
+  const roleName = showRole ? escapeHtml(p.role.name) : '未知';
+  const cls = 'pc mr-pc' + (showRole ? ' role-theme role-' + p.role.id : '')
+    + (opts.dead ? ' dead' : '') + (opts.speaking ? ' speaking' : '') + (p.id === S.sheriff ? ' issh' : '');
+  return `<div class="${cls}" data-player-id="${p.id}">`
+    + `<div class="ch"><div class="av">${av}</div><div class="pif">`
+    + `<div class="pn">${escapeHtml(publicPlayerLabel(p))}</div>`
+    + `<div class="ptag">P${p.id+1}</div>`
+    + `<div class="modeltag-slot">${modelTag}</div>`
+    + `<div class="rt">${roleName}</div>`
+    + (mbti ? `<div class="mbtitag">${mbti}</div>` : '')
+    + `</div></div></div>`;
+}
+
 function matchReplayScroll(smooth=false) {
   const box = $('mr-events');
   if (!box) return;
@@ -18080,7 +18126,11 @@ function updateMatchReplayChrome(activeName='') {
     list.slice(0,limit).forEach(e => { if (e.type==='death' && e.name) seenDeaths.add(e.name); });
   }
   const active = activeName ? S.players.find(p=>p.name===activeName) : null;
-  $('mr-roster').innerHTML = S.players.map(p => `<span class="mr-seat${active&&active.id===p.id?' is-speaking':''}" data-player-id="${p.id}" style="flex:0 0 auto;padding:4px 7px;border-radius:12px;border:1px solid rgba(255,255,255,.1);font-size:.67em;opacity:${seenDeaths.has(p.name)?'.38':'1'}">P${p.id+1} ${escapeHtml(p.name)}${blindReviewOn()?'':' · '+p.role.emoji}</span>`).join('');
+  // 顶部状态条：当前阶段 + 存活人数，像真牌桌
+  if ($('mr-round')) $('mr-round').textContent = scene.label || '对局';
+  if ($('mr-alive')) $('mr-alive').textContent = '存活 ' + (S.players.length - seenDeaths.size);
+  // 命牌牌桌：发言者亮牌、已死者变灰
+  $('mr-roster').innerHTML = S.players.map(p => matchReplayCardHtml(p, {dead:seenDeaths.has(p.name), speaking:!!(active&&active.id===p.id)})).join('');
   $('mr-prev').disabled = MatchReplay.index <= 0;
   $('mr-next').disabled = MatchReplay.index >= MatchReplay.scenes.length-1;
   $('mr-skip').disabled = !MatchReplay.typing;
@@ -21388,8 +21438,7 @@ function bindEvents() {
   $('mr-expand').addEventListener('click', () => {
     const box = $('o-match-replay').querySelector('.pbox');
     const full = box.classList.toggle('mr-full');
-    if (full) { box.style.maxWidth='100%'; box.style.width='96vw'; box.style.height='94vh'; box.style.maxHeight='94vh'; $('mr-events').style.height='calc(94vh - 238px)'; $('mr-expand').textContent='🗗'; }
-    else { box.style.maxWidth='720px'; box.style.width=''; box.style.height=''; box.style.maxHeight=''; $('mr-events').style.height='min(54vh,520px)'; $('mr-expand').textContent='⛶'; }
+    $('mr-expand').textContent = full ? '🗗' : '⛶';
   });
   $('pg-blind-review').addEventListener('click', toggleBlindReviewMode);
   $('pg-start').addEventListener('click', () => {
