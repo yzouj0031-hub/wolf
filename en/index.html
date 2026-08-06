@@ -944,6 +944,15 @@ body.blind-review .le.ending { display:none !important; }
 @keyframes mr-event-in { from { opacity:0;transform:translateY(7px); } to { opacity:1;transform:none; } }
 @keyframes mr-cursor { 0%,48% { opacity:1; } 49%,100% { opacity:0; } }
 @media (prefers-reduced-motion:reduce) { .mr-event,.mr-type-cursor { animation:none!important; } #mr-events { scroll-behavior:auto; } }
+/* Replay day/night ambiance: the panel shifts with the scene, like living the game's day & night */
+#o-match-replay .pbox { transition:border-color .6s ease,box-shadow .6s ease,background .6s ease; }
+#o-match-replay .pbox[data-phase="night"] { border-color:#4a5a8c!important;background:linear-gradient(180deg,rgba(14,17,38,.96),rgba(9,11,26,.97));box-shadow:0 0 62px -20px rgba(74,110,190,.55); }
+#o-match-replay .pbox[data-phase="night"] #mr-events { background:linear-gradient(180deg,rgba(10,14,34,.55),rgba(6,8,22,.5))!important;border-color:rgba(96,126,196,.3)!important; }
+#o-match-replay .pbox[data-phase="day"] { border-color:#b08a50!important;background:linear-gradient(180deg,rgba(30,24,16,.95),rgba(20,16,12,.96));box-shadow:0 0 62px -22px rgba(210,158,86,.42); }
+#o-match-replay .pbox[data-phase="day"] #mr-events { background:linear-gradient(180deg,rgba(42,32,15,.4),rgba(22,16,9,.36))!important;border-color:rgba(206,164,92,.24)!important; }
+#mr-phase { display:inline-block;font-size:.52em;padding:3px 10px;border-radius:12px;margin-left:9px;vertical-align:middle;letter-spacing:.08em;font-weight:600;border:1px solid transparent;transition:all .5s ease; }
+#mr-phase[data-phase="night"] { color:#aec8f2;background:rgba(74,110,185,.18);border-color:rgba(124,154,224,.42);box-shadow:0 0 16px -8px rgba(124,154,224,.9); }
+#mr-phase[data-phase="day"] { color:#f2d194;background:rgba(206,164,84,.16);border-color:rgba(214,174,94,.44);box-shadow:0 0 16px -8px rgba(214,174,94,.85); }
 
 /* 开发者面板 */
 .devc { position: fixed; bottom: 0; left: 0; right: 0; height: 220px; background: #0a0a14; border-top: 2px solid #2a2040; transform: translateY(100%); transition: 0.3s; z-index: 1000; display: flex; flex-direction: column; }
@@ -3325,8 +3334,8 @@ body.has-wp::after {
 <!-- 终局只读录像：按夜晚/警长竞选/白天逐段查看，不改变存档和游戏状态 -->
 <div class="overlay" id="o-match-replay">
   <div class="pbox" style="max-width:720px;border-color:#7060b0">
-    <h3 style="color:#b8a8e8">🎬 对局回放</h3>
-    <div style="font-size:.7em;color:#8a809e;margin:-2px 0 8px">只读录像 · 按真实事件顺序播放，不调用 AI，也不会改变对局</div>
+    <h3 style="color:#b8a8e8">🎬 Match Replay<span id="mr-phase" data-phase="day">☀️ Day</span></h3>
+    <div style="font-size:.7em;color:#8a809e;margin:-2px 0 8px">Read-only recording · Plays back in true event order, restoring the day/night BGM and each player's speaking theme — like actually watching this AI match · No AI calls, never changes the game</div>
     <div id="mr-roster" style="display:flex;gap:5px;overflow-x:auto;padding:5px 1px 8px"></div>
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
       <button id="mr-prev" style="width:auto;min-width:42px">◀</button>
@@ -17814,8 +17823,33 @@ function openPostGame() {
 const MatchReplay = {
   scenes:[], index:0, visible:Infinity, timer:null, waitResolve:null,
   typeTimer:null, typeFinish:null, typing:false, auto:false,
-  runToken:0, continuous:false
+  runToken:0, continuous:false, audioOn:false, bgmPhase:null
 };
+
+// Replay day/night: sheriff campaign counts as night, matching the live game
+function matchReplayScenePhase(scene) {
+  return (scene && (scene.phase === 'night' || scene.phase === 'sheriff')) ? 'night' : 'day';
+}
+// Apply the scene's day/night theme to the panel (visual, follows the scene either way)
+function applyMatchReplayPhaseTheme(phase) {
+  const box = document.querySelector('#o-match-replay .pbox');
+  if (box) box.dataset.phase = phase;
+  const badge = $('mr-phase');
+  if (badge) { badge.dataset.phase = phase; badge.textContent = phase === 'night' ? '🌙 Night' : '☀️ Day'; }
+}
+// Sync phase BGM: follows the scene's day/night using the very tracks chosen in settings
+function syncMatchReplayBgm(force) {
+  const phase = matchReplayScenePhase(MatchReplay.scenes[MatchReplay.index]);
+  applyMatchReplayPhaseTheme(phase);
+  if (!MatchReplay.audioOn || !Audio.isEnabled()) return;
+  if (force || phase !== MatchReplay.bgmPhase) { MatchReplay.bgmPhase = phase; Audio.startBg(phase); }
+}
+// Stop every replay sound (on close / finish)
+function stopMatchReplayBgm() {
+  MatchReplay.audioOn = false; MatchReplay.bgmPhase = null;
+  try { Audio.stopCharBgm(); } catch(e){}
+  try { Audio.stopBg(); } catch(e){}
+}
 
 function buildMatchReplayScenes() {
   const scenes = [];
@@ -17924,6 +17958,7 @@ function updateMatchReplayChrome(activeName='') {
 function renderMatchReplay() {
   const scene = MatchReplay.scenes[MatchReplay.index];
   if (!scene) return;
+  syncMatchReplayBgm();
   const events = matchReplaySceneEvents(scene);
   const shown = Number.isFinite(MatchReplay.visible) ? events.slice(0, MatchReplay.visible) : events;
   $('mr-events').innerHTML = matchReplaySceneDivider(scene.label) + (shown.map(ev=>matchReplayEventHtml(ev)).filter(Boolean).join('') || '<div style="padding:20px;text-align:center;color:#706880">No replay events in this phase</div>');
@@ -17976,7 +18011,7 @@ function streamMatchReplayEvent(ev, token) {
     const chars = Array.from(displayText);
     const eventIndex = MatchReplay.visible;
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    let pos = 0, settled = false;
+    let pos = 0, settled = false, spoke = false;
     MatchReplay.typing = true;
     MatchReplay.typeFinish = () => {
       if (settled) return;
@@ -17987,12 +18022,18 @@ function streamMatchReplayEvent(ev, token) {
       node.classList.remove('is-typing');
       MatchReplay.typing = false;
       MatchReplay.typeFinish = null;
+      if (spoke) { try { Audio.stopCharBgm(); } catch(e){} }
       MatchReplay.visible = Math.max(Number.isFinite(MatchReplay.visible)?MatchReplay.visible:0, eventIndex+1);
       updateMatchReplayChrome();
       matchReplayScroll(true);
       resolve();
     };
     updateMatchReplayChrome(data.focusName || 'System');
+    // Play this player's signature theme while they speak, just like the live game; released when done
+    if (MatchReplay.audioOn && data.speech && data.focusName && Audio.isEnabled()) {
+      spoke = true;
+      try { Audio.playCharBgm(data.focusName); } catch(e){ spoke = false; }
+    }
     if (reduced || !chars.length) return MatchReplay.typeFinish();
 
     const tick = () => {
@@ -18028,6 +18069,7 @@ async function runMatchReplayAuto(token) {
     if (MatchReplay.index < MatchReplay.scenes.length-1) {
       MatchReplay.index++;
       MatchReplay.visible = 0;
+      syncMatchReplayBgm();
       $('mr-events').insertAdjacentHTML('beforeend', matchReplaySceneDivider(MatchReplay.scenes[MatchReplay.index].label));
       updateMatchReplayChrome();
       matchReplayScroll(true);
@@ -18043,6 +18085,7 @@ async function runMatchReplayAuto(token) {
 function openMatchReplay() {
   if (!S || !S.gameOver) return alert('Full replay is available after the game ends');
   stopMatchReplay(false);
+  stopMatchReplayBgm();
   MatchReplay.scenes = buildMatchReplayScenes(); MatchReplay.index = 0; MatchReplay.visible = Infinity;
   MatchReplay.continuous = false;
   $('mr-scene').innerHTML = MatchReplay.scenes.map((s,i)=>`<option value="${i}">${i+1}. ${escapeHtml(s.label)}</option>`).join('');
@@ -18057,6 +18100,8 @@ function toggleMatchReplayAuto() {
     $('mr-events').innerHTML = matchReplaySceneDivider(MatchReplay.scenes[MatchReplay.index]?.label);
   }
   MatchReplay.auto = true;
+  MatchReplay.audioOn = true;
+  syncMatchReplayBgm();
   const token = ++MatchReplay.runToken;
   $('mr-play').textContent = '⏸ Pause';
   updateMatchReplayChrome();
@@ -21198,7 +21243,7 @@ function bindEvents() {
   $('pg-close').addEventListener('click', () => $('o-postgame').classList.remove('show'));
   $('pg-replay').addEventListener('click', openMatchReplay);
   $('btn-match-replay').addEventListener('click', openMatchReplay);
-  $('mr-close').addEventListener('click', () => { stopMatchReplay(); $('o-match-replay').classList.remove('show'); openPostGame(); });
+  $('mr-close').addEventListener('click', () => { stopMatchReplay(); stopMatchReplayBgm(); $('o-match-replay').classList.remove('show'); openPostGame(); });
   $('mr-prev').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index>0) MatchReplay.index--; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-next').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index<MatchReplay.scenes.length-1) MatchReplay.index++; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-scene').addEventListener('change', e => { stopMatchReplay(); MatchReplay.index=parseInt(e.target.value)||0; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
