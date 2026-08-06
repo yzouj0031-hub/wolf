@@ -36,7 +36,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body.has-wp { background: transparent; }
+/* removed body.has-wp transparent to ensure dark fallback */
 body.has-wp::before {
   content: ''; position: fixed; inset: 0; z-index: -2;
   background-image: var(--wp-image, none); background-size: cover; background-position: center;
@@ -68,7 +68,8 @@ body.has-wp.day #atmosphere { background: radial-gradient(circle at 50% -10%, rg
 .day .orb { background: radial-gradient(circle at 30% 30%, #fffbed 0%, var(--accent-sun) 50%, #c46231 100%); box-shadow: 0 0 30px rgba(232, 195, 125, 0.4), 0 0 60px rgba(196, 98, 49, 0.2); }
 
 .grid-container { flex: 0 0 auto; padding: 8px 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.card { position: relative; aspect-ratio: 3/4; border-radius: 10px; overflow: hidden; background: var(--panel-bg); border: 1px solid var(--panel-border); transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.card-ratio { padding-bottom: 133.33%; width: 100%; }
+.card { position: relative; /* aspect-ratio: 3/4; using padding hack instead */ border-radius: 10px; overflow: hidden; background: var(--panel-bg); border: 1px solid var(--panel-border); transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 .card::before { content: ''; position: absolute; inset: 0; background-size: cover; background-position: center 20%; opacity: 0.4; transition: all 0.4s; filter: saturate(0.8) contrast(1.1); }
 .card.has-avatar::before { background-image: var(--bg-img); }
 .card-veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,5,8,0.1) 0%, rgba(5,5,8,0.7) 60%, rgba(5,5,8,0.95) 100%); }
@@ -164,7 +165,7 @@ const DATA = {
   ],
   settings: {
     pureAI: true,
-    wallpaper: { image: 'https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?q=80&w=1000', opacity: 60, blur: 5, dim: 55 }
+    wallpaper: null
   }
 };
 const STATE = { currentIndex: 0, isPlaying: false, speed: 1, speeds: [1, 1.5, 2, 0.5], playTimer: null, deadPlayers: new Set() };
@@ -182,7 +183,7 @@ function initGrid() {
     const card = document.createElement('div'); card.className = 'card'; card.id = 'card-' + p.id;
     if (p.avatar) { card.classList.add('has-avatar'); card.style.setProperty('--bg-img', `url(${p.avatar})`); }
     card.dataset.team = p.team;
-    card.innerHTML = `<div class="card-veil"></div><div class="c-num">P${p.id + 1}</div><div class="c-avatar" style="${p.avatar ? '--bg-img:url('+p.avatar+')' : ''}"></div><div class="card-content"><div class="c-name">${p.name}</div><div class="c-role">${p.emoji} ${p.role}</div><div class="c-model">${p.model}</div></div>`;
+    card.innerHTML = `<div class="card-ratio"></div><div class="card-veil"></div><div class="c-num">P${p.id + 1}</div><div class="c-avatar" style="${p.avatar ? '--bg-img:url('+p.avatar+')' : ''}"></div><div class="card-content"><div class="c-name">${p.name}</div><div class="c-role">${p.emoji} ${p.role}</div><div class="c-model">${p.model}</div></div>`;
     UI.grid.appendChild(card);
   });
 }

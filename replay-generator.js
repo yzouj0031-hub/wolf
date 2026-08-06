@@ -280,9 +280,10 @@ body.has-wp.day #atmosphere {
   .grid-container { grid-template-columns: repeat(3, 1fr); }
 }
 
+.card-ratio { padding-bottom: 133.33%; width: 100%; }
 .card {
   position: relative;
-  aspect-ratio: 3/4;
+  /* aspect-ratio: 3/4; using padding hack instead */
   border-radius: 10px;
   overflow: hidden;
   background: var(--panel-bg);
@@ -730,7 +731,7 @@ function initGrid() {
     card.dataset.team = p.team;
     
     card.innerHTML = \`
-      <div class="card-veil"></div>
+      <div class="card-ratio"></div><div class="card-veil"></div>
       <div class="c-num">P\${p.id + 1}</div>
       <div class="c-avatar" style="\${p.avatar ? '--bg-img:url('+p.avatar+')' : ''}"></div>
       <div class="card-content">
