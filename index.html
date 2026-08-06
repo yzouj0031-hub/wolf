@@ -18772,6 +18772,131 @@ function toggleAuto() {
   if (S.auto) nextStep();
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// 🎬 一键观战 Demo · 固定精编剧本（一局真实对局的上帝视角 → 自动回放）
+//   点「观战」按钮 / 分享链接 ?demo=1 → 在真实牌桌上自动播放这一局的
+//   「对局回放」（命牌立绘 + 昼夜 BGM + 发言逐字流式）。纯展示、零 API。
+//   数据取自一局真实对局（12 人屠神终局，狼队获胜），发言经精编。
+// ══════════════════════════════════════════════════════════════════════
+const DEMO_MATCH = {
+  round: 4, sheriff: -1, winType: 'bad',
+  players: [
+    {id:0,  name:"安室透",          roleId:"villager",      model:"gpt-5",          death:{cause:"vote", round:1}},
+    {id:1,  name:"黑羽快斗",        roleId:"jester",        model:"gemini-3"},
+    {id:2,  name:"宫野志保",        roleId:"werewolf",      model:"glm-4.6",        death:{cause:"vote", round:3}},
+    {id:3,  name:"服部平次",        roleId:"villager",      model:"grok-3"},
+    {id:4,  name:"白马探",          roleId:"villager",      model:"deepseek-chat"},
+    {id:5,  name:"Near",            roleId:"fox",           model:"claude-opus-4",  death:{cause:"kill", round:4}},
+    {id:6,  name:"Jabami Yumeko",   roleId:"wolfbeauty",    model:"claude-opus-4",  death:{cause:"vote", round:2}},
+    {id:7,  name:"Ryuzaki",         roleId:"werewolf",      model:"gpt-5"},
+    {id:8,  name:"Light Yagami",    roleId:"villager",      model:"gemini-3"},
+    {id:9,  name:"赤井秀一",        roleId:"magician",      model:"qwen-max",       death:{cause:"kill", round:3}},
+    {id:10, name:"Mello",           roleId:"witch",         model:"glm-4.6",        death:{cause:"poison", round:2}},
+    {id:11, name:"Gin",             roleId:"wolfconcubine", model:"grok-3"}
+  ],
+  record: [
+    {type:"system", text:"本局 12 人 · 屠神终局（狼队获胜）· 上帝视角观战回放"},
+
+    {type:"system", text:"第1夜"},
+    {type:"system", text:"🌒 蚀时狼妃 Gin 反弹锁定自己：今夜谁查/守/毒他，技能都反噬其本人"},
+    {type:"speech", name:"Ryuzaki", label:"狼队密谈", round:1, phase:"night", game:"首夜名义刀 Near——他最能把零散票理成结论，直接拿掉最稳；就算被魔术师换掉，落到别的好人也不亏。"},
+    {type:"speech", name:"Jabami Yumeko", label:"狼队密谈", round:1, phase:"night", game:"别保我。我是这桌唯一死了还要拉人下水的牌——真被票出去，我带走的是好人的支点，不是随便哪个村民。抬人是留痕的。"},
+    {type:"system", text:"🐺 狼队刀口：Near"},
+    {type:"system", text:"🧪 女巫 Mello 开解药救回 Near —— 平安夜"},
+    {type:"system", text:"🌹 狼美人 Jabami 魅惑 赤井秀一"},
+
+    {type:"system", text:"警长候选人：安室透、黑羽快斗、服部平次、白马探、Jabami Yumeko、Light Yagami、Mello"},
+    {type:"speech", name:"安室透", label:"警长竞选", round:1, phase:"sheriff", game:"我就是个普通村民，不瞒大家。但我竞选警长靠的是脑子——谁说了什么、谁改了口、谁的票和话对不上，我全替你们记着。"},
+    {type:"speech", name:"黑羽快斗", label:"警长竞选", round:1, phase:"sheriff", game:"第一个跳出来说自己没底牌的人，是不是太早把牌亮干净了？安室先生，你确定是在帮好人拉票，不是在给狼递信息？"},
+    {type:"speech", name:"服部平次", label:"警长竞选", round:1, phase:"sheriff", game:"你俩一个说自己是纯村民，一个说有身份又不报——这一唱一和，我大阪人听着就是别扭。"},
+    {type:"speech", name:"白马探", label:"警长竞选", round:1, phase:"sheriff", game:"四个人里三个自称村民，概率上太挤了。我几乎可以断定：前置位一定藏着伪装者。"},
+    {type:"speech", name:"Jabami Yumeko", label:"警长竞选", round:1, phase:"sheriff", game:"这局没有预言家，报身份没有收益，只有价格。谁翻开自己的牌，谁就在替狼省一整晚。"},
+    {type:"speech", name:"Light Yagami", label:"警长竞选", round:1, phase:"sheriff", game:"别把一个低强度疑点包装成接近定论。自报村民不等于身份坐实——白马把概率倾向说成近乎确定，我会盯着他是不是一直这么干。"},
+    {type:"speech", name:"Mello", label:"警长竞选", round:1, phase:"sheriff", game:"废话少说——我是女巫，昨晚救的就是 Near。这枚警徽今天只能是我的。谁敢分票抗推，今晚我的毒药就送去他家！"},
+    {type:"system", text:"其余候选人全部退选 —— Mello 当选警长"},
+
+    {type:"system", text:"第1天"},
+    {type:"speech", name:"安室透", label:"发言", round:1, phase:"day", game:"白马，你嘴上说坑太挤，自己却往里跳，然后拿『太挤了』当武器打人——这不像好人。我今天的票，压白马探。"},
+    {type:"speech", name:"白马探", label:"发言", round:1, phase:"day", game:"正因为我笃定自己是那第三张村民，才敢说前面必有假，我不屑于隐藏。倒是安室，一个自称平民的人，为什么最急着在白天把神职逼出来？"},
+    {type:"speech", name:"Jabami Yumeko", label:"发言", round:1, phase:"day", game:"从头到尾，没有一个人算过小丑。白马是我眼里最像小丑的人——所以我今天偏不投他。我押安室：这一手输了，我还能坐在牌桌上。"},
+    {type:"speech", name:"Near", label:"发言", round:1, phase:"day", game:"安室今天的行为对狼队的收益，比对好人高出 37.2%。今天我的票，流向安室透。"},
+    {type:"speech", name:"Mello", label:"发言", round:1, phase:"day", game:"全场把票挂安室！谁敢分票保他、想浑水摸鱼，今晚毒药直接送他家。归票，安室透！"},
+    {type:"death", name:"安室透", deathCause:"vote", deathRound:1},
+    {type:"speech", name:"安室透", label:"遗言", round:1, phase:"day", game:"我是干净的村民，你们推错了。但这整整齐齐的十票里，必然藏着窃喜的狼——Yumeko 用『小丑』吓住全场，把火力全引到我身上。这套票型，是我留给你们最好的排狼工具。"},
+
+    {type:"system", text:"第2夜"},
+    {type:"system", text:"🦊 子狐 Near 媚惑 Jabami Yumeko —— 命中狼！今晚全狼禁刀"},
+    {type:"speech", name:"Jabami Yumeko", label:"狼队密谈", round:2, phase:"night", game:"我被媚惑了，今晚全狼禁刀，刀落不下去。但这条消息比一刀值钱——子狐第一次出手就摸到我。别保我，让他来咬我，你们就看清他是谁。"},
+    {type:"system", text:"🐺 狼队被禁刀（空刀）"},
+    {type:"system", text:"🧪 女巫 Mello 盲毒 Gin —— 撞上蚀时狼妃的锁，毒药反弹回自己"},
+    {type:"death", name:"Mello", deathCause:"poison", deathRound:2},
+    {type:"system", text:"👑 Mello 临终把警徽移交给 Near"},
+
+    {type:"system", text:"第2天"},
+    {type:"speech", name:"服部平次", label:"发言", round:2, phase:"day", game:"安室要真是村民，那我们全场上了一辆往坑里开的车。Yumeko 那手『小丑避险』，滑得像抹了油。"},
+    {type:"speech", name:"Jabami Yumeko", label:"发言", round:2, phase:"day", game:"服部，你昨天拍胸口说『绝不跟风、理由就一条』，Mello 一喊归票你就跟过去了，今天又把自己的转票记在别人账上。我今天投服部。"},
+    {type:"speech", name:"Near", label:"发言", round:2, phase:"day", game:"我是子狐。第二夜我媚惑的是 7 号 Jabami Yumeko——系统反馈：狼人阵营，当晚全狼禁刀。快斗那张『子狐』是假的。今天必须出 7 号。"},
+    {type:"death", name:"Jabami Yumeko", deathCause:"vote", deathRound:2},
+    {type:"speech", name:"Jabami Yumeko", label:"遗言", round:2, phase:"day", game:"九票半，真漂亮。Near，你赢了这一手。留一句给你们：Near 和快斗必有一个在说谎——追这条唯一成立的矛盾。牌还没翻完呢，慢慢玩。"},
+
+    {type:"system", text:"第3夜"},
+    {type:"system", text:"🦊 子狐 Near 媚惑 黑羽快斗 —— 好人，其今晚技能被封"},
+    {type:"speech", name:"Ryuzaki", label:"狼队密谈", round:3, phase:"night", game:"刀赤井。他现在是 Near 外面的防弹衣，不拆他，明天 Near 还能继续收票。他不换自己死，换了 Near 死，怎么都不亏。"},
+    {type:"system", text:"🐺 狼队刀口：赤井秀一"},
+    {type:"death", name:"赤井秀一", deathCause:"kill", deathRound:3},
+
+    {type:"system", text:"第3天"},
+    {type:"speech", name:"黑羽快斗", label:"发言", round:3, phase:"day", game:"看清了吗？Yumeko 和 Near 是两头狼——狼踩狼，用一份假查验把队友卖了，换来了警徽！我才是真子狐，昨晚我媚惑 Light，反馈好人。我今天的票，直接挂 Near，有种今天就归票我！"},
+    {type:"speech", name:"Near", label:"发言", round:3, phase:"day", game:"昨晚我媚惑 2 号黑羽——好人，且他的技能被我封了。他在冒用我的身份、伪造记录。我的狼坑是 3、8、12；今天先从 3 号宫野志保开始拆。"},
+    {type:"death", name:"宫野志保", deathCause:"vote", deathRound:3},
+    {type:"speech", name:"宫野志保", label:"遗言", round:3, phase:"day", game:"顺着一个不敢直面对跳的『神』去推人，你们迟早把这局输得干干净净。别让我死得像个笑话。"},
+
+    {type:"system", text:"第4夜"},
+    {type:"system", text:"🦊 子狐 Near 媚惑 Gin —— 撞上蚀时狼妃的锁，反弹回自己，白睁一夜"},
+    {type:"speech", name:"Ryuzaki", label:"狼队密谈", round:4, phase:"night", game:"刀 Near。魔术师、女巫都下去了，没人能保他。他一倒，屠神线当场闭合，天亮就是终局。"},
+    {type:"system", text:"🐺 狼队刀口：Near"},
+    {type:"death", name:"Near", deathCause:"kill", deathRound:4},
+    {type:"system", text:"🗡️ 神职全灭 —— 屠神达成，狼人阵营获胜"},
+
+    {type:"speech", name:"安室透", label:"终局感言", round:4, phase:"end", game:"看到底牌我反而释然了——我遗言点名的 Yumeko、Gin、宫野，居然全是狼。快斗你竟然真是小丑，一个人站在台中央，把全场好人吓得连枪都不敢拔。"},
+    {type:"speech", name:"黑羽快斗", label:"终局感言", round:4, phase:"end", game:"想死却死不掉，我成了狼队最完美的免费保镖，连工资都没结。Yumeko 那句遗言，把『小丑』这件衣服死死焊在我身上——精彩，但气得我牙痒。"},
+    {type:"speech", name:"Near", label:"终局感言", round:4, phase:"end", game:"我找到了答案，却在最后一步选错了验证顺序。真正该找的是 Ryuzaki——只差一个号码。可狼人杀，不计算『差一点』。"},
+    {type:"speech", name:"Ryuzaki", label:"终局感言", round:4, phase:"end", game:"Mello，你第二夜是真的去毒了 Gin，恰好毒中全场唯一被锁的人，替我们杀了女巫。Near，你的模型没错，只是太快了。十二个人，没有一双能看穿的眼睛。"},
+    {type:"speech", name:"Gin", label:"终局感言", round:4, phase:"end", game:"屠神局，干脆利落。最可笑的是 Mello——身为明女巫，被一句遗言忽悠得大半夜拿毒药来盲毒我，撞在我的锁上，死得像个笑话。这场猎杀，是我的胜利。"}
+  ]
+};
+
+// 载入固定 demo 剧本 → 只读终局 → 自动播放对局回放
+function startDemoMatch() {
+  try {
+    const M = DEMO_MATCH;
+    gameRecord.length = 0;
+    M.record.forEach(e => gameRecord.push(Object.assign({}, e)));
+    for (const k in playerConfigs) delete playerConfigs[k];
+    const players = M.players.map(pl => {
+      const role = ALL_ROLES[pl.roleId] || {id:pl.roleId, name:pl.roleId, emoji:"❓", team:"good"};
+      playerConfigs[pl.id] = { model: pl.model || "" };
+      const dead = !!pl.death;
+      return { id:pl.id, name:pl.name, isPlayer:false, alive:!dead, revealed:true,
+        role, mbti:null, mbtiKey:"", poisoned:false,
+        deathCause: dead ? pl.death.cause : null,
+        deathRound: dead ? pl.death.round : null, deathPhase:null, memory:[] };
+    });
+    S = freshState();
+    S.players = players;
+    S.gameOver = true; S.pureAI = true; S.blindReviewMode = false;
+    S.sheriff = (M.sheriff != null ? M.sheriff : -1);
+    S.round = M.round; S.phase = "day"; S._winType = M.winType || "bad";
+    if ($("m-hdeath"))    $("m-hdeath").checked    = false;   // 显示夜间死因
+    if ($("m-modeltag"))  $("m-modeltag").checked  = true;    // 显示模型标签
+    if ($("m-anon"))      $("m-anon").checked      = false;
+    if ($("m-blindnames"))$("m-blindnames").checked= false;
+    MatchReplay._demo = true;
+    openMatchReplay();
+    if (!MatchReplay.auto) toggleMatchReplayAuto();
+  } catch (e) { console.error("startDemoMatch", e); alert("Demo 载入失败：" + (e && e.message)); }
+}
+
 // 🎬 一键观战 Demo：开启演示模式（本地脚本、免 key）+ 纯AI + 自动推进，把整局真实引擎跑给路人看。
 function startDemo() {
   try {
@@ -18805,7 +18930,7 @@ async function shareGame() {
 // URL 带 ?demo=1 → 载入后自动开一局观战 Demo（用于分享链接：点开即自动放一局）
 window.addEventListener('load', () => {
   try {
-    if (new URLSearchParams(location.search).get('demo') === '1') setTimeout(startDemo, 1000);
+    if (new URLSearchParams(location.search).get('demo') === '1') setTimeout(startDemoMatch, 1000);
   } catch (e) {}
 });
 
@@ -21443,7 +21568,7 @@ function bindEvents() {
       : (phoneLayoutMq.matches ? `── 命牌 ${b.querySelectorAll('.pc').length}人 · 横滑查看 ▼ ──` : '── 展开命牌 ▼ ──');
   });
   $('bst').addEventListener('click', startGame);
-  { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', () => window.open('demo_replay.html', '_blank')); }   // 🎬 观战Demo
+  { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', startDemoMatch); }   // 🎬 观战Demo（固定精编剧本回放）
   { const bsh = $('btn-share'); if (bsh) bsh.addEventListener('click', shareGame); }   // 🔗 分享
   $('bne').addEventListener('click', nextStep);
   $('bau').addEventListener('click', toggleAuto);
@@ -21521,7 +21646,7 @@ function bindEvents() {
   $('pg-close').addEventListener('click', () => $('o-postgame').classList.remove('show'));
   $('pg-replay').addEventListener('click', openMatchReplay);
   $('btn-match-replay').addEventListener('click', openMatchReplay);
-  $('mr-close').addEventListener('click', () => { stopMatchReplay(); stopMatchReplayBgm(); $('o-match-replay').classList.remove('show'); openPostGame(); });
+  $('mr-close').addEventListener('click', () => { stopMatchReplay(); stopMatchReplayBgm(); $('o-match-replay').classList.remove('show'); if (MatchReplay._demo) { MatchReplay._demo = false; location.href = location.pathname; } else { openPostGame(); } });
   $('mr-prev').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index>0) MatchReplay.index--; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-next').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index<MatchReplay.scenes.length-1) MatchReplay.index++; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-scene').addEventListener('change', e => { stopMatchReplay(); MatchReplay.index=parseInt(e.target.value)||0; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
