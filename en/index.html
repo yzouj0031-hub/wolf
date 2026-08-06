@@ -3641,6 +3641,8 @@ const SOCIAL_GAME_COGNITION_RULES_LEGACY = `
 
 不要总像在写小说或攻略分析。
 
+但底线是【说人话】：无论多口语、多有情绪、多入戏，每句话都要让人听得懂、表意清楚。可以短、可以带方言词和口头禅，但别把话绕成含混不清、前言不搭后语，别生造词或堆砌到没人看得懂。宁可朴素直白，也不要为了风格牺牲清晰——观众得能听明白你在说什么。
+
 ## 战术理解方式
 
 你知道：高风险协同行为、身份争夺、信息误导、关系切割、节奏操控、风险转移——这些都可能存在。
@@ -4301,7 +4303,7 @@ ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
 
 // 子狐与机械狼的交互：机械狼始终属于狼阵营；平民伪装只欺骗真正的预言家，不欺骗子狐。
 ALL_ROLES.fox.desc = '好人神职。第2夜起每晚媚惑一人：若他是狼（含机械狼）→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营；目标知道自己被媚惑，但不知道子狐是谁。媚惑可被蚀时狼妃反弹。';
-ALL_ROLES.fox.guide += '\n\n【机械狼交互】机械狼无论是否已经带刀，真实阵营始终是狼；媚惑命中机械狼会确认狼阵营并让当晚全部狼人禁刀。机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定。\n【蚀时狼妃交互】如果你选中的玩家正被蚀时狼妃锁定、且该锁本夜尚未触发，媚惑会反弹到你自己：你只能得到自己的好人阵营结果，原目标不受影响也不会收到被媚惑提示。\n【目标提示】任何实际受到媚惑的目标都会私下知道本夜遭到子狐类媚惑，但不会知道施法玩家是谁。若好人目标的主动技能确实被封，他还会得到该技能没有生效的明确记录；没有主动技能或本夜没有实际发动技能的人只知道被媚惑，不会凭空得到行动失败记录。';
+ALL_ROLES.fox.guide += '\n\n【机械狼交互】机械狼无论是否已经带刀，真实阵营始终是狼；媚惑命中机械狼会确认狼阵营并让当晚全部狼人禁刀。机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定。\n【蚀时狼妃交互】如果你选中的玩家正被蚀时狼妃锁定、且该锁本夜尚未触发，媚惑会反弹到你自己：你只能得到自己的好人阵营结果，原目标不受影响也不会收到被媚惑提示。\n【目标提示】任何实际受到媚惑的目标都会私下知道本夜遭到子狐类媚惑，但不会知道施法玩家是谁。若好人目标的主动技能确实被封，他还会得到该技能没有生效的明确记录；没有主动技能或本夜没有实际发动技能的人只知道被媚惑，不会凭空得到行动失败记录。\n【可连续媚惑同一人】媚惑没有"不能连续对同一人使用"的限制（这点和守卫不同）。确认某人是狼后，每晚继续媚惑他就能持续让全狼禁刀、每晚制造平安夜，是子狐最强的一条线。';
 ALL_ROLES.mechwolf.guide += '\n\n【子狐交互】你始终属于狼阵营；被子狐媚惑时会触发当晚全体狼人禁刀。即使已经学到平民并获得好人查验伪装，也只能骗过真正的预言家，不能免疫或欺骗子狐的阵营判定。你也可以学习子狐，从下一夜起每晚发动机械媚惑；它同样会被蚀时狼妃反弹。';
 
 // ★ 机械狼学习映射：学到某角色 → 实际获得的技能类型
@@ -15126,7 +15128,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
       if (rebounded) {
         S.nightData._concubineTriggered = true;
-        mw.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力发生了弹反：原本选择'+t.name+'，实际媚惑并验证的是你自己。你只确认自己属于【狼阵营】；'+t.name+'完全没有被验证，不能据此认定其为好人或狼人。'});
+        mw.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力被【反弹】了：原本想媚惑'+t.name+'，但这一晚的机械媚惑打回到了你自己身上，等于媚惑了你自己，没有得到任何有用的阵营信息。⚠️'+t.name+'完全没有被验证，不能据此认定其为好人或狼人；其他人这一晚你也没有验到，阵营同样未知。'});
         mw.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你知道发生了弹反，但不知道设置反弹的玩家是谁。'});
         if (!isAnon()) Render.log('night-result','🤖🦊 机械狼媚惑'+t.name+'时被🌒反弹，原目标未受影响');
         gameRecord.push({type:'night_action', role:'mechwolf_fox', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, chosenTargetId:t.id, chosenTarget:t.name, actualTargetId:mw.id, actualTarget:mw.name, verifiedTargetId:mw.id, verifiedTarget:mw.name, verifiedTeam:'bad', originalTargetUnverified:true, reflectionKnown:true, result:'rebounded'});
@@ -15162,7 +15164,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       t = findPlayer(v, ts);
     } else {
       const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
-      const contextPrompt = '【子狐·第'+S.round+'夜·媚惑】\n可选目标：'+targetList+'\n你每晚媚惑一人：若他是狼→当晚全体狼无法击杀（护住好人）；若他是好人→他今晚的夜间主动技能失效。你会私下得知他的阵营。\n策略：优先媚惑你最怀疑是狼的人——赌对了直接废掉当晚狼刀，赌错了顶多封掉一个好人技能，且能确认他是好人。';
+      const contextPrompt = '【子狐·第'+S.round+'夜·媚惑】\n可选目标：'+targetList+'\n你每晚媚惑一人：若他是狼→当晚全体狼无法击杀（护住好人）；若他是好人→他今晚的夜间主动技能失效。你会私下得知他的阵营。\n策略：优先媚惑你最怀疑是狼的人——赌对了直接废掉当晚狼刀，赌错了顶多封掉一个好人技能，且能确认他是好人。\n★可连续媚惑同一人：媚惑【没有"不能连续选同一目标"的限制】，你可以对同一个人连续多晚使用。一旦你确认某人是狼，就每晚继续媚惑他——每晚都会重新触发全狼禁刀、相当于持续制造平安夜，这是你最强的一条线（直到他被票出局或你被狼刀）。';
       const actionPrompt = '你决定媚惑谁？\n<action>玩家名（精确复制，不要只写P编号）</action>';
       const r = await nightTwoStep(fo, contextPrompt, actionPrompt);
       logNightThinking(fo, r);
@@ -15172,7 +15174,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
       if (rebounded) {
         S.nightData._concubineTriggered = true;
-        fo.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力发生了弹反：原本选择'+t.name+'，实际媚惑并验证的是你自己。你只确认自己属于【好人阵营】；'+t.name+'完全没有被验证，不能据此认定其为好人或狼人。'});
+        fo.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力被【反弹】了：原本想媚惑'+t.name+'，但这一晚打回到了你自己身上，等于媚惑了你自己，没有得到任何有用的阵营信息。⚠️'+t.name+'完全没有被验证，不能据此认定其为好人或狼人；其他人这一晚你也没有验到，阵营同样未知。'});
         fo.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你知道发生了弹反，但不知道设置反弹的玩家是谁。'});
         if (!isAnon()) Render.log('night-result','🦊 子狐媚惑'+t.name+'时被🌒反弹，原目标未受影响');
         gameRecord.push({type:'night_action', role:'fox', round:S.round, casterId:fo.id, targetId:t.id, target:t.name, chosenTargetId:t.id, chosenTarget:t.name, actualTargetId:fo.id, actualTarget:fo.name, verifiedTargetId:fo.id, verifiedTarget:fo.name, verifiedTeam:'good', originalTargetUnverified:true, reflectionKnown:true, result:'rebounded'});
@@ -15373,7 +15375,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
             if (v2!=='None') t2 = findPlayer(v2, ts2);
           } else {
             const tl = ts2.map(x=>`P${x.id+1} ${x.name}`).join('、');
-            const r2 = await callAI(p, '【神秘馈赠·永久查验·第'+S.round+'夜】你每晚可查验一人阵营。可选：'+tl+'\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>', {noMemory:true, skillConfirm:true});
+            const r2 = await callAI(p, '【神秘馈赠·永久查验·第'+S.round+'夜】你每晚可查验一人阵营，查验没有任何代价与风险，等于多一个预言家位——请务必查验、不要空过一晚。请直接从下列目标里挑一个：'+tl+'\n<thinking>思考</thinking>\n<action>玩家名</action>', {noMemory:true, skillConfirm:true});
             logNightThinking(p, r2);
             if (!/^\s*none\s*$/i.test((r2.action||'').trim())) t2 = findPlayer(r2.action, ts2) || (r2.thinking && findPlayer(extractSkillTarget(r2.thinking, ts2, 'granted'), ts2));
           }
@@ -15399,7 +15401,12 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         if (v!=='None') t = findPlayer(v, ts);
       } else {
         const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
-        const r = await callAI(p, '【神秘馈赠·一次性'+(g.type==='inspect'?'查验':'毒药')+'】你被赐予的一次性技能现在可用。可选目标：'+targetList+'\n'+(g.type==='inspect'?'查验可得知一人阵营（狼/好人）。':'毒药可毒杀一人（今晚死亡）。')+'要用吗？用则给出目标，不用写None。\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>', {noMemory:true, skillConfirm:true});
+        const isInspect = g.type==='inspect';
+        // 🔮 查验零代价、仅限今晚：不再给 None 选项，直接要求给目标；毒药是真·击杀决策，保留 None
+        const prompt = isInspect
+          ? '【神秘馈赠·一次性查验·仅限今晚】这份查验没有任何代价与风险，用完即弃、过了今晚就作废——请务必用掉、不要浪费。查验可得知一人阵营（狼/好人）。请直接从下列目标里挑一个查验：'+targetList+'\n<thinking>思考</thinking>\n<action>玩家名</action>'
+          : '【神秘馈赠·一次性毒药·仅限今晚】你被赐予一次性毒药，仅限今晚使用，毒药可毒杀一人（今晚死亡）。要用吗？用则给出目标，不用写None。可选目标：'+targetList+'\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>';
+        const r = await callAI(p, prompt, {noMemory:true, skillConfirm:true});
         logNightThinking(p, r);
         if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, ts) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, ts, 'granted'), ts));
       }
