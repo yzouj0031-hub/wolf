@@ -15242,7 +15242,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
       if (rebounded) {
         S.nightData._concubineTriggered = true;
-        mw.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力发生了弹反：原本选择'+t.name+'，实际媚惑并验证的是你自己。你只确认自己属于【狼阵营】；'+t.name+'完全没有被验证，不能据此认定其为好人或狼人。'});
+        mw.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力被【反弹】了：原本想媚惑'+t.name+'，但这一晚的机械媚惑打回到了你自己身上，等于媚惑了你自己，没有得到任何有用的阵营信息。⚠️'+t.name+'完全没有被验证，不能据此认定其为好人或狼人；其他人这一晚你也没有验到，阵营同样未知。'});
         mw.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你知道发生了弹反，但不知道设置反弹的玩家是谁。'});
         if (!isAnon()) Render.log('night-result','🤖🦊 机械狼媚惑'+t.name+'时被🌒反弹，原目标未受影响');
         gameRecord.push({type:'night_action', role:'mechwolf_fox', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, chosenTargetId:t.id, chosenTarget:t.name, actualTargetId:mw.id, actualTarget:mw.name, verifiedTargetId:mw.id, verifiedTarget:mw.name, verifiedTeam:'bad', originalTargetUnverified:true, reflectionKnown:true, result:'rebounded'});
@@ -15288,7 +15288,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const rebounded = S.nightData.concubineGuard != null && !S.nightData._concubineTriggered && t.id === S.nightData.concubineGuard;
       if (rebounded) {
         S.nightData._concubineTriggered = true;
-        fo.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力发生了弹反：原本选择'+t.name+'，实际媚惑并验证的是你自己。你只确认自己属于【好人阵营】；'+t.name+'完全没有被验证，不能据此认定其为好人或狼人。'});
+        fo.memory.push({role:'system', content:'【媚惑·私密】你明确知道能力被【反弹】了：原本想媚惑'+t.name+'，但这一晚打回到了你自己身上，等于媚惑了你自己，没有得到任何有用的阵营信息。⚠️'+t.name+'完全没有被验证，不能据此认定其为好人或狼人；其他人这一晚你也没有验到，阵营同样未知。'});
         fo.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你实际受到了一次被反弹的媚惑；你知道发生了弹反，但不知道设置反弹的玩家是谁。'});
         if (!isAnon()) Render.log('night-result','🦊 子狐媚惑'+t.name+'时被🌒反弹，原目标未受影响');
         gameRecord.push({type:'night_action', role:'fox', round:S.round, casterId:fo.id, targetId:t.id, target:t.name, chosenTargetId:t.id, chosenTarget:t.name, actualTargetId:fo.id, actualTarget:fo.name, verifiedTargetId:fo.id, verifiedTarget:fo.name, verifiedTeam:'good', originalTargetUnverified:true, reflectionKnown:true, result:'rebounded'});
