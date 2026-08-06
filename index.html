@@ -943,6 +943,34 @@ body.blind-review .le.ending { display:none !important; }
 @keyframes mr-event-in { from { opacity:0;transform:translateY(7px); } to { opacity:1;transform:none; } }
 @keyframes mr-cursor { 0%,48% { opacity:1; } 49%,100% { opacity:0; } }
 @media (prefers-reduced-motion:reduce) { .mr-event,.mr-type-cursor { animation:none!important; } #mr-events { scroll-behavior:auto; } }
+/* 回放昼夜氛围：随场景切换面板配色，像真的经历游戏的白天/黑夜 */
+#o-match-replay .pbox { transition:border-color .6s ease,box-shadow .6s ease,background .6s ease; }
+#o-match-replay .pbox[data-phase="night"] { border-color:#4a5a8c!important;background:linear-gradient(180deg,rgba(14,17,38,.96),rgba(9,11,26,.97));box-shadow:0 0 62px -20px rgba(74,110,190,.55); }
+#o-match-replay .pbox[data-phase="night"] #mr-events { background:linear-gradient(180deg,rgba(10,14,34,.55),rgba(6,8,22,.5))!important;border-color:rgba(96,126,196,.3)!important; }
+#o-match-replay .pbox[data-phase="day"] { border-color:#b08a50!important;background:linear-gradient(180deg,rgba(30,24,16,.95),rgba(20,16,12,.96));box-shadow:0 0 62px -22px rgba(210,158,86,.42); }
+#o-match-replay .pbox[data-phase="day"] #mr-events { background:linear-gradient(180deg,rgba(42,32,15,.4),rgba(22,16,9,.36))!important;border-color:rgba(206,164,92,.24)!important; }
+#mr-phase { display:inline-block;font-size:.52em;padding:3px 10px;border-radius:12px;margin-left:9px;vertical-align:middle;letter-spacing:.08em;font-weight:600;border:1px solid transparent;transition:all .5s ease; }
+#mr-phase[data-phase="night"] { color:#aec8f2;background:rgba(74,110,185,.18);border-color:rgba(124,154,224,.42);box-shadow:0 0 16px -8px rgba(124,154,224,.9); }
+#mr-phase[data-phase="day"] { color:#f2d194;background:rgba(206,164,84,.16);border-color:rgba(214,174,94,.44);box-shadow:0 0 16px -8px rgba(214,174,94,.85); }
+/* 回放牌桌：顶部状态条 + 命牌牌桌 + 战报，一比一贴近真实对局界面 */
+#o-match-replay .pbox.mr-board { box-sizing:border-box;display:flex;flex-direction:column;width:100%;max-width:1040px;max-height:94vh;padding:13px 14px 14px; }
+#o-match-replay .pbox.mr-board.mr-full { max-width:98vw;height:96vh;max-height:96vh; }
+.mr-topbar { display:flex;justify-content:space-between;align-items:center;gap:10px;flex:0 0 auto;margin-bottom:9px; }
+.mr-topbar-l { display:flex;align-items:center;gap:2px;min-width:0; }
+.mr-title { font-family:var(--font-title);font-size:1.02em;color:#b8a8e8;letter-spacing:.06em;white-space:nowrap; }
+.mr-topbar-r { display:flex;align-items:center;gap:12px;font-family:var(--font-title);font-size:.82em;white-space:nowrap; }
+#mr-round { color:#d8cdf0; }
+#mr-alive { color:#f2c98a; }
+.mr-board-cards { display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:7px;max-height:36vh;overflow-y:auto;padding:2px 3px 9px;flex:0 0 auto; }
+.mr-pc { display:flex!important;flex-direction:column;justify-content:flex-end;min-height:96px;padding:7px 8px;cursor:default;overflow:hidden; }
+.mr-pc:hover { border-color:var(--gold); }
+.mr-pc .ch { width:100%;min-width:0; }
+.mr-pc .pn { font-size:.78em; }
+.mr-scene-nav { display:flex;gap:6px;align-items:center;margin-bottom:8px;flex:0 0 auto; }
+.mr-log { flex:1 1 auto;min-height:110px;overflow-y:auto;padding:8px;background:rgba(0,0,0,.24);border:1px solid rgba(112,96,176,.25);border-radius:8px; }
+.mr-progress-row { display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:.65em;color:#80758e;flex:0 0 auto; }
+.mr-controls { display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;flex:0 0 auto; }
+@media (max-width:560px){ .mr-board-cards{ grid-template-columns:repeat(auto-fill,minmax(92px,1fr));max-height:33vh; } .mr-pc{ min-height:84px; } .mr-title{ font-size:.9em; } .mr-topbar{ flex-wrap:wrap;gap:4px 10px; } .mr-topbar-r{ font-size:.74em; } }
 
 /* 开发者面板 */
 .devc { position: fixed; bottom: 0; left: 0; right: 0; height: 220px; background: #0a0a14; border-top: 2px solid #2a2040; transform: translateY(100%); transition: 0.3s; z-index: 1000; display: flex; flex-direction: column; }
@@ -3353,21 +3381,23 @@ body.has-wp::after {
 
 <!-- 终局只读录像：按夜晚/警长竞选/白天逐段查看，不改变存档和游戏状态 -->
 <div class="overlay" id="o-match-replay">
-  <div class="pbox" style="max-width:720px;border-color:#7060b0">
-    <h3 style="color:#b8a8e8">🎬 对局回放</h3>
-    <div style="font-size:.7em;color:#8a809e;margin:-2px 0 8px">只读录像 · 按真实事件顺序播放，不调用 AI，也不会改变对局</div>
-    <div id="mr-roster" style="display:flex;gap:5px;overflow-x:auto;padding:5px 1px 8px"></div>
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+  <div class="pbox mr-board" style="border-color:#7060b0">
+    <div class="mr-topbar">
+      <div class="mr-topbar-l"><span class="mr-title">🎬 对局回放</span><span id="mr-phase" data-phase="day">☀️ 白天</span></div>
+      <div class="mr-topbar-r"><span id="mr-round">开局</span><span id="mr-alive">存活 —</span></div>
+    </div>
+    <div id="mr-roster" class="mr-board-cards" aria-label="命牌牌桌"></div>
+    <div class="mr-scene-nav">
       <button id="mr-prev" style="width:auto;min-width:42px">◀</button>
       <select id="mr-scene" style="flex:1;background:#161326;color:#d8d0e8;border:1px solid rgba(112,96,176,.55);border-radius:6px;padding:7px"></select>
       <button id="mr-next" style="width:auto;min-width:42px">▶</button>
     </div>
-    <div id="mr-events" aria-live="polite" style="height:min(54vh,520px);overflow-y:auto;padding:8px;background:rgba(0,0,0,.24);border:1px solid rgba(112,96,176,.25);border-radius:8px"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:.65em;color:#80758e">
+    <div id="mr-events" aria-live="polite" class="mr-log"></div>
+    <div class="mr-progress-row">
       <span id="mr-progress-text">0 / 0</span><span id="mr-now">等待播放</span>
     </div>
     <div id="mr-progress-track"><div id="mr-progress-bar"></div></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+    <div class="mr-controls">
       <button id="mr-play" style="flex:2;border-color:#7060b0;color:#b8a8e8">▶ 自动播放</button>
       <button id="mr-skip" style="flex:1" disabled>⏭ 显示本句</button>
       <button id="mr-all" style="flex:1">显示本段全部</button>
@@ -17945,8 +17975,33 @@ function openPostGame() {
 const MatchReplay = {
   scenes:[], index:0, visible:Infinity, timer:null, waitResolve:null,
   typeTimer:null, typeFinish:null, typing:false, auto:false,
-  runToken:0, continuous:false
+  runToken:0, continuous:false, audioOn:false, bgmPhase:null
 };
+
+// 回放昼夜：sheriff（警长竞选）与真实对局一致，归为夜间氛围
+function matchReplayScenePhase(scene) {
+  return (scene && (scene.phase === 'night' || scene.phase === 'sheriff')) ? 'night' : 'day';
+}
+// 把当前场景的昼夜主题套到面板上（视觉，无论是否播放音乐都跟随）
+function applyMatchReplayPhaseTheme(phase) {
+  const box = document.querySelector('#o-match-replay .pbox');
+  if (box) box.dataset.phase = phase;
+  const badge = $('mr-phase');
+  if (badge) { badge.dataset.phase = phase; badge.textContent = phase === 'night' ? '🌙 夜晚' : '☀️ 白天'; }
+}
+// 同步阶段 BGM：跟着场景昼夜切换，用的正是玩家在设置里选的那套曲子
+function syncMatchReplayBgm(force) {
+  const phase = matchReplayScenePhase(MatchReplay.scenes[MatchReplay.index]);
+  applyMatchReplayPhaseTheme(phase);
+  if (!MatchReplay.audioOn || !Audio.isEnabled()) return;
+  if (force || phase !== MatchReplay.bgmPhase) { MatchReplay.bgmPhase = phase; Audio.startBg(phase); }
+}
+// 停掉回放的一切声音（关闭回放 / 结束时）
+function stopMatchReplayBgm() {
+  MatchReplay.audioOn = false; MatchReplay.bgmPhase = null;
+  try { Audio.stopCharBgm(); } catch(e){}
+  try { Audio.stopBg(); } catch(e){}
+}
 
 function buildMatchReplayScenes() {
   const scenes = [];
@@ -18019,6 +18074,31 @@ function matchReplaySceneDivider(label) {
   return `<div class="mr-scene-divider"><span>${escapeHtml(label||'对局阶段')}</span></div>`;
 }
 
+// 回放牌桌上的一张命牌：复用真实对局的 .pc 命牌与 role-effects 立绘，
+// 让观看回放时的牌桌和真牌桌长得一模一样（发言高亮、死亡变灰、警徽、身份立绘）。
+function matchReplayCardHtml(p, opts) {
+  opts = opts || {};
+  const showRole = !blindReviewOn() && !!(p.role && p.role.id);   // 终局揭示身份 → 亮立绘；盲复盘则隐藏
+  const cfg = playerConfigs[p.id] || {};
+  const firstChar = showRole ? escapeHtml((p.role.name||'?').charAt(0)) : '？';
+  const av = cfg.avatar
+    ? `<img src="${cfg.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentNode.textContent='${firstChar}'">`
+    : firstChar;
+  const modelTag = ($('m-modeltag') && $('m-modeltag').checked) ? getModelTagHtml(p, {size:'small'}) : '';
+  const mbti = (!S.pureAI && p.mbti && $('m-mbti') && $('m-mbti').checked && p.mbtiKey) ? escapeHtml(p.mbtiKey) : '';
+  const roleName = showRole ? escapeHtml(p.role.name) : '未知';
+  const cls = 'pc mr-pc' + (showRole ? ' role-theme role-' + p.role.id : '')
+    + (opts.dead ? ' dead' : '') + (opts.speaking ? ' speaking' : '') + (p.id === S.sheriff ? ' issh' : '');
+  return `<div class="${cls}" data-player-id="${p.id}">`
+    + `<div class="ch"><div class="av">${av}</div><div class="pif">`
+    + `<div class="pn">${escapeHtml(publicPlayerLabel(p))}</div>`
+    + `<div class="ptag">P${p.id+1}</div>`
+    + `<div class="modeltag-slot">${modelTag}</div>`
+    + `<div class="rt">${roleName}</div>`
+    + (mbti ? `<div class="mbtitag">${mbti}</div>` : '')
+    + `</div></div></div>`;
+}
+
 function matchReplayScroll(smooth=false) {
   const box = $('mr-events');
   if (!box) return;
@@ -18046,7 +18126,11 @@ function updateMatchReplayChrome(activeName='') {
     list.slice(0,limit).forEach(e => { if (e.type==='death' && e.name) seenDeaths.add(e.name); });
   }
   const active = activeName ? S.players.find(p=>p.name===activeName) : null;
-  $('mr-roster').innerHTML = S.players.map(p => `<span class="mr-seat${active&&active.id===p.id?' is-speaking':''}" data-player-id="${p.id}" style="flex:0 0 auto;padding:4px 7px;border-radius:12px;border:1px solid rgba(255,255,255,.1);font-size:.67em;opacity:${seenDeaths.has(p.name)?'.38':'1'}">P${p.id+1} ${escapeHtml(p.name)}${blindReviewOn()?'':' · '+p.role.emoji}</span>`).join('');
+  // 顶部状态条：当前阶段 + 存活人数，像真牌桌
+  if ($('mr-round')) $('mr-round').textContent = scene.label || '对局';
+  if ($('mr-alive')) $('mr-alive').textContent = '存活 ' + (S.players.length - seenDeaths.size);
+  // 命牌牌桌：发言者亮牌、已死者变灰
+  $('mr-roster').innerHTML = S.players.map(p => matchReplayCardHtml(p, {dead:seenDeaths.has(p.name), speaking:!!(active&&active.id===p.id)})).join('');
   $('mr-prev').disabled = MatchReplay.index <= 0;
   $('mr-next').disabled = MatchReplay.index >= MatchReplay.scenes.length-1;
   $('mr-skip').disabled = !MatchReplay.typing;
@@ -18055,6 +18139,7 @@ function updateMatchReplayChrome(activeName='') {
 function renderMatchReplay() {
   const scene = MatchReplay.scenes[MatchReplay.index];
   if (!scene) return;
+  syncMatchReplayBgm();
   const events = matchReplaySceneEvents(scene);
   const shown = Number.isFinite(MatchReplay.visible) ? events.slice(0, MatchReplay.visible) : events;
   $('mr-events').innerHTML = matchReplaySceneDivider(scene.label) + (shown.map(ev=>matchReplayEventHtml(ev)).filter(Boolean).join('') || '<div style="padding:20px;text-align:center;color:#706880">本阶段暂无可显示事件</div>');
@@ -18106,7 +18191,7 @@ function streamMatchReplayEvent(ev, token) {
     const chars = Array.from(data.text);
     const eventIndex = MatchReplay.visible;
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    let pos = 0, settled = false;
+    let pos = 0, settled = false, spoke = false;
     MatchReplay.typing = true;
     MatchReplay.typeFinish = () => {
       if (settled) return;
@@ -18117,12 +18202,18 @@ function streamMatchReplayEvent(ev, token) {
       node.classList.remove('is-typing');
       MatchReplay.typing = false;
       MatchReplay.typeFinish = null;
+      if (spoke) { try { Audio.stopCharBgm(); } catch(e){} }
       MatchReplay.visible = Math.max(Number.isFinite(MatchReplay.visible)?MatchReplay.visible:0, eventIndex+1);
       updateMatchReplayChrome();
       matchReplayScroll(true);
       resolve();
     };
     updateMatchReplayChrome(data.focusName || '系统');
+    // 发言时播放该玩家的专属出场曲，和真实对局一样，说完自动收回
+    if (MatchReplay.audioOn && data.speech && data.focusName && Audio.isEnabled()) {
+      spoke = true;
+      try { Audio.playCharBgm(data.focusName); } catch(e){ spoke = false; }
+    }
     if (reduced || !chars.length) return MatchReplay.typeFinish();
 
     const tick = () => {
@@ -18158,6 +18249,7 @@ async function runMatchReplayAuto(token) {
     if (MatchReplay.index < MatchReplay.scenes.length-1) {
       MatchReplay.index++;
       MatchReplay.visible = 0;
+      syncMatchReplayBgm();
       $('mr-events').insertAdjacentHTML('beforeend', matchReplaySceneDivider(MatchReplay.scenes[MatchReplay.index].label));
       updateMatchReplayChrome();
       matchReplayScroll(true);
@@ -18173,6 +18265,7 @@ async function runMatchReplayAuto(token) {
 function openMatchReplay() {
   if (!S || !S.gameOver) return alert('对局结束后才能观看完整回放');
   stopMatchReplay(false);
+  stopMatchReplayBgm();
   MatchReplay.scenes = buildMatchReplayScenes(); MatchReplay.index = 0; MatchReplay.visible = Infinity;
   MatchReplay.continuous = false;
   $('mr-scene').innerHTML = MatchReplay.scenes.map((s,i)=>`<option value="${i}">${i+1}. ${escapeHtml(s.label)}</option>`).join('');
@@ -18187,6 +18280,8 @@ function toggleMatchReplayAuto() {
     $('mr-events').innerHTML = matchReplaySceneDivider(MatchReplay.scenes[MatchReplay.index]?.label);
   }
   MatchReplay.auto = true;
+  MatchReplay.audioOn = true;
+  syncMatchReplayBgm();
   const token = ++MatchReplay.runToken;
   $('mr-play').textContent = '⏸ 暂停';
   updateMatchReplayChrome();
@@ -21333,7 +21428,7 @@ function bindEvents() {
   $('pg-close').addEventListener('click', () => $('o-postgame').classList.remove('show'));
   $('pg-replay').addEventListener('click', openMatchReplay);
   $('btn-match-replay').addEventListener('click', openMatchReplay);
-  $('mr-close').addEventListener('click', () => { stopMatchReplay(); $('o-match-replay').classList.remove('show'); openPostGame(); });
+  $('mr-close').addEventListener('click', () => { stopMatchReplay(); stopMatchReplayBgm(); $('o-match-replay').classList.remove('show'); openPostGame(); });
   $('mr-prev').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index>0) MatchReplay.index--; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-next').addEventListener('click', () => { stopMatchReplay(); if (MatchReplay.index<MatchReplay.scenes.length-1) MatchReplay.index++; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
   $('mr-scene').addEventListener('change', e => { stopMatchReplay(); MatchReplay.index=parseInt(e.target.value)||0; MatchReplay.visible=Infinity; MatchReplay.continuous=false; renderMatchReplay(); });
@@ -21343,8 +21438,7 @@ function bindEvents() {
   $('mr-expand').addEventListener('click', () => {
     const box = $('o-match-replay').querySelector('.pbox');
     const full = box.classList.toggle('mr-full');
-    if (full) { box.style.maxWidth='100%'; box.style.width='96vw'; box.style.height='94vh'; box.style.maxHeight='94vh'; $('mr-events').style.height='calc(94vh - 238px)'; $('mr-expand').textContent='🗗'; }
-    else { box.style.maxWidth='720px'; box.style.width=''; box.style.height=''; box.style.maxHeight=''; $('mr-events').style.height='min(54vh,520px)'; $('mr-expand').textContent='⛶'; }
+    $('mr-expand').textContent = full ? '🗗' : '⛶';
   });
   $('pg-blind-review').addEventListener('click', toggleBlindReviewMode);
   $('pg-start').addEventListener('click', () => {
