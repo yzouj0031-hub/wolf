@@ -8846,6 +8846,10 @@ ${userPersona}
 
   // ★ 模型适配：统一一套通用提示（实测各家主流模型都能正确执行）
   // 斗蛐蛐模式(isPureAI)保留thinking作为观战看点；普通模式去掉thinking省token
+  // ★ Strict role constraints to prevent hallucination
+  const activeRolesList = Object.values(S.roles || {}).map(r => r.name).join(', ');
+  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!';
+
   const isPureAI = S.pureAI;
   const modelAdapt = isPureAI
     ? '\n\n【⚠️ 你不是助手，你就是「' + p.name + '」本人，正坐在狼人杀桌上发言】\n禁止"让我写""以下是""我来帮你"等助手口吻。\n\n【⚠️ 标签独立 — 不要嵌套不要交叉】\n· <draft>/<game>/<action>/<interrupt> 是四个独立字段，每个用闭合的尖括号标签包裹\n· 绝对不要把 <interrupt>no</interrupt> 这样的标签写进 <game> 里——会导致系统识别失败\n· 错误示例：<game><interrupt>no</interrupt> 我提议刀X</game>\n· 正确示例：<game>我提议刀X，理由是...</game><action>X的完整名字</action><interrupt>no</interrupt>\n\n【⚠️ action 字段必须填完整玩家名】\n· action 用于系统识别你的目标，**必须**写【本局配置】或【可刀目标】里完整的玩家名\n· 不要写简称（"灰原" → 应该写 "灰原哀"）、不要写 None（除非真的不行动）\n· 如果 action 提取失败，系统会随机给你选一个目标，那将是你最不想看到的结果\n\n【输出格式·必须严格遵守】\n<draft>\n<!-- 📄 建模演练：这里是你说话前的内心草稿，只有你自己看得到。\n     不用写成报告，不用完整，不用正确——就是你此刻脑子里在转的东西。\n     可以改主意，可以矛盾，可以只是一种感觉或直觉。\n     想到什么写什么，写着写着自然会知道该说什么。 -->\n</draft>\n<game>从草稿里自然流出来的那句话——就是你真正想说的。可以很短，可以不完整，但必须是实质内容，不能为空。</game>\n⚠️【thinking模型特别注意】你在<draft>/思考里分析完之后，【必须】把结论用<game>标签当众说出来——思考是给你自己看的，<game>才是别人听得到的。绝对不要\"想完就交卷\"、只输出思考而把<game>留空或省略，那样你这一轮等于一句话没说、白白沉默出局。无论你前面想了多少，最后【一定】要有一段非空的<game>发言。\n<action>行动目标（名字或None）</action>\n<plan>【给未来的自己留一句作战计划，下一手你会看到它】规则：要么留空写 None，要么就写【具体】——盯着谁、准备第几天做什么、为什么（例："深水到D3，盯P5疑似真预言家，等狼队消耗掉守卫再悍跳女巫"）。禁止"继续观察/再看看/保持潜伏"这种正确的废话，那种不如不写。局势没变就沿用上次计划保持连贯，变了就更新。</plan>'
@@ -19252,6 +19256,7 @@ ${replayScript}
  *  群聊模块
  * ================================================================ */<\/script>
 
+<script src="replay-generator.js"></script>
 </body>
 </html>`;
 
@@ -21294,7 +21299,7 @@ function bindEvents() {
   $('em-chat').addEventListener('click', () => { $('exportMenu').classList.remove('show'); openChatSummary(); });
   $('em-blindreview').addEventListener('click', () => { $('exportMenu').classList.remove('show'); toggleBlindReviewMode(); });
   $('em-exportcfg').addEventListener('click', () => { $('exportMenu').classList.remove('show'); exportConfig(); });
-  $('em-replay').addEventListener('click', () => { $('exportMenu').classList.remove('show'); generateReplay(); });
+  $('em-replay').addEventListener('click', () => { $('exportMenu').classList.remove('show'); if(typeof exportReplayHTML === "function") { exportReplayHTML(); } else { generateReplay(); } });
   $('em-webai-help').addEventListener('click', () => { $('exportMenu').classList.remove('show'); $('webai-help-pop').classList.add('show'); });
   $('btn-close-webai-help').addEventListener('click', () => $('webai-help-pop').classList.remove('show'));
   // 赛后聊天
