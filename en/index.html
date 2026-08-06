@@ -15373,7 +15373,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
             if (v2!=='None') t2 = findPlayer(v2, ts2);
           } else {
             const tl = ts2.map(x=>`P${x.id+1} ${x.name}`).join('、');
-            const r2 = await callAI(p, '【神秘馈赠·永久查验·第'+S.round+'夜】你每晚可查验一人阵营。可选：'+tl+'\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>', {noMemory:true, skillConfirm:true});
+            const r2 = await callAI(p, '【神秘馈赠·永久查验·第'+S.round+'夜】你每晚可查验一人阵营，查验没有任何代价与风险，等于多一个预言家位——请务必查验、不要空过一晚。请直接从下列目标里挑一个：'+tl+'\n<thinking>思考</thinking>\n<action>玩家名</action>', {noMemory:true, skillConfirm:true});
             logNightThinking(p, r2);
             if (!/^\s*none\s*$/i.test((r2.action||'').trim())) t2 = findPlayer(r2.action, ts2) || (r2.thinking && findPlayer(extractSkillTarget(r2.thinking, ts2, 'granted'), ts2));
           }
@@ -15399,7 +15399,12 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         if (v!=='None') t = findPlayer(v, ts);
       } else {
         const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
-        const r = await callAI(p, '【神秘馈赠·一次性'+(g.type==='inspect'?'查验':'毒药')+'】你被赐予的一次性技能现在可用。可选目标：'+targetList+'\n'+(g.type==='inspect'?'查验可得知一人阵营（狼/好人）。':'毒药可毒杀一人（今晚死亡）。')+'要用吗？用则给出目标，不用写None。\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>', {noMemory:true, skillConfirm:true});
+        const isInspect = g.type==='inspect';
+        // 🔮 查验零代价、仅限今晚：不再给 None 选项，直接要求给目标；毒药是真·击杀决策，保留 None
+        const prompt = isInspect
+          ? '【神秘馈赠·一次性查验·仅限今晚】这份查验没有任何代价与风险，用完即弃、过了今晚就作废——请务必用掉、不要浪费。查验可得知一人阵营（狼/好人）。请直接从下列目标里挑一个查验：'+targetList+'\n<thinking>思考</thinking>\n<action>玩家名</action>'
+          : '【神秘馈赠·一次性毒药·仅限今晚】你被赐予一次性毒药，仅限今晚使用，毒药可毒杀一人（今晚死亡）。要用吗？用则给出目标，不用写None。可选目标：'+targetList+'\n<thinking>思考</thinking>\n<action>玩家名 或 None</action>';
+        const r = await callAI(p, prompt, {noMemory:true, skillConfirm:true});
         logNightThinking(p, r);
         if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, ts) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, ts, 'granted'), ts));
       }
