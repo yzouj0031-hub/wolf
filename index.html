@@ -3417,7 +3417,7 @@ body.has-wp::after {
   <div class="btns"><button class="btn-cancel" id="pccancel">取消</button><button id="btn-open-apivault" style="background:rgba(136,136,204,0.12);color:var(--indigo);border:1px solid rgba(136,136,204,0.3)">📚 管理API库</button><button id="pcsave" style="background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo)">保存</button></div>
 </div></div>
 
-<div class="overlay" id="opi"><div class="pbox pi-lux"><h3 id="pi-title">── 轮到你 ──</h3><div id="pi-current-player" class="pi-nameplate" style="display:none"></div><div id="pctx" class="pi-ctx"></div><button id="pi-feed-claude" class="pi-feed" style="display:none">📋 复制喂Claude的内容（系统prompt+当前局势）</button><div id="pi-think-wrap" class="pi-collab" style="display:none"><div class="pi-collab-hd">💭 思维链 · 从网页端 Claude 复制（可选）</div><textarea id="pi-think" placeholder="粘贴 Claude 的 thinking 内容…"></textarea></div><div id="pi-history" class="pi-history" style="display:none"></div><textarea id="ptxt" class="pi-scroll" placeholder="落笔此处…"></textarea><div class="hint pi-hint">身份 · <span id="prh">?</span></div><button id="btn-submitpi" class="pi-submit">呈上</button></div></div>
+<div class="overlay" id="opi"><div class="pbox pi-lux"><h3 id="pi-title">── 轮到你 ──</h3><div id="pi-current-player" class="pi-nameplate" style="display:none"></div><div id="pctx" class="pi-ctx"></div><button id="pi-feed-claude" class="pi-feed" style="display:none">📋 复制提示词 · 交网页端 AI 代写发言</button><div id="pi-think-wrap" class="pi-collab" style="display:none"><div class="pi-collab-hd">💭 思维链 · 网页端 AI 的思考（可选）</div><textarea id="pi-think" placeholder="粘贴网页端 AI 的思考内容…"></textarea></div><div id="pi-history" class="pi-history" style="display:none"></div><textarea id="ptxt" class="pi-scroll" placeholder="落笔此处…"></textarea><div class="hint pi-hint">身份 · <span id="prh">?</span></div><button id="btn-submitpi" class="pi-submit">呈上</button></div></div>
 
 <div class="overlay" id="ocp"><div class="pbox" style="max-width:380px"><h3 id="cp-title">── 抉择 ──</h3><div id="cp-ctx" style="margin-bottom:6px;color:#8a7e6a;font-size:.75em"></div><div id="cp-grid" class="cp-grid"></div></div></div>
 
@@ -11103,9 +11103,9 @@ function _openInputModal(ctx, hint, resolve, currentPlayer) {
         : rulesBlock + '【角色设定】\n' + '═'.repeat(40) + '\n' + sys + '\n\n' + '═'.repeat(40) + '\n' + situation + '\n【近期发言】\n' + (recentHistory || '暂无') + '\n\n【请以' + currentPlayer.name + '的身份发言。\n⚠️ 只能依据上面战报里真实出现过的发言与事件来推理，本局没有的环节（退水/退选/投票前发言/PK发言等，见规则）不要脑补，也不要抱怨自己的发言被忽视。\n⚠️ 必须用简体中文输出，全程保持中文，不要夹杂英文/日文/韩文。\n⚠️ 输出格式：先输出 <thinking>思考过程</thinking>，再输出 <game>当面说出来的发言</game>。\n如需使用技能/投票，再追加 <action>指令</action>（不用则写 <action>None</action>）。\n发言要像真人说话，不要写分析报告、不要用编号列表。】';
       const safeFull = blindNamesOn() ? blindPrivatePersonaBlock(currentPlayer) + '\n\n' + blindMaskPublic(full) : full;
       navigator.clipboard.writeText(safeFull).then(() => {
-        feedBtn.textContent = feedEnglish ? '✅ Copied! Paste it into your Web AI, then return the response here.' : '✅ 已复制！去网页端Claude粘贴，把thinking和发言分别粘回来';
+        feedBtn.textContent = feedEnglish ? '✅ Copied! Paste it into your Web AI, then return the response here.' : '✅ 已复制！粘贴给网页端 AI，再把它的思考与发言分别贴回来';
         feedBtn.style.color = '#68e8a8';
-        setTimeout(() => { feedBtn.textContent = feedEnglish ? '📋 Copy prompt for Web AI' : '📋 复制喂Claude的内容（系统prompt+当前局势）'; feedBtn.style.color = '#68b8e8'; }, 3000);
+        setTimeout(() => { feedBtn.textContent = feedEnglish ? '📋 Copy prompt for Web AI' : '📋 复制提示词 · 交网页端 AI 代写发言'; feedBtn.style.color = '#68b8e8'; }, 3000);
       }).catch(() => {
         const ta = document.createElement('textarea');
         ta.value = safeFull;
@@ -19916,7 +19916,7 @@ function openChatSummary() {
     const claudeBtn = document.createElement('button');
     claudeBtn.style.cssText = 'padding:5px 9px;background:rgba(104,184,232,0.12);border:1px solid rgba(104,184,232,0.3);border-radius:6px;color:#68b8e8;cursor:pointer;font-size:0.75em;white-space:nowrap';
     claudeBtn.textContent = 'AI Claude';
-    claudeBtn.title = '导出完整系统prompt+摘要，直接喂给网页端Claude';
+    claudeBtn.title = '导出完整系统设定与摘要，交网页端 AI 代写发言';
     claudeBtn.onclick = () => { const h = box.querySelector('#_hide-death-role').checked; document.body.removeChild(overlay); _buildChatSummary(p, selectAll ? null : [...selectedRounds].map(i => rounds[i]), {hideDeathRole:h, feedClaude:true}); };
 
     row.appendChild(btn);
