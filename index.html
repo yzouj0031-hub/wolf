@@ -21361,7 +21361,7 @@ function bindEvents() {
       : (phoneLayoutMq.matches ? `── 命牌 ${b.querySelectorAll('.pc').length}人 · 横滑查看 ▼ ──` : '── 展开命牌 ▼ ──');
   });
   $('bst').addEventListener('click', startGame);
-  { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', startDemo); }   // 🎬 观战Demo
+  { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', () => window.open('demo_replay.html', '_blank')); }   // 🎬 观战Demo
   { const bsh = $('btn-share'); if (bsh) bsh.addEventListener('click', shareGame); }   // 🔗 分享
   $('bne').addEventListener('click', nextStep);
   $('bau').addEventListener('click', toggleAuto);

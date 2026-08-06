@@ -21227,7 +21227,7 @@ function bindEvents() {
       : (phoneLayoutMq.matches ? `── Roles · ${b.querySelectorAll('.pc').length} · swipe to view ▼ ──` : '── Show role cards ▼ ──');
   });
   $('bst').addEventListener('click', startGame);
-  { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', startDemo); }   // 🎬 观战Demo
+  { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', () => window.open('demo_replay.html', '_blank')); }   // 🎬 观战Demo
   { const bsh = $('btn-share'); if (bsh) bsh.addEventListener('click', shareGame); }   // 🔗 分享
   $('bne').addEventListener('click', nextStep);
   $('bau').addEventListener('click', toggleAuto);
