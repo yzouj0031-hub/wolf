@@ -4346,6 +4346,41 @@ const TRIAL_BOOK = '\n\n【审判系统】如果你十分怀疑某人是狼人�
  *  § 3. 角色注册
  * ================================================================ */
 const ALL_ROLES = {}, MAX_COUNT = {}, ROLE_CLS = {};
+
+/* ══════════════════════════════════════════════════════════════════
+ * 📌 ROLE_CAPS · Role capability registry (the ONLY place to edit when adding a role)
+ * ------------------------------------------------------------------
+ * Purpose: build the [CAPABILITY INDEX] handed to the AI, so it knows who can
+ *   inspect / protect / heal / poison this game, instead of hallucinating a
+ *   Seer or Guard from the standard template it memorised.
+ *
+ * Adding a role: add one line, e.g.
+ *     newrole: ['inspect'],   // can inspect alignment
+ *     newrole: [],            // has none of these (still register it!)
+ *
+ * Forgot to register? Nothing breaks: the role counts as "unaudited", the engine
+ *   drops hard claims like "nobody can inspect" (softer wording instead) and logs
+ *   a console hint. Better to say less than to tell the AI something false.
+ *
+ * Tags: inspect / protect / save / poison / grant (can hand out inspect·poison·shield)
+ *       learn (copies others' skills) / reflect / swap  (last two: registry only)
+ * Custom block-built roles need no entry — their customAbilities are auto-detected.
+ * ══════════════════════════════════════════════════════════════════ */
+const ROLE_CAPS = {
+  seer:          ['inspect'],
+  fox:           ['inspect'],          // learns target's alignment when charming
+  witch:         ['save', 'poison'],
+  guard:         ['protect'],
+  fool:          ['protect'],          // shields one player each night
+  merchant:      ['grant'],
+  youshang:      ['grant'],
+  mechwolf:      ['learn'],
+  wolfconcubine: ['reflect'],
+  magician:      ['swap'],
+  // ── Roles with none of the above (registered explicitly so hard denials stay safe) ──
+  villager: [], werewolf: [], wolfking: [], wolfbeauty: [], whitewolf: [],
+  hunter: [], knight: [], whitecat: [], cupid: [], jester: [], serialkiller: []
+};
 function reg(c) {
   ALL_ROLES[c.id] = c;
   MAX_COUNT[c.id] = c.maxCount || 99;
@@ -8944,16 +8979,36 @@ ${userPersona}
   const _rolesHere = [...new Map(S.players.filter(x => x.role && x.role.id).map(x => [x.role.id, x.role])).values()];
   const _ab = (r, a) => Array.isArray(r.customAbilities) && r.customAbilities.includes(a);
   const _who = pred => _rolesHere.filter(pred).map(r => r.name);
-  const _capInspect = _who(r => r.id === 'seer' || r.id === 'fox' || _ab(r, 'inspect'));
-  const _capProtect = _who(r => r.id === 'guard' || _ab(r, 'protect') || _ab(r, 'shield'));
-  const _capSave    = _who(r => r.id === 'witch' || _ab(r, 'save'));
-  const _capPoison  = _who(r => r.id === 'witch' || _ab(r, 'poison'));
-  const _capGrant   = _who(r => r.id === 'merchant' || r.id === 'youshang' || _ab(r, 'grant'));
-  const _capLearn   = _who(r => r.id === 'mechwolf');
+  // ★ Table-driven: capabilities come from ROLE_CAPS (built-ins) + customAbilities (custom blocks).
+  //   Adding a role = one line in ROLE_CAPS; forgetting is safe thanks to _unaudited below.
+  const _capsOf = r => {
+    const declared = ROLE_CAPS[r.id];
+    const blocks = Array.isArray(r.customAbilities) ? r.customAbilities : [];
+    const fromBlocks = blocks.map(b => b === 'shield' ? 'protect' : b);
+    return declared ? declared.concat(fromBlocks) : fromBlocks;
+  };
+  const _has = (r, cap) => _capsOf(r).includes(cap);
+  const _who2 = cap => _rolesHere.filter(r => _has(r, cap)).map(r => r.name);
+  // ⚠️ Safety net: a role neither registered in ROLE_CAPS nor carrying blocks is "unaudited";
+  //   we then avoid hard claims like "nobody can inspect" so the AI is never told something false.
+  const _unaudited = _rolesHere.filter(r => !ROLE_CAPS[r.id] && !(Array.isArray(r.customAbilities) && r.customAbilities.length));
+  if (_unaudited.length && !buildSystemPrompt._capWarned) {
+    buildSystemPrompt._capWarned = true;
+    console.warn('[capability index] roles missing from ROLE_CAPS (wording auto-softened, please register):',
+      _unaudited.map(r => r.id + '(' + r.name + ')').join(', '));
+  }
+  const _capInspect = _who2('inspect');
+  const _capProtect = _who2('protect');
+  const _capSave    = _who2('save');
+  const _capPoison  = _who2('poison');
+  const _capGrant   = _who2('grant');
+  const _capLearn   = _who2('learn');
   const _maybeLater = [...new Set(_capGrant.concat(_capLearn))];
   const _capLine = (label, list, noneHint) => list.length
     ? '\n· [' + label + '] Provided this game by: ' + list.join(', ') + '. Such information can only come from them.'
-    : '\n· [' + label + '] NO role in this game has this ability. ' + noneHint;
+    : (_unaudited.length
+        ? '\n· [' + label + '] No KNOWN role in this roster has this ability (some roles are unregistered — defer to their own role descriptions, do not assume).'
+        : '\n· [' + label + '] NO role in this game has this ability. ' + noneHint);
   const capabilityIndex = _rolesHere.length
     ? '\n\n[CAPABILITY INDEX — judge by ability, not by name]\n⚠️ Names do not matter, abilities do: this game may use custom roles, so a role not called "Seer" may still inspect; conversely, if an ability is absent, anyone claiming it is lying.'
       + _capLine('INSPECT ALIGNMENT', _capInspect, 'There is no such thing as a "check result" here; anyone saying "I checked X last night" is making it up.')

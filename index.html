@@ -4375,6 +4375,42 @@ const TRIAL_BOOK = '\n\n【审判系统】如果你十分怀疑某人是狼人�
  *  § 3. 角色注册
  * ================================================================ */
 const ALL_ROLES = {}, MAX_COUNT = {}, ROLE_CLS = {};
+
+/* ══════════════════════════════════════════════════════════════════
+ * 📌 ROLE_CAPS · 角色能力登记表（新增角色时，只改这一处）
+ * ------------------------------------------------------------------
+ * 用途：给 AI 生成【本局能力索引】——告诉它本局"谁能查验/守护/救/毒"，
+ *       从而不再按记忆里的标准板子脑补出并不存在的预言家、守卫等。
+ *
+ * 【加新角色怎么办】在下面加一行即可，例如：
+ *     newrole: ['inspect'],        // 能验阵营
+ *     newrole: [],                 // 以上能力一个都没有（也要写，表示"已登记"）
+ *
+ * 【忘了写会怎样】不会出错：系统会把该角色视为"能力未登记"，
+ *   自动放弃"本局没有任何人能查验"这类断言（改为温和表述），
+ *   并在开发者控制台打印一条提醒。宁可少说，也不对 AI 说错话。
+ *
+ * 可用能力标签：
+ *   inspect 查验阵营 / protect 守护挡刀 / save 夜间救人 / poison 毒杀
+ *   grant 赐予(可临时给出查验·毒·盾) / learn 学习复制他人技能
+ *   reflect 反弹 / swap 换位          （后两者仅登记，不进能力索引正文）
+ * 自创积木角色无需登记：其 customAbilities 会被自动识别。
+ * ══════════════════════════════════════════════════════════════════ */
+const ROLE_CAPS = {
+  seer:          ['inspect'],
+  fox:           ['inspect'],          // 媚惑命中后私下得知目标阵营
+  witch:         ['save', 'poison'],
+  guard:         ['protect'],
+  fool:          ['protect'],          // 每晚给一人挂护盾
+  merchant:      ['grant'],
+  youshang:      ['grant'],
+  mechwolf:      ['learn'],
+  wolfconcubine: ['reflect'],
+  magician:      ['swap'],
+  // ── 以下角色不具备上述任何能力（显式登记，便于做"本局确实没有"的断言）──
+  villager: [], werewolf: [], wolfking: [], wolfbeauty: [], whitewolf: [],
+  hunter: [], knight: [], whitecat: [], cupid: [], jester: [], serialkiller: []
+};
 function reg(c) {
   ALL_ROLES[c.id] = c;
   MAX_COUNT[c.id] = c.maxCount || 99;
@@ -8990,16 +9026,37 @@ ${userPersona}
   const _rolesHere = [...new Map(S.players.filter(x => x.role && x.role.id).map(x => [x.role.id, x.role])).values()];
   const _ab = (r, a) => Array.isArray(r.customAbilities) && r.customAbilities.includes(a);
   const _who = pred => _rolesHere.filter(pred).map(r => r.name);
-  const _capInspect = _who(r => r.id === 'seer' || r.id === 'fox' || _ab(r, 'inspect'));       // 常驻验阵营
-  const _capProtect = _who(r => r.id === 'guard' || _ab(r, 'protect') || _ab(r, 'shield'));    // 守护/挡刀
-  const _capSave    = _who(r => r.id === 'witch' || _ab(r, 'save'));                           // 救人
-  const _capPoison  = _who(r => r.id === 'witch' || _ab(r, 'poison'));                         // 毒杀
-  const _capGrant   = _who(r => r.id === 'merchant' || r.id === 'youshang' || _ab(r, 'grant'));// 赐予：可临时给出查验/毒/盾
-  const _capLearn   = _who(r => r.id === 'mechwolf');                                          // 机械狼：可学走别人的技能
+  // ★ 表驱动：能力来自 ROLE_CAPS 登记表（内置角色）+ customAbilities（自创积木角色）。
+  //   新增角色只需在 ROLE_CAPS 加一行；忘了加也不会说错话——见下面的 _unaudited 安全网。
+  const _capsOf = r => {
+    const declared = ROLE_CAPS[r.id];
+    const blocks = Array.isArray(r.customAbilities) ? r.customAbilities : [];
+    // 积木名与能力标签对齐：shield 归入 protect，其余同名
+    const fromBlocks = blocks.map(b => b === 'shield' ? 'protect' : b);
+    return declared ? declared.concat(fromBlocks) : fromBlocks;
+  };
+  const _has = (r, cap) => _capsOf(r).includes(cap);
+  const _who2 = cap => _rolesHere.filter(r => _has(r, cap)).map(r => r.name);
+  // ⚠️ 安全网：既没在 ROLE_CAPS 登记、也没有积木能力的角色 = "能力未登记"。
+  //   此时不再做"本局没有任何人能查验"这类硬断言，避免对 AI 说错话。
+  const _unaudited = _rolesHere.filter(r => !ROLE_CAPS[r.id] && !(Array.isArray(r.customAbilities) && r.customAbilities.length));
+  if (_unaudited.length && !buildSystemPrompt._capWarned) {
+    buildSystemPrompt._capWarned = true;
+    console.warn('[能力索引] 以下角色未在 ROLE_CAPS 登记，已自动降级为温和表述，建议补登记：',
+      _unaudited.map(r => r.id + '(' + r.name + ')').join('、'));
+  }
+  const _capInspect = _who2('inspect');
+  const _capProtect = _who2('protect');
+  const _capSave    = _who2('save');
+  const _capPoison  = _who2('poison');
+  const _capGrant   = _who2('grant');
+  const _capLearn   = _who2('learn');
   const _maybeLater = [...new Set(_capGrant.concat(_capLearn))];
   const _capLine = (label, list, noneHint) => list.length
     ? '\n· 【' + label + '】本局由这些角色提供：' + list.join('、') + '。相关信息只可能来自他们。'
-    : '\n· 【' + label + '】本局【没有任何角色】具备该能力。' + noneHint;
+    : (_unaudited.length
+        ? '\n· 【' + label + '】本局配置里没有已知具备该能力的角色（另有角色能力未登记，以其角色说明为准，不要凭空假设）。'
+        : '\n· 【' + label + '】本局【没有任何角色】具备该能力。' + noneHint);
   const capabilityIndex = _rolesHere.length
     ? '\n\n【本局能力索引·按"能做什么"看，不要按名字套板子】\n⚠️ 名字不重要、能力才重要：本局可能使用自创角色，一个不叫"预言家"的角色照样可能会查验；反之本局没有的能力，谁声称拥有它就是在编。'
       + _capLine('查验阵营', _capInspect, '不存在"查验结果""金水""查杀"这类信息；谁说"我昨晚验了谁"，谁就是在编。')
