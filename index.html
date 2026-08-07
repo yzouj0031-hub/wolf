@@ -8981,15 +8981,43 @@ ${userPersona}
   //   改为与【本局配置】同源：直接从场上玩家统计真实在场角色（阵容本就是公开信息，不泄密）。
   const _presentRoleNames = [...new Set(S.players.map(x => (x.role && x.role.name) || '').filter(Boolean))];
   const activeRolesList = _presentRoleNames.join('、');
-  // ★ 显式点名"本局缺席"的经典角色：模型最爱脑补的就是这几张，且内置世界书里的通用战术
-  //   大量以它们举例（悍跳预言家/守卫挡刀/女巫救人），必须一条指令把那些例子按掉。
+  // ★ 能力索引：按"能做什么"判断，而不是按"叫什么名字"。
+  //   原因：① 子狐这类角色本质是"验阵营"的另一种形态，硬说"本局没有预言家所以没有查验"是错的；
+  //         ② 积木自创角色可以拼出 inspect/protect/save/poison 能力并随便取名（比如叫"占卜师"），
+  //            按名字硬编码的护栏会漏判，反而误导 AI 无视一个真实存在的查验位。
+  //   所以这里统一按 customAbilities 积木 + 内置角色能力归纳，将来加多少新角色都不用改。
   const _presentRoleIds = new Set(S.players.map(x => x.role && x.role.id).filter(Boolean));
+  const _rolesHere = [...new Map(S.players.filter(x => x.role && x.role.id).map(x => [x.role.id, x.role])).values()];
+  const _ab = (r, a) => Array.isArray(r.customAbilities) && r.customAbilities.includes(a);
+  const _who = pred => _rolesHere.filter(pred).map(r => r.name);
+  const _capInspect = _who(r => r.id === 'seer' || r.id === 'fox' || _ab(r, 'inspect'));       // 常驻验阵营
+  const _capProtect = _who(r => r.id === 'guard' || _ab(r, 'protect') || _ab(r, 'shield'));    // 守护/挡刀
+  const _capSave    = _who(r => r.id === 'witch' || _ab(r, 'save'));                           // 救人
+  const _capPoison  = _who(r => r.id === 'witch' || _ab(r, 'poison'));                         // 毒杀
+  const _capGrant   = _who(r => r.id === 'merchant' || r.id === 'youshang' || _ab(r, 'grant'));// 赐予：可临时给出查验/毒/盾
+  const _capLearn   = _who(r => r.id === 'mechwolf');                                          // 机械狼：可学走别人的技能
+  const _maybeLater = [...new Set(_capGrant.concat(_capLearn))];
+  const _capLine = (label, list, noneHint) => list.length
+    ? '\n· 【' + label + '】本局由这些角色提供：' + list.join('、') + '。相关信息只可能来自他们。'
+    : '\n· 【' + label + '】本局【没有任何角色】具备该能力。' + noneHint;
+  const capabilityIndex = _rolesHere.length
+    ? '\n\n【本局能力索引·按"能做什么"看，不要按名字套板子】\n⚠️ 名字不重要、能力才重要：本局可能使用自创角色，一个不叫"预言家"的角色照样可能会查验；反之本局没有的能力，谁声称拥有它就是在编。'
+      + _capLine('查验阵营', _capInspect, '不存在"查验结果""金水""查杀"这类信息；谁说"我昨晚验了谁"，谁就是在编。')
+      + _capLine('守护挡刀', _capProtect, '出现平安夜不要归因于"守卫守住了"，请另找解释（被救/技能被封/空刀等）。')
+      + _capLine('夜间救人', _capSave, '有人夜里没死时，不要归因于"被救了"。')
+      + _capLine('毒杀', _capPoison, '有人非狼刀死亡时，不要归因于"被毒死"。')
+      + (_maybeLater.length ? '\n· 【注意·能力可能中途出现】' + _maybeLater.join('、') + ' 能让上述能力在中途转手或产生（赐予/学习），所以"现在没有"不等于"整局都不会有"。' : '')
+    : '';
+  // ★ 名字层面的补充：模型最爱脑补的就是这几张经典牌，内置世界书也大量拿它们举例。
+  //   这里只否定"名字"，能力有无一律以上面的能力索引为准（避免"没有预言家=没有查验"的错误暗示）。
   const _absentClassics = ['seer','witch','guard','hunter','knight']
     .filter(id => !_presentRoleIds.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name);
   const absentRoleRule = _absentClassics.length
-    ? '\n⛔【本局没有这些角色，一次都不许提】本局【不存在】：' + _absentClassics.join('、') + '。没有人可能是他们，也不存在他们的技能和信息。你不得自称、不得悍跳、不得声称与谁对跳这些身份，也不得在推理里寻找他们、等待他们出来，或把平安夜/死讯归因于他们。⚠️上文任何通用战术若以这些角色举例（例如"悍跳预言家""守卫挡刀""女巫救人""等预言家发查验"），在本局一律【不适用】，请直接忽略那些例子，只按【本局配置】里真实存在的角色思考。'
+    ? '\n⛔【这些"角色名"本局不存在，一次都不许提】本局没有：' + _absentClassics.join('、') + '。不得自称、不得悍跳、不得声称与谁对跳这些身份，也不得在推理里等他们跳出来。'
+      + (_capInspect.length ? '⚠️注意区分：本局虽然没有"预言家"这张牌，但能力索引里【有能验阵营的角色】，查验类信息由他们产生——请用他们的真实角色名来称呼和推理，别套预言家模板（本局没有警徽流、也不存在"对跳预言家"）。' : '')
+      + '⚠️上文任何通用战术若以这些角色举例（如"悍跳预言家""守卫挡刀""女巫救人""等预言家发查验"），本局一律【不适用】，直接忽略那些例子。'
     : '';
-  const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！' + absentRoleRule;
+  const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！' + capabilityIndex + absentRoleRule;
 
   const isPureAI = S.pureAI;
   const modelAdapt = isPureAI

@@ -8935,15 +8935,44 @@ ${userPersona}
   //   Now sourced from the actual players on the table (same source as the roster block).
   const _presentRoleNames = [...new Set(S.players.map(x => (x.role && x.role.name) || '').filter(Boolean))];
   const activeRolesList = _presentRoleNames.join(', ');
-  // ★ Explicitly name the absent classics: these are exactly what models hallucinate,
-  //   and the built-in worldbook keeps using them as examples (fake-claim Seer, Guard blocks, Witch heals).
+  // ★ Capability index: judge by WHAT A ROLE CAN DO, not by its NAME.
+  //   Why: (1) roles like the Fox Cub are effectively another form of "inspect alignment",
+  //   so flatly saying "no Seer => no inspection" is wrong; (2) custom block-built roles can
+  //   carry inspect/protect/save/poison and be named anything, so a name-hardcoded guard
+  //   misses them and tells the AI to ignore a real inspector. Derived from customAbilities.
   const _presentRoleIds = new Set(S.players.map(x => x.role && x.role.id).filter(Boolean));
+  const _rolesHere = [...new Map(S.players.filter(x => x.role && x.role.id).map(x => [x.role.id, x.role])).values()];
+  const _ab = (r, a) => Array.isArray(r.customAbilities) && r.customAbilities.includes(a);
+  const _who = pred => _rolesHere.filter(pred).map(r => r.name);
+  const _capInspect = _who(r => r.id === 'seer' || r.id === 'fox' || _ab(r, 'inspect'));
+  const _capProtect = _who(r => r.id === 'guard' || _ab(r, 'protect') || _ab(r, 'shield'));
+  const _capSave    = _who(r => r.id === 'witch' || _ab(r, 'save'));
+  const _capPoison  = _who(r => r.id === 'witch' || _ab(r, 'poison'));
+  const _capGrant   = _who(r => r.id === 'merchant' || r.id === 'youshang' || _ab(r, 'grant'));
+  const _capLearn   = _who(r => r.id === 'mechwolf');
+  const _maybeLater = [...new Set(_capGrant.concat(_capLearn))];
+  const _capLine = (label, list, noneHint) => list.length
+    ? '\n· [' + label + '] Provided this game by: ' + list.join(', ') + '. Such information can only come from them.'
+    : '\n· [' + label + '] NO role in this game has this ability. ' + noneHint;
+  const capabilityIndex = _rolesHere.length
+    ? '\n\n[CAPABILITY INDEX — judge by ability, not by name]\n⚠️ Names do not matter, abilities do: this game may use custom roles, so a role not called "Seer" may still inspect; conversely, if an ability is absent, anyone claiming it is lying.'
+      + _capLine('INSPECT ALIGNMENT', _capInspect, 'There is no such thing as a "check result" here; anyone saying "I checked X last night" is making it up.')
+      + _capLine('PROTECT / BLOCK KILL', _capProtect, 'Do not explain a peaceful night as "the Guard blocked it" — find another explanation.')
+      + _capLine('NIGHT HEAL', _capSave, 'Do not explain someone surviving the night as "they were healed".')
+      + _capLine('POISON', _capPoison, 'Do not explain a non-wolf-kill death as "poisoned".')
+      + (_maybeLater.length ? '\n· [NOTE — abilities may appear later] ' + _maybeLater.join(', ') + ' can transfer or create the abilities above (granting/learning), so "absent now" does not mean "absent all game".' : '')
+    : '';
+  // ★ Name-level note: these classics are what models hallucinate most, and the built-in
+  //   worldbook keeps using them as examples. This only denies the NAMES — ability presence
+  //   is governed by the capability index above (avoids implying "no Seer = no inspection").
   const _absentClassics = ['seer','witch','guard','hunter','knight']
     .filter(id => !_presentRoleIds.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name);
   const absentRoleRule = _absentClassics.length
-    ? '\n⛔【ABSENT ROLES — NEVER MENTION THEM】This game does NOT contain: ' + _absentClassics.join(', ') + '. Nobody can be them; their skills and information do not exist. You must not claim these identities, fake-claim them, claim to be counter-claimed on them, search for them in your reasoning, wait for them to speak up, or attribute a peaceful night / any death to them. ⚠️ If any general tactic above uses these roles as examples (e.g. "fake-claim the Seer", "the Guard blocked it", "the Witch healed"), it does NOT apply this game — ignore those examples and reason only with the roles listed in the roster.'
+    ? '\n⛔[THESE ROLE NAMES DO NOT EXIST THIS GAME] Absent: ' + _absentClassics.join(', ') + '. Never claim, fake-claim, or claim to be counter-claimed on these identities, and never wait for them to speak up.'
+      + (_capInspect.length ? ' ⚠️ Note the distinction: there is no "Seer" card this game, but the capability index DOES list a role that can inspect alignment — refer to it by its real role name and do not apply Seer templates (no badge flow, no "counter-claiming the Seer").' : '')
+      + ' ⚠️ Any general tactic above that uses these roles as examples (e.g. "fake-claim the Seer", "the Guard blocked it", "the Witch healed") does NOT apply this game — ignore those examples.'
     : '';
-  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!' + absentRoleRule;
+  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!' + capabilityIndex + absentRoleRule;
 
   const isPureAI = S.pureAI;
   const modelAdapt = isPureAI
