@@ -8976,8 +8976,20 @@ ${userPersona}
   // ★ 模型适配：统一一套通用提示（实测各家主流模型都能正确执行）
   // 斗蛐蛐模式(isPureAI)保留thinking作为观战看点；普通模式去掉thinking省token
   // ★ 防止 AI 脑补不存在职业的强制约束
-  const activeRolesList = Object.values(S.roles || {}).map(r => r.name).join('、');
-  const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！';
+  // ★ fix: 原先读的是 S.roles —— 该字段从未被赋值过，activeRolesList 恒为空字符串，
+  //   护栏实际发出去是"仅存在以下职业：[]"，毫无约束力且自相矛盾。
+  //   改为与【本局配置】同源：直接从场上玩家统计真实在场角色（阵容本就是公开信息，不泄密）。
+  const _presentRoleNames = [...new Set(S.players.map(x => (x.role && x.role.name) || '').filter(Boolean))];
+  const activeRolesList = _presentRoleNames.join('、');
+  // ★ 显式点名"本局缺席"的经典角色：模型最爱脑补的就是这几张，且内置世界书里的通用战术
+  //   大量以它们举例（悍跳预言家/守卫挡刀/女巫救人），必须一条指令把那些例子按掉。
+  const _presentRoleIds = new Set(S.players.map(x => x.role && x.role.id).filter(Boolean));
+  const _absentClassics = ['seer','witch','guard','hunter','knight']
+    .filter(id => !_presentRoleIds.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name);
+  const absentRoleRule = _absentClassics.length
+    ? '\n⛔【本局没有这些角色，一次都不许提】本局【不存在】：' + _absentClassics.join('、') + '。没有人可能是他们，也不存在他们的技能和信息。你不得自称、不得悍跳、不得声称与谁对跳这些身份，也不得在推理里寻找他们、等待他们出来，或把平安夜/死讯归因于他们。⚠️上文任何通用战术若以这些角色举例（例如"悍跳预言家""守卫挡刀""女巫救人""等预言家发查验"），在本局一律【不适用】，请直接忽略那些例子，只按【本局配置】里真实存在的角色思考。'
+    : '';
+  const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！' + absentRoleRule;
 
   const isPureAI = S.pureAI;
   const modelAdapt = isPureAI

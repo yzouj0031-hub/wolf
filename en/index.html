@@ -8929,8 +8929,21 @@ ${userPersona}
   // ★ 模型适配：统一一套通用提示（实测各家主流模型都能正确执行）
   // 斗蛐蛐模式(isPureAI)保留thinking作为观战看点；普通模式去掉thinking省token
   // ★ Strict role constraints to prevent hallucination
-  const activeRolesList = Object.values(S.roles || {}).map(r => r.name).join(', ');
-  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!';
+  // ★ fix: previously read S.roles — a field that is never assigned anywhere, so
+  //   activeRolesList was always an empty string and the guard shipped as
+  //   "ONLY contains: []" (no constraint at all, and self-contradictory).
+  //   Now sourced from the actual players on the table (same source as the roster block).
+  const _presentRoleNames = [...new Set(S.players.map(x => (x.role && x.role.name) || '').filter(Boolean))];
+  const activeRolesList = _presentRoleNames.join(', ');
+  // ★ Explicitly name the absent classics: these are exactly what models hallucinate,
+  //   and the built-in worldbook keeps using them as examples (fake-claim Seer, Guard blocks, Witch heals).
+  const _presentRoleIds = new Set(S.players.map(x => x.role && x.role.id).filter(Boolean));
+  const _absentClassics = ['seer','witch','guard','hunter','knight']
+    .filter(id => !_presentRoleIds.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name);
+  const absentRoleRule = _absentClassics.length
+    ? '\n⛔【ABSENT ROLES — NEVER MENTION THEM】This game does NOT contain: ' + _absentClassics.join(', ') + '. Nobody can be them; their skills and information do not exist. You must not claim these identities, fake-claim them, claim to be counter-claimed on them, search for them in your reasoning, wait for them to speak up, or attribute a peaceful night / any death to them. ⚠️ If any general tactic above uses these roles as examples (e.g. "fake-claim the Seer", "the Guard blocked it", "the Witch healed"), it does NOT apply this game — ignore those examples and reason only with the roles listed in the roster.'
+    : '';
+  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!' + absentRoleRule;
 
   const isPureAI = S.pureAI;
   const modelAdapt = isPureAI
