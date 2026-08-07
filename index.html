@@ -20346,8 +20346,13 @@ function _buildPrivateInfoLines(p) {
 
     // 🦊 子狐·媚惑（blockKill=对方是狼、mute=对方是好人；均私下确认阵营）
     if (rid === 'fox') {
-      const acts = byRole('fox').map(r => `第${r.round}夜：媚惑${r.target} → 确认其为${r.result==='blockKill'?'🐺狼人（当晚已禁刀）':'✅好人（已封其今晚技能）'}`);
-      if (acts.length) lines.push(`你的媚惑记录（媚惑结果=铁验证阵营）：\n  ${acts.join('\n  ')}`);
+      // ★ fix: 原来只做二选一（blockKill?狼:好人），把 result==='rebounded' 也算成了"好人"，
+      //   于是导出里会出现"媚惑Gin → 确认其为✅好人"，与同一份导出里的"该媚惑被反弹、原目标未验证"
+      //   自相矛盾，AI 不知道该信哪句。反弹时原目标【完全没有被验证】，必须如实写。
+      const acts = byRole('fox').map(r => r.result === 'rebounded'
+        ? `第${r.round}夜：媚惑${r.chosenTarget || r.target} → ⚠️被反弹到你自己，本夜实际验证对象只有你自己；${r.chosenTarget || r.target}完全未被验证（既不能当好人也不能当狼），且未被禁刀/封技`
+        : `第${r.round}夜：媚惑${r.chosenTarget || r.target} → 确认其为${r.result==='blockKill'?'🐺狼人（当晚已禁刀）':'✅好人（已封其今晚技能）'}`);
+      if (acts.length) lines.push(`你的媚惑记录（未被反弹的那几条=铁验证阵营）：\n  ${acts.join('\n  ')}`);
     }
     // 🌒 蚀时狼妃·反弹锁定
     if (rid === 'wolfconcubine') {
