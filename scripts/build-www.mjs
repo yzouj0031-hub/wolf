@@ -23,6 +23,8 @@ const FILES = [
   'ui-icons.js',
   'teaching-worldbooks.js',
   'native-http.js',
+  'exit-guard.js',
+  'exit-guard.css',
   'multiplayer.js',
   'multiplayer.css',
   'horror.html',

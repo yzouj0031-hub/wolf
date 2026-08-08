@@ -53,9 +53,8 @@ has(multiSeat,"m.max_ai_seats>coalesce(used.n,0)",'balanced capacity enforcement
 has(multiSeat,"v_total <> v_room.max_seats",'full-room start guard');
 has(multiSeat,'alter publication supabase_realtime add table public.online_room_ai_seats','AI-seat realtime publication');
 
-for (const feature of ['personal_ai','hosted_ai','last_seen_at','postgres_changes','localStorage','room_code','online_room_ai_seats','online_update_provider','online_configure_ai_fill','host_fill','balanced','beforeunload','popstate','visibilitychange','backButton','Return to room','返回进行中的房间']) has(client,feature,`client feature ${feature}`);
+for (const feature of ['personal_ai','hosted_ai','last_seen_at','postgres_changes','localStorage','room_code','online_room_ai_seats','online_update_provider','online_configure_ai_fill','host_fill','balanced','visibilitychange','Return to room','返回进行中的房间','online-room']) has(client,feature,`client feature ${feature}`);
 has(css,'overscroll-behavior:none','mobile overscroll protection');
-has(css,'.wg-online-confirm','custom leave confirmation');
 has(packageJson,'"@capacitor/app"','Android back-button plugin');
 if (/service_role|sk-[A-Za-z0-9]/.test(client)) throw new Error('multiplayer client must not contain server or model secrets');
 if (css.includes('url(')) throw new Error('online lobby CSS must not add a heavyweight image dependency');

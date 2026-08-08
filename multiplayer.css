@@ -21,13 +21,6 @@
 .wg-online-panel { width:min(820px,100%); max-height:min(820px,94vh); overflow:auto; overscroll-behavior:contain; border:1px solid rgba(184,154,91,.52); border-radius:16px; color:#ddd2e9; background:linear-gradient(155deg,#100c19 0%,#171022 55%,#0d0b15 100%); box-shadow:0 24px 80px rgba(0,0,0,.62); }
 .wg-online-entry.has-room { border-color:rgba(102,197,157,.64); box-shadow:0 8px 28px rgba(30,110,82,.16),inset 0 0 24px rgba(86,176,139,.08); }
 .wg-online-entry.has-room .wg-online-mark::before,.wg-online-entry.has-room .wg-online-mark::after { border-color:#83d0ad; }
-.wg-online-confirm { position:fixed; inset:0; z-index:1320; display:none; place-items:center; padding:20px; background:rgba(3,2,8,.84); backdrop-filter:blur(10px); overscroll-behavior:none; }
-.wg-online-confirm.show { display:grid; }
-.wg-online-confirm-card { width:min(430px,100%); padding:24px; text-align:center; color:#ddd2e9; border:1px solid rgba(210,178,96,.58); border-radius:16px; background:linear-gradient(155deg,#171020,#0d0a14); box-shadow:0 26px 90px rgba(0,0,0,.7); }
-.wg-online-confirm-card h4 { margin:13px 0 8px; color:#f1d899; font-family:var(--font-title,serif); letter-spacing:.06em; }
-.wg-online-confirm-card p { margin:0; color:#a99db8; font-size:.8em; line-height:1.7; }
-.wg-online-confirm-card .wg-online-actions { justify-content:center; margin-top:19px; }
-.wg-online-confirm-mark { display:block; width:28px; height:28px; margin:auto; border:1px solid #d9b958; transform:rotate(45deg); box-shadow:inset 0 0 0 7px rgba(138,110,207,.16); }
 .wg-online-head { position:sticky; top:0; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 18px; border-bottom:1px solid rgba(184,154,91,.22); background:rgba(16,12,25,.94); backdrop-filter:blur(8px); }
 .wg-online-title { margin:0; color:#f1d899; font-family:var(--font-title,serif); font-size:1.04em; letter-spacing:.1em; }
 .wg-online-close { width:34px!important; min-width:34px!important; height:34px; padding:0!important; border:1px solid rgba(210,190,155,.25)!important; border-radius:50%!important; background:transparent!important; color:#b8acc8!important; font-size:1.15em!important; }
