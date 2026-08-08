@@ -62,7 +62,8 @@ for (const path of ['../index.html','../en/index.html']) {
     'generateTeachingWorldbookDraft(idea, meta)',
     'generateDraft: (idea, meta) => generateTeachingWorldbookDraft(idea, meta)',
     'window.TeachingWorldbooks.load(d.teachingWorldbooks || null)',
-    "const officialTeaching = (teachingMode === 'official' || teachingMode === 'hybrid')",
+    "const officialOn = teachingMode === 'official' || teachingMode === 'hybrid'",
+    'twb.buildOfficialKnowledge(teachingContext)',
     'const customTeaching = twb && typeof twb.buildInjection',
     'return officialTeaching + customTeaching + WB_RULES_COMPACT',
     "(currentTeachingMode === 'custom' || currentTeachingMode === 'clean') && !customMechanicRole",
@@ -76,6 +77,30 @@ if (!source.includes('Import file (optional)') || !source.includes('从文件导
 }
 if (!source.includes('id="twb-ai-polish"') || !source.includes('让 AI 帮我整理') || !source.includes('never saves or enables the result automatically') || !source.includes("el('twb-ai-polish').addEventListener('click', polishDraft)")) {
   throw new Error('optional AI-assisted drafting UI is missing');
+}
+
+const advancedPreset = JSON.parse(fs.readFileSync(new URL('../worldbook_ryuzaki_masterclass.json', import.meta.url), 'utf8'));
+if (!Array.isArray(advancedPreset.worldbooks) || advancedPreset.worldbooks.length < 6) {
+  throw new Error('advanced strategy preset must remain split into focused worldbooks');
+}
+for (const book of advancedPreset.worldbooks) {
+  if (!source.includes(`id: '${book.id}'`)) throw new Error(`built-in preset is missing ${book.id}`);
+}
+wb.load({mode:'custom',books:advancedPreset.worldbooks});
+const whitecatGuide = wb.buildOfficialKnowledge({roleId:'whitecat',team:'good',phase:'day'});
+if (!whitecatGuide.includes('诈守卫') || whitecatGuide.includes('悍跳神职的完整生命周期')) {
+  throw new Error('official whitecat strategy leaked wolf-only claiming guidance');
+}
+const wolfGuide = wb.buildOfficialKnowledge({roleId:'werewolf',team:'bad',phase:'day'});
+if (!wolfGuide.includes('悍跳不是报一句身份') || wolfGuide.includes('白猫专精')) {
+  throw new Error('official wolf strategy is missing or leaked whitecat-only guidance');
+}
+const guardGuide = wb.buildOfficialKnowledge({roleId:'guard',team:'good',phase:'night'});
+if (!guardGuide.includes('保存逐夜守护账本') || guardGuide.includes('悍跳不是报一句身份')) {
+  throw new Error('official guard strategy routing is wrong');
+}
+if (source.includes('twb-load-preset')) {
+  throw new Error('official model knowledge must not require a manual preset button');
 }
 
 console.log('teaching worldbooks: modes, filters, priority, Tavern import, AI drafting, persistence and prompt integration passed');

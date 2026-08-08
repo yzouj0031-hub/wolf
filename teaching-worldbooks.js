@@ -13,31 +13,137 @@
 
   const DEFAULT_PRESET_BOOKS = [
     {
-      id: 'wb_ryuzaki_masterclass',
-      name: '🏆 Ryuzaki实战心法：狼人杀高阶博弈与生死局算术',
-      description: '基于经典12人局复盘总结。涵盖死局算术优先级、狼队长立字据做身份、遗言真话做陷阱、子狐暗度陈仓避开狼妃、守卫空守账目对齐等核心博弈法则。',
+      id: 'wb_advanced_evidence_endgame',
+      name: '高阶实战：对跳证据与残局算术',
+      description: '公共判断框架：不把经验当铁律，先核验信息来源，再计算残局胜负。',
       enabled: true,
-      priority: 90,
+      priority: 92,
       roles: [],
       teams: [],
-      phases: [],
-      content: `【残局铁律：硬算术 > 动机与性格论】
-1. 死局必须优先计算胜负人头数：在残局（如2狼3好、投错当场输）中，所有关于“动机差”、“发言像好人”、“语气真诚”的猜测全降为C级非关键证据！必须优先进行死局人数与放逐结果演算。
-2. 警惕“无风险测试白猫”陷阱：当有人自报白猫并声称“投我可以验证，我翻牌死不了”时，必须计算投他后的残局胜负——若全票投白猫导致白猫缓死（当天无放逐），当夜狼人再刀一个好人直接达成2狼2好，狼队当场获胜！因此绝不能把“测试白猫”当作安全路线。
+      phases: ['day', 'sheriff', 'vote'],
+      content: `【这些是决策工具，不是身份判定公式】
+以下内容用于帮助你权衡，不会自动证明任何人的身份。若与本局配置、私密记录或系统结算冲突，以后者为准。
 
-【狼队高阶策略：倒勾、卖队友与遗言博弈】
-1. 警长狼的信用对换：持警徽的狼队长可通过公开立字据“主投队友”（如卖掉狼妃、狼美人），换取好人长达3天的绝对信任。
-2. 死狼遗言的三重伪装：
-   - 【真话做陷阱】：前9句全部说客观真话（认狼、认推错好人、拆解算术），建立极致的临终公信力；第10句把脏水泼给真正的好人（如“梦子是我最后的队友”），诱导好人陷进“死狼临终不会卖最后队友”的惯性思维。
-   - 【反向金水】：给好人发金水（如“安室透从头到尾是好人”），促使疑心重的好人转而怀疑金水是狼队苦肉计。
-   - 【绝不抱团】：被认出的狼队友（如狼美人接查杀）绝不能在白天一窝风去救，其他狼必须果断跟票踩死，保持零连接。
+【对跳先核验信息源】
+1. 对跳只说明同一身份声明中至少有一个不真实；声明不真实的人也可能是替神挡刀的好人，不能由“他对跳了”直接推出狼人。
+2. 先找只有该身份才应知道、且以后可能验证的信息：预言家的目标与结果、女巫亲眼看到的刀口和药物记录、守卫逐夜守护账本、技能实际发动结果。身份声明和推理意见分开计分。
+3. 先跳、后跳、当时是否处于票压，都只是动机线索。后跳可能是狼搅局，也可能是真神听完假信息后被迫回应；安全位起跳可能是挡刀，也可能是狼提前做身份。必须和记录、票型、收益共同判断。
+4. 双方都没有可验证内容时，不要为了“今天必须分出真假”耗尽整个白天。可以保留两种可能，让后续行动、死讯和票型继续提供信息；但若假身份已经掌握决定性归票权，也不能机械沉默。
 
-【好人/神职高阶博弈】
-1. 子狐“明修栈道、暗度陈仓”：警长在白天公开安排子狐“今晚去查X”时，若场上有蚀时狼妃，狼妃必然会在X身上设锁。子狐切勿死板遵从公开指令！应表面不反驳，夜间偷偷绕开公开目标，查验未被点名但顺水推舟跟大票、发言极为顺滑的隐蔽位（如连续两夜查出狼人）。
-2. 守卫空守与账目对齐：守卫第一夜空守且出现平安夜时，必须果断给出“不在”二字，直接锤死女巫对跳中必有一真一假。
-3. 狼妃与狼美人技能精算：
-   - 狼妃锁定高危好人或子狐广播目标，避免锁狼队友导致子狐报“技能落空/反弹”公开暴露狼妃。
-   - 狼美人殉情连带死亡必须能帮助狼队直接达成“狼数 ≥ 好人数”；若殉情后好人仍占优，殉情反而会暴露全狼队逻辑链。`
+【残局先算，再谈感觉】
+每次放逐或发动致命技能前，分别演算“目标是好人”和“目标是狼人”两条分支：行动后各阵营存活人数、当夜可造成的死亡、是否立即触发胜负。语气、性格与遗言心理不能盖过确定的人数账。
+所谓“无风险测试”也必须算轮次。尤其白猫被投后可能只是缓死、当天没有真正减少狼人；若因此让狼人获得足以终结游戏的一夜，这个测试就不是安全路线。`
+    },
+    {
+      id: 'wb_advanced_wolf_claiming',
+      name: '狼队进阶：悍跳神职的完整生命周期',
+      description: '从选择身份、建立账本到维护、转向和止损的完整悍跳方法。',
+      enabled: true,
+      priority: 95,
+      roles: [],
+      teams: ['bad'],
+      phases: ['day', 'sheriff', 'vote'],
+      content: `【悍跳不是报一句身份，而是一份需要持续履行的合同】
+起跳前先回答五问：这一跳要抢什么（警徽、归票权、抗推、找出真神、保护队友）？真神还可能活着吗？我能拿什么持续兑现？下一轮必须补交什么记录？身份暴露后怎样止损？答不出来时，普通好人视角往往比临时乱跳更安全。
+
+【按身份计算兑现成本】
+· 预言家：准备完整的历史查验、当夜查验与未来查验计划。假金水和假查杀都必须服务明确的票型目标，不能每天随局势随意改账。
+· 女巫：狼队知道名义刀口，但不知道守护、换位、反弹等全部结算；可以围绕已知刀口构造救人说法，却不能把未公开死因当成确定事实。必须提前决定解药、毒药各自何时声称使用，以及药用尽后靠什么继续取得信任。
+· 守卫：先写逐夜守护账本，遵守不能连续守同一人的限制。不要把每个平安夜都抢成自己的功劳；守护、解药、禁刀和其他技能都可能造成无人死亡。
+· 猎人：威慑容易建立、死亡时才最终验证，适合短期抗推；但真猎人对跳或系统未出现枪声会形成巨大成本。
+· 骑士：通常不要悍跳。真骑士能立即决斗兑现，你无法发动同一技能，谎言的验证期限太短。
+
+【建立—维护—转向—止损】
+1. 建立：第一轮就给出最少但完整的核心账本，不依赖之后听到的新公开信息倒填历史。
+2. 维护：每轮先复述自己的既有记录，检查目标、结果、药物和时间线能否连续；宁可保留不确定，也不要为了圆一个小破绽再编三个新事实。
+3. 配合：队友不必全员替悍跳者站台。有人支持、有人保留、必要时有人切割，通常比整齐抱团更自然；但切割队友只是一种信用交易，不保证之后自动成为好人。
+4. 转向：原计划前提崩溃时及时换目标或降低身份强度，不要为了维护一句旧话把全队拖进明显矛盾。
+5. 止损：身份已被系统结果击穿时，停止继续制造无收益的假信息，转而争取一轮票、交换关键神职或给仍隐藏的队友留下更干净的关系。
+
+【遗言也能博弈，但没有固定反读】
+死狼可以用大量真话包装最后一条假线索，也可以故意点出队友、保护队友或给好人“反向金水”。因此不要假设“狼遗言一定撒谎”或“绝不会卖最后队友”；目标是让好人难以判断，而不是背诵一种套路。`
+    },
+    {
+      id: 'wb_advanced_good_counterclaim',
+      name: '好人进阶：识别悍跳与保护真神',
+      description: '教好人核验身份、选择是否对跳，并防止被高质量假神带队。',
+      enabled: true,
+      priority: 95,
+      roles: [],
+      teams: ['good'],
+      phases: ['day', 'sheriff', 'vote'],
+      content: `【先验证信息，不先审判演技】
+面对高质量神职声明，把内容拆成四层：身份声明、可核验的私密记录、基于记录得到的推理、要求大家执行的票型。可以暂信记录却不同意归票，也可以怀疑身份却承认某条推理成立。
+
+【寻找“排他性来源”】
+问清楚这条信息是否只能由真身份获得。平安夜不是任何单一女巫或守卫的独占功劳；公开死讯也人人都能复述。相反，完整且没有倒填痕迹的逐夜记录、与系统公开结果交叉吻合的信息、真实技能兑现，权重更高。发现矛盾时先排除本局存在的守护、换位、反弹、封锁和连带机制。
+
+【真神是否对跳，要算公开价值】
+· 预言家、女巫等若继续沉默会让假神长期控制归票和错误信息，通常应带着真实记录回应。
+· 守卫、魔术师、子狐等依赖隐藏行动的角色，不必因为一句冒充立刻自曝；可以先用问题压测对方，让其提交完整账本。
+· 但“隐藏型角色永远不对跳”同样错误。假神即将造成关键误投、骗取技能或形成不可逆公信力时，公开真实记录可能比继续潜伏更值。
+· 对跳不是比谁更激动。要求双方给出具体记录、未来兑现点和解释不了的风险，再结合票型判断。
+
+【防止被优秀悍跳者绑定】
+悍跳者可能主动卖狼、跟票狼队友、说大量真话甚至做出正确推理来换信用。这些行为可以增加可信度，但不能兑换“此后永久免验”。每天重新检查：他的最新行为是否仍让狼人获利？最初建立信任的那条证据是否仍成立？不要因为他曾经带对一次就把后续判断全部外包给他。`
+    },
+    {
+      id: 'wb_whitecat_decoy',
+      name: '白猫专精：诈守卫吸刀与安全退水',
+      description: '让白猫真正发挥缓死价值，同时减少假信息对好人的伤害。',
+      enabled: true,
+      priority: 98,
+      roles: ['whitecat'],
+      teams: ['good'],
+      phases: ['day', 'sheriff', 'vote'],
+      content: `【你的价值是骗狼刀，不是骗好人票】
+不要主动报“我是白猫”。缓死触发时系统自然会公开身份；提前自曝只会告诉狼人绕开你。也不要主动要求大家投你“验身份”，放逐可能浪费好人最关键的一轮。
+
+【优先选择低污染的诱饵身份】
+通常优先诈守卫，其次可考虑猎人：它们能制造狼刀顾忌，却不要求你每天编造查验结果或虚构毒杀名单。诈预言家、女巫会向好人投放大量假硬信息，除非你有明确的短期救场目标、知道怎样快速退水，并确认误导成本低于吸刀收益，否则不要选。
+
+【诈守卫的实操】
+· 起跳目标要明确：让狼以为你能持续挡刀，从而优先处理你，或替正在工作的真神挡一夜。
+· 可以声明守卫并暂不公开完整路线，但不要认领一个自己无法确认的平安夜，也不要编造违反“不能连续守同一人”的记录。
+· 被追问时维持一份简单、合法、前后一致的守护账；少说比为了显真而越编越多更安全。
+· 真守卫若带着明确记录出来纠正，或你的假身份开始造成好人误投，应及时退水，说明自己是好人挡刀但暂不公开真实底牌。不要为了面子和真神互打到底。
+
+【每轮检查退出条件】
+若狼已经不可能再相信、真神因你被迫暴露、好人准备在两个“守卫”中强行出人，或你的说法即将污染关键技能账本，立刻降级或退水。若你真的吃刀触发缓死，利用公开白猫身份解释之前的诱饵逻辑，并把最后一轮用于整理票型和保护仍隐藏的神职。`
+    },
+    {
+      id: 'wb_advanced_night_records',
+      name: '神职进阶：公开计划、暗线行动与账本',
+      description: '面向子狐与守卫的夜间信息管理，避免公开计划被反制或把结果说成铁证。',
+      enabled: true,
+      priority: 93,
+      roles: ['fox', 'guard'],
+      teams: ['good'],
+      phases: ['night', 'day'],
+      content: `【公开计划不是已经执行的行动】
+白天宣布“今晚查、魅惑或守护某人”只是计划。若本局存在能反弹、封锁或预判技能的角色，对手会利用公开目标；夜间仍应根据最新合法信息独立选择。改变公开计划不是自动说谎，但第二天必须如实报告自己真正收到的系统记录。
+
+【子狐】
+若公开目标很可能被蚀时狼妃针对，可以改查未广播的高价值位置，降低被反制概率；也可以反向利用公开计划诱导对手。是否改目标取决于公开目标价值、对手反制概率和替代目标收益，不是“每次都必须绕开”。收到系统明确的反弹、落空或作用于自身反馈时，要按真实反馈更新判断，不能继续把原目标当成已经验证的好人。
+
+【守卫】
+保存逐夜守护账本，包括空守。你空守而出现平安夜，只能证明平安夜不是由你的守护造成；它可以提高女巫救人、狼刀被封锁等解释的概率，却不能单独证明某个女巫声明必真或必假。只有对方声称了与你私密记录不可能同时成立的具体事实，才形成硬矛盾。公开账本时区分“我确定没守谁”和“因此我猜测发生了什么”。`
+    },
+    {
+      id: 'wb_advanced_wolf_skills',
+      name: '技能狼进阶：反制、连带与收益计算',
+      description: '让狼妃、狼美人等技能狼按期望收益行动，而不是照搬单局答案。',
+      enabled: true,
+      priority: 93,
+      roles: ['wolfconcubine', 'wolfbeauty', 'werewolf', 'wolfking', 'whitewolf'],
+      teams: ['bad'],
+      phases: ['night', 'day', 'vote'],
+      content: `【技能不是固定连招，先比较每条分支的阵营收益】
+蚀时狼妃选择锁定目标时，同时计算：保护队友免受某项技能、把技能反弹给施法者、封住关键好人，以及反馈可能暴露反制存在的风险。锁队友并非天然错误，锁好人也并非天然正确；要看子狐或神职最可能作用谁，以及反弹后实际受益者是谁。
+
+狼美人的魅惑目标不只为“立即达到狼数不少于好人数”服务。即使不能当夜终局，连带带走关键神职、警长或决定性好人，也可能换来后续轮次优势；反过来，为了带走低价值目标而主动暴露关系通常不值。每晚比较目标价值、自己出局概率、连带后的白天票型和即时胜负。
+
+卖队友、倒钩和技能换人头都属于交易，不是身份洗白券。只有当牺牲带来的警徽、轮次、关键神职死亡或隐藏狼生存概率，明显超过失去一名狼的成本时才值得执行。`
     }
   ];
 
@@ -165,6 +271,19 @@
       }
     }
     return chunks.length ? head + chunks.join('') : '';
+  }
+
+  function buildOfficialKnowledge(ctx) {
+    const matched = DEFAULT_PRESET_BOOKS
+      .map(normalizeBook)
+      .filter(book => bookMatches(book, ctx || {}))
+      .sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
+    if (!matched.length) return '';
+    const head = '\n\n【官方战术理解·按身份与局势自动注入】\n以下内容是用于理解博弈的决策框架，不是必须照抄的台词，也不是可覆盖技能与系统结算的硬规则。结合本局真实信息自行权衡。';
+    return head + matched.map(book => {
+      const title = book.name.replace(/[\r\n<>]/g, ' ').trim();
+      return `\n\n<official_strategy title="${title}" priority="${book.priority}">\n${book.content}\n</official_strategy>`;
+    }).join('');
   }
 
   function mode() { return state.mode; }
@@ -385,7 +504,7 @@
           <div class="twb-toolbar">
             <label>Injection mode <select id="twb-mode"><option value="official">Official teaching</option><option value="custom">Custom only</option><option value="hybrid">Official + custom</option><option value="clean">Clean (no teaching)</option></select></label>
             <label>Maximum characters <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
-            <button type="button" id="twb-add">Write a worldbook</button><button type="button" id="twb-load-preset" title="Load Ryuzaki Masterclass worldbook preset">🏆 Load Masterclass Preset</button>
+            <button type="button" id="twb-add">Write a worldbook</button>
             <label class="be" style="cursor:pointer">Import file (optional)<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
             <button type="button" id="twb-export-all">Export all</button>
           </div>
@@ -413,7 +532,7 @@
           <div class="twb-toolbar">
             <label>注入模式 <select id="twb-mode"><option value="official">官方教学</option><option value="custom">仅自定义世界书</option><option value="hybrid">官方教学＋自定义</option><option value="clean">纯净模式（无教学）</option></select></label>
             <label>每次最多注入字符 <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
-            <button type="button" id="twb-add">手写新世界书</button><button type="button" id="twb-load-preset" title="载入 Ryuzaki 实战心法高阶教学世界书预设">🏆 载入实战心法预设</button>
+            <button type="button" id="twb-add">手写新世界书</button>
             <label class="be" style="cursor:pointer">从文件导入（可选）<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
             <button type="button" id="twb-export-all">导出全部</button>
           </div>
@@ -451,18 +570,6 @@
     el('twb-close').addEventListener('click', () => el('teaching-wb-modal').classList.remove('show'));
     el('twb-add').addEventListener('click', () => openEditor(''));
 
-    const btnPreset = el('twb-load-preset');
-    if (btnPreset) {
-      btnPreset.addEventListener('click', () => {
-        try {
-          importObject(DEFAULT_PRESET_BOOKS, false);
-          alert(UI_EN ? 'Loaded Masterclass Worldbook Preset!' : '已成功载入《Ryuzaki实战心法：高阶博弈与生死局算术》教学世界书！');
-        } catch(e) {
-          alert(e.message || e);
-        }
-      });
-    }
-
     el('twb-edit-cancel').addEventListener('click', closeEditor);
     el('twb-edit-save').addEventListener('click', saveEditor);
     el('twb-ai-polish').addEventListener('click', polishDraft);
@@ -489,5 +596,5 @@
     syncControls(); renderList(); renderStatus();
   }
 
-  window.TeachingWorldbooks = {load, exportState, buildInjection, activeBooks, mode, initUI, importObject, format:FORMAT, version:VERSION};
+  window.TeachingWorldbooks = {load, exportState, buildInjection, buildOfficialKnowledge, activeBooks, mode, initUI, importObject, format:FORMAT, version:VERSION};
 })();
