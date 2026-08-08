@@ -10,6 +10,37 @@
   const VALID_MODES = new Set(['official', 'custom', 'hybrid', 'clean']);
   const VALID_TEAMS = new Set(['good', 'bad', 'third']);
   const VALID_PHASES = new Set(['night', 'day', 'sheriff', 'vote', 'ending']);
+
+  const DEFAULT_PRESET_BOOKS = [
+    {
+      id: 'wb_ryuzaki_masterclass',
+      name: '🏆 Ryuzaki实战心法：狼人杀高阶博弈与生死局算术',
+      description: '基于经典12人局复盘总结。涵盖死局算术优先级、狼队长立字据做身份、遗言真话做陷阱、子狐暗度陈仓避开狼妃、守卫空守账目对齐等核心博弈法则。',
+      enabled: true,
+      priority: 90,
+      roles: [],
+      teams: [],
+      phases: [],
+      content: `【残局铁律：硬算术 > 动机与性格论】
+1. 死局必须优先计算胜负人头数：在残局（如2狼3好、投错当场输）中，所有关于“动机差”、“发言像好人”、“语气真诚”的猜测全降为C级非关键证据！必须优先进行死局人数与放逐结果演算。
+2. 警惕“无风险测试白猫”陷阱：当有人自报白猫并声称“投我可以验证，我翻牌死不了”时，必须计算投他后的残局胜负——若全票投白猫导致白猫缓死（当天无放逐），当夜狼人再刀一个好人直接达成2狼2好，狼队当场获胜！因此绝不能把“测试白猫”当作安全路线。
+
+【狼队高阶策略：倒勾、卖队友与遗言博弈】
+1. 警长狼的信用对换：持警徽的狼队长可通过公开立字据“主投队友”（如卖掉狼妃、狼美人），换取好人长达3天的绝对信任。
+2. 死狼遗言的三重伪装：
+   - 【真话做陷阱】：前9句全部说客观真话（认狼、认推错好人、拆解算术），建立极致的临终公信力；第10句把脏水泼给真正的好人（如“梦子是我最后的队友”），诱导好人陷进“死狼临终不会卖最后队友”的惯性思维。
+   - 【反向金水】：给好人发金水（如“安室透从头到尾是好人”），促使疑心重的好人转而怀疑金水是狼队苦肉计。
+   - 【绝不抱团】：被认出的狼队友（如狼美人接查杀）绝不能在白天一窝风去救，其他狼必须果断跟票踩死，保持零连接。
+
+【好人/神职高阶博弈】
+1. 子狐“明修栈道、暗度陈仓”：警长在白天公开安排子狐“今晚去查X”时，若场上有蚀时狼妃，狼妃必然会在X身上设锁。子狐切勿死板遵从公开指令！应表面不反驳，夜间偷偷绕开公开目标，查验未被点名但顺水推舟跟大票、发言极为顺滑的隐蔽位（如连续两夜查出狼人）。
+2. 守卫空守与账目对齐：守卫第一夜空守且出现平安夜时，必须果断给出“不在”二字，直接锤死女巫对跳中必有一真一假。
+3. 狼妃与狼美人技能精算：
+   - 狼妃锁定高危好人或子狐广播目标，避免锁狼队友导致子狐报“技能落空/反弹”公开暴露狼妃。
+   - 狼美人殉情连带死亡必须能帮助狼队直接达成“狼数 ≥ 好人数”；若殉情后好人仍占优，殉情反而会暴露全狼队逻辑链。`
+    }
+  ];
+
   const UI_EN = /\/en(?:\/|$)/.test(location.pathname);
   const UI = UI_EN ? {
     modes:{official:'Official teaching',custom:'Custom worldbooks',hybrid:'Hybrid',clean:'Clean mode'},
@@ -354,7 +385,7 @@
           <div class="twb-toolbar">
             <label>Injection mode <select id="twb-mode"><option value="official">Official teaching</option><option value="custom">Custom only</option><option value="hybrid">Official + custom</option><option value="clean">Clean (no teaching)</option></select></label>
             <label>Maximum characters <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
-            <button type="button" id="twb-add">Write a worldbook</button>
+            <button type="button" id="twb-add">Write a worldbook</button><button type="button" id="twb-load-preset" title="Load Ryuzaki Masterclass worldbook preset">🏆 Load Masterclass Preset</button>
             <label class="be" style="cursor:pointer">Import file (optional)<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
             <button type="button" id="twb-export-all">Export all</button>
           </div>
@@ -382,7 +413,7 @@
           <div class="twb-toolbar">
             <label>注入模式 <select id="twb-mode"><option value="official">官方教学</option><option value="custom">仅自定义世界书</option><option value="hybrid">官方教学＋自定义</option><option value="clean">纯净模式（无教学）</option></select></label>
             <label>每次最多注入字符 <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
-            <button type="button" id="twb-add">手写新世界书</button>
+            <button type="button" id="twb-add">手写新世界书</button><button type="button" id="twb-load-preset" title="载入 Ryuzaki 实战心法高阶教学世界书预设">🏆 载入实战心法预设</button>
             <label class="be" style="cursor:pointer">从文件导入（可选）<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
             <button type="button" id="twb-export-all">导出全部</button>
           </div>
@@ -419,6 +450,19 @@
     open.addEventListener('click', () => { syncControls(); renderList(); renderStatus(); el('teaching-wb-modal').classList.add('show'); });
     el('twb-close').addEventListener('click', () => el('teaching-wb-modal').classList.remove('show'));
     el('twb-add').addEventListener('click', () => openEditor(''));
+
+    const btnPreset = el('twb-load-preset');
+    if (btnPreset) {
+      btnPreset.addEventListener('click', () => {
+        try {
+          importObject(DEFAULT_PRESET_BOOKS, false);
+          alert(UI_EN ? 'Loaded Masterclass Worldbook Preset!' : '已成功载入《Ryuzaki实战心法：高阶博弈与生死局算术》教学世界书！');
+        } catch(e) {
+          alert(e.message || e);
+        }
+      });
+    }
+
     el('twb-edit-cancel').addEventListener('click', closeEditor);
     el('twb-edit-save').addEventListener('click', saveEditor);
     el('twb-ai-polish').addEventListener('click', polishDraft);
