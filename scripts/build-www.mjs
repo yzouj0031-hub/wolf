@@ -23,6 +23,8 @@ const FILES = [
   'ui-icons.js',
   'teaching-worldbooks.js',
   'native-http.js',
+  'multiplayer.js',
+  'multiplayer.css',
   'horror.html',
   'style-preview.html'
 ];

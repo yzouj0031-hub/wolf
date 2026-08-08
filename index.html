@@ -2491,6 +2491,7 @@ body.has-wp::after {
 </style>
 <link rel="stylesheet" href="./tablet.css?v=2">
 <link rel="stylesheet" href="./role-effects.css">
+<link rel="stylesheet" href="./multiplayer.css">
 <script src="./role-sigils.js"></script>
 <script src="./action-cg.js"></script>
 <script src="./ui-icons.js"></script>
@@ -7328,7 +7329,12 @@ const CloudSave = (() => {
     try { if (user) await offerResumeGame(); } catch (e) {}   // 🎮 已登录打开：云端有进行中的对局则问是否续玩
   }
 
-  return {init, schedule, uploadNow, download};
+  return {
+    init, schedule, uploadNow, download,
+    getClient: () => client,
+    getUser: () => user,
+    isAllowed: () => cloudAllowed
+  };
 })();
 window.CloudSave = CloudSave;
 CloudSave.init();
@@ -26635,6 +26641,7 @@ if ('serviceWorker' in navigator &&
 })();
 </script>
 <script src="./role-effects.js"></script>
+<script src="./multiplayer.js"></script>
 <script>
 /* 设置面板的状态可视化。
  * 22 个开关平铺时，「开着」和「关着」只差一个小方块，扫一眼根本分不出来。
