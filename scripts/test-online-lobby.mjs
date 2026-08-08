@@ -6,6 +6,7 @@ const english = fs.readFileSync('en/index.html','utf8');
 const client = fs.readFileSync('multiplayer.js','utf8');
 const css = fs.readFileSync('multiplayer.css','utf8');
 const sql = fs.readFileSync('supabase/migrations/20260808_online_lobby.sql','utf8');
+const hotfix = fs.readFileSync('supabase/hotfixes/20260809_online_room_ambiguity.sql','utf8');
 const build = fs.readFileSync('scripts/build-www.mjs','utf8');
 
 function has(source,needle,label) {
@@ -35,6 +36,11 @@ has(sql,"and kind = 'chat'",'clients cannot spoof system messages');
 has(sql,'sender_id = auth.uid()','message sender ownership');
 has(sql,'security definer','server-side command validation');
 has(sql,'alter publication supabase_realtime add table','Realtime publication');
+has(sql,"returns jsonb",'unambiguous room RPC response');
+has(sql,"jsonb_build_object('room_id'",'stable room response keys');
+has(hotfix,'drop function if exists public.online_create_room','deployed create-room replacement');
+has(hotfix,'drop function if exists public.online_join_room','deployed join-room replacement');
+has(hotfix,'from public.online_room_members as m','qualified hotfix columns');
 
 for (const feature of ['personal_ai','hosted_ai','last_seen_at','postgres_changes','sessionStorage','room_code']) has(client,feature,`client feature ${feature}`);
 if (/service_role|sk-[A-Za-z0-9]/.test(client)) throw new Error('multiplayer client must not contain server or model secrets');
