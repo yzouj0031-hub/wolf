@@ -1,0 +1,70 @@
+.wg-online-entry {
+  width:min(720px,calc(100% - 12px)); margin:-18px auto 28px; padding:13px 16px;
+  display:flex; align-items:center; gap:13px; color:#d9cee8; cursor:pointer;
+  border:1px solid rgba(184,154,91,.5); border-radius:12px;
+  background:linear-gradient(135deg,rgba(25,19,34,.96),rgba(35,26,48,.92));
+  box-shadow:0 8px 28px rgba(0,0,0,.22),inset 0 0 24px rgba(138,110,207,.07);
+  transition:border-color .2s,transform .2s,box-shadow .2s;
+}
+.wg-online-entry:hover { transform:translateY(-2px); border-color:#e8c46a; box-shadow:0 12px 34px rgba(50,27,70,.3); }
+.wg-online-mark { width:36px; height:36px; flex:0 0 36px; display:grid; place-items:center; position:relative; }
+.wg-online-mark::before,.wg-online-mark::after { content:""; position:absolute; border:1px solid #d9b958; transform:rotate(45deg); }
+.wg-online-mark::before { width:22px; height:22px; }
+.wg-online-mark::after { width:10px; height:10px; background:rgba(138,110,207,.35); }
+.wg-online-entry-copy { min-width:0; flex:1; text-align:left; }
+.wg-online-entry-copy strong { display:block; color:#f2d99b; font-family:var(--font-title,serif); letter-spacing:.08em; }
+.wg-online-entry-copy small { display:block; margin-top:3px; color:#978ca9; font-size:.72em; }
+.wg-online-entry-arrow { color:#d9b958; font-size:1.35em; }
+
+.wg-online-overlay { position:fixed; inset:0; z-index:1300; display:none; place-items:center; padding:18px; background:rgba(4,3,10,.82); backdrop-filter:blur(9px); }
+.wg-online-overlay.show { display:grid; }
+.wg-online-panel { width:min(820px,100%); max-height:min(820px,94vh); overflow:auto; border:1px solid rgba(184,154,91,.52); border-radius:16px; color:#ddd2e9; background:linear-gradient(155deg,#100c19 0%,#171022 55%,#0d0b15 100%); box-shadow:0 24px 80px rgba(0,0,0,.62); }
+.wg-online-head { position:sticky; top:0; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 18px; border-bottom:1px solid rgba(184,154,91,.22); background:rgba(16,12,25,.94); backdrop-filter:blur(8px); }
+.wg-online-title { margin:0; color:#f1d899; font-family:var(--font-title,serif); font-size:1.04em; letter-spacing:.1em; }
+.wg-online-close { width:34px!important; min-width:34px!important; height:34px; padding:0!important; border:1px solid rgba(210,190,155,.25)!important; border-radius:50%!important; background:transparent!important; color:#b8acc8!important; font-size:1.15em!important; }
+.wg-online-body { padding:18px; }
+.wg-online-lead { margin:0 0 15px; color:#a89db8; line-height:1.7; font-size:.84em; }
+.wg-online-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+.wg-online-card { padding:15px; border:1px solid rgba(138,110,207,.25); border-radius:12px; background:rgba(255,255,255,.025); }
+.wg-online-card h4 { margin:0 0 12px; color:#d9c1ef; font-size:.88em; letter-spacing:.06em; }
+.wg-online-field { display:grid; gap:5px; margin:9px 0; }
+.wg-online-field label { color:#897f9b; font-size:.7em; }
+.wg-online-field input,.wg-online-field select,.wg-online-chat input { width:100%; box-sizing:border-box; border:1px solid rgba(151,126,174,.3); border-radius:8px; background:#181320; color:#e7dfed; padding:10px 11px; }
+.wg-online-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.wg-online-btn { width:auto!important; min-width:110px; padding:9px 14px!important; border:1px solid rgba(184,154,91,.42)!important; border-radius:8px!important; color:#e9d394!important; background:rgba(184,154,91,.1)!important; }
+.wg-online-btn.primary { border-color:rgba(207,173,88,.8)!important; background:linear-gradient(135deg,rgba(158,120,50,.25),rgba(106,68,142,.22))!important; }
+.wg-online-btn.danger { color:#dda7b2!important; border-color:rgba(190,75,96,.42)!important; background:rgba(150,40,60,.08)!important; }
+.wg-online-btn:disabled { opacity:.4; cursor:not-allowed; }
+.wg-online-note,.wg-online-error { padding:10px 12px; margin:10px 0; border-radius:9px; font-size:.75em; line-height:1.6; }
+.wg-online-note { color:#bcb0ca; border:1px solid rgba(126,104,154,.23); background:rgba(94,67,126,.1); }
+.wg-online-error { color:#e6a7b5; border:1px solid rgba(190,75,96,.3); background:rgba(150,40,60,.1); }
+.wg-room-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.wg-room-code { font-size:1.5em; color:#f0d074; letter-spacing:.18em; font-family:monospace; }
+.wg-room-meta { color:#8e829f; font-size:.72em; line-height:1.6; }
+.wg-seat-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.wg-seat { min-height:70px; padding:11px; border:1px solid rgba(141,119,164,.24); border-radius:10px; background:rgba(255,255,255,.025); }
+.wg-seat.mine { border-color:rgba(213,178,91,.58); box-shadow:inset 0 0 16px rgba(184,154,91,.06); }
+.wg-seat.empty { display:grid; place-items:center; color:#5f566d; border-style:dashed; }
+.wg-seat-name { display:flex; align-items:center; gap:7px; color:#e2d6eb; font-weight:700; }
+.wg-online-dot { width:7px; height:7px; border-radius:50%; background:#695f75; box-shadow:0 0 0 2px rgba(255,255,255,.025); }
+.wg-online-dot.on { background:#72c6a1; box-shadow:0 0 8px rgba(80,210,150,.45); }
+.wg-seat-sub { margin-top:6px; color:#8f829f; font-size:.68em; }
+.wg-ready { margin-left:auto; color:#d1b966; font-size:.66em; letter-spacing:.04em; }
+.wg-room-settings { margin-top:13px; }
+.wg-online-chat { margin-top:14px; border-top:1px solid rgba(184,154,91,.18); padding-top:13px; }
+.wg-chat-log { height:180px; overflow:auto; display:flex; flex-direction:column; gap:7px; padding:9px; border:1px solid rgba(141,119,164,.2); border-radius:9px; background:rgba(0,0,0,.12); }
+.wg-chat-line { font-size:.74em; line-height:1.5; color:#c9bdd4; overflow-wrap:anywhere; }
+.wg-chat-line b { color:#dfc984; margin-right:7px; }
+.wg-chat-line.system { color:#857a94; font-style:italic; }
+.wg-chat-compose { display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:8px; }
+.wg-chat-compose .wg-online-btn { min-width:76px; }
+
+@media (max-width:620px) {
+  .wg-online-entry { margin-top:-17px; padding:11px 13px; }
+  .wg-online-overlay { padding:0; align-items:end; }
+  .wg-online-panel { max-height:94vh; border-radius:16px 16px 0 0; }
+  .wg-online-body { padding:14px; }
+  .wg-online-grid,.wg-seat-grid { grid-template-columns:1fr; }
+  .wg-room-top { flex-direction:column; }
+  .wg-online-actions .wg-online-btn { flex:1 1 125px; }
+}
