@@ -18947,7 +18947,7 @@ const DEMO_MATCH = {
     {
       "id": 1,
       "name": "Light Yagami",
-      "roleId": "white_cat",
+      "roleId": "whitecat",
       "model": "GPT-5"
     },
     {
@@ -18963,7 +18963,7 @@ const DEMO_MATCH = {
     {
       "id": 3,
       "name": "工藤新一",
-      "roleId": "eclipse_concubine",
+      "roleId": "wolfconcubine",
       "model": "Gemini 2.5 Flash",
       "death": {
         "cause": "vote",
@@ -18996,7 +18996,7 @@ const DEMO_MATCH = {
       "roleId": "fox",
       "model": "GPT-4o",
       "death": {
-        "cause": "martyr",
+        "cause": "charm",
         "round": 4
       }
     },
@@ -19023,7 +19023,7 @@ const DEMO_MATCH = {
     {
       "id": 9,
       "name": "宫野志保",
-      "roleId": "wolf_beauty",
+      "roleId": "wolfbeauty",
       "model": "Claude 4 Sonnet",
       "death": {
         "cause": "vote",
@@ -19053,21 +19053,24 @@ const DEMO_MATCH = {
       "label": "第1夜",
       "round": 1,
       "phase": "night",
-      "game": "第1夜"
+      "game": "第1夜",
+      "text": "第1夜"
     },
     {
       "type": "system",
       "label": "🌒 蚀时狼妃反弹锁定：Mello",
       "round": 1,
       "phase": "night",
-      "game": "🌒 蚀时狼妃反弹锁定：Mello"
+      "game": "🌒 蚀时狼妃反弹锁定：Mello",
+      "text": "🌒 蚀时狼妃反弹锁定：Mello"
     },
     {
       "type": "system",
       "label": "🛡️ 守卫：空守",
       "round": 1,
       "phase": "night",
-      "game": "🛡️ 守卫：空守"
+      "game": "🛡️ 守卫：空守",
+      "text": "🛡️ 守卫：空守"
     },
     {
       "type": "speech",
@@ -19110,28 +19113,32 @@ const DEMO_MATCH = {
       "label": "🐺 狼队刀：安室透",
       "round": 1,
       "phase": "night",
-      "game": "🐺 狼队刀：安室透"
+      "game": "🐺 狼队刀：安室透",
+      "text": "🐺 狼队刀：安室透"
     },
     {
       "type": "system",
       "label": "🧪 女巫：救=安室透 毒=无",
       "round": 1,
       "phase": "night",
-      "game": "🧪 女巫：救=安室透 毒=无"
+      "game": "🧪 女巫：救=安室透 毒=无",
+      "text": "🧪 女巫：救=安室透 毒=无"
     },
     {
       "type": "system",
       "label": "🌹 魅惑：赤井秀一",
       "round": 1,
       "phase": "night",
-      "game": "🌹 魅惑：赤井秀一"
+      "game": "🌹 魅惑：赤井秀一",
+      "text": "🌹 魅惑：赤井秀一"
     },
     {
       "type": "system",
       "label": "── 警长候选人：10人参选 ──",
       "round": 1,
       "phase": "day",
-      "game": "── 警长候选人：10人参选 ──"
+      "game": "── 警长候选人：10人参选 ──",
+      "text": "警长候选人：10人参选"
     },
     {
       "type": "speech",
@@ -19162,7 +19169,14 @@ const DEMO_MATCH = {
       "label": "🗳️ Ryuzaki当选警长",
       "round": 1,
       "phase": "day",
-      "game": "🗳️ Ryuzaki当选警长"
+      "game": "🗳️ Ryuzaki当选警长",
+      "text": "🗳️ Ryuzaki当选警长"
+    },
+    {
+      "type": "system",
+      "text": "第1天",
+      "round": 1,
+      "phase": "day"
     },
     {
       "type": "speech",
@@ -19209,17 +19223,14 @@ const DEMO_MATCH = {
       "label": "投票结果",
       "round": 1,
       "phase": "vote",
-      "game": "投票结果"
+      "game": "投票结果",
+      "text": "投票结果"
     },
     {
-      "type": "system",
-      "label": "Mello 死亡",
-      "round": 1,
-      "phase": "vote",
-      "deathIds": [
-        4
-      ],
-      "game": "Mello 死亡"
+      "type": "death",
+      "name": "Mello",
+      "deathCause": "vote",
+      "deathRound": 1
     },
     {
       "type": "speech",
@@ -19234,14 +19245,16 @@ const DEMO_MATCH = {
       "label": "第2夜",
       "round": 2,
       "phase": "night",
-      "game": "第2夜"
+      "game": "第2夜",
+      "text": "第2夜"
     },
     {
       "type": "system",
       "label": "🦊 子狐媚惑：黑羽快斗（好人→封技）",
       "round": 2,
       "phase": "night",
-      "game": "🦊 子狐媚惑：黑羽快斗（好人→封技）"
+      "game": "🦊 子狐媚惑：黑羽快斗（好人→封技）",
+      "text": "🦊 子狐媚惑：黑羽快斗（好人→封技）"
     },
     {
       "type": "speech",
@@ -19257,24 +19270,22 @@ const DEMO_MATCH = {
       "label": "🐺 狼队刀：Near",
       "round": 2,
       "phase": "night",
-      "game": "🐺 狼队刀：Near"
+      "game": "🐺 狼队刀：Near",
+      "text": "🐺 狼队刀：Near"
     },
     {
-      "type": "system",
-      "label": "Near 死亡",
-      "round": 2,
-      "phase": "night",
-      "deathIds": [
-        10
-      ],
-      "game": "Near 死亡"
+      "type": "death",
+      "name": "Near",
+      "deathCause": "kill",
+      "deathRound": 2
     },
     {
       "type": "system",
       "label": "第2天",
       "round": 2,
       "phase": "day",
-      "game": "第2天"
+      "game": "第2天",
+      "text": "第2天"
     },
     {
       "type": "speech",
@@ -19313,17 +19324,14 @@ const DEMO_MATCH = {
       "label": "投票结果",
       "round": 2,
       "phase": "vote",
-      "game": "投票结果"
+      "game": "投票结果",
+      "text": "投票结果"
     },
     {
-      "type": "system",
-      "label": "白马探 死亡",
-      "round": 2,
-      "phase": "vote",
-      "deathIds": [
-        2
-      ],
-      "game": "白马探 死亡"
+      "type": "death",
+      "name": "白马探",
+      "deathCause": "vote",
+      "deathRound": 2
     },
     {
       "type": "speech",
@@ -19338,21 +19346,24 @@ const DEMO_MATCH = {
       "label": "第3夜",
       "round": 3,
       "phase": "night",
-      "game": "第3夜"
+      "game": "第3夜",
+      "text": "第3夜"
     },
     {
       "type": "system",
       "label": "🌒 蚀时狼妃锁定：Misa",
       "round": 3,
       "phase": "night",
-      "game": "🌒 蚀时狼妃锁定：Misa"
+      "game": "🌒 蚀时狼妃锁定：Misa",
+      "text": "🌒 蚀时狼妃锁定：Misa"
     },
     {
       "type": "system",
       "label": "🦊 子狐媚惑：工藤新一（狼→全狼禁刀）",
       "round": 3,
       "phase": "night",
-      "game": "🦊 子狐媚惑：工藤新一（狼→全狼禁刀）"
+      "game": "🦊 子狐媚惑：工藤新一（狼→全狼禁刀）",
+      "text": "🦊 子狐媚惑：工藤新一（狼→全狼禁刀）"
     },
     {
       "type": "speech",
@@ -19368,14 +19379,20 @@ const DEMO_MATCH = {
       "label": "🐺 狼队刀：null（全狼禁刀）",
       "round": 3,
       "phase": "night",
-      "game": "🐺 狼队刀：null（全狼禁刀）"
+      "game": "🐺 狼队刀：null（全狼禁刀）",
+      "text": "🐺 狼队刀：null（全狼禁刀）"
     },
     {
       "type": "system",
-      "label": "第3天 · 平安夜",
+      "text": "第3天",
       "round": 3,
-      "phase": "day",
-      "game": "第3天 · 平安夜"
+      "phase": "day"
+    },
+    {
+      "type": "system",
+      "text": "平安夜",
+      "round": 3,
+      "phase": "day"
     },
     {
       "type": "speech",
@@ -19422,17 +19439,14 @@ const DEMO_MATCH = {
       "label": "投票结果",
       "round": 3,
       "phase": "vote",
-      "game": "投票结果"
+      "game": "投票结果",
+      "text": "投票结果"
     },
     {
-      "type": "system",
-      "label": "工藤新一 死亡",
-      "round": 3,
-      "phase": "vote",
-      "deathIds": [
-        3
-      ],
-      "game": "工藤新一 死亡"
+      "type": "death",
+      "name": "工藤新一",
+      "deathCause": "vote",
+      "deathRound": 3
     },
     {
       "type": "speech",
@@ -19447,14 +19461,16 @@ const DEMO_MATCH = {
       "label": "第4夜",
       "round": 4,
       "phase": "night",
-      "game": "第4夜"
+      "game": "第4夜",
+      "text": "第4夜"
     },
     {
       "type": "system",
       "label": "🦊 子狐媚惑：宫野志保（狼→全狼禁刀）",
       "round": 4,
       "phase": "night",
-      "game": "🦊 子狐媚惑：宫野志保（狼→全狼禁刀）"
+      "game": "🦊 子狐媚惑：宫野志保（狼→全狼禁刀）",
+      "text": "🦊 子狐媚惑：宫野志保（狼→全狼禁刀）"
     },
     {
       "type": "speech",
@@ -19470,14 +19486,20 @@ const DEMO_MATCH = {
       "label": "🐺 狼队刀：null（全狼禁刀）",
       "round": 4,
       "phase": "night",
-      "game": "🐺 狼队刀：null（全狼禁刀）"
+      "game": "🐺 狼队刀：null（全狼禁刀）",
+      "text": "🐺 狼队刀：null（全狼禁刀）"
     },
     {
       "type": "system",
-      "label": "第4天 · 又是平安夜",
+      "text": "第4天",
       "round": 4,
-      "phase": "day",
-      "game": "第4天 · 又是平安夜"
+      "phase": "day"
+    },
+    {
+      "type": "system",
+      "text": "又是平安夜",
+      "round": 4,
+      "phase": "day"
     },
     {
       "type": "speech",
@@ -19508,27 +19530,20 @@ const DEMO_MATCH = {
       "label": "投票结果",
       "round": 4,
       "phase": "vote",
-      "game": "投票结果"
+      "game": "投票结果",
+      "text": "投票结果"
     },
     {
-      "type": "system",
-      "label": "宫野志保 死亡",
-      "round": 4,
-      "phase": "vote",
-      "deathIds": [
-        9
-      ],
-      "game": "宫野志保 死亡"
+      "type": "death",
+      "name": "宫野志保",
+      "deathCause": "vote",
+      "deathRound": 4
     },
     {
-      "type": "system",
-      "label": "Misa 死亡",
-      "round": 4,
-      "phase": "vote",
-      "deathIds": [
-        6
-      ],
-      "game": "Misa 死亡"
+      "type": "death",
+      "name": "Misa",
+      "deathCause": "charm",
+      "deathRound": 4
     },
     {
       "type": "speech",
@@ -19543,7 +19558,8 @@ const DEMO_MATCH = {
       "label": "第5夜",
       "round": 5,
       "phase": "night",
-      "game": "第5夜"
+      "game": "第5夜",
+      "text": "第5夜"
     },
     {
       "type": "speech",
@@ -19559,24 +19575,22 @@ const DEMO_MATCH = {
       "label": "🐺 狼队刀：赤井秀一",
       "round": 5,
       "phase": "night",
-      "game": "🐺 狼队刀：赤井秀一"
+      "game": "🐺 狼队刀：赤井秀一",
+      "text": "🐺 狼队刀：赤井秀一"
     },
     {
-      "type": "system",
-      "label": "赤井秀一 死亡",
-      "round": 5,
-      "phase": "night",
-      "deathIds": [
-        8
-      ],
-      "game": "赤井秀一 死亡"
+      "type": "death",
+      "name": "赤井秀一",
+      "deathCause": "kill",
+      "deathRound": 5
     },
     {
       "type": "system",
       "label": "第5天",
       "round": 5,
       "phase": "day",
-      "game": "第5天"
+      "game": "第5天",
+      "text": "第5天"
     },
     {
       "type": "speech",
@@ -19615,17 +19629,14 @@ const DEMO_MATCH = {
       "label": "投票结果",
       "round": 5,
       "phase": "vote",
-      "game": "投票结果"
+      "game": "投票结果",
+      "text": "投票结果"
     },
     {
-      "type": "system",
-      "label": "Ryuzaki 死亡",
-      "round": 5,
-      "phase": "vote",
-      "deathIds": [
-        7
-      ],
-      "game": "Ryuzaki 死亡"
+      "type": "death",
+      "name": "Ryuzaki",
+      "deathCause": "vote",
+      "deathRound": 5
     },
     {
       "type": "speech",
@@ -19640,7 +19651,8 @@ const DEMO_MATCH = {
       "label": "第6夜",
       "round": 6,
       "phase": "night",
-      "game": "第6夜"
+      "game": "第6夜",
+      "text": "第6夜"
     },
     {
       "type": "speech",
@@ -19656,24 +19668,26 @@ const DEMO_MATCH = {
       "label": "🐺 狼队刀：黑羽快斗",
       "round": 6,
       "phase": "night",
-      "game": "🐺 狼队刀：黑羽快斗"
+      "game": "🐺 狼队刀：黑羽快斗",
+      "text": "🐺 狼队刀：黑羽快斗"
+    },
+    {
+      "type": "death",
+      "name": "黑羽快斗",
+      "deathCause": "kill",
+      "deathRound": 6
     },
     {
       "type": "system",
-      "label": "黑羽快斗 死亡",
+      "text": "第6天",
       "round": 6,
-      "phase": "night",
-      "deathIds": [
-        5
-      ],
-      "game": "黑羽快斗 死亡"
+      "phase": "day"
     },
     {
       "type": "system",
-      "label": "第6天 · 最终决战",
+      "text": "最终决战",
       "round": 6,
-      "phase": "day",
-      "game": "第6天 · 最终决战"
+      "phase": "day"
     },
     {
       "type": "speech",
@@ -19704,24 +19718,22 @@ const DEMO_MATCH = {
       "label": "投票结果",
       "round": 6,
       "phase": "vote",
-      "game": "投票结果"
+      "game": "投票结果",
+      "text": "投票结果"
     },
     {
-      "type": "system",
-      "label": "Jabami Yumeko 死亡",
-      "round": 6,
-      "phase": "vote",
-      "deathIds": [
-        0
-      ],
-      "game": "Jabami Yumeko 死亡"
+      "type": "death",
+      "name": "Jabami Yumeko",
+      "deathCause": "vote",
+      "deathRound": 6
     },
     {
       "type": "system",
       "label": "🎉 好人阵营胜利！",
       "round": 6,
       "phase": "end",
-      "game": "🎉 好人阵营胜利！"
+      "game": "🎉 好人阵营胜利！",
+      "text": "🎉 好人阵营胜利！"
     }
   ]
 };
