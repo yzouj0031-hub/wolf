@@ -495,6 +495,7 @@ body.fx-lite .role-cinema-panel { animation:none; }
 .pc.rcu { border-color: #f5a0b8; box-shadow: inset 0 0 12px rgba(245,160,184,0.08); }
 .pc.rbo { border-color: #d09050; }
 .pc.rgk { border-color: #708070; }
+.pc.rsw { border-color: #b69cff; box-shadow: inset 0 0 14px rgba(182,156,255,0.1), 0 0 7px rgba(211,180,255,0.18); }
 .pc.rwr { border-color: #6030a0; }
 .pc.rch { border-color: #e05020; }
 .pc.rvp { border-color: #800030; }
@@ -4366,7 +4367,7 @@ const ALL_ROLES = {}, MAX_COUNT = {}, ROLE_CLS = {};
  *   drops hard claims like "nobody can inspect" (softer wording instead) and logs
  *   a console hint. Better to say less than to tell the AI something false.
  *
- * Tags: inspect / protect / save / poison / grant (can hand out inspect·poison·shield)
+ * Tags: inspect / protect / save / poison / cleanse / grant (can hand out inspect·poison·shield)
  *       learn (copies others' skills) / reflect / swap  (last two: registry only)
  * Custom block-built roles need no entry — their customAbilities are auto-detected.
  * ══════════════════════════════════════════════════════════════════ */
@@ -4381,6 +4382,11 @@ const ROLE_CAPS = {
   mechwolf:      ['learn'],
   wolfconcubine: ['reflect'],
   magician:      ['swap'],
+  gravekeeper:   ['inspect'],
+  dreamwalker:   ['protect'],
+  alchemist:     ['save'],
+  gargoyle:      ['inspect'],
+  soulwarden:    ['cleanse'],
   // ── Roles with none of the above (registered explicitly so hard denials stay safe) ──
   villager: [], werewolf: [], wolfking: [], wolfbeauty: [], whitewolf: [],
   hunter: [], knight: [], whitecat: [], cupid: [], jester: [], serialkiller: []
@@ -4464,6 +4470,7 @@ reg({id:'gravekeeper',name:'守墓人',team:'good',emoji:'',desc:'好人神职�
 reg({id:'dreamwalker',name:'摄梦人',team:'good',emoji:'',desc:'好人神职。每晚令一名其他玩家梦游并免疫当夜伤害；连续两晚选择同一人，则该玩家在第二夜因噩梦死亡；摄梦人夜间死亡会带走当夜梦游者。',maxCount:1,cssClass:'rdw',guide:'你是摄梦人，属于好人阵营。\n【能力】每晚选择一名其他存活玩家。若与上夜目标不同，他免疫当夜伤害；若连续两晚选择同一人，第二夜直接因噩梦死亡，不再获得保护。你若在夜间最终死亡，当夜梦游者也会随你死亡。\n【策略】换人是保护，连选是主动处决。第二夜是否连梦必须基于具体信息权衡，不能机械追梦；也要计算自己可能被刀时会不会误带关键好人。行动和结果都是私密信息。'+N1});
 reg({id:'alchemist',name:'炼金魔女',team:'good',emoji:'',desc:'好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为三人；蛇可在看见魔术师换位后的实际刀口后决定是否救下。',maxCount:1,cssClass:'ralc',guide:'你是炼金魔女，属于好人阵营。\n【两种一次性能力】未明之雾：在狼队行动前圈定三名存活玩家，当夜狼刀只能从三人中选择（允许圈到狼人）；法老之蛇：在狼刀和魔术师换位结算后得知实际刀口，再决定是否救下。两种能力各限一次，同一夜只能选一种。\n【策略】雾改变狼队决策空间，适合保护多数高价值位置或制造狼队自刀压力；蛇是精确救援，但使用会消耗未来威慑。按当前局势判断，不要固定首夜开雾或见刀必救。'+N1});
 reg({id:'gargoyle',name:'石像鬼',team:'bad',emoji:'',desc:'狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并单独获得狼刀。',maxCount:1,cssClass:'tw rgg',guide:'你是石像鬼，属于狼人阵营，但与普通狼队互不相认：你不知道他们是谁，他们也不知道你；你不参加狼队密谈和普通狼刀。\n【窥视】每晚查验一名尚未查过的其他玩家，得知准确身份。\n【苏醒】只有除你之外的所有狼人阵营角色都出局后，你才单独获得狼刀。\n【策略】你可能在不知情时攻击普通狼，普通狼也可能把你当好人甚至刀你；这正是你的信息结构。白天只使用公开信息伪装，绝不能泄露准确身份来自夜间窥视。残局前优先存活并利用查验规划身份，苏醒后再按人数与屠边条件收割。'+N1});
+reg({id:'soulwarden',name:'净魂师',team:'good',emoji:'',desc:'好人神职。每晚为一名存活玩家施加圣域：净除其身上已有的一层敌对非伤害标记，或拦下本夜随后到来的第一层此类标记；不能连续两夜选择同一人。',maxCount:1,cssClass:'rsw',guide:'你是净魂师，属于好人阵营。\n【圣域】每晚选择一名存活玩家（可选自己），但不能连续两夜选择同一人。圣域会先净除目标身上已经存在的一层敌对非伤害标记；若当时没有，则拦下本夜随后落到目标身上的第一层敌对非伤害标记。当前可处理蚀时狼妃的反弹锁定、狼美人的魅惑；未来同类敌对标记也遵循这套接口。\n【边界】圣域不挡狼刀、毒药、石像鬼刀、摄梦人连续噩梦、骑士决斗或其他直接伤害；一夜只挡一层。\n【信息】你和目标都不会收到“是否成功拦截”的反馈，敌方也不会知道失败原因。你只确定自己把圣域给了谁，不能把平安或没有连带当成系统证明。\n【策略】保护即将被验证、被狼美人针对或承担关键归票的人，也可以自保；但不要机械追着明牌神职，也要考虑对方可能换目标以及一层圣域被更早的标记消耗。'+N1});
 
 
 function seerSeesAsWolf(target) {
@@ -5805,6 +5812,7 @@ function buildRulesExport() {
   if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
   if (has('magician')) interactions.push('魔术师最先行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
   if (has('wolfconcubine')) interactions.push('蚀时狼妃的锁每夜只反弹首个命中的查验、守护或毒；查验和守护反弹不致死，毒药反弹可能毒死施术女巫。');
+  if (has('soulwarden')) interactions.push('净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记，可处理狼妃反弹锁与狼美人魅惑；不阻挡任何直接伤害，也不反馈是否成功。');
   if (has('wolfbeauty')) interactions.push('狼美人出局时通常连带当夜魅惑目标；若该次死亡已经让某阵营即时达成胜利，则以后续系统终局判定为准。');
   if (hasAny(['hunter','wolfking','whitewolf','wolfbeauty'])) interactions.push('带死亡效果的角色是否继续发动技能，以死亡当刻的系统胜负判定为准；不要只套用“任何死因必触发”的单句规则。');
   if (has('knight')) interactions.push(S.knightChainMode
@@ -5874,6 +5882,7 @@ function buildWebRulesExport(viewerP) {
   if (has('magician')) lines.push('· 魔术师最先行动；换号只重定向当夜狼刀，不影响查验、用药、守护或魅惑；不能连续两夜换完全相同的一对。');
   if (has('wolfbeauty')) lines.push('· 狼美人每晚仍正常参与狼刀；魅惑不是即时击杀。她出局时才连带当前魅惑目标，具体公开信息以系统公告为准。');
   if (has('wolfconcubine')) lines.push('· 蚀时狼妃每晚锁一人；当夜首个查验/守护/毒命中该目标时反弹给施术者本人。查验/守护反弹不致死，毒药反弹会毒死女巫。');
+  if (has('soulwarden')) lines.push('· 净魂师每晚为一人展开圣域，净除或拦截第一层敌对非伤害标记；不能连续两夜选同一人，不挡直接伤害，且不会收到是否成功的反馈。');
   if (has('magician') || has('witch')) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
   return lines.join('\n');
 }
@@ -8540,7 +8549,8 @@ ${userPersona}
       seer:'预言家查验', witch:'女巫用药', guard:'守卫守护', magician:'魔术师交换',
       serialkiller:'连环杀手袭击', cupid:'爱神连结', wolf:'狼队刀人', wolfbeauty:'狼美人魅惑',
       mechwolf:'机械狼学习', mechwolf_seer:'机械查验', mechwolf_magician:'机械交换',
-      mechwolf_guard:'机械守护', mechwolf_poison:'机械毒药', mechwolf_kill:'机械狼刀'
+      mechwolf_guard:'机械守护', mechwolf_poison:'机械毒药', mechwolf_kill:'机械狼刀',
+      soulwarden:'净魂师圣域'
     };
     const title = roleNames[r.role] || r.role || '夜间技能';
     if (r.technical) return `[技术失败·未执行] ${title}未形成合法行动；这不是主动空过，也没有产生技能结果。`;
@@ -8554,6 +8564,7 @@ ${userPersona}
       const resultText = r.result === 'wolf' ? '狼人显示' : (r.result === 'good' ? '好人显示' : (r.roleName || r.result || '结果已记录'));
       return `[已执行] ${title}：${r.target} → ${resultText}`;
     }
+    if (r.role === 'wolfbeauty' && r.attemptedTarget) return `[已执行] ${title}：目标=${r.attemptedTarget}`;
     if (r.target == null || r.target === '无' || r.empty) return `[已执行·空过] ${title}：没有选择目标`;
     return `[已执行] ${title}：目标=${r.target}`;
   };
@@ -9015,6 +9026,7 @@ ${userPersona}
   const _capProtect = _who2('protect');
   const _capSave    = _who2('save');
   const _capPoison  = _who2('poison');
+  const _capCleanse = _who2('cleanse');
   const _capGrant   = _who2('grant');
   const _capLearn   = _who2('learn');
   const _maybeLater = [...new Set(_capGrant.concat(_capLearn))];
@@ -9029,6 +9041,7 @@ ${userPersona}
       + _capLine('PROTECT / BLOCK KILL', _capProtect, 'Do not explain a peaceful night as "the Guard blocked it" — find another explanation.')
       + _capLine('NIGHT HEAL', _capSave, 'Do not explain someone surviving the night as "they were healed".')
       + _capLine('POISON', _capPoison, 'Do not explain a non-wolf-kill death as "poisoned".')
+      + _capLine('HOSTILE MARK DEFENSE', _capCleanse, 'Eclipse Consort marks and Wolf Beauty charms cannot be additionally cleansed.')
       + (_maybeLater.length ? '\n· [NOTE — abilities may appear later] ' + _maybeLater.join(', ') + ' can transfer or create the abilities above (granting/learning), so "absent now" does not mean "absent all game".' : '')
     : '';
   // ★ Name-level note: these classics are what models hallucinate most, and the built-in
@@ -13180,6 +13193,7 @@ async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
 const NIGHT_ACTION_CINEMATICS = Object.freeze({
   cupid:{roleId:'cupid', roles:['cupid']},
   wolfconcubine:{roleId:'wolfconcubine', roles:['wolfconcubine']},
+  soulwarden:{roleId:'soulwarden', roles:['soulwarden']},
   'mechwolf-fox':{roleId:'mechwolf', roles:['mechwolf_fox']},
   fox:{roleId:'fox', roles:['fox']},
   merchant:{roleId:'merchant', roles:['merchant']},
@@ -15213,12 +15227,6 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         }
       }
     }
-    if (!isAnon()) {
-      if (S.nightData.wolfBeautyCharm!==null) Render.log('night-result','🌹 狼美人魅惑了'+S.players[S.nightData.wolfBeautyCharm].name);
-      else Render.log('night-result', charmTechnicalFailure ? '🌹 狼美人本夜因技术解析失败未能魅惑（不是主动跳过）' : '🌹 狼美人主动选择不魅惑');
-    }
-    gameRecord.push({type:'night_action', role:'wolfbeauty', round:S.round, target: S.nightData.wolfBeautyCharm!==null ? S.players[S.nightData.wolfBeautyCharm].name : null, technical:charmTechnicalFailure});
-    attachNightThinking(wb.id);
     // ★ MC主持人确认魅惑目标
     if (isMC() && !wb.isPlayer) {
       const mcOpts = targets.map(x => ({label:'🌹 '+x.name+'（'+x.role.name+'）', value: String(x.id)}));
@@ -15230,6 +15238,23 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       if (chosen === 'None') { S.nightData.wolfBeautyCharm = null; S.charmedPlayer = null; }
       else if (chosen !== null) { S.nightData.wolfBeautyCharm = parseInt(chosen); S.charmedPlayer = parseInt(chosen); }
     }
+    // 圣域只拦敌对标记，不给狼美人“为什么失败”的反馈，也不播放成功魅惑 CG。
+    let sanctuaryBlocked = false;
+    let attemptedCharm = null;
+    if (S.nightData.wolfBeautyCharm !== null) {
+      attemptedCharm = S.nightData.wolfBeautyCharm;
+      sanctuaryBlocked = consumeSanctuaryMark(attemptedCharm, 'wolfbeauty');
+      if (sanctuaryBlocked) S.nightData.wolfBeautyCharm = null;
+    }
+    if (!isAnon()) {
+      if (S.nightData.wolfBeautyCharm!==null) Render.log('night-result','🌹 狼美人魅惑了'+S.players[S.nightData.wolfBeautyCharm].name);
+      else Render.log('night-result', charmTechnicalFailure ? '🌹 狼美人本夜因技术解析失败未能魅惑（不是主动跳过）' : '🌹 狼美人本夜未留下有效魅惑');
+    }
+    gameRecord.push({type:'night_action', role:'wolfbeauty', round:S.round,
+      target:S.nightData.wolfBeautyCharm!==null ? S.players[S.nightData.wolfBeautyCharm].name : null,
+      attemptedTarget:attemptedCharm!==null ? S.players[attemptedCharm].name : null,
+      technical:charmTechnicalFailure, blocked:sanctuaryBlocked});
+    attachNightThinking(wb.id);
     // ★ fix: 持久化魅惑目标到 S.charmedPlayer，防止 nightData 重置后白天死亡连带失效
     if (S.nightData.wolfBeautyCharm !== null) {
       S.charmedPlayer = S.nightData.wolfBeautyCharm;
@@ -15622,6 +15647,50 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       gameRecord.push({type:'night_action', role:'wolfconcubine', round:S.round, target:t.name});
     }
     Render.setSpeaking(wc.id, false);
+  },
+
+  // 净魂师·圣域：先净除已有敌对标记，否则拦截本夜随后落下的第一层敌对标记。
+  async soulwarden(alive) {
+    const sw = alive.find(p => p.role.id==='soulwarden');
+    if (!sw) return;
+    if (nightSkillMuted(sw)) { recordNightSkillMuted(sw, '圣域'); return; }
+    const lastId = Number.isInteger(sw._sanctuaryLastTarget) ? sw._sanctuaryLastTarget : -1;
+    const targets = alive.filter(p => p.id !== lastId);
+    if (!targets.length) return;
+    if (!isAnon()) Render.log('night-detail','净魂师正在展开圣域…');
+    Render.setSpeaking(sw.id, true);
+    let t = null;
+    if (sw.isPlayer) {
+      const v = await waitChoice('选择圣域目标（可选自己，不能连续两夜选择同一人）','圣域',targets.map(x=>({label:x.id===sw.id?'自己':x.name,value:x.name})));
+      t = findPlayer(v, targets);
+    } else {
+      const list = targets.map(x=>`P${x.id+1}=${x.name}${x.id===sw.id?'（你自己）':''}`).join('、');
+      const r = await nightTwoStep(sw,
+        `【净魂师·第${S.round}夜】可选目标：${list}\n圣域会净除目标已有的一层敌对非伤害标记；若没有，则拦下本夜随后到来的第一层。当前能处理狼妃反弹锁与狼美人魅惑，但不挡狼刀、毒药、决斗或其他直接伤害。你不会知道圣域是否实际拦截。不能连续两夜选择同一人。`,
+        '结合本局信息选择一人。最终只提交座位编号，不要提交姓名。\n<action>P数字</action>');
+      logNightThinking(sw, r);
+      const decision = await resolveAIAction3(sw, r, {label:'净魂师圣域', candidates:targets, targetCount:1, allowPass:false, formatHint:'P数字'});
+      if (decision.status === 'execute') t = decision.targets[0];
+      if (!t) {
+        t = targets[Math.floor(Math.random()*targets.length)];
+        recordTechnicalActionFailure(sw, '净魂师圣域', '目标解析失败，系统已从合法目标中兜底选择');
+      }
+    }
+    if (t) {
+      S.nightData.sanctuaryTarget = t.id;
+      S.nightData.sanctuaryUsed = false;
+      S.nightData.sanctuaryBlocked = null;
+      sw._sanctuaryLastTarget = t.id;
+      sw.memory.push({role:'system',content:`【圣域·私密】你今晚把圣域交给了${t.id===sw.id?'自己':t.name}。系统不会告诉你它是否净除或拦截了敌对标记，不能据此编造成功结果。`});
+      gameRecord.push({type:'night_action',role:'soulwarden',round:S.round,name:sw.name,target:t.name});
+      if (S.nightData.concubineGuard === t.id && !S.nightData._concubineTriggered) {
+        consumeSanctuaryMark(t.id, 'wolfconcubine');
+        S.nightData.concubineGuard = null;
+      }
+      if (!isAnon()) Render.log('night-result','净魂师为'+(t.id===sw.id?'自己':t.name)+'展开了圣域');
+    }
+    attachNightThinking(sw.id);
+    Render.setSpeaking(sw.id, false);
   },
 
   // 🃏 愚者·护盾（好人）：每晚护一人挡一次夜间致命伤；所护目标未受夜袭则当夜转护己。成功挡下后失去全部技能（与首放逐免疫共用一次保命）。
@@ -16149,7 +16218,8 @@ const PhaseHandlers = {
       // 🧩 积木·可转移护盾(施法者id→护盾目标id) / 赐予误赐给狼→反噬(存"赐福者id"、赐福者本人出局)
         customShield:{}, customExpose:[],
         dreamTarget:null, dreamNightmare:null,
-        alchemistMist:null, alchemistMode:null, alchemistSave:null};
+        alchemistMist:null, alchemistMode:null, alchemistSave:null,
+        sanctuaryTarget:null, sanctuaryUsed:false, sanctuaryBlocked:null};
       S.silenced = -1;
       S.players.forEach(p => Render.card(p));
       Render.phaseClass(); Render.stats();
@@ -16181,6 +16251,7 @@ const PhaseHandlers = {
       }
       // 🦊🌒🃏🎪 自创技能角色：须在守卫/女巫/预言家等好人主动技之前行动（子狐封刀封技/蚀时狼妃反弹/愚者护盾/奇迹商人赐予）
       await nightStep('wolfconcubine', () => NightActions.wolfconcubine(alive));
+      await nightStep('soulwarden', () => NightActions.soulwarden(alive));
       await nightStep('mechwolf-fox', () => NightActions._mechFox(alive.find(p=>p.role.id==='mechwolf'), alive));
       await nightStep('fox', () => NightActions.fox(alive));
       await nightStep('merchant', () => NightActions.merchant(alive));
@@ -16231,6 +16302,7 @@ const PhaseHandlers = {
     await nightStep('gravekeeper', () => NightActions.gravekeeper(alive));
     // 🦊🌒🃏🎪 自创技能角色：须在守卫/女巫/预言家等好人主动技之前行动
     await nightStep('wolfconcubine', () => NightActions.wolfconcubine(alive));
+    await nightStep('soulwarden', () => NightActions.soulwarden(alive));
     await nightStep('mechwolf-fox', () => NightActions._mechFox(alive.find(p=>p.role.id==='mechwolf'), alive));
     await nightStep('fox', () => NightActions.fox(alive));
     await nightStep('merchant', () => NightActions.merchant(alive));
@@ -17474,6 +17546,16 @@ function reflectInspectSubject(caster, t){
     return caster;
   }
   return t;
+}
+// 敌对非伤害标记的统一拦截口。命中后只留下上帝视角技术记录，不向任何阵营反馈原因。
+function consumeSanctuaryMark(targetId, sourceRole){
+  const nd = S.nightData;
+  if (!nd || targetId == null || nd.sanctuaryTarget !== targetId || nd.sanctuaryUsed) return false;
+  nd.sanctuaryUsed = true;
+  nd.sanctuaryBlocked = sourceRole || 'hostile-mark';
+  const target = S.players[targetId];
+  gameRecord.push({type:'night_action',role:'sanctuary-block',round:S.round,target:target ? target.name : null,source:nd.sanctuaryBlocked,godOnly:true});
+  return true;
 }
 // 🌒 蚀时狼妃反弹·通用重定向（守护/毒等落点型效果）：命中被锁 X 的效果 → 静默改落到施法者自己身上
 //   （当晚首个命中触发、本夜仅一次；与查验反弹、内置守卫/女巫反弹共用同一个 _concubineTriggered 开关，该开关每夜随 nightData 重置=每晚可再反弹一次）。
@@ -21252,6 +21334,10 @@ function _buildPrivateInfoLines(p) {
       const acts = byRole('wolfconcubine').map(r => `第${r.round}夜：锁定${r.target}（凡查/守/毒他的神职反噬其自身，仅首个命中触发）`);
       if (acts.length) lines.push(`你的反弹锁定记录：\n  ${acts.join('\n  ')}`);
     }
+    if (rid === 'soulwarden') {
+      const acts = byRole('soulwarden').map(r => `第${r.round}夜：为${r.target}展开圣域（系统不反馈是否实际拦截）`);
+      if (acts.length) lines.push(`你的圣域记录：\n  ${acts.join('\n  ')}`);
+    }
     // 🃏 愚者·护盾 + 保命状态
     if (rid === 'fool') {
       const acts = byRole('fool').map(r => `第${r.round}夜：护盾护住${r.target}（他若没挨刀，盾自动转护你自己）`);
@@ -21599,6 +21685,8 @@ function _formatCustomNightAction(r) {
     case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到子狐本人；原选择目标未受影响且未被验证）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'mechwolf_fox':   return '🤖🦊 机械媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到机械狼本人；原选择目标未受影响且未被验证）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（凡查/守/毒他的神职反噬其自身，仅首个命中触发）';
+    case 'soulwarden':     return '净魂师展开圣域：' + t + '（是否实际拦截不向玩家反馈）';
+    case 'sanctuary-block':return '圣域净除敌对标记：' + t + '（来源：' + (r.source || '未知') + '）';
     case 'fool':           return '🃏 愚者护盾：护住 ' + t + '（他若没挨刀，盾自动转护愚者本人）';
     case 'merchant':
     case 'youshang':       return (r.role === 'merchant' ? '🎪 奇迹商人' : '🎁 游商') + '赐予：' + t +
@@ -21633,7 +21721,7 @@ function _formatCustomNightAction(r) {
 }
 // 判断某条 night_action 是否属于某视角玩家本人（用于自视角摘要显示自己的自创技能行动）
 function _isOwnNightAction(r, viewerP) {
-  return !!(r && viewerP && r.name && r.name === viewerP.name && /^(skill-muted$|custom-|granted-|gift-|fox$|fool$|merchant$|youshang$|wolfconcubine$)/.test(r.role || ''));
+  return !!(r && viewerP && r.name && r.name === viewerP.name && /^(skill-muted$|custom-|granted-|gift-|fox$|fool$|merchant$|youshang$|wolfconcubine$|soulwarden$)/.test(r.role || ''));
 }
 
 function _buildChatSummary(viewerP, roundFilter, opts) {
