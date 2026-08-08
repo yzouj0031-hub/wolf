@@ -4129,7 +4129,7 @@ function buildWorldBook(p) {
     // ─── 新增 ① 身份盘点(常驻狼阵营) ────
     //  狼的核心信息优势 = 知道队友 + 能推剩余身份分布。
     //  注入"盘点框架",让狼自己推"跳什么身份风险高/低""刀谁威胁最大"。
-    if (p && p.role && p.role.team === 'bad' && p.role.id !== 'mechwolf') {
+    if (p && p.role && isPackWolfRole(p.role)) {
       wb += WB_LANG_PANDIAN;
     }
 
@@ -4215,7 +4215,7 @@ function buildWorldBook(p) {
     // ─── 新增 ⑤ 狼队配合框架(常驻狼阵营) ────
     //  注入对象:所有狼阵营
     //  目的:让 AI 知道狼队不只是各自装好人,捞队友/做对子/分工配合都是工具
-    if (p && p.role && p.role.team === 'bad' && p.role.id !== 'mechwolf') {
+    if (p && p.role && isPackWolfRole(p.role)) {
       wb += WB_LANG_PEIHE;
     }
 
@@ -4458,6 +4458,13 @@ reg({id:'cupid',name:'丘比特（爱神）',team:'good',emoji:'💘',desc:'好�
 
 // ─── 第三方角色②：连环杀手 ───
 reg({id:'serialkiller',name:'连环杀手',team:'third',emoji:'🔪',desc:'第三方·独立胜利：每晚可独立袭击一名玩家（独立于狼刀，同一晚可能死两人）；守卫可挡其袭击，但女巫的解药救不了被其袭击的人；预言家查验显示为好人；胜利条件是活到场上只剩自己一人——它存活时，狼人和好人的任何胜利条件都不成立',maxCount:1,cssClass:'rsk',guide:'你是连环杀手，第三方独立阵营——狼人和好人都是你的猎物，你的目标是活到场上只剩你一个人。\n\n【核心机制·必须记死】\n· 每晚你可以独立袭击一名玩家（也可以空刀）。你的刀和狼刀完全独立：同一个夜晚可能死两个人（狼刀一个、你杀一个），这会让全场陷入"怎么一晚死俩"的恐慌和误判。\n· 守卫的守护【能】挡下你的袭击；女巫的解药【救不了】你袭击的人（她只看得到狼的刀口）；魔术师的交换【不影响】你的刀（只重定向狼刀）。\n· 预言家查验你显示【好人】——你有天然的金水伪装，被验反而是好事。\n· 【胜利条件】活到场上除你以外的所有人都出局。反过来说：只要你活着，狼人杀光好人也不算赢、好人推光狼也不算赢——你是双方都必须除掉的存在，但他们不知道你是谁。\n\n【打法要点】\n· 白天你就是一个"普通好人"：正常发言、正常投票、正常抓狼。你的天然优势是查验显示好人+确实没有狼队包袱，装好人比狼装得像得多。\n· 【借刀杀人是你的主旋律】狼在杀好人、好人在推狼——他们在替你干活。你的刀要补在他们杀不到的地方：好人占优时帮着削好人（杀神职），狼占优时削狼（你知道谁投票行为像狼）。永远打压优势方、维持双方僵持，拖到人数足够少时收割。\n· 优先清除对你威胁最大的位置：能带票定方向的警长/强逻辑位、可能毒你的女巫、可能验出局势的预言家。守卫挡不挡你是概率问题，别因为怕撞盾就不敢动明面神。\n· 【残局算术】进入残局前算清楚：白天投票你只有一票，人多时你左右不了票型；但每晚你都能减一人。所以中后期你的存活优先级 > 一切——白天绝不当出头鸟、绝不站上抗推位，深水到底。\n\n【视角纪律·和狼一样重要】\n× 你知道"昨晚你袭击了谁、死没死"——白天绝对不能流露。尤其一晚死两人时，别表现得比别人更不惊讶。\n× 你不知道狼是谁、狼刀了谁——别装作知道。你对狼刀口的信息量和普通好人完全一样。\n× 别在发言里暗示"场上除了狼还有别的杀手"——没人怀疑第三方存在时，你最安全。'+N1});
+
+// ─── 信息结构扩展角色 ───
+reg({id:'gravekeeper',name:'守墓人',team:'good',emoji:'',desc:'好人神职。每晚得知上一个白天被放逐玩家的阵营；若上个白天无人真正被放逐，则没有新结果。',maxCount:1,cssClass:'rgk',guide:'你是守墓人，属于好人阵营。\n【能力】每晚自动得知上一个白天被投票放逐者属于好人、狼人或第三方阵营；只验证阵营，不知道具体身份。没有真正放逐就没有结果。\n【策略】这是延迟验证信息。公开结果能重构昨天的站边和票型，但会暴露身份；隐藏结果可以继续观察谁在为死者做身份。真假守墓人对跳时，要结合逐日结果、票型收益和信息时序判断，不要把自报当事实。'+N1});
+reg({id:'dreamwalker',name:'摄梦人',team:'good',emoji:'',desc:'好人神职。每晚令一名其他玩家梦游并免疫当夜伤害；连续两晚选择同一人，则该玩家在第二夜因噩梦死亡；摄梦人夜间死亡会带走当夜梦游者。',maxCount:1,cssClass:'rdw',guide:'你是摄梦人，属于好人阵营。\n【能力】每晚选择一名其他存活玩家。若与上夜目标不同，他免疫当夜伤害；若连续两晚选择同一人，第二夜直接因噩梦死亡，不再获得保护。你若在夜间最终死亡，当夜梦游者也会随你死亡。\n【策略】换人是保护，连选是主动处决。第二夜是否连梦必须基于具体信息权衡，不能机械追梦；也要计算自己可能被刀时会不会误带关键好人。行动和结果都是私密信息。'+N1});
+reg({id:'alchemist',name:'炼金魔女',team:'good',emoji:'',desc:'好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为三人；蛇可在看见魔术师换位后的实际刀口后决定是否救下。',maxCount:1,cssClass:'ralc',guide:'你是炼金魔女，属于好人阵营。\n【两种一次性能力】未明之雾：在狼队行动前圈定三名存活玩家，当夜狼刀只能从三人中选择（允许圈到狼人）；法老之蛇：在狼刀和魔术师换位结算后得知实际刀口，再决定是否救下。两种能力各限一次，同一夜只能选一种。\n【策略】雾改变狼队决策空间，适合保护多数高价值位置或制造狼队自刀压力；蛇是精确救援，但使用会消耗未来威慑。按当前局势判断，不要固定首夜开雾或见刀必救。'+N1});
+reg({id:'gargoyle',name:'石像鬼',team:'bad',emoji:'',desc:'狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并单独获得狼刀。',maxCount:1,cssClass:'tw rgg',guide:'你是石像鬼，属于狼人阵营，但与普通狼队互不相认：你不知道他们是谁，他们也不知道你；你不参加狼队密谈和普通狼刀。\n【窥视】每晚查验一名尚未查过的其他玩家，得知准确身份。\n【苏醒】只有除你之外的所有狼人阵营角色都出局后，你才单独获得狼刀。\n【策略】你可能在不知情时攻击普通狼，普通狼也可能把你当好人甚至刀你；这正是你的信息结构。白天只使用公开信息伪装，绝不能泄露准确身份来自夜间窥视。残局前优先存活并利用查验规划身份，苏醒后再按人数与屠边条件收割。'+N1});
+
 
 function seerSeesAsWolf(target) {
   return !!(target && target.role && target.role.team === 'bad' && !isMechVillagerCamouflaged(target));
@@ -5884,6 +5891,9 @@ function buildNames(n) {
   }
   return r;
 }
+function isPackWolfRole(role) {
+  return !!(role && role.team === 'bad' && role.id !== 'mechwolf' && role.id !== 'gargoyle');
+}
 function getEmoji(p) {
   if (!isAnon()) return p.role.emoji;
   if (p.isPlayer || canSee(p)) return p.role.emoji;
@@ -5893,15 +5903,15 @@ function getEmoji(p) {
 function canSee(p) {
   if (S.directorMode) {
     // 导演模式：如果导演控制了狼人，能看到所有狼队成员
-    const hasWolfDirector = S.directorIds && S.directorIds.some(id => S.players[id] && S.players[id].role && S.players[id].role.team === 'bad');
-    if (hasWolfDirector && p.role && p.role.team === 'bad') return true;
+    const hasWolfDirector = S.directorIds && S.directorIds.some(id => S.players[id] && isPackWolfRole(S.players[id].role));
+    if (hasWolfDirector && isPackWolfRole(p.role)) return true;
     return S.directorIds && S.directorIds.includes(p.id);
   }
   if (S.playerId < 0) return false;
   const me = S.players[S.playerId];
   if (!me) return false;
   // ★ 机械狼与狼队互不相认：机械狼看不到其他狼，其他狼也看不到机械狼
-  if (me.role&&p.role&&me.role.team==='bad' && p.role.team==='bad' && me.role.id!=='mechwolf' && p.role.id!=='mechwolf') return true;
+  if (isPackWolfRole(me.role) && isPackWolfRole(p.role)) return true;
   return p.id === S.playerId;
 }
 function getAPI(i) {
@@ -8450,7 +8460,7 @@ ${userPersona}
   const alivePlayers = S.players.filter(x => x.alive).map(x => {
     let r = '未知';
     if (x.id === p.id) r = x.role.name;
-    else if (p.role.team==='bad' && x.role.team==='bad' && p.role.id!=='mechwolf' && x.role.id!=='mechwolf') r = x.role.name;
+    else if (isPackWolfRole(p.role) && isPackWolfRole(x.role)) r = x.role.name;
     else {
       const publicRole = _publiclyRevealedRoleName(x.name);
       const publicAlignment = _publiclyVerifiedAlignment(x.name);
@@ -8463,7 +8473,7 @@ ${userPersona}
   const deadPlayers = S.players.filter(x => !x.alive).map(x => {
     const publicRole = _publiclyRevealedRoleName(x.name);
     const publicAlignment = _publiclyVerifiedAlignment(x.name);
-    let r = (!hdeath && x.revealed) ? x.role.name : (p.role.team==='bad' && x.role.team==='bad' && p.role.id!=='mechwolf' && x.role.id!=='mechwolf' ? x.role.name : (publicRole ? '公开身份·'+publicRole : (publicAlignment ? '公开验证·'+publicAlignment : '?')));
+    let r = (!hdeath && x.revealed) ? x.role.name : (isPackWolfRole(p.role) && isPackWolfRole(x.role) ? x.role.name : (publicRole ? '公开身份·'+publicRole : (publicAlignment ? '公开验证·'+publicAlignment : '?')));
     const causeText = _formatPublicDeathCause(x, {compact:true, hiddenNight:hdeath, canSeePrivateNight:false});
     return `${x.name}(P${x.id+1})${r!=='?'?'('+r+')':''}[第${x.deathRound}回${x.deathPhase==='night'?'夜':'日'}·${causeText}]`;
   }).join(', ');
@@ -8677,7 +8687,7 @@ ${userPersona}
   // 狼队：每次生成系统prompt时重新注入本局刀口信息（防止被记忆截断）
   let wolfPrivateBlock = '';
   // ★ 机械狼是孤狼，与狼队互不相认：狼队一切私密信息（刀口/战略/密约/悍跳实况）都【不注入】给机械狼
-  const _isTeamWolf = (p.role.team === 'bad' && p.role.id !== 'mechwolf');
+  const _isTeamWolf = isPackWolfRole(p.role);
   if (_isTeamWolf && S.wolfKillLog) {
     const killEntries = Object.entries(S.wolfKillLog).map(([round, info]) =>
       `第${round}夜：刀口是${info.target}，结果${info.success?'击杀成功':'被保护/未死'}`
@@ -9359,7 +9369,7 @@ async function callAI(p, prompt, opts) {
   // ★ fix: 信息隔离——好人玩家不能看到残留在memory里的狼队私密信息
   // 防止角色重分配或memory污染导致好人"开天眼"看到狼队密谈
   // ★ 机械狼是孤狼，不该持有任何狼队私密信息——按好人一样过滤掉残留的狼队消息（双保险）
-  const isWolfPlayer = p.role.team === 'bad' && p.role.id !== 'mechwolf';
+  const isWolfPlayer = isPackWolfRole(p.role);
   const filteredMemory = p.memory.filter(m => {
     if (m.role !== 'system') return true; // 对话记录不过滤
     if (!isWolfPlayer && (
@@ -10801,7 +10811,7 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
     S.history.push({phase:S.phase, round:S.round, name:player.name, text:result.game});
     // ★ v9.9.20 方案B：检测狼悍跳神职 → 记入 wolfClaimLog，供狼队友识别
     //   只对狼阵营生效（好人诈跳不记）；用名字做 key，同一只狼反复重申自然覆盖。
-    if (player.role && player.role.team === 'bad' && player.role.id !== 'mechwolf') {
+    if (player.role && isPackWolfRole(player.role)) {
       const claimMatch = result.game.match(/我是(?:真)?(预言家|女巫|守卫|猎人|骑士)/);
       if (claimMatch) {
         if (!S.wolfClaimLog) S.wolfClaimLog = {};
@@ -10818,7 +10828,7 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
     if (!S.wolfStrategyLog) S.wolfStrategyLog = [];
     S.wolfStrategyLog.push({round: S.round, name: player.name, text: result.game.slice(0, 120)});
     // 同步注入所有存活狼的memory（覆盖上一条同轮记录，避免重复）
-    const wolves = S.players.filter(p => p.alive && p.role.team === 'bad' && p.role.id !== 'mechwolf');
+    const wolves = S.players.filter(p => p.alive && isPackWolfRole(p.role));
     wolves.forEach(w => {
       // 移除本轮已有的旧战略条目，避免堆积
       w.memory = w.memory.filter(m => !(m.role === 'system' && m.content.includes('【狼队战略·第' + S.round)));
@@ -11092,11 +11102,11 @@ function _openInputModal(ctx, hint, resolve, currentPlayer) {
     let histHTML = '';
     // ★ 狼人专属：显示队友信息 + 今晚刀口（机械狼除外——它与狼队互不相认、不参与夜刀）
     // 导演模式优先用 currentPlayer，否则找唯一的 isPlayer 狼人
-    const playerObj = currentPlayer && currentPlayer.role && currentPlayer.role.team === 'bad' && currentPlayer.role.id !== 'mechwolf'
+    const playerObj = currentPlayer && currentPlayer.role && isPackWolfRole(currentPlayer.role)
       ? currentPlayer
-      : S.players && S.players.find(p => p.isPlayer && p.alive && p.role && p.role.team === 'bad' && p.role.id !== 'mechwolf');
-    if (playerObj && playerObj.role && playerObj.role.team === 'bad' && playerObj.role.id !== 'mechwolf') {
-      const wolves = S.players.filter(p => p.role.team === 'bad' && p.role.id !== 'mechwolf');
+      : S.players && S.players.find(p => p.isPlayer && p.alive && p.role && isPackWolfRole(p.role));
+    if (playerObj && playerObj.role && isPackWolfRole(playerObj.role)) {
+      const wolves = S.players.filter(p => isPackWolfRole(p.role));
       const mates = wolves.filter(w => w.id !== playerObj.id);
       const killTarget = S.nightData && S.nightData.kill !== null && S.nightData.kill !== undefined ? S.players[S.nightData.kill] : null;
       let wolfInfo = '<div style="color:#c83040;font-size:.78em;padding:5px 6px;background:rgba(200,48,64,0.08);border-left:2px solid #c83040;border-radius:2px;margin-bottom:5px">';
@@ -13092,7 +13102,13 @@ function preloadActionCGForRoster() {
     const inEnglishDir = /\/en(?:\/|$)/.test(location.pathname);
     const base = inEnglishDir ? '../assets/action-cg/' : 'assets/action-cg/';
     const ids = new Set(S.players.map(p => p && p.role && p.role.id).filter(Boolean));
-    const variants = { witch:['witchSave','witchPoison'], wolfbeauty:['wolfbeautyDeath'] };
+    const variants = {
+      witch:['witchSave','witchPoison'],
+      wolfbeauty:['wolfbeautyDeath'],
+      dreamwalker:['dreamwalkerNightmare'],
+      alchemist:['alchemistRescue'],
+      gargoyle:['gargoyleAwaken']
+    };
     const keys = [];
     ids.forEach(id => {
       if (window.RoleActionCG[id]) keys.push(id);
@@ -13176,7 +13192,13 @@ const NIGHT_ACTION_CINEMATICS = Object.freeze({
   witch:{roleId:'witch', roles:['witch']},
   seer:{roleId:'seer', roles:['seer']},
   'serial-killer':{roleId:'serialkiller', roles:['serialkiller']},
-  'wolf-beauty':{roleId:'wolfbeauty', roles:['wolfbeauty']}
+  'wolf-beauty':{roleId:'wolfbeauty', roles:['wolfbeauty']},
+  gravekeeper:{roleId:'gravekeeper',roles:['gravekeeper']},
+  dreamwalker:{roleId:'dreamwalker',roles:['dreamwalker']},
+  'alchemist-plan':{roleId:'alchemist',roles:['alchemist']},
+  'alchemist-rescue':{roleId:'alchemist',roles:['alchemist_rescue'],cgKey:'alchemistRescue'},
+  gargoyle:{roleId:'gargoyle',roles:['gargoyle']},
+  'gargoyle-kill':{roleId:'gargoyle',roles:['gargoyle_awaken','gargoyle_kill'],cgKey:'gargoyleAwaken'}
 });
 
 function meaningfulNightAction(record) {
@@ -13222,10 +13244,14 @@ async function showNightStepCinematic(step, records) {
     }
     return shown;
   }
-  const cg = window.RoleActionCG && window.RoleActionCG[spec.roleId];
+  let cgKey = spec.cgKey || spec.roleId;
+  if (event.role === 'dreamwalker' && event.result === 'nightmare') cgKey = 'dreamwalkerNightmare';
+  if (event.role === 'gargoyle_awaken') cgKey = 'gargoyleAwaken';
+  const cg = window.RoleActionCG && window.RoleActionCG[cgKey];
   const title = cg ? (uiEnglish() ? cg.titleEn : cg.titleZh) : actor.role.name;
   return showRoleCinematic(spec.roleId, actor.name, title, actionCinematicSubtitle(event), {
     team:actor.role.team,
+    cgKey,
     duration:1800,
     key:`night-action:${S.gameId}:${S.round}:${step}`
   });
@@ -13339,7 +13365,7 @@ async function killPlayer(p, cause, opts) {
   else if (cause==='poison') playRoleEffect(p, 'poison');
   else if (cause==='shoot') playRoleEffect(p, 'hunter');
   const hd = $('m-hdeath').checked;
-  const causeText = {kill:'昨晚死亡',serialkill:'昨晚死亡',vote:'被投票放逐',poison:'昨晚死亡',merchant:'赐福时误将礼物赐给了狼、遭反噬身亡',duel:'因骑士决斗结算而亡',mechduel:'被机械狼的强制决斗处死（该技能不验证阵营）',shoot:'作为中枪者被公开开枪技能带走',bite:'作为被咬者被狼王咬死',charm:'作为被魅惑者随狼美人殉情（本人不因此被认定为狼美人）',loversick:'作为恋人随另一方殉情（该死因不验证原身份或阵营）',explode:'作为目标被白狼王自爆带走（本人不是白狼王）',selfexplode:'发动自爆技能身亡（他本人就是白狼王）',trial:'作为被审判者被定罪处决',trialfail:'发起审判失败、反坐身亡（他是发起质疑的一方，不是被审判者）'}[cause]||'死亡';
+  const causeText = {kill:'昨晚死亡',serialkill:'昨晚死亡',dreamkill:'在连续梦境中沉沦',dreamlink:'随夜亡的摄梦人一同沉睡',vote:'被投票放逐',poison:'昨晚死亡',merchant:'赐福时误将礼物赐给了狼、遭反噬身亡',duel:'因骑士决斗结算而亡',mechduel:'被机械狼的强制决斗处死（该技能不验证阵营）',shoot:'作为中枪者被公开开枪技能带走',bite:'作为被咬者被狼王咬死',charm:'作为被魅惑者随狼美人殉情（本人不因此被认定为狼美人）',loversick:'作为恋人随另一方殉情（该死因不验证原身份或阵营）',explode:'作为目标被白狼王自爆带走（本人不是白狼王）',selfexplode:'发动自爆技能身亡（他本人就是白狼王）',trial:'作为被审判者被定罪处决',trialfail:'发起审判失败、反坐身亡（他是发起质疑的一方，不是被审判者）'}[cause]||'死亡';
   Render.log('death', '💀 '+p.name+(hd?'':' '+p.role.name)+' 死亡' + (opts.suffix||''));
   Audio.playDeath();
   gameRecord.push({type:'death', name:p.name, role:p.role.name, team:p.role.team, cause, round:S.round, phase:p.deathPhase || S.phase, suffix:opts.suffix||''});
@@ -13786,6 +13812,158 @@ const NightActions = {
     attachNightThinking(cupid.id);
     Render.setSpeaking(cupid.id, false);
   },
+  // 守墓人：自动读取最近一次尚未查阅的白天放逐记录。
+  async gravekeeper(alive) {
+    const gk = alive.find(p => p.role.id === 'gravekeeper');
+    if (!gk) return;
+    const exile = [...gameRecord].reverse().find(r => r.type === 'death' && r.cause === 'vote' && r.phase === 'day');
+    if (!exile || gk._gravekeeperSeen === exile.round + ':' + exile.name) return;
+    gk._gravekeeperSeen = exile.round + ':' + exile.name;
+    const team = exile.team === 'bad' ? '狼人阵营' : exile.team === 'third' ? '第三方阵营' : '好人阵营';
+    gk.memory.push({role:'system', content:'【守墓人私密结果】昨日日间被放逐的'+exile.name+'属于【'+team+'】。你只验证了阵营，不知道其具体身份。'});
+    gameRecord.push({type:'night_action', role:'gravekeeper', round:S.round, target:exile.name, result:team, team:exile.team});
+    if (gk.isPlayer || !isAnon()) Render.log('night-result','守墓人查得'+exile.name+'属于'+team);
+  },
+
+  // 摄梦人：不同目标获得夜间伤害免疫；连续两夜同一目标转为不可保护的噩梦处决。
+  async dreamwalker(alive) {
+    const dw = alive.find(p => p.role.id === 'dreamwalker');
+    if (!dw) return;
+    if (nightSkillMuted(dw)) { recordNightSkillMuted(dw, '摄梦'); return; }
+    const ts = alive.filter(p => p.id !== dw.id);
+    if (!ts.length) return;
+    Render.setSpeaking(dw.id, true);
+    let t = null;
+    if (dw.isPlayer) {
+      const v = await waitChoice('选择今晚的梦游者。连续选择昨夜目标会令其陷入致命噩梦。','摄梦',ts.map(x=>({label:'P'+(x.id+1)+' '+x.name,value:x.name})));
+      t = findPlayer(v, ts);
+    } else {
+      const last = dw._dreamLastTarget != null ? S.players[dw._dreamLastTarget] : null;
+      const r = await nightTwoStep(dw,
+        '【摄梦人·第'+S.round+'夜】可选：'+ts.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+
+        '\n昨夜目标：'+(last ? last.name : '无')+'。换人会保护今晚目标免疫夜间伤害；连续选择昨夜目标会直接令其因噩梦死亡。请按当前身份判断、风险和收益选择。',
+        '只选择一人。\n<action>玩家名</action>');
+      logNightThinking(dw, r);
+      const d = await resolveAIAction3(dw, r, {label:'摄梦',candidates:ts,targetCount:1,allowPass:false,formatHint:'DREAM|P数字'});
+      t = d.status === 'execute' ? d.targets[0] : ts[Math.floor(Math.random()*ts.length)];
+      if (d.status !== 'execute') recordTechnicalActionFailure(dw,'摄梦','强制技能解析失败，技术兜底补选'+t.name);
+    }
+    const nightmare = dw._dreamLastTarget === t.id;
+    S.nightData.dreamTarget = t.id;
+    S.nightData.dreamNightmare = nightmare ? t.id : null;
+    dw._dreamLastTarget = t.id;
+    dw.memory.push({role:'system',content:'【摄梦记录】第'+S.round+'夜你选择了'+t.name+'；'+(nightmare?'这是连续第二夜，同一目标将因噩梦死亡。':'若你熬过本夜，该目标免疫当夜伤害。')});
+    gameRecord.push({type:'night_action',role:'dreamwalker',round:S.round,target:t.name,result:nightmare?'nightmare':'protect'});
+    Render.setSpeaking(dw.id,false);
+  },
+
+  // 炼金魔女先选择当夜路线：雾与蛇各限一次，同夜只可发动一种。
+  async alchemistPlan(alive) {
+    const al = alive.find(p => p.role.id === 'alchemist');
+    if (!al) return;
+    if (nightSkillMuted(al)) { recordNightSkillMuted(al, '炼金术'); return; }
+    const modes = [];
+    if (!al._mistUsed && alive.length >= 3) modes.push('MIST');
+    if (!al._serpentUsed) modes.push('SERPENT');
+    modes.push('PASS');
+    let mode = 'PASS', mistTargets = [];
+    Render.setSpeaking(al.id,true);
+    if (al.isPlayer) {
+      const mv = await waitChoice('选择今晚准备的炼金术。未明之雾立即发动；法老之蛇会在实际刀口确定后再问你是否救援。','炼金术',
+        modes.map(x=>({label:x==='MIST'?'未明之雾（圈定3人）':x==='SERPENT'?'准备法老之蛇':'今晚空过',value:x,abs:x==='PASS'})));
+      mode = mv || 'PASS';
+      if (mode === 'MIST') {
+        let pool = alive.slice();
+        for (let i=0;i<3;i++) {
+          const v = await waitChoice('选择雾中第'+(i+1)+'人','未明之雾',pool.map(x=>({label:'P'+(x.id+1)+' '+x.name,value:x.name})));
+          const t = findPlayer(v,pool); if (!t) break;
+          mistTargets.push(t); pool = pool.filter(x=>x.id!==t.id);
+        }
+      }
+    } else {
+      const r = await nightTwoStep(al,
+        '【炼金魔女·第'+S.round+'夜】未明之雾剩余：'+(!al._mistUsed?'可用':'已用')+'；法老之蛇剩余：'+(!al._serpentUsed?'可用':'已用')+
+        '。雾会把今晚狼刀限制在你选择的三名存活玩家中；蛇会等实际刀口确定后再让你决定是否救。两者同夜不能并用。可选玩家：'+alive.map(x=>'P'+(x.id+1)+' '+x.name).join('、'),
+        '选择雾时写 MIST 和三名玩家；准备蛇写 SERPENT；空过写 PASS。\n<action>MIST|玩家A|玩家B|玩家C 或 SERPENT 或 PASS</action>');
+      logNightThinking(al,r);
+      const raw = String(r.action || r.game || '');
+      if (!al._mistUsed && /MIST|未明之雾/i.test(raw)) {
+        const d = await resolveAIAction3(al,r,{label:'未明之雾',candidates:alive,targetCount:3,allowPass:false,formatHint:'MIST|P数字|P数字|P数字'});
+        if (d.status==='execute') { mode='MIST'; mistTargets=d.targets; }
+      } else if (!al._serpentUsed && /SERPENT|法老之蛇|蛇/i.test(raw)) mode='SERPENT';
+    }
+    if (mode === 'MIST' && mistTargets.length === 3) {
+      al._mistUsed = true; S.nightData.alchemistMist = mistTargets.map(x=>x.id);
+      al.memory.push({role:'system',content:'【炼金记录】本夜未明之雾已发动，狼刀只能落在：'+mistTargets.map(x=>x.name).join('、')+'。'});
+      gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:mistTargets.map(x=>x.name).join('、'),targets:mistTargets.map(x=>x.name),result:'mist'});
+    } else if (mode === 'SERPENT' && !al._serpentUsed) {
+      S.nightData.alchemistMode='serpent';
+      al.memory.push({role:'system',content:'【炼金记录】你已准备法老之蛇；实际狼刀确定后仍可选择不救，不选择不会消耗药剂。'});
+    } else gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:null,result:'pass'});
+    Render.setSpeaking(al.id,false);
+  },
+
+  async alchemistRescue(alive) {
+    const al = alive.find(p => p.role.id === 'alchemist');
+    if (!al || S.nightData.alchemistMode !== 'serpent' || al._serpentUsed || S.nightData.kill == null) return;
+    const victim = S.players[S.nightData.kill];
+    let save = false;
+    Render.setSpeaking(al.id,true);
+    if (al.isPlayer) {
+      save = (await waitChoice('法老之蛇看见实际狼刀落在 '+victim.name+'。是否消耗药剂救下？','法老之蛇',
+        [{label:'救下 '+victim.name,value:'SAVE'},{label:'保留药剂',value:'PASS',abs:true}])) === 'SAVE';
+    } else {
+      const r = await nightTwoStep(al,'【法老之蛇·私密】魔术师换位后，今晚实际狼刀落在'+victim.name+'。你可以消耗唯一一次蛇救，也可以保留。只根据现有信息权衡。','<action>SAVE 或 PASS</action>');
+      logNightThinking(al,r); save=/SAVE|救/i.test(String(r.action||r.game||'')) && !/PASS|不救|保留/i.test(String(r.action||r.game||''));
+    }
+    if (save) {
+      al._serpentUsed=true; S.nightData.alchemistSave=S.nightData.kill;
+      al.memory.push({role:'system',content:'【炼金记录】你消耗法老之蛇，救下了实际刀口'+victim.name+'。'});
+      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'save'});
+    } else gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:null,result:'hold'});
+    Render.setSpeaking(al.id,false);
+  },
+
+  // 石像鬼与狼队互盲，每夜单独窥视准确身份。
+  async gargoyle(alive) {
+    const gg = alive.find(p => p.role.id === 'gargoyle');
+    if (!gg) return;
+    if (nightSkillMuted(gg)) { recordNightSkillMuted(gg,'石瞳窥视'); return; }
+    gg._gargoyleSeen ||= [];
+    const ts = alive.filter(p => p.id!==gg.id && !gg._gargoyleSeen.includes(p.id));
+    if (!ts.length) return;
+    let t=null; Render.setSpeaking(gg.id,true);
+    if (gg.isPlayer) {
+      const v=await waitChoice('窥视一名尚未查过的玩家，得知准确身份。','石瞳窥视',ts.map(x=>({label:'P'+(x.id+1)+' '+x.name,value:x.name})));
+      t=findPlayer(v,ts);
+    } else {
+      const r=await nightTwoStep(gg,'【石像鬼·第'+S.round+'夜】你与狼队互不相认。今晚可窥视：'+ts.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'。结果是准确角色名，只能作为私密推理依据。','<action>玩家名</action>');
+      logNightThinking(gg,r);
+      const d=await resolveAIAction3(gg,r,{label:'石瞳窥视',candidates:ts,targetCount:1,allowPass:false,formatHint:'SCRY|P数字'});
+      t=d.status==='execute'?d.targets[0]:ts[Math.floor(Math.random()*ts.length)];
+      if(d.status!=='execute') recordTechnicalActionFailure(gg,'石瞳窥视','强制技能解析失败，技术兜底补选'+t.name);
+    }
+    gg._gargoyleSeen.push(t.id);
+    gg.memory.push({role:'system',content:'【石像鬼私密结果】第'+S.round+'夜，你窥见'+t.name+'的准确身份是【'+t.role.name+'】。不得在未建立公开信息来源时直接泄露。'});
+    gameRecord.push({type:'night_action',role:'gargoyle',round:S.round,target:t.name,roleId:t.role.id,roleName:t.role.name,result:'exact'});
+    Render.setSpeaking(gg.id,false);
+  },
+
+  async gargoyleKill(alive) {
+    const gg=alive.find(p=>p.role.id==='gargoyle');
+    if(!gg || alive.some(p=>p.role.team==='bad' && p.id!==gg.id) || S.nightData.kill!=null) return;
+    if(S.nightData.foxBlockKill){ gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,blocked:true}); return; }
+    const ts=(Array.isArray(S.nightData.alchemistMist)?alive.filter(p=>S.nightData.alchemistMist.includes(p.id)):alive.filter(p=>p.id!==gg.id));
+    if(!ts.length)return;
+    if(!gg._gargoyleAwake){gg._gargoyleAwake=true;gameRecord.push({type:'night_action',role:'gargoyle_awaken',round:S.round,target:gg.name,result:'awaken'});}
+    let t=null; Render.setSpeaking(gg.id,true);
+    if(gg.isPlayer){const opts=ts.map(x=>({label:'P'+(x.id+1)+' '+x.name,value:x.name}));opts.push({label:'空刀',value:'None',abs:true});const v=await waitChoice('其他狼系已全部出局，你已苏醒。今晚刀谁？','石像鬼夜刀',opts);t=v==='None'?null:findPlayer(v,ts);}
+    else{const r=await nightTwoStep(gg,'【石像鬼苏醒·第'+S.round+'夜】其他狼系已全部出局。可刀：'+ts.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'。可明确空刀。','<action>玩家名 或 PASS</action>');logNightThinking(gg,r);const d=await resolveAIAction3(gg,r,{label:'石像鬼夜刀',candidates:ts,targetCount:1,allowPass:true,formatHint:'KILL|P数字 或 PASS'});if(d.status==='execute')t=d.targets[0];}
+    if(t){S.nightData.kill=t.id;S.nightData.killChosenByWolf=t.id;gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:t.name});}
+    else gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,empty:true});
+    Render.setSpeaking(gg.id,false);
+  },
+
   // ★ 魔术师：每晚最先行动。交换任意两名存活玩家的号码（可含自己），仅重定向当晚狼刀（见 applyMagicSwap）。
   async magician(alive) {
     const mg = alive.find(p => p.role.id==='magician');
@@ -14093,7 +14271,9 @@ const NightActions = {
       gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:null, blocked:true, reason:'foxBlockKill'});
       return;
     }
-    const ts = alive.filter(p => p.id!==mw.id);
+    const ts = Array.isArray(S.nightData.alchemistMist)
+      ? alive.filter(p => S.nightData.alchemistMist.includes(p.id))
+      : alive.filter(p => p.id!==mw.id);
     if (!ts.length) return;
     if (!isAnon()) Render.log('night-detail','🤖🔪 机械狼带刀行凶…');
     Render.setSpeaking(mw.id, true);
@@ -14298,7 +14478,7 @@ const NightActions = {
 
   async wolfKill(alive) {
     // ★ 机械狼不参与狼队密谈/夜刀（孤狼、与狼队不相认）——普通狼全死后由 mechwolfKill 单独行凶
-    const ws = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf');
+    const ws = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf' && p.role.id!=='gargoyle');
     if (!ws.length) return;
     const wolfRunKey = `${S.gameId}:${S.round}`;
     if (S._wolfKillRun && S._wolfKillRun.key === wolfRunKey && S._wolfKillRun.complete) return;
@@ -14329,10 +14509,12 @@ const NightActions = {
     // 普通狼队可以战术性刀已知队友（俗称自刀/卖狼做身份）。机械狼本来就因
     // 互不相认而在候选内。这里必须把所有存活玩家交给决策层；旧代码只给好人
     // 与机械狼，导致提示词虽写“自刀选项”，AI 的 action 却永远无法选择普通狼队友。
-    const validWolfTargets = alive.slice();
+    const validWolfTargets = Array.isArray(S.nightData.alchemistMist)
+      ? alive.filter(x => S.nightData.alchemistMist.includes(x.id))
+      : alive.slice();
     // 解析/API 全部失败时不能“随机战术自刀”；随机兜底仍只从非狼与未知机械狼中选。
     // 刀已知队友必须来自狼队明确讨论或人工选择，不能由技术故障触发。
-    const safeRandomWolfTargets = alive.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf');
+    const safeRandomWolfTargets = validWolfTargets.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf' || x.role.id === 'gargoyle');
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // resumable final votes
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
     /* 这段原来声明在下面「开场轮」的 for 块里（旧位置约 14151 行），
@@ -15007,7 +15189,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     Render.setSpeaking(wb.id,true);
     // 狼美人可魅惑非狼玩家；机械狼与狼队互不相认，故【也在候选内】——
     // 既避免"名单里少了谁谁就是机械狼"的信息泄漏，也符合她并不知情的设定（误魅惑队友是互不相认应付的代价）。
-    const targets = alive.filter(p => p.id!==wb.id && (p.role.team!=='bad' || p.role.id==='mechwolf'));
+    const targets = alive.filter(p => p.id!==wb.id && (p.role.team!=='bad' || p.role.id==='mechwolf' || p.role.id==='gargoyle'));
     let charmTechnicalFailure = false;
     if (targets.length) {
       if (wb.isPlayer) {
@@ -15965,7 +16147,9 @@ const PhaseHandlers = {
       // 🧩 积木自创角色的当晚产出：守护/解药挡刀的目标集合、毒杀目标集合
       customProtect:[], customSave:[], customPoison:[],
       // 🧩 积木·可转移护盾(施法者id→护盾目标id) / 赐予误赐给狼→反噬(存"赐福者id"、赐福者本人出局)
-        customShield:{}, customExpose:[]};
+        customShield:{}, customExpose:[],
+        dreamTarget:null, dreamNightmare:null,
+        alchemistMist:null, alchemistMode:null, alchemistSave:null};
       S.silenced = -1;
       S.players.forEach(p => Render.card(p));
       Render.phaseClass(); Render.stats();
@@ -15985,8 +16169,9 @@ const PhaseHandlers = {
       await nightStep('atmo-open', () => nightAtmo(2));
       // 💘 丘比特是首夜第一个身份行动，恋人关系在其它夜间技能前建立。
       await nightStep('cupid', () => NightActions.cupid(alive));
+      await nightStep('gravekeeper', () => NightActions.gravekeeper(alive));
       // ★ 机械狼不参与狼盟密约（孤狼、与狼队不相认）
-      const ws = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf');
+      const ws = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf' && p.role.id!=='gargoyle');
       if (ws.length >= 2) {
         // 狼盟密约：独立提案 → 投票 → 拍板（替代轮流密谈，避免复读）
         await nightStep('wolf-strategy', () => wolfStrategyDiscuss(ws));
@@ -16002,6 +16187,9 @@ const PhaseHandlers = {
       await nightStep('youshang', () => NightActions.youshang(alive));
       await nightStep('pick-gift', () => NightActions.pickGift(alive));
       await nightStep('fool', () => NightActions.fool(alive));
+      await nightStep('alchemist-plan', () => NightActions.alchemistPlan(alive));
+      await nightStep('dreamwalker', () => NightActions.dreamwalker(alive));
+      await nightStep('gargoyle', () => NightActions.gargoyle(alive));
       // 第一夜后续行动（丘比特已先行）：魔术师→守卫→狼人→女巫→预言家→连环杀手→狼美人
       await nightStep('magician', () => NightActions.magician(alive));
       await nightStep('mechwolf', () => NightActions.mechwolf(alive));
@@ -16009,7 +16197,9 @@ const PhaseHandlers = {
       await nightStep('atmo-before-wolves', () => nightAtmo(1));
       await nightStep('wolf-kill', () => NightActions.wolfKill(alive));
       await nightStep('mechwolf-kill', () => NightActions.mechwolfKill(alive));
+      await nightStep('gargoyle-kill', () => NightActions.gargoyleKill(alive));
       await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
+      await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
       await nightStep('atmo-before-gods', () => nightAtmo(1));
       await nightStep('witch', () => NightActions.witch(alive));
       await nightStep('custom-gods', () => NightActions.customGods(alive));
@@ -16038,6 +16228,7 @@ const PhaseHandlers = {
       }
     }
     await nightStep('atmo-open', () => nightAtmo(2));
+    await nightStep('gravekeeper', () => NightActions.gravekeeper(alive));
     // 🦊🌒🃏🎪 自创技能角色：须在守卫/女巫/预言家等好人主动技之前行动
     await nightStep('wolfconcubine', () => NightActions.wolfconcubine(alive));
     await nightStep('mechwolf-fox', () => NightActions._mechFox(alive.find(p=>p.role.id==='mechwolf'), alive));
@@ -16046,6 +16237,9 @@ const PhaseHandlers = {
     await nightStep('youshang', () => NightActions.youshang(alive));
     await nightStep('pick-gift', () => NightActions.pickGift(alive));
     await nightStep('fool', () => NightActions.fool(alive));
+    await nightStep('alchemist-plan', () => NightActions.alchemistPlan(alive));
+    await nightStep('dreamwalker', () => NightActions.dreamwalker(alive));
+    await nightStep('gargoyle', () => NightActions.gargoyle(alive));
     // 夜间行动顺序：魔术师→守卫→狼人（刀口经魔术师交换重定向）→女巫→预言家→狼美人
     await nightStep('magician', () => NightActions.magician(alive));
     await nightStep('mechwolf', () => NightActions.mechwolf(alive));
@@ -16053,7 +16247,9 @@ const PhaseHandlers = {
     await nightStep('atmo-before-wolves', () => nightAtmo(1));
     await nightStep('wolf-kill', () => NightActions.wolfKill(alive));
     await nightStep('mechwolf-kill', () => NightActions.mechwolfKill(alive));
+    await nightStep('gargoyle-kill', () => NightActions.gargoyleKill(alive));
     await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
+    await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
     await nightStep('atmo-before-gods', () => nightAtmo(1));
     await nightStep('witch', () => NightActions.witch(alive));
     await nightStep('custom-gods', () => NightActions.customGods(alive));
@@ -16219,11 +16415,11 @@ const PhaseHandlers = {
         const aiR = {};
         const candNames = candidates.map(c => c.name).join('、');
         // ★ 识别狼队候选人（给狼人投票时的策略提示用）
-        const wolfCandNames = candidates.filter(c => c.role.team === 'bad' && c.role.id !== 'mechwolf').map(c => c.name);
+        const wolfCandNames = candidates.filter(c => isPackWolfRole(c.role)).map(c => c.name);
         await batchCall(aiVoters,'c-vote', async p => {
           // ★ 给狼人额外的温和策略提醒：竞选票容易暴露狼队结构
           let wolfHint = '';
-          if (p.role.team === 'bad' && p.role.id !== 'mechwolf' && wolfCandNames.length > 0) {
+          if (isPackWolfRole(p.role) && wolfCandNames.length > 0) {
             const myWolfCands = wolfCandNames.filter(n => n !== p.name); // 排除自己
             if (myWolfCands.length > 0) {
               wolfHint = '\n\n【⚠️ 狼队视角·警长竞选投票策略】\n'
@@ -16324,8 +16520,8 @@ const PhaseHandlers = {
           await batchCall(aiVoters2,'c-vote', async p => {
             // ★ 再投一轮也给狼人策略提醒
             let wolfHint2 = '';
-            const sheriffPkWolfNames = sheriffPkCandidates.filter(x=>x.role && x.role.team==='bad' && x.role.id!=='mechwolf').map(x=>x.name);
-            if (p.role.team === 'bad' && p.role.id !== 'mechwolf' && sheriffPkWolfNames.length > 0) {
+            const sheriffPkWolfNames = sheriffPkCandidates.filter(x=>x.role && isPackWolfRole(x.role)).map(x=>x.name);
+            if (isPackWolfRole(p.role) && sheriffPkWolfNames.length > 0) {
               const myWolfCands = sheriffPkWolfNames.filter(n => n !== p.name);
               if (myWolfCands.length > 0) {
                 wolfHint2 = '\n\n【⚠️ 狼队视角·再投策略】候选人里有你的队友：'+myWolfCands.join('、')+'。第一轮已经平票，说明局势胶着。如果队友此时看起来明显处于下风（好人集中火力质疑队友、队友发言被压制），果断投好人方洗白自己比陪葬更划算。狼队四个人全压一个队友=明牌送人头。';
@@ -17339,13 +17535,16 @@ async function resolveNight() {
     // 🦊 子狐媚惑·禁刀：当晚全狼无法用狼刀击杀（覆盖破盾刀，因机械狼也是狼）
     const foxBlocked = !!S.nightData.foxBlockKill;
     // 🧩 积木自创角色的守护/解药命中被刀者 → 干净挡下（不参与同守同救）
+    const alchemistBlocked = S.nightData.alchemistSave === S.nightData.kill;
     const customBlocked = (Array.isArray(S.nightData.customProtect) && S.nightData.customProtect.includes(S.nightData.kill)) ||
                           (Array.isArray(S.nightData.customSave) && S.nightData.customSave.includes(S.nightData.kill));
                           
     if (anyGuard || (Array.isArray(S.nightData.customProtect) && S.nightData.customProtect.includes(S.nightData.kill))) playRoleEffect(v, 'guard');
     if (is || (Array.isArray(S.nightData.customSave) && S.nightData.customSave.includes(S.nightData.kill))) setTimeout(() => playRoleEffect(v, 'save'), 500);
 
-    if (foxBlocked) {
+    if (alchemistBlocked) {
+      Render.log('system','法老之蛇护住了'+v.name+'，本夜狼刀失效');
+    } else if (foxBlocked) {
       Render.log('system','🦊 子狐媚惑·禁刀生效，'+v.name+'挡下了本夜的狼刀');
     } else if (customBlocked && !breakKnife) {
       Render.log('system','🛡️ '+v.name+'被自创角色的守护/解药挡下了狼刀');
@@ -17505,8 +17704,35 @@ async function resolveNight() {
       }
     });
   }
+  // 摄梦结算放在所有常规护盾之后：摄梦人最终存活才提供免疫；其最终夜死则带走当夜梦游者。
+  {
+    const dw = S.players.find(p => p.role && p.role.id === 'dreamwalker');
+    const dt = S.nightData.dreamTarget != null ? S.players[S.nightData.dreamTarget] : null;
+    const nightmare = S.nightData.dreamNightmare != null;
+    const restore = (p) => {
+      for (let i=deaths.length-1;i>=0;i--) if (deaths[i].player.id===p.id) deaths.splice(i,1);
+      p.alive=true; p.revealed=false; p.poisoned=false; p.deathCause=null; p.deathRound=null; p.deathPhase=null; Render.card(p);
+    };
+    if (dw && dt) {
+      const dwWillDie = deaths.some(d => d.player.id === dw.id);
+      if (nightmare) {
+        if (!dt.alive) restore(dt);
+        dt.alive=false; dt.revealed=true; dt.deathCause='dreamkill'; dt.deathRound=S.round; dt.deathPhase='night';
+        deaths.push({player:dt,cause:'dreamkill'});
+      } else if (!dwWillDie) {
+        if (!dt.alive || deaths.some(d=>d.player.id===dt.id)) {
+          restore(dt);
+          dw.memory.push({role:'system',content:'【摄梦结果】你的梦境保护替'+dt.name+'挡下了本夜致命伤。'});
+        }
+      } else if (dt.alive) {
+        dt.alive=false; dt.revealed=true; dt.deathCause='dreamlink'; dt.deathRound=S.round; dt.deathPhase='night';
+        deaths.push({player:dt,cause:'dreamlink'});
+      }
+    }
+  }
+
   // ★ 机械狼是孤狼，不参与狼队夜刀 → 不接收狼队刀口记录（避免它拿到"睁眼"信息穿帮）
-  const ws = S.players.filter(p => p.alive && p.role.team==='bad' && p.role.id!=='mechwolf');
+  const ws = S.players.filter(p => p.alive && isPackWolfRole(p.role));
   // ★ 机械狼独狼行凶时（普通狼已全灭），它自己知道刀口结果，单独给它记录
   const _mwAlive = S.players.find(p => p.alive && p.role.id==='mechwolf');
   const _normalWolvesAlive = S.players.some(p => p.alive && p.role.team==='bad' && p.role.id!=='mechwolf');
@@ -20913,6 +21139,23 @@ function _buildPrivateInfoLines(p) {
     }
   }
 
+  // 新信息结构角色：从持久状态与战报重建私密技能记录，避免记忆压缩后误以为技能未使用。
+  if (p.role.id === 'gravekeeper') {
+    const rows=gameRecord.filter(r=>r.role==='gravekeeper').map(r=>'第'+r.round+'夜：'+r.target+'属于'+r.result);
+    lines.push('守墓结果：'+(rows.length?rows.join('；'):'尚无可验证的放逐者'));
+  }
+  if (p.role.id === 'dreamwalker') {
+    const last=p._dreamLastTarget!=null&&S.players[p._dreamLastTarget]?S.players[p._dreamLastTarget].name:'无';
+    lines.push('上夜摄梦目标：'+last+'。连续再选同一人会致死，换人则保护新目标。');
+  }
+  if (p.role.id === 'alchemist') {
+    lines.push('炼金药剂：未明之雾'+(p._mistUsed?'已使用':'可用')+'；法老之蛇'+(p._serpentUsed?'已使用':'可用')+'。同夜只能选择一种。');
+  }
+  if (p.role.id === 'gargoyle') {
+    const seen=(p._gargoyleSeen||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
+    lines.push('石瞳已查目标：'+seen+'；苏醒夜刀：'+(p._gargoyleAwake?'已获得':'尚未获得（其他狼系全部出局后获得）')+'。你与普通狼队互不相认。');
+  }
+
   // 🌹 狼美人：每夜魅惑目标
   if (p.role.id === 'wolfbeauty') {
     const charmActs = [];
@@ -20976,7 +21219,7 @@ function _buildPrivateInfoLines(p) {
   }
 
   // 🐺 狼队信息（所有狼人共享，含狼美人/白狼王）——★ 机械狼是孤狼，与狼队互不相认，不给它狼队记录
-  if (p.role.team === 'bad' && p.role.id !== 'mechwolf') {
+  if (isPackWolfRole(p.role)) {
     if (S.wolfKillLog && Object.keys(S.wolfKillLog).length) {
       const kills = Object.entries(S.wolfKillLog).map(([r,i]) => `第${r}夜：刀${i.target}（${i.success?'成功':'被救/被守'}）`).join('\n  ');
       lines.push(`狼队刀口记录（绝密）：\n  ${kills}`);
@@ -21368,6 +21611,13 @@ function _formatCustomNightAction(r) {
                                    r.gift === 'inspect' ? (r.permanent ? '🔮永久查验（次夜起每晚行动）' : '🔮一次性查验') :
                                    '🧪一次性毒药');
     case 'gift-shield-trigger': return '🎁🛡️ ' + (r.name || t) + '的获赐被动护盾触发：挡下一次夜间致命伤（护盾已消耗）';
+    case 'gravekeeper':   return '守墓人验墓：' + t + ' → ' + (r.result || '未知阵营');
+    case 'dreamwalker':   return '摄梦：' + t + (r.result === 'nightmare' ? '（连续第二夜，噩梦致死）' : '（梦境保护）');
+    case 'alchemist':     return r.result === 'mist' ? '炼金魔女发动未明之雾：狼刀限于 ' + (r.targets || []).join('、') : '炼金魔女空过';
+    case 'alchemist_rescue': return r.result === 'save' ? '法老之蛇救下实际刀口：' + t : '法老之蛇保留';
+    case 'gargoyle':      return '石像鬼窥视：' + t + ' → ' + (r.roleName || '未知身份');
+    case 'gargoyle_awaken': return '石像鬼苏醒，获得独立狼刀';
+    case 'gargoyle_kill': return t === '无' ? '石像鬼空刀' : '石像鬼夜刀：' + t;
     case 'custom-inspect': return '🔮 ' + who + '·查验：' + t + ' → ' + wg(r.result);
     case 'custom-protect': return '🛡️ ' + who + '·守护：' + t;
     case 'custom-poison':  return '🧪 ' + who + '·毒药：毒杀 ' + t;
@@ -21401,7 +21651,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   const role = viewerP ? (viewerP.role || {}) : {};
   // ★ 机械狼与狼队互不相认，没有任何狼队视角信息——导出摘要里把它当作普通（非狼队）视角处理，
   //   否则会向机械狼泄露队友身份、狼人数、队友死因等它本不该知道的信息。
-  const isWolf = !blindReview && (isGod || (role.team === 'bad' && role.id !== 'mechwolf'));
+  const isWolf = !blindReview && (isGod || isPackWolfRole(role));
   const roleId  = role.id || '';
   const godRoles = new Set(['seer','witch','guard','hunter','knight','cupid','wolfbeauty','idiot']);
   const hiddenDeathMode = (() => { try { return !!($('m-hdeath') && $('m-hdeath').checked); } catch(e) { return false; } })();
@@ -21436,7 +21686,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
     const publicRole = _publiclyRevealedRoleName(p.name);
     const publicAlignment = _publiclyVerifiedAlignment(p.name);
     const canSeeRole = !blindReview && (isGod ||
-      (isWolf && p.role && p.role.team === 'bad' && p.role.id !== 'mechwolf') ||
+      (isWolf && p.role && isPackWolfRole(p.role)) ||
       (viewerP && p.id === viewerP.id) ||
       // ★ 隐死亡开启时，玩家视角强制隐藏死者身份，不能依赖一个容易漏勾的导出复选框。
       (!p.alive && p.revealed && !opts.hideDeathRole && !hiddenDeathMode));
@@ -25233,7 +25483,7 @@ function buildWebPrompt(p) {
   // ── 基础信息（每个阶段都有）──
   const aliveList = S.players.filter(x => x.alive).map(x => {
     const isMe = x.id === p.id;
-    const isWolfMate = p.role.team === 'bad' && p.role.id !== 'mechwolf' && x.role.team === 'bad' && x.role.id !== 'mechwolf' && !isMe;
+    const isWolfMate = isPackWolfRole(p.role) && isPackWolfRole(x.role) && !isMe;
     const publicRole = _publiclyRevealedRoleName(x.name);
     const publicAlignment = _publiclyVerifiedAlignment(x.name);
     const roleTag = isMe ? `【你·${x.role.name}】` : isWolfMate ? `【队友·${x.role.name}】` : publicRole ? `【公开身份·${publicRole}】` : publicAlignment ? `【公开验证·${publicAlignment}】` : '';
@@ -25273,7 +25523,7 @@ function buildWebPrompt(p) {
   // 设计目标：让网页端 AI 不再"知道发生了什么但不知道什么时候发生"——
   //          每一天独立成块，死亡逐条写清「谁·第几天·白天还是夜晚·怎么死的」。
   function _buildBattleReport() {
-    const isWolf = p.role.team === 'bad' && p.role.id !== 'mechwolf';
+    const isWolf = isPackWolfRole(p.role);
     const hd = hdeathOn; // 隐死亡模式：死因对非视角者保密
     const meId = p.id;
     const recs = (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord : [];
@@ -25496,7 +25746,7 @@ function buildWebPrompt(p) {
         if (hd) {
           // 隐死亡：身份仍按个人视角隔离；仅狼刀/女巫毒药的具体死因保密。
           // 魅惑连带等公开技能死因必须保留，否则网页 AI 无法还原公开发生过的事件。
-          const knowRole = (x.id === meId) || (isWolf && x.role && x.role.team === 'bad' && x.role.id !== 'mechwolf');
+          const knowRole = (x.id === meId) || (isWolf && x.role && isPackWolfRole(x.role));
           const publicRole = _publiclyRevealedRoleName(x.name);
           const publicAlignment = _publiclyVerifiedAlignment(x.name);
           const roleStr = knowRole ? `【${x.role.name}】` : publicRole ? `【公开身份·${publicRole}】` : publicAlignment ? `【公开验证·${publicAlignment}】` : '【身份未知】';
@@ -25520,7 +25770,7 @@ function buildWebPrompt(p) {
 
   // ── 狼队密谈历史（仅狼人可见，全场全部，不限本回合）──
   let wolfChatBlock = '';
-  if (p.role.team === 'bad' && p.role.id !== 'mechwolf' && S.wolfChatHistory && S.wolfChatHistory.length) {
+  if (isPackWolfRole(p.role) && S.wolfChatHistory && S.wolfChatHistory.length) {
     const byRound = {};
     S.wolfChatHistory.forEach(h => {
       if (!byRound[h.round]) byRound[h.round] = [];
@@ -25559,7 +25809,7 @@ function buildWebPrompt(p) {
       magician: `现在是魔术师行动阶段。结合当前局势选择一对交换对象或空过，并用一句话说明你主要想保护谁或防哪种刀口。`,
     }[p.role.id]
       // 自创/样板狼系角色（如蚀时狼妃）也参与狼人密谈：给和普通狼一致的刀口讨论任务
-      || ((p.role.team === 'bad' && p.role.id !== 'mechwolf')
+      || (isPackWolfRole(p.role)
         ? `现在是狼人密谈阶段。直接提出今晚刀口和最关键理由${(p.role.customAbilities && p.role.customAbilities.length) || p.role.id==='wolfconcubine' ? '；你的额外技能目标随后由主持人引导选择' : ''}。${webMagicWolfHint}\n不超过140字。`
         // 好人/第三方的夜间主动技（自创神职等）：技能目标由屏幕选择器引导，无需在此发言
         : `现在是夜晚阶段。你若有夜间主动技能，主持人会在屏幕上引导你选择目标（不需要在这里长篇发言）；没有则安心过夜、等待天亮。`);

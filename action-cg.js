@@ -25,7 +25,14 @@
     mechwolf:      { src:'mechanical-wolf-copy-v1.webp',        titleZh:'机械狼学习',   titleEn:'ABILITY COPIED', position:'40% center' },
     jester:        { src:'jester-exile-v1.webp',                titleZh:'小丑谢幕',     titleEn:"JESTER'S CURTAIN CALL" },
     cupid:         { src:'cupid-bond-v1.webp',                  titleZh:'爱神连结',     titleEn:"CUPID'S BOND" },
-    serialkiller:  { src:'serial-killer-hunt-v1.webp',          titleZh:'暗夜猎杀',     titleEn:'MIDNIGHT HUNT', position:'30% center' }
+    serialkiller:  { src:'serial-killer-hunt-v1.webp',          titleZh:'暗夜猎杀',     titleEn:'MIDNIGHT HUNT', position:'30% center' },
+    gravekeeper:   { src:'gravekeeper-revelation-v1.webp',      titleZh:'墓园启示',     titleEn:'GRAVE REVELATION', position:'35% center' },
+    dreamwalker:   { src:'dreamwalker-protection-v1.webp',      titleZh:'入梦守护',     titleEn:'DREAM SANCTUARY', position:'60% center' },
+    dreamwalkerNightmare:{src:'dreamwalker-nightmare-v1.webp',  titleZh:'噩梦沉沦',     titleEn:'SECOND NIGHTMARE', position:'62% center' },
+    alchemist:     { src:'alchemist-mist-v1.webp',              titleZh:'未明之雾',     titleEn:'VEIL OF MIST', position:'38% center' },
+    alchemistRescue:{src:'alchemist-serpent-v1.webp',           titleZh:'法老之蛇',     titleEn:"PHARAOH'S SERPENT", position:'65% center' },
+    gargoyle:      { src:'gargoyle-scry-v1.webp',               titleZh:'石瞳窥视',     titleEn:'OBSIDIAN SIGHT', position:'58% center' },
+    gargoyleAwaken:{ src:'gargoyle-awakening-v1.webp',          titleZh:'石像苏醒',     titleEn:'GARGOYLE AWAKENS', position:'55% center' }
   };
 
   window.RoleActionCG = Object.freeze(MAP);
