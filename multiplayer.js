@@ -15,7 +15,10 @@
     migration:'The lobby UI is ready, but this Supabase project still needs the online migration.', reconnect:'Reconnecting…',
     open:'Open', statusLobby:'Lobby', statusPlaying:'Lineup locked', statusClosed:'Closed', seat:'Seat', empty:'Open seat',
     online:'online', offline:'away', host:'Host', me:'You', noCloud:'Online mode is only available on the official site and APK.',
-    invalidCode:'Enter a six-character room code.', genericError:'Online operation failed'
+    invalidCode:'Enter a six-character room code.', genericError:'Online operation failed',
+    resumeTitle:'Return to room', resumeSub:'Your active room is saved on this device',
+    exitTitle:'Leave the active room?', exitBody:'You are still occupying a seat. Stay to continue, or leave the room explicitly.',
+    stay:'Stay in room', leaveAndExit:'Leave and exit'
   } : {
     entryTitle:'联机大厅', entrySub:'创建房间，邀请朋友，让各自的模型同台对局', title:'联机大厅',
     intro:'第一期提供房间、选座、准备、在线状态与大厅聊天。每位玩家的 API 密钥始终只保存在自己的设备。',
@@ -29,7 +32,10 @@
     migration:'大厅界面已经就绪，但当前 Supabase 项目还需要安装联机数据表。', reconnect:'正在重新连接…',
     open:'打开', statusLobby:'等待中', statusPlaying:'阵容已锁定', statusClosed:'已关闭', seat:'座位', empty:'空位',
     online:'在线', offline:'暂离', host:'房主', me:'你', noCloud:'联机模式只在官方网页与 APK 中启用。',
-    invalidCode:'请输入六位房间码。', genericError:'联机操作失败'
+    invalidCode:'请输入六位房间码。', genericError:'联机操作失败',
+    resumeTitle:'返回进行中的房间', resumeSub:'房间状态已保存在这台设备上',
+    exitTitle:'要离开正在进行的房间吗？', exitBody:'你仍占用一个席位。可以留在房间继续，也可以明确退出并释放席位。',
+    stay:'留在房间', leaveAndExit:'退出并离开'
   };
 
   const MT = EN ? {
@@ -54,12 +60,15 @@
 
   const state = {
     client:null, user:null, room:null, members:[], aiSeats:[], messages:[], channel:null,
-    heartbeat:null, refreshTimer:null, busy:false, error:'', initialized:false
+    heartbeat:null, refreshTimer:null, nativeBackHandle:null, busy:false, error:'', initialized:false
   };
   const $ = id => document.getElementById(id);
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const cleanName = value => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 24);
   const roomKey = 'wg_online_room';
+  const isNative = !!(window.Capacitor?.isNativePlatform?.());
+  let pendingExitAction = null;
+  let allowHistoryExit = false;
 
   function installUI() {
     if ($('wg-online-entry')) return;
@@ -79,9 +88,52 @@
       + '<button class="wg-online-close" id="wg-online-close" type="button" aria-label="' + T.close + '">×</button></header>'
       + '<div class="wg-online-body" id="wg-online-body"></div></section>';
     document.body.appendChild(overlay);
+    const exitConfirm = document.createElement('div');
+    exitConfirm.id = 'wg-online-exit-confirm'; exitConfirm.className = 'wg-online-confirm';
+    exitConfirm.innerHTML = '<section class="wg-online-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="wg-online-exit-title">'
+      + '<span class="wg-online-confirm-mark" aria-hidden="true"></span><h4 id="wg-online-exit-title">' + T.exitTitle + '</h4>'
+      + '<p>' + T.exitBody + '</p><div class="wg-online-actions">'
+      + '<button class="wg-online-btn primary" id="wg-online-stay" type="button">' + T.stay + '</button>'
+      + '<button class="wg-online-btn danger" id="wg-online-leave-exit" type="button">' + T.leaveAndExit + '</button></div></section>';
+    document.body.appendChild(exitConfirm);
     entry.addEventListener('click', openLobby);
     $('wg-online-close').addEventListener('click', closeLobby);
     overlay.addEventListener('click', event => { if (event.target === overlay) closeLobby(); });
+    $('wg-online-stay').addEventListener('click', hideExitConfirm);
+    $('wg-online-leave-exit').addEventListener('click', async () => {
+      const action = pendingExitAction;
+      hideExitConfirm();
+      if (action) await action();
+    });
+  }
+
+  function hasActiveRoom() {
+    return !!(state.room && state.room.status !== 'closed' && state.user
+      && state.members.some(member => member.user_id === state.user.id));
+  }
+
+  function updateEntryState() {
+    const entry = $('wg-online-entry');
+    if (!entry) return;
+    const saved = readSavedRoom();
+    const active = hasActiveRoom() || !!saved?.id;
+    entry.classList.toggle('has-room', active);
+    const strong = entry.querySelector('strong');
+    const small = entry.querySelector('small');
+    if (strong) strong.textContent = active ? T.resumeTitle : T.entryTitle;
+    if (small) small.textContent = active ? T.resumeSub : T.entrySub;
+  }
+
+  function showExitConfirm(action) {
+    if (!hasActiveRoom()) return action?.();
+    pendingExitAction = action || null;
+    $('wg-online-exit-confirm')?.classList.add('show');
+    $('wg-online-stay')?.focus();
+  }
+
+  function hideExitConfirm() {
+    pendingExitAction = null;
+    $('wg-online-exit-confirm')?.classList.remove('show');
   }
 
   function openCloudLogin() {
@@ -110,6 +162,7 @@
     const ok = await waitForCloud();
     if (!ok) return renderUnavailable();
     if (!state.user) return renderHome();
+    if (state.room) { renderRoom(); return; }
     const saved = readSavedRoom();
     if (saved?.id && !state.room) {
       try { await enterRoom(saved.id, saved.code); return; }
@@ -213,6 +266,8 @@
     if (!state.room) throw new Error(EN ? 'Room is no longer available.' : '房间已经不存在。');
     subscribeRoom(id);
     startHeartbeat(id);
+    installExitProtection();
+    updateEntryState();
     renderRoom();
   }
 
@@ -421,6 +476,11 @@
 
   async function leaveRoom() {
     if (!confirm(T.confirmLeave)) return;
+    await leaveRoomNow();
+  }
+
+  async function leaveRoomNow() {
+    if (!state.room) return;
     const roomId = state.room.id;
     setBusy(true);
     try { await rpc('online_leave_room',{p_room_id:roomId}); }
@@ -446,27 +506,131 @@
     const btn = $('wg-copy-code'); if (btn) { btn.textContent = T.copied; setTimeout(() => { if (btn) btn.textContent = T.copy; }, 1200); }
   }
 
-  function saveRoom(id, code) { sessionStorage.setItem(roomKey, JSON.stringify({id,code})); }
-  function readSavedRoom() { try { return JSON.parse(sessionStorage.getItem(roomKey) || 'null'); } catch (_) { return null; } }
-  function clearSavedRoom() { sessionStorage.removeItem(roomKey); }
+  function saveRoom(id, code) {
+    try { localStorage.setItem(roomKey, JSON.stringify({id,code,userId:state.user?.id || '',savedAt:Date.now()})); } catch (_) {}
+    try { sessionStorage.removeItem(roomKey); } catch (_) {}
+    updateEntryState();
+  }
+  function readSavedRoom() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(roomKey) || sessionStorage.getItem(roomKey) || 'null');
+      if (saved?.userId && state.user?.id && saved.userId !== state.user.id) return null;
+      if (saved?.id && !localStorage.getItem(roomKey)) localStorage.setItem(roomKey, JSON.stringify({...saved,userId:state.user?.id || ''}));
+      return saved;
+    } catch (_) { return null; }
+  }
+  function clearSavedRoom() {
+    try { localStorage.removeItem(roomKey); } catch (_) {}
+    try { sessionStorage.removeItem(roomKey); } catch (_) {}
+    updateEntryState();
+  }
   function clearRoomState() {
     if (state.channel && state.client) state.client.removeChannel(state.channel);
     clearInterval(state.heartbeat); clearTimeout(state.refreshTimer);
+    removeNativeBackGuard();
     state.channel = null; state.heartbeat = null; state.room = null; state.members = []; state.aiSeats = []; state.messages = [];
     clearSavedRoom();
+  }
+
+  function installHistoryGuard() {
+    if (isNative || !hasActiveRoom()) return;
+    if (!history.state?.wgOnlineRoomGuard) {
+      history.pushState({...history.state,wgOnlineRoomGuard:true},'',location.href);
+    }
+  }
+
+  async function installNativeBackGuard() {
+    const app = window.Capacitor?.Plugins?.App;
+    if (!isNative || !app?.addListener || state.nativeBackHandle) return;
+    try {
+      state.nativeBackHandle = await app.addListener('backButton', event => {
+        if (!hasActiveRoom()) {
+          if ($('wg-online-overlay')?.classList.contains('show')) closeLobby();
+          else if (event?.canGoBack) history.back();
+          else app.exitApp?.();
+          return;
+        }
+        showExitConfirm(async () => {
+          await leaveRoomNow();
+          app.exitApp?.();
+        });
+      });
+    } catch (_) {}
+  }
+
+  function removeNativeBackGuard() {
+    try { state.nativeBackHandle?.remove?.(); } catch (_) {}
+    state.nativeBackHandle = null;
+  }
+
+  function installExitProtection() {
+    installHistoryGuard();
+    installNativeBackGuard();
+  }
+
+  function onBeforeUnload(event) {
+    if (!hasActiveRoom()) return;
+    saveRoom(state.room.id,state.room.code);
+    event.preventDefault();
+    event.returnValue = '';
+  }
+
+  function onHistoryBack() {
+    if (allowHistoryExit) {
+      allowHistoryExit = false;
+      history.back();
+      return;
+    }
+    if (!hasActiveRoom() || isNative) return;
+    history.pushState({...history.state,wgOnlineRoomGuard:true},'',location.href);
+    showExitConfirm(async () => {
+      await leaveRoomNow();
+      allowHistoryExit = true;
+      history.back();
+    });
+  }
+
+  async function onVisibilityChange() {
+    if (!hasActiveRoom()) return;
+    if (document.visibilityState === 'hidden') {
+      saveRoom(state.room.id,state.room.code);
+      rpc('online_touch_room',{p_room_id:state.room.id}).catch(() => {});
+      return;
+    }
+    try {
+      await refreshRoom(state.room.id);
+      if (!state.room) return clearRoomState();
+      subscribeRoom(state.room.id);
+      startHeartbeat(state.room.id);
+      renderRoom();
+    } catch (error) {
+      state.error = error.message || T.reconnect;
+      renderRoom();
+    }
   }
 
   async function init() {
     if (state.initialized) return;
     state.initialized = true;
     installUI();
+    updateEntryState();
+    window.addEventListener('beforeunload',onBeforeUnload);
+    window.addEventListener('popstate',onHistoryBack);
+    document.addEventListener('visibilitychange',onVisibilityChange);
     const ok = await waitForCloud();
     if (ok) {
       state.client.auth.onAuthStateChange((_event, session) => {
         state.user = session?.user || null;
         if (!state.user) clearRoomState();
-        if ($('wg-online-overlay')?.classList.contains('show')) renderHome();
+        updateEntryState();
+        if ($('wg-online-overlay')?.classList.contains('show')) state.room ? renderRoom() : renderHome();
       });
+      updateEntryState();
+      const saved = readSavedRoom();
+      if (state.user && saved?.id) {
+        try { await enterRoom(saved.id,saved.code); }
+        catch (_) { clearRoomState(); }
+      }
     }
     if (new URLSearchParams(location.search).has('room')) openLobby();
   }
