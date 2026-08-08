@@ -44,6 +44,7 @@
 .wg-seat-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
 .wg-seat { min-height:70px; padding:11px; border:1px solid rgba(141,119,164,.24); border-radius:10px; background:rgba(255,255,255,.025); }
 .wg-seat.mine { border-color:rgba(213,178,91,.58); box-shadow:inset 0 0 16px rgba(184,154,91,.06); }
+.wg-seat.ai { border-color:rgba(112,137,200,.36); background:linear-gradient(135deg,rgba(74,67,128,.11),rgba(45,33,72,.08)); }
 .wg-seat.empty { display:grid; place-items:center; color:#5f566d; border-style:dashed; }
 .wg-seat-name { display:flex; align-items:center; gap:7px; color:#e2d6eb; font-weight:700; }
 .wg-online-dot { width:7px; height:7px; border-radius:50%; background:#695f75; box-shadow:0 0 0 2px rgba(255,255,255,.025); }
@@ -51,6 +52,8 @@
 .wg-seat-sub { margin-top:6px; color:#8f829f; font-size:.68em; }
 .wg-ready { margin-left:auto; color:#d1b966; font-size:.66em; letter-spacing:.04em; }
 .wg-room-settings { margin-top:13px; }
+.wg-provider-toggle { display:flex; align-items:center; gap:9px; padding:10px 11px; margin-bottom:8px; border:1px solid rgba(141,119,164,.22); border-radius:9px; color:#cfc2db; font-size:.76em; cursor:pointer; }
+.wg-provider-toggle input { width:16px; height:16px; accent-color:#c8a84c; }
 .wg-online-chat { margin-top:14px; border-top:1px solid rgba(184,154,91,.18); padding-top:13px; }
 .wg-chat-log { height:180px; overflow:auto; display:flex; flex-direction:column; gap:7px; padding:9px; border:1px solid rgba(141,119,164,.2); border-radius:9px; background:rgba(0,0,0,.12); }
 .wg-chat-line { font-size:.74em; line-height:1.5; color:#c9bdd4; overflow-wrap:anywhere; }

@@ -32,8 +32,28 @@
     invalidCode:'请输入六位房间码。', genericError:'联机操作失败'
   };
 
+  const MT = EN ? {
+    provider:'Multi-seat model provider', contribute:'Let this device provide AI seats', capacity:'Maximum AI seats',
+    requestMode:'Request scheduling', queue:'Queue requests', parallel:'Parallel requests', saveProvider:'Save provider settings',
+    fillTitle:'Empty-seat strategy', fillMode:'How to fill empty seats', wait:'Wait for players', hostFill:'Host model fills all',
+    balanced:'Distribute across opted-in players', applyFill:'Apply seat allocation', aiSeat:'AI seat', providedBy:'Provided by',
+    providerHint:'The API key stays on this device. Only the provider assignment and public model name are synced.',
+    fillHint:'Host fill uses the host key for every empty seat. Balanced mode shares seats among players who opted in.',
+    fullRequired:'Fill every configured seat and wait for every human member to be ready before locking the lineup.',
+    serial:'queued', concurrent:'parallel', capacityLabel:'AI capacity'
+  } : {
+    provider:'多席位模型托管', contribute:'允许这台设备提供 AI 席位', capacity:'最多托管 AI 数量',
+    requestMode:'请求调度方式', queue:'依次排队调用', parallel:'并发调用', saveProvider:'保存托管设置',
+    fillTitle:'空位处理策略', fillMode:'空位如何补齐', wait:'等待真人或自带模型', hostFill:'房主模型全部补齐',
+    balanced:'在自愿玩家之间平均分配', applyFill:'应用席位分配', aiSeat:'AI 席位', providedBy:'提供者',
+    providerHint:'API Key 始终留在这台设备，只同步席位负责者和公开模型名称。',
+    fillHint:'房主补齐会让房主的 Key 承担所有空位；平均分配只使用主动开启托管的玩家。',
+    fullRequired:'必须补满房间配置的全部席位，且所有真人成员准备后才能锁定阵容。',
+    serial:'排队', concurrent:'并发', capacityLabel:'AI 容量'
+  };
+
   const state = {
-    client:null, user:null, room:null, members:[], messages:[], channel:null,
+    client:null, user:null, room:null, members:[], aiSeats:[], messages:[], channel:null,
     heartbeat:null, refreshTimer:null, busy:false, error:'', initialized:false
   };
   const $ = id => document.getElementById(id);
@@ -198,18 +218,20 @@
 
   async function refreshRoom(id) {
     if (!state.client || !state.user) return;
-    const [roomRes, membersRes, messagesRes] = await Promise.all([
+    const [roomRes, membersRes, aiSeatsRes, messagesRes] = await Promise.all([
       state.client.from('online_rooms').select('*').eq('id', id).maybeSingle(),
       state.client.from('online_room_members').select('*').eq('room_id', id).order('seat_no'),
+      state.client.from('online_room_ai_seats').select('*').eq('room_id', id).order('seat_no'),
       state.client.from('online_room_messages').select('*').eq('room_id', id).order('id',{ascending:false}).limit(80)
     ]);
-    const error = roomRes.error || membersRes.error || messagesRes.error;
+    const error = roomRes.error || membersRes.error || aiSeatsRes.error || messagesRes.error;
     if (error) {
       const missing = error.code === '42P01' || /does not exist|schema cache/i.test(error.message || '');
       throw new Error(missing ? T.deploy : error.message);
     }
     state.room = roomRes.data || null;
     state.members = membersRes.data || [];
+    state.aiSeats = aiSeatsRes.data || [];
     state.messages = (messagesRes.data || []).reverse();
   }
 
@@ -227,6 +249,7 @@
     state.channel = state.client.channel('online-room-' + roomId)
       .on('postgres_changes',{event:'*',schema:'public',table:'online_rooms',filter:'id=eq.'+roomId},scheduleRefresh)
       .on('postgres_changes',{event:'*',schema:'public',table:'online_room_members',filter:'room_id=eq.'+roomId},scheduleRefresh)
+      .on('postgres_changes',{event:'*',schema:'public',table:'online_room_ai_seats',filter:'room_id=eq.'+roomId},scheduleRefresh)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'online_room_messages',filter:'room_id=eq.'+roomId},scheduleRefresh)
       .subscribe(status => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { state.error = T.reconnect; renderRoom(); }
@@ -245,16 +268,19 @@
     const mine = state.members.find(member => member.user_id === state.user.id);
     if (!mine) { clearRoomState(); state.error = ''; return renderHome(); }
     const host = state.room.host_id === state.user.id;
-    const allReady = state.members.length >= 2 && state.members.every(member => member.ready);
+    const totalSeats = state.members.length + state.aiSeats.length;
+    const roomFull = totalSeats === state.room.max_seats;
+    const allReady = state.members.length >= 1 && state.members.every(member => member.ready);
     const statusText = state.room.status === 'playing' ? T.statusPlaying : state.room.status === 'closed' ? T.statusClosed : T.statusLobby;
     const seats = [];
     for (let seat = 1; seat <= state.room.max_seats; seat++) {
       const member = state.members.find(item => item.seat_no === seat);
-      seats.push(member ? memberHTML(member, seat) : '<div class="wg-seat empty">' + T.seat + ' ' + seat + ' · ' + T.empty + '</div>');
+      const aiSeat = state.aiSeats.find(item => item.seat_no === seat);
+      seats.push(member ? memberHTML(member, seat) : aiSeat ? aiSeatHTML(aiSeat, seat) : '<div class="wg-seat empty">' + T.seat + ' ' + seat + ' · ' + T.empty + '</div>');
     }
     body.innerHTML = errorHTML()
       + '<div class="wg-room-top"><div><div class="wg-room-code">' + esc(state.room.code) + '</div><div class="wg-room-meta">'
-      + esc(state.room.title) + ' · ' + statusText + ' · ' + state.members.length + '/' + state.room.max_seats + '</div></div>'
+      + esc(state.room.title) + ' · ' + statusText + ' · ' + totalSeats + '/' + state.room.max_seats + '</div></div>'
       + '<button class="wg-online-btn" id="wg-copy-code" type="button">' + T.copy + '</button></div>'
       + (state.room.status === 'playing' ? '<div class="wg-online-note">' + (EN ? 'The lineup is locked. Server-authoritative game settlement will connect to this room protocol in the next milestone.' : '阵容已经锁定。下一阶段会把服务器权威发牌与游戏结算接入这个房间协议。') + '</div>' : '')
       + '<div class="wg-seat-grid">' + seats.join('') + '</div>'
@@ -265,13 +291,19 @@
       + '</div>' + field(T.modelLabel,'<input id="wg-model-label" maxlength="40" value="'+esc(mine.model_label || '')+'" placeholder="'+esc(EN?'e.g. Wolf-Llama-8B':'例如：狼人专用 Llama 8B')+'">')
       + '<div class="wg-online-actions"><button class="wg-online-btn" id="wg-save-seat" type="button">'+T.saveSeat+'</button>'
       + '<button class="wg-online-btn primary" id="wg-ready" type="button">'+(mine.ready?T.cancelReady:T.ready)+'</button>'
-      + (host ? '<button class="wg-online-btn primary" id="wg-lock" type="button"'+(!allReady || state.room.status!=='lobby'?' disabled':'')+'>'+T.lock+'</button>' : '')
+      + (host ? '<button class="wg-online-btn primary" id="wg-lock" type="button"'+(!allReady || !roomFull || state.room.status!=='lobby'?' disabled':'')+'>'+T.lock+'</button>' : '')
       + '<button class="wg-online-btn danger" id="wg-leave" type="button">'+T.leave+'</button></div>'
-      + (!allReady && host && state.room.status === 'lobby' ? '<div class="wg-online-note">'+T.minPlayers+'</div>' : '') + '</section>'
+      + ((!allReady || !roomFull) && host && state.room.status === 'lobby' ? '<div class="wg-online-note">'+MT.fullRequired+'</div>' : '') + '</section>'
+      + providerHTML(mine)
+      + (host ? fillStrategyHTML() : '')
       + chatHTML();
     $('wg-copy-code').onclick = copyCode;
     $('wg-save-seat').onclick = () => updateSeat(mine.ready);
     $('wg-ready').onclick = () => updateSeat(!mine.ready);
+    $('wg-save-provider').onclick = updateProvider;
+    $('wg-can-host-ai').addEventListener('change', syncProviderControls);
+    syncProviderControls();
+    $('wg-apply-fill') && ($('wg-apply-fill').onclick = applyFillStrategy);
     $('wg-lock') && ($('wg-lock').onclick = lockRoom);
     $('wg-leave').onclick = leaveRoom;
     $('wg-chat-send').onclick = sendChat;
@@ -291,8 +323,44 @@
       +(labels.length?' · '+labels.join(' / '):'')+'</div></div>';
   }
 
+  function aiSeatHTML(aiSeat, seat) {
+    const provider = state.members.find(member => member.user_id === aiSeat.provider_user_id);
+    const scheduling = provider?.request_mode === 'parallel' ? MT.concurrent : MT.serial;
+    return '<div class="wg-seat ai"><div class="wg-seat-name"><i class="wg-online-dot on"></i>'
+      + '<span>'+esc(aiSeat.display_name)+'</span><span class="wg-ready">'+MT.aiSeat+'</span></div>'
+      + '<div class="wg-seat-sub">'+T.seat+' '+seat+' · '+MT.providedBy+' '+esc(provider?.display_name || '—')
+      +(aiSeat.model_label?' · '+esc(aiSeat.model_label):'')+' · '+scheduling+'</div></div>';
+  }
+
+  function providerHTML(mine) {
+    const capacityOptions = Array.from({length:15},(_,i) => i+1)
+      .map(n => '<option value="'+n+'"'+(Number(mine.max_ai_seats||0)===n?' selected':'')+'>'+n+'</option>').join('');
+    return '<section class="wg-online-card wg-room-settings"><h4>'+MT.provider+'</h4>'
+      + '<label class="wg-provider-toggle"><input type="checkbox" id="wg-can-host-ai"'+(mine.can_host_ai?' checked':'')+'><span>'+MT.contribute+'</span></label>'
+      + '<div class="wg-online-grid">'
+      + field(MT.capacity,'<select id="wg-ai-capacity">'+capacityOptions+'</select>')
+      + field(MT.requestMode,'<select id="wg-request-mode"><option value="queue"'+(mine.request_mode!=='parallel'?' selected':'')+'>'+MT.queue+'</option><option value="parallel"'+(mine.request_mode==='parallel'?' selected':'')+'>'+MT.parallel+'</option></select>')
+      + '</div><div class="wg-online-note">'+MT.providerHint+'</div>'
+      + '<div class="wg-online-actions"><button class="wg-online-btn" id="wg-save-provider" type="button">'+MT.saveProvider+'</button></div></section>';
+  }
+
+  function fillStrategyHTML() {
+    const mode = state.room.fill_mode || 'wait';
+    const capacity = state.members.filter(member => member.can_host_ai).reduce((sum,member) => sum+Number(member.max_ai_seats||0),0);
+    return '<section class="wg-online-card wg-room-settings"><h4>'+MT.fillTitle+'</h4>'
+      + field(MT.fillMode,'<select id="wg-fill-mode"><option value="wait"'+(mode==='wait'?' selected':'')+'>'+MT.wait+'</option><option value="host_fill"'+(mode==='host_fill'?' selected':'')+'>'+MT.hostFill+'</option><option value="balanced"'+(mode==='balanced'?' selected':'')+'>'+MT.balanced+'</option></select>')
+      + '<div class="wg-online-note">'+MT.fillHint+'<br>'+MT.capacityLabel+': '+capacity+'</div>'
+      + '<div class="wg-online-actions"><button class="wg-online-btn primary" id="wg-apply-fill" type="button">'+MT.applyFill+'</button></div></section>';
+  }
+
   function controllerOptions(selected) {
     return [['human',T.human],['personal_ai',T.personalAI],['hosted_ai',T.hostedAI]].map(([value,label]) => '<option value="'+value+'"'+(value===selected?' selected':'')+'>'+label+'</option>').join('');
+  }
+
+  function syncProviderControls() {
+    const enabled = !!$('wg-can-host-ai')?.checked;
+    if ($('wg-ai-capacity')) $('wg-ai-capacity').disabled = !enabled;
+    if ($('wg-request-mode')) $('wg-request-mode').disabled = !enabled;
   }
 
   function chatHTML() {
@@ -315,6 +383,30 @@
     try {
       rememberName(displayName);
       await rpc('online_update_member',{p_room_id:state.room.id,p_display_name:displayName,p_controller:controller,p_model_label:modelLabel,p_ready:ready});
+      await refreshRoom(state.room.id); renderRoom();
+    } catch (error) { state.error = error.message; renderRoom(); }
+    finally { setBusy(false); }
+  }
+
+  async function updateProvider() {
+    const enabled = !!$('wg-can-host-ai')?.checked;
+    const capacity = enabled ? Number($('wg-ai-capacity')?.value || 1) : 0;
+    const requestMode = $('wg-request-mode')?.value || 'queue';
+    setBusy(true);
+    try {
+      await rpc('online_update_provider',{
+        p_room_id:state.room.id,p_can_host_ai:enabled,p_max_ai_seats:capacity,p_request_mode:requestMode
+      });
+      await refreshRoom(state.room.id); renderRoom();
+    } catch (error) { state.error = error.message; renderRoom(); }
+    finally { setBusy(false); }
+  }
+
+  async function applyFillStrategy() {
+    const fillMode = $('wg-fill-mode')?.value || 'wait';
+    setBusy(true);
+    try {
+      await rpc('online_configure_ai_fill',{p_room_id:state.room.id,p_fill_mode:fillMode});
       await refreshRoom(state.room.id); renderRoom();
     } catch (error) { state.error = error.message; renderRoom(); }
     finally { setBusy(false); }
@@ -360,7 +452,7 @@
   function clearRoomState() {
     if (state.channel && state.client) state.client.removeChannel(state.channel);
     clearInterval(state.heartbeat); clearTimeout(state.refreshTimer);
-    state.channel = null; state.heartbeat = null; state.room = null; state.members = []; state.messages = [];
+    state.channel = null; state.heartbeat = null; state.room = null; state.members = []; state.aiSeats = []; state.messages = [];
     clearSavedRoom();
   }
 
