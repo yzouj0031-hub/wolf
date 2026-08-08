@@ -2495,6 +2495,7 @@ body.has-wp::after {
 <link rel="stylesheet" href="./tablet.css?v=2">
 <link rel="stylesheet" href="./role-effects.css">
 <link rel="stylesheet" href="./multiplayer.css">
+<link rel="stylesheet" href="./lobby-redesign.css">
 <script src="./role-sigils.js"></script>
 <script src="./action-cg.js"></script>
 <script src="./ui-icons.js"></script>
@@ -2504,10 +2505,14 @@ body.has-wp::after {
 
 <!-- ══════ 主菜单 ══════ -->
 <div class="mm" id="mm">
-  <h1 class="mm-title">🐺 人狼ゲーム</h1>
-  <p class="mm-sub">── 月夜の嘘と真実 ──</p>
+  <header class="lobby-hero">
+    <p class="lobby-kicker">GPT · GEMINI · CLAUDE · DEEPSEEK · QWEN</p>
+    <h1 class="mm-title"><span>人狼</span><small>GAME</small></h1>
+    <p class="mm-sub">月夜之下，谎言与真相同席</p>
+    <p class="lobby-manifesto">十二个席位，十二种秘密。让模型推理、欺骗、结盟，而你决定从哪一局开始。</p>
+  </header>
   <div class="cloud-card" id="cloud-card">
-    <div><strong>☁️ 云存档</strong><div id="cloud-status">未登录 · 当前仅保存到本机</div></div>
+    <div><strong>云端档案</strong><div id="cloud-status">未登录 · 当前仅保存到本机</div></div>
     <div class="cloud-actions">
       <button class="cloud-btn" id="cloud-account-open">登录 / 注册</button>
       <button class="cloud-btn" id="cloud-save-now" style="display:none">上传</button>
@@ -2518,26 +2523,35 @@ body.has-wp::after {
     </div>
   </div>
   <button id="btn-demo" class="lobby-demo" type="button" title="无需任何 API key，本地脚本自动播放一局，供路人观战">
-    <span class="lobby-demo-icon">🎬</span>
+    <span class="lobby-demo-icon" aria-hidden="true"></span>
     <span class="lobby-demo-copy"><strong>先看一局 Demo</strong><small>无需 API Key · 点击即自动观战</small></span>
     <span class="lobby-demo-arrow">›</span>
   </button>
   <div class="mc" id="mode-cards">
+    <section class="mode-section mode-section-classic"><div class="mode-section-head"><span>01</span><h2>经典对局</h2><p>规则清晰，适合第一次开局</p></div><div class="mode-section-grid">
     <div class="mcd" data-mode="standard"><img class="mcd-art" src="icons/modes/standard.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>十人局</h3><div class="pl">🎮</div><div class="desc">经典局<br>3狼(含狼王)+预女猎守+魔术+2民</div></div>
     <div class="mcd" data-mode="super"><img class="mcd-art" src="icons/modes/super.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>十二人局</h3><div class="pl">⚔️</div><div class="desc">经典局<br>3狼(含狼美)+预女猎守骑魔+3民</div></div>
     <div class="mcd" data-mode="mega"><img class="mcd-art" src="icons/modes/mega.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>十四人局</h3><div class="pl">🔥</div><div class="desc">经典大局<br>4狼(含狼王)+预女猎守骑魔+4民</div></div>
+    </div></section>
+    <section class="mode-section mode-section-chaos"><div class="mode-section-head"><span>02</span><h2>非常规对局</h2><p>第三阵营与特殊胜利条件</p></div><div class="mode-section-grid">
     <div class="mcd mcd-chaos" data-mode="chaos12"><img class="mcd-art" src="icons/modes/chaos12.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>诡术局</h3><div class="pl">🃏</div><div class="desc">12人·花活<br>2狼+机械狼+预女守魔+小丑+4民</div></div>
-    <div class="mcd mcd-chaos" data-mode="chaos14"><img class="mcd-art" src="icons/modes/chaos14.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>血案局</h3><div class="pl">🔪</div><div class="desc">14人·花活<br>3狼(含狼美)+全神+🔪连环杀手+4民</div></div>
-    <div class="mcd mcd-chaos" data-mode="cupid14"><img class="mcd-art" src="icons/modes/cupid14.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>红线局</h3><div class="pl">💘</div><div class="desc">14人·花活<br>4狼(狼王+机械)+全神+💘丘比特+4民</div></div>
-    <div class="mcd" data-mode="custom"><img class="mcd-art" src="icons/modes/custom.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>自定</h3><div class="pl">🎲</div><div class="desc">自由配置<br>角色与人数</div></div>
+    <div class="mcd mcd-chaos" data-mode="chaos14"><img class="mcd-art" src="icons/modes/chaos14.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>血案局</h3><div class="pl">🔪</div><div class="desc">14人·花活<br>3狼(含狼美)+全神+连环杀手+4民</div></div>
+    <div class="mcd mcd-chaos" data-mode="cupid14"><img class="mcd-art" src="icons/modes/cupid14.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>红线局</h3><div class="pl">💘</div><div class="desc">14人·花活<br>4狼(狼王+机械)+全神+丘比特+4民</div></div>
+    </div></section>
+    <section class="mode-section mode-section-spectate"><div class="mode-section-head"><span>03</span><h2>上帝视角</h2><p>把舞台交给 AI，完整旁观推理</p></div><div class="mode-section-grid">
     <div class="mcd" data-mode="pureai"><img class="mcd-art" src="icons/modes/pureai.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>天机</h3><div class="pl">🤖</div><div class="desc">纯AI十人<br>上帝视角观战</div></div>
     <div class="mcd" data-mode="customai"><img class="mcd-art" src="icons/modes/customai.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>斗蛐蛐</h3><div class="pl">🦗</div><div class="desc">自定义配置<br>上帝视角观战</div></div>
+    </div></section>
+    <section class="mode-section mode-section-extend"><div class="mode-section-head"><span>04</span><h2>自由舞台</h2><p>自定义角色、复盘与剧本体验</p></div><div class="mode-section-grid">
+    <div class="mcd" data-mode="custom"><img class="mcd-art" src="icons/modes/custom.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>自定</h3><div class="pl">🎲</div><div class="desc">自由配置<br>角色与人数</div></div>
     <div class="mcd" data-mode="groupchat"><img class="mcd-art" src="icons/modes/groupchat.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">赛后复盘群<br>AI 吐槽甩锅互相盘</div></div>
     <div class="mcd mcd-chaos" data-mode="mystery"><img class="mcd-art" src="icons/modes/mystery.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>纯AI／网页端AI</div></div>
+    </div></section>
+    <section class="mode-section mode-section-saved" id="custom-mode-section" hidden><div class="mode-section-head"><span>05</span><h2>我的模式</h2><p>你保存的私人板型</p></div><div class="mode-section-grid" id="custom-mode-cards"></div></section>
   </div>
   <!-- 观众席开关行（斗蛐蛐/天机专用） -->
   <div id="spec-bar" style="display:flex;align-items:center;justify-content:center;gap:12px;margin:10px 0 4px;padding:8px 16px;background:rgba(160,100,220,0.06);border:1px solid rgba(160,100,220,0.18);border-radius:var(--r-lg);max-width:420px;margin-left:auto;margin-right:auto;">
-    <span style="font-size:0.85em;color:#c8a0e8;font-family:var(--font-title)">🍿 观众席</span>
+    <span style="font-size:0.85em;color:#c8a0e8;font-family:var(--font-title)">观众席</span>
     <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.8em;color:#b090d0;">
       <input type="checkbox" id="spec-bar-enable" style="width:auto;min-width:auto"> 启用
     </label>
@@ -2546,7 +2560,7 @@ body.has-wp::after {
       <option value="mid" selected>适中</option>
       <option value="low">话少</option>
     </select>
-    <button id="spec-bar-edit" style="font-size:0.75em;padding:3px 10px;background:rgba(160,100,220,0.14);color:#c8a0e8;border:1px solid rgba(160,100,220,0.3);border-radius:var(--r);cursor:pointer;">✏️ 编辑观众</button>
+    <button id="spec-bar-edit" style="font-size:0.75em;padding:3px 10px;background:rgba(160,100,220,0.14);color:#c8a0e8;border:1px solid rgba(160,100,220,0.3);border-radius:var(--r);cursor:pointer;">编辑观众</button>
   </div>
   <div class="isec"><h3>── ゲームルール ──</h3>
     <div class="ir"><div class="ic gd"><div class="wt">◇ 好人阵营</div>消灭所有狼人</div><div class="ic wf"><div class="wt">◆ 狼人阵营</div>好人存活≤狼人即胜</div></div>
@@ -20568,7 +20582,7 @@ function saveCustomModePreset() {
 
 // 在主菜单模式区渲染所有自定义模式预设卡片（先清掉旧的再重画）
 function renderCustomModeCards() {
-  const grid = $('mode-cards');
+  const grid = $('custom-mode-cards') || $('mode-cards');
   if (!grid) return;
   grid.querySelectorAll('.mcd-preset').forEach(el => el.remove());
   (window._customModes || []).forEach(cm => {
@@ -20583,6 +20597,8 @@ function renderCustomModeCards() {
     card.style.position = 'relative';
     grid.appendChild(card);
   });
+  const section = $('custom-mode-section');
+  if (section) section.hidden = !(window._customModes || []).length;
 }
 
 // 点击预设卡：还原配置 → 直接进入开局设置

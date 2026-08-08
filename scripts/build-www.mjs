@@ -27,6 +27,7 @@ const FILES = [
   'exit-guard.css',
   'multiplayer.js',
   'multiplayer.css',
+  'lobby-redesign.css',
   'horror.html',
   'style-preview.html'
 ];
