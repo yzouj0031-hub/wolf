@@ -29,6 +29,7 @@
     alchemist: '<path d="M24 11h16m-13 0v10L17 46c-2 5 2 8 7 8h16c5 0 9-3 7-8L37 21V11"/><path d="M22 39h20m-15-8c4 3 7-3 11 0"/>',
     gargoyle: '<path d="M18 48 12 31l10 5 3-18 7 9 7-9 3 18 10-5-6 17-14 7Z"/><path d="m23 41 6 2m12-2-6 2M28 49h8"/>',
     soulwarden: '<circle cx="32" cy="32" r="19"/><path d="M32 12v40M20 23h24M24 43c3-9 13-9 16 0M18 17l5 4m23-4-5 4"/>',
+    imitator: '<rect x="17" y="13" width="24" height="34" rx="3"/><path d="m29 22 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/><path d="M41 20h6v31H23v-4"/>',
     default: '<circle cx="32" cy="32" r="18"/><path d="M32 15v34M15 32h34M20 20l24 24m0-24L20 44"/>'
   };
 

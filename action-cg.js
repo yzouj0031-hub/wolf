@@ -33,7 +33,8 @@
     alchemistRescue:{src:'alchemist-serpent-v1.webp',           titleZh:'法老之蛇',     titleEn:"PHARAOH'S SERPENT", position:'65% center' },
     gargoyle:      { src:'gargoyle-scry-v1.webp',               titleZh:'石瞳窥视',     titleEn:'OBSIDIAN SIGHT', position:'58% center' },
     gargoyleAwaken:{ src:'gargoyle-awakening-v1.webp',          titleZh:'石像苏醒',     titleEn:'GARGOYLE AWAKENS', position:'55% center' },
-    soulwarden:    { src:'soulwarden-sanctuary-v1.webp',        titleZh:'圣域净化',     titleEn:'SANCTUARY', position:'58% center' }
+    soulwarden:    { src:'soulwarden-sanctuary-v1.webp',        titleZh:'圣域净化',     titleEn:'SANCTUARY', position:'58% center' },
+    imitator:      { src:'imitator-memory-copy-v1.webp',        titleZh:'镜忆摹取',     titleEn:'MEMORY IMPRINT', position:'38% center' }
   };
 
   window.RoleActionCG = Object.freeze(MAP);
