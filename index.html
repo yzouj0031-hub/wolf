@@ -40,6 +40,8 @@
 <!-- Supabase 不再在这里同步加载（同样会阻塞解析导致白屏），改由 CloudSave 运行时异步注入 -->
 <script src="./i18n.js"></script>
 <script src="./native-http.js"></script>
+<link rel="stylesheet" href="./exit-guard.css">
+<script src="./exit-guard.js"></script>
 <!-- 🔥 热更新：必须在主脚本之前加载——它的启动守护要赶在主脚本可能崩溃之前记下尝试次数 -->
 <script src="./hot-update.js"></script>
 <script>
@@ -6918,6 +6920,13 @@ const AutoSave = (() => {
 /* ================================================================
  *  § Supabase 登录与云存档
  * ================================================================ */
+window.WolfExitGuard?.register('werewolf-game', {
+  label:'狼人杀对局',
+  isActive:() => !!(S && Array.isArray(S.players) && S.players.length && S.phase && S.phase !== 'waiting' && !S.gameOver),
+  save:() => AutoSave.save('退出保护', true),
+  onExit:() => { if (S) S.auto = false; }
+});
+
 const CloudSave = (() => {
   const SUPABASE_URL = 'https://hnlsmcucmbicygzjfmuf.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_pz6eS_bYsKjinBPtLgLYxQ_CvUXIEUf';
@@ -18588,6 +18597,11 @@ const MatchReplay = {
   typeTimer:null, typeFinish:null, typing:false, auto:false,
   runToken:0, continuous:false, audioOn:false, bgmPhase:null
 };
+window.WolfExitGuard?.register('match-replay', {
+  label:'对局回放',
+  isActive:() => !!$('o-match-replay')?.classList.contains('show'),
+  onExit:() => stopMatchReplay()
+});
 
 // 回放昼夜：sheriff（警长竞选）与真实对局一致，归为夜间氛围
 function matchReplayScenePhase(scene) {
@@ -18881,6 +18895,7 @@ function openMatchReplay() {
   MatchReplay.continuous = false;
   $('mr-scene').innerHTML = MatchReplay.scenes.map((s,i)=>`<option value="${i}">${i+1}. ${escapeHtml(s.label)}</option>`).join('');
   $('o-postgame').classList.remove('show'); $('o-match-replay').classList.add('show'); renderMatchReplay();
+  window.WolfExitGuard?.refresh();
 }
 
 function toggleMatchReplayAuto() {
@@ -19255,6 +19270,7 @@ function startGame() {
   Render.log('night','🌙 第一夜…');
 gameRecord.push({type:'system',text:'开局'});
 Render.stats(); Render.modes(); Render.phaseClass();
+window.WolfExitGuard?.refresh();
 // 运行时开关（隐死亡/审判/匿名/遗言等）整局保持可调：开局忘了开可中途补上，实时生效（不会追溯已公布的信息）
 ['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled = false; });
 }
@@ -24945,8 +24961,19 @@ WP.init();
     document.querySelectorAll('.gchat-preset-btn').forEach(function(b) {
       b.classList.toggle('active', b.dataset.topic===activeTopic);
     });
+    window.WolfExitGuard?.refresh();
   }
   window.openGChat = openGChat;
+
+  window.WolfExitGuard?.register('group-chat', {
+    label:'群聊模式',
+    isActive:function(){
+      var view=document.getElementById('gchat-view');
+      return !!(view && view.style.display==='flex' && (running || autoRunning || history.length));
+    },
+    save:gcSave,
+    onExit:function(){ gcAutoStop(); gcSave(); }
+  });
 
   document.addEventListener('DOMContentLoaded', function() {
     gcSyncViewport();

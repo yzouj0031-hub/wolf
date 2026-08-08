@@ -16,9 +16,11 @@
 .wg-online-entry-copy small { display:block; margin-top:3px; color:#978ca9; font-size:.72em; }
 .wg-online-entry-arrow { color:#d9b958; font-size:1.35em; }
 
-.wg-online-overlay { position:fixed; inset:0; z-index:1300; display:none; place-items:center; padding:18px; background:rgba(4,3,10,.82); backdrop-filter:blur(9px); }
+.wg-online-overlay { position:fixed; inset:0; z-index:1300; display:none; place-items:center; padding:18px; background:rgba(4,3,10,.82); backdrop-filter:blur(9px); overscroll-behavior:none; touch-action:pan-y; }
 .wg-online-overlay.show { display:grid; }
-.wg-online-panel { width:min(820px,100%); max-height:min(820px,94vh); overflow:auto; border:1px solid rgba(184,154,91,.52); border-radius:16px; color:#ddd2e9; background:linear-gradient(155deg,#100c19 0%,#171022 55%,#0d0b15 100%); box-shadow:0 24px 80px rgba(0,0,0,.62); }
+.wg-online-panel { width:min(820px,100%); max-height:min(820px,94vh); overflow:auto; overscroll-behavior:contain; border:1px solid rgba(184,154,91,.52); border-radius:16px; color:#ddd2e9; background:linear-gradient(155deg,#100c19 0%,#171022 55%,#0d0b15 100%); box-shadow:0 24px 80px rgba(0,0,0,.62); }
+.wg-online-entry.has-room { border-color:rgba(102,197,157,.64); box-shadow:0 8px 28px rgba(30,110,82,.16),inset 0 0 24px rgba(86,176,139,.08); }
+.wg-online-entry.has-room .wg-online-mark::before,.wg-online-entry.has-room .wg-online-mark::after { border-color:#83d0ad; }
 .wg-online-head { position:sticky; top:0; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 18px; border-bottom:1px solid rgba(184,154,91,.22); background:rgba(16,12,25,.94); backdrop-filter:blur(8px); }
 .wg-online-title { margin:0; color:#f1d899; font-family:var(--font-title,serif); font-size:1.04em; letter-spacing:.1em; }
 .wg-online-close { width:34px!important; min-width:34px!important; height:34px; padding:0!important; border:1px solid rgba(210,190,155,.25)!important; border-radius:50%!important; background:transparent!important; color:#b8acc8!important; font-size:1.15em!important; }

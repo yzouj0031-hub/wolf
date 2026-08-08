@@ -1,0 +1,11 @@
+.wg-exit-guard { position:fixed; inset:0; z-index:2200; display:none; place-items:center; padding:20px; background:rgba(3,2,8,.86); backdrop-filter:blur(11px); overscroll-behavior:none; touch-action:none; }
+.wg-exit-guard.show { display:grid; }
+.wg-exit-guard-card { box-sizing:border-box; width:min(440px,100%); padding:25px; text-align:center; color:#ddd2e9; border:1px solid rgba(210,178,96,.58); border-radius:17px; background:linear-gradient(155deg,#181121,#0d0a14); box-shadow:0 28px 96px rgba(0,0,0,.72),inset 0 0 34px rgba(128,91,171,.05); }
+.wg-exit-guard-card h3 { margin:14px 0 8px; color:#f1d899; font-family:var(--font-title,serif); font-size:1.02em; letter-spacing:.07em; }
+.wg-exit-guard-card p { margin:0; color:#aaa0b8; font-size:.8em; line-height:1.75; }
+.wg-exit-guard-mark { display:block; width:28px; height:28px; margin:auto; border:1px solid #d9b958; transform:rotate(45deg); box-shadow:inset 0 0 0 7px rgba(138,110,207,.16),0 0 22px rgba(194,155,74,.12); }
+.wg-exit-guard-actions { display:flex; justify-content:center; gap:9px; margin-top:20px; }
+.wg-exit-guard-actions button { min-width:132px; padding:10px 15px; border-radius:9px; cursor:pointer; font:inherit; }
+.wg-exit-guard-actions .stay { color:#f0d795; border:1px solid rgba(207,173,88,.78); background:linear-gradient(135deg,rgba(158,120,50,.25),rgba(106,68,142,.22)); }
+.wg-exit-guard-actions .exit { color:#dca5b1; border:1px solid rgba(190,75,96,.42); background:rgba(150,40,60,.09); }
+@media (max-width:520px) { .wg-exit-guard-actions { flex-direction:column; } .wg-exit-guard-actions button { width:100%; } }

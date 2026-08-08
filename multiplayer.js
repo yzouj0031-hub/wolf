@@ -15,7 +15,8 @@
     migration:'The lobby UI is ready, but this Supabase project still needs the online migration.', reconnect:'Reconnecting…',
     open:'Open', statusLobby:'Lobby', statusPlaying:'Lineup locked', statusClosed:'Closed', seat:'Seat', empty:'Open seat',
     online:'online', offline:'away', host:'Host', me:'You', noCloud:'Online mode is only available on the official site and APK.',
-    invalidCode:'Enter a six-character room code.', genericError:'Online operation failed'
+    invalidCode:'Enter a six-character room code.', genericError:'Online operation failed',
+    resumeTitle:'Return to room', resumeSub:'Your active room is saved on this device'
   } : {
     entryTitle:'联机大厅', entrySub:'创建房间，邀请朋友，让各自的模型同台对局', title:'联机大厅',
     intro:'第一期提供房间、选座、准备、在线状态与大厅聊天。每位玩家的 API 密钥始终只保存在自己的设备。',
@@ -29,7 +30,8 @@
     migration:'大厅界面已经就绪，但当前 Supabase 项目还需要安装联机数据表。', reconnect:'正在重新连接…',
     open:'打开', statusLobby:'等待中', statusPlaying:'阵容已锁定', statusClosed:'已关闭', seat:'座位', empty:'空位',
     online:'在线', offline:'暂离', host:'房主', me:'你', noCloud:'联机模式只在官方网页与 APK 中启用。',
-    invalidCode:'请输入六位房间码。', genericError:'联机操作失败'
+    invalidCode:'请输入六位房间码。', genericError:'联机操作失败',
+    resumeTitle:'返回进行中的房间', resumeSub:'房间状态已保存在这台设备上'
   };
 
   const MT = EN ? {
@@ -84,6 +86,23 @@
     overlay.addEventListener('click', event => { if (event.target === overlay) closeLobby(); });
   }
 
+  function hasActiveRoom() {
+    return !!(state.room && state.room.status !== 'closed' && state.user
+      && state.members.some(member => member.user_id === state.user.id));
+  }
+
+  function updateEntryState() {
+    const entry = $('wg-online-entry');
+    if (!entry) return;
+    const saved = readSavedRoom();
+    const active = hasActiveRoom() || !!saved?.id;
+    entry.classList.toggle('has-room', active);
+    const strong = entry.querySelector('strong');
+    const small = entry.querySelector('small');
+    if (strong) strong.textContent = active ? T.resumeTitle : T.entryTitle;
+    if (small) small.textContent = active ? T.resumeSub : T.entrySub;
+  }
+
   function openCloudLogin() {
     $('cloud-account-open')?.click();
     closeLobby();
@@ -110,6 +129,7 @@
     const ok = await waitForCloud();
     if (!ok) return renderUnavailable();
     if (!state.user) return renderHome();
+    if (state.room) { renderRoom(); return; }
     const saved = readSavedRoom();
     if (saved?.id && !state.room) {
       try { await enterRoom(saved.id, saved.code); return; }
@@ -213,6 +233,8 @@
     if (!state.room) throw new Error(EN ? 'Room is no longer available.' : '房间已经不存在。');
     subscribeRoom(id);
     startHeartbeat(id);
+    window.WolfExitGuard?.refresh();
+    updateEntryState();
     renderRoom();
   }
 
@@ -421,6 +443,11 @@
 
   async function leaveRoom() {
     if (!confirm(T.confirmLeave)) return;
+    await leaveRoomNow();
+  }
+
+  async function leaveRoomNow() {
+    if (!state.room) return;
     const roomId = state.room.id;
     setBusy(true);
     try { await rpc('online_leave_room',{p_room_id:roomId}); }
@@ -446,9 +473,24 @@
     const btn = $('wg-copy-code'); if (btn) { btn.textContent = T.copied; setTimeout(() => { if (btn) btn.textContent = T.copy; }, 1200); }
   }
 
-  function saveRoom(id, code) { sessionStorage.setItem(roomKey, JSON.stringify({id,code})); }
-  function readSavedRoom() { try { return JSON.parse(sessionStorage.getItem(roomKey) || 'null'); } catch (_) { return null; } }
-  function clearSavedRoom() { sessionStorage.removeItem(roomKey); }
+  function saveRoom(id, code) {
+    try { localStorage.setItem(roomKey, JSON.stringify({id,code,userId:state.user?.id || '',savedAt:Date.now()})); } catch (_) {}
+    try { sessionStorage.removeItem(roomKey); } catch (_) {}
+    updateEntryState();
+  }
+  function readSavedRoom() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(roomKey) || sessionStorage.getItem(roomKey) || 'null');
+      if (saved?.userId && state.user?.id && saved.userId !== state.user.id) return null;
+      if (saved?.id && !localStorage.getItem(roomKey)) localStorage.setItem(roomKey, JSON.stringify({...saved,userId:state.user?.id || ''}));
+      return saved;
+    } catch (_) { return null; }
+  }
+  function clearSavedRoom() {
+    try { localStorage.removeItem(roomKey); } catch (_) {}
+    try { sessionStorage.removeItem(roomKey); } catch (_) {}
+    updateEntryState();
+  }
   function clearRoomState() {
     if (state.channel && state.client) state.client.removeChannel(state.channel);
     clearInterval(state.heartbeat); clearTimeout(state.refreshTimer);
@@ -456,17 +498,51 @@
     clearSavedRoom();
   }
 
+  async function onVisibilityChange() {
+    if (!hasActiveRoom()) return;
+    if (document.visibilityState === 'hidden') {
+      saveRoom(state.room.id,state.room.code);
+      rpc('online_touch_room',{p_room_id:state.room.id}).catch(() => {});
+      return;
+    }
+    try {
+      await refreshRoom(state.room.id);
+      if (!state.room) return clearRoomState();
+      subscribeRoom(state.room.id);
+      startHeartbeat(state.room.id);
+      renderRoom();
+    } catch (error) {
+      state.error = error.message || T.reconnect;
+      renderRoom();
+    }
+  }
+
   async function init() {
     if (state.initialized) return;
     state.initialized = true;
     installUI();
+    updateEntryState();
+    document.addEventListener('visibilitychange',onVisibilityChange);
+    window.WolfExitGuard?.register('online-room',{
+      label:EN?'Online room':'联机房间',
+      isActive:hasActiveRoom,
+      save:() => { if (state.room) saveRoom(state.room.id,state.room.code); },
+      onExit:leaveRoomNow
+    });
     const ok = await waitForCloud();
     if (ok) {
       state.client.auth.onAuthStateChange((_event, session) => {
         state.user = session?.user || null;
         if (!state.user) clearRoomState();
-        if ($('wg-online-overlay')?.classList.contains('show')) renderHome();
+        updateEntryState();
+        if ($('wg-online-overlay')?.classList.contains('show')) state.room ? renderRoom() : renderHome();
       });
+      updateEntryState();
+      const saved = readSavedRoom();
+      if (state.user && saved?.id) {
+        try { await enterRoom(saved.id,saved.code); }
+        catch (_) { clearRoomState(); }
+      }
     }
     if (new URLSearchParams(location.search).has('room')) openLobby();
   }

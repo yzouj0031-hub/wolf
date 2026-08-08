@@ -771,6 +771,7 @@ const MurderMystery = (() => {
     J.players=SCRIPT.cast.map((x,i)=>Object.assign({slot:i},x));J.phase='开场';J.round=0;J.found=[];J.events=[];J.votes={};J.seq=0;J.lastAccused=null;J.lastTie=false;
     J.known={};J.runoffDone=false;J.suspicion={};J.quizScores={};
     q('jbs-log').innerHTML='';clearDynamic();q('jbs-setup').style.display='none';q('jbs-game').style.display='block';q('jbs-restart').style.visibility='visible';renderCast();
+    window.WolfExitGuard?.refresh();
     if(J.youId){
       const me=J.players.find(x=>x.id===J.youId);
       setPhase('私密剧本','只有你能看到，记住后再开场',0);
@@ -897,6 +898,11 @@ const MurderMystery = (() => {
   function close(){
     cancelRun();closeWebOverlay();q('jbs-view').classList.remove('on');q('jbs-view').setAttribute('aria-hidden','true');q('mm').style.display='';
   }
+  window.WolfExitGuard?.register('murder-mystery',{
+    label:document.documentElement.lang==='en'?'Murder mystery':'剧本杀',
+    isActive:()=>q('jbs-view')?.classList.contains('on') && J.phase!=='setup' && J.players.length>0,
+    onExit:cancelRun
+  });
   return {open:open,close:close,parseReply:parseReply,_state:J};
 })();
-function openMurderMystery(){ MurderMystery.open(); }
+function openMurderMystery(){ MurderMystery.open(); }
