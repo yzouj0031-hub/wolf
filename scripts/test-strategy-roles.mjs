@@ -15,6 +15,12 @@ for (const file of clients) {
   expect(src.includes('alchemistMist:null, alchemistMode:null, alchemistSave:null'), `${file}: missing alchemist state`);
   expect(src.indexOf("nightStep('alchemist-plan'") < src.indexOf("nightStep('wolf-kill'"), `${file}: mist must precede wolf attack`);
   expect(src.indexOf("nightStep('magic-swap'") < src.indexOf("nightStep('alchemist-rescue'"), `${file}: serpent must see redirected attack`);
+  const magicianSteps = [...src.matchAll(/nightStep\('magician'/g)].map(match => match.index);
+  const wolfKillSteps = [...src.matchAll(/nightStep\('wolf-kill'/g)].map(match => match.index);
+  expect(magicianSteps.length >= 2 && wolfKillSteps.length >= 2, `${file}: missing repeated night order steps`);
+  expect(magicianSteps.every((position, index) => position < wolfKillSteps[index]), `${file}: magician must act before wolf attack`);
+  expect(src.includes('魔术师在狼刀确定前行动') || src.includes('每晚【在狼刀确定前】行动'), `${file}: magician timing wording not updated`);
+  expect(!src.includes('魔术师最先行动') && !src.includes('每晚最先行动') && !src.includes('每晚【最先】行动'), `${file}: stale absolute-first magician wording`);
   expect(src.includes("p.role.id!=='mechwolf' && p.role.id!=='gargoyle'"), `${file}: pack must exclude isolated wolves`);
   expect(src.includes("role.id !== 'mechwolf' && role.id !== 'gargoyle'"), `${file}: shared wolf vision must exclude isolated wolves`);
   expect(src.includes("cause:'dreamkill'"), `${file}: missing lethal second-dream settlement`);

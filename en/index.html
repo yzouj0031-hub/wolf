@@ -498,6 +498,7 @@ body.fx-lite .role-cinema-panel { animation:none; }
 .pc.rbo { border-color: #d09050; }
 .pc.rgk { border-color: #708070; }
 .pc.rsw { border-color: #b69cff; box-shadow: inset 0 0 14px rgba(182,156,255,0.1), 0 0 7px rgba(211,180,255,0.18); }
+.pc.rim { border-color: #b9a4e8; box-shadow: inset 0 0 14px rgba(128,96,190,0.12), 0 0 8px rgba(214,190,255,0.16); }
 .pc.rwr { border-color: #6030a0; }
 .pc.rch { border-color: #e05020; }
 .pc.rvp { border-color: #800030; }
@@ -3912,7 +3913,7 @@ const WB_NAIE_BALANCED = `
 每夜都比较四条路线：守目标、守自己、空守、女巫救或不救。守中能阻止击杀；空守避免撞药但放弃盾的收益；救药能保下实际刀口并形成行动记录，但会消耗药和刀口信息通道；同守同救则是双方最坏的重合结果。不要假定首夜女巫一定救或一定不救，也不要假定守卫一定守或一定空守。
 若白天出现明确、可信的守护协议信息，可以把它作为概率依据，但公开承诺仍可能是谎言，不能当成系统保证。最终行动必须根据当夜目标价值、药水状态、胜利条件、暴露风险和历史记录独立判断。`;
 
-const WB_RULE_CLARIFY = '\n\n【本局规则·明确定义(避免按其他板规误判)】\n· 毒药只能夜间用,女巫白天不能用毒\n· 骑士没有死亡技能,决斗是白天主动动作\n· 【决斗的胜负结算:骑士决斗狼人→狼死、骑士活;骑士决斗好人→只有骑士自己死,被决斗的好人毫发无损照常存活(并因此被证明是好人)。决斗好人【绝不是】"骑士和好人一起死/两败俱伤",死的只有骑士一个,别记错也别散布这种错误说法】\n· 【决斗发生后,白天继续进行,不会立刻结束、不会强制进入黑夜】——决斗只是结算骑士和目标的生死,结算完当天的发言和投票照常进行(有些狼人杀板子是"决斗即结束白天",本局【不是】,别按那个规则推理,更不要散布"决斗会让白天立刻结束"这种错误说法)\n· 死人不能行动(预言家不能临死查验、守卫不能出局时守自己)\n· 被毒死的玩家不能用任何死亡技能(包括猎人开枪、狼王咬人)\n· 守卫不能连守同一人\n· 狼王被骑士决斗直接死亡,不触发咬人\n· 狼美人殉情:任何死因(被投/被毒/被决斗/被猎人射)都触发魅惑者连带死亡\n· 白狼王自爆:白天主动技能,带走一人,被带走者无遗言无警徽传递,直接入夜\n· 魔术师(若在场):好人神职,每晚最先行动,可交换任意两名存活玩家的号码(可以包含自己,也可空过;只禁止连续两晚重复完全相同的一对;例如第1夜7↔8后,第2夜7↔9合法);交换【只重定向当晚狼刀的落点】(刀A实际死B),查验/用药/守护/魅惑均不受影响。若死讯与推断的刀口逻辑不符,魔术师交换是一种可能的解释\\n\\n【⚠️⚠️ 夜晚和白天的先后顺序——这是最多AI搞反的一条,务必正面记清】每个回合的真实顺序是:【先天黑(狼刀人、神职夜间行动全部在夜里完成)→ 然后才天亮(第一天还要先警长竞选)→ 最后才公布昨晚谁死了 → 再白天发言投票】。把这个因果钉死:\\n· **狼是在【夜里】就决定并完成了刀谁——那个时刻,今天白天的一切(警长竞选、谁的发言、谁站了谁的边、谁当了警长)都【还没有发生】。** 所以狼刀谁,绝不可能是因为\"他今天白天说了什么、竞选时多嚣张、得罪了谁\"——刀人时这些根本不存在。\\n· **同理,所有神职的夜间行动(预言家验谁、女巫救谁毒谁、守卫守谁)也都在夜里完成,依据只能是【昨晚之前就已经存在的信息】**(更早的白天、座位、身份威胁、上一夜结果),绝不能是\"今早竞选的表现\"。\\n· **【这条最容易翻车的地方:死后复盘/写遗言】** 当你今天死了、要分析\"我为什么被刀\"时,【绝对不能】说\"我因为竞选发言太激进/得罪了人/抢了警徽所以被狼刀\"——这是把因果倒过来了:狼昨晚刀你的时候,你今天的竞选根本还没发生!你被刀的真实原因只可能是【更早就存在的】:你的身份威胁(比如你是预言家/女巫这种强神)、你前一天的发言、或纯粹被狼随机/凭座位选中。把\"我今天的表现\"和\"我昨晚为什么被选为刀口\"彻底分开——它们之间【没有因果关系】。\\n· 这条同时也是抓狼工具:如果有人(尤其死者遗言、或某个玩家)用\"今天的事\"解释\"昨晚的夜间行动\"(\"因为他没上警所以我昨晚验了他\"\"他竞选太凶所以昨晚被刀\"),这是时序错乱,要么是不懂规则的萌新,要么是露馅的悍跳狼——记一笔。\\n· 【⚠️ 这条铁律的正确用法：内心自查 + 抓人把柄，绝不是上台宣讲】它只在两个场合出场：① thinking 里默默检查自己（我这句解释是不是拿今天的事套了昨晚）；② 场上【真的有人】犯了这个错时，点名指出他那一处具体矛盾。除此之外，【禁止】在发言里主动科普或复读它——没人犯错时说"大家注意时间线""我们别时序错乱""我昨晚的行动当然不是因为今天的事"这类话，不提供任何信息，纯属浪费发言额度、像在背课文，还会显得刻意。规则是拿来默默遵守和抓错的，不是拿来朗诵的。你发言的每一句都该是判断、信息或反驳，而不是规则复读。\\n\\n【夜晚计数·统一称呼】本局夜晚从「第1夜」开始数：开局后的第一个夜晚就叫【第一夜】，不存在「第0夜/第零夜」的说法。顺序：第1夜→第1天白天→第2夜→第2天白天……报查验、写遗言、复盘时一律用「第一夜/第二夜…」，别把首夜叫成第零夜。⚠️编号对应：【第N夜在第N天白天之前】——「第2夜」是第2天白天开始前的那个夜，不是第2天过完后的晚上（那是第3夜），别按日常语感倒着数。';
+const WB_RULE_CLARIFY = '\n\n【本局规则·明确定义(避免按其他板规误判)】\n· 毒药只能夜间用,女巫白天不能用毒\n· 骑士没有死亡技能,决斗是白天主动动作\n· 【决斗的胜负结算:骑士决斗狼人→狼死、骑士活;骑士决斗好人→只有骑士自己死,被决斗的好人毫发无损照常存活(并因此被证明是好人)。决斗好人【绝不是】"骑士和好人一起死/两败俱伤",死的只有骑士一个,别记错也别散布这种错误说法】\n· 【决斗发生后,白天继续进行,不会立刻结束、不会强制进入黑夜】——决斗只是结算骑士和目标的生死,结算完当天的发言和投票照常进行(有些狼人杀板子是"决斗即结束白天",本局【不是】,别按那个规则推理,更不要散布"决斗会让白天立刻结束"这种错误说法)\n· 死人不能行动(预言家不能临死查验、守卫不能出局时守自己)\n· 被毒死的玩家不能用任何死亡技能(包括猎人开枪、狼王咬人)\n· 守卫不能连守同一人\n· 狼王被骑士决斗直接死亡,不触发咬人\n· 狼美人殉情:任何死因(被投/被毒/被决斗/被猎人射)都触发魅惑者连带死亡\n· 白狼王自爆:白天主动技能,带走一人,被带走者无遗言无警徽传递,直接入夜\n· 魔术师(若在场):好人神职,每晚在狼刀确定前行动,可交换任意两名存活玩家的号码(可以包含自己,也可空过;只禁止连续两晚重复完全相同的一对;例如第1夜7↔8后,第2夜7↔9合法);交换【只重定向当晚狼刀的落点】(刀A实际死B),查验/用药/守护/魅惑均不受影响。若死讯与推断的刀口逻辑不符,魔术师交换是一种可能的解释\\n\\n【⚠️⚠️ 夜晚和白天的先后顺序——这是最多AI搞反的一条,务必正面记清】每个回合的真实顺序是:【先天黑(狼刀人、神职夜间行动全部在夜里完成)→ 然后才天亮(第一天还要先警长竞选)→ 最后才公布昨晚谁死了 → 再白天发言投票】。把这个因果钉死:\\n· **狼是在【夜里】就决定并完成了刀谁——那个时刻,今天白天的一切(警长竞选、谁的发言、谁站了谁的边、谁当了警长)都【还没有发生】。** 所以狼刀谁,绝不可能是因为\"他今天白天说了什么、竞选时多嚣张、得罪了谁\"——刀人时这些根本不存在。\\n· **同理,所有神职的夜间行动(预言家验谁、女巫救谁毒谁、守卫守谁)也都在夜里完成,依据只能是【昨晚之前就已经存在的信息】**(更早的白天、座位、身份威胁、上一夜结果),绝不能是\"今早竞选的表现\"。\\n· **【这条最容易翻车的地方:死后复盘/写遗言】** 当你今天死了、要分析\"我为什么被刀\"时,【绝对不能】说\"我因为竞选发言太激进/得罪了人/抢了警徽所以被狼刀\"——这是把因果倒过来了:狼昨晚刀你的时候,你今天的竞选根本还没发生!你被刀的真实原因只可能是【更早就存在的】:你的身份威胁(比如你是预言家/女巫这种强神)、你前一天的发言、或纯粹被狼随机/凭座位选中。把\"我今天的表现\"和\"我昨晚为什么被选为刀口\"彻底分开——它们之间【没有因果关系】。\\n· 这条同时也是抓狼工具:如果有人(尤其死者遗言、或某个玩家)用\"今天的事\"解释\"昨晚的夜间行动\"(\"因为他没上警所以我昨晚验了他\"\"他竞选太凶所以昨晚被刀\"),这是时序错乱,要么是不懂规则的萌新,要么是露馅的悍跳狼——记一笔。\\n· 【⚠️ 这条铁律的正确用法：内心自查 + 抓人把柄，绝不是上台宣讲】它只在两个场合出场：① thinking 里默默检查自己（我这句解释是不是拿今天的事套了昨晚）；② 场上【真的有人】犯了这个错时，点名指出他那一处具体矛盾。除此之外，【禁止】在发言里主动科普或复读它——没人犯错时说"大家注意时间线""我们别时序错乱""我昨晚的行动当然不是因为今天的事"这类话，不提供任何信息，纯属浪费发言额度、像在背课文，还会显得刻意。规则是拿来默默遵守和抓错的，不是拿来朗诵的。你发言的每一句都该是判断、信息或反驳，而不是规则复读。\\n\\n【夜晚计数·统一称呼】本局夜晚从「第1夜」开始数：开局后的第一个夜晚就叫【第一夜】，不存在「第0夜/第零夜」的说法。顺序：第1夜→第1天白天→第2夜→第2天白天……报查验、写遗言、复盘时一律用「第一夜/第二夜…」，别把首夜叫成第零夜。⚠️编号对应：【第N夜在第N天白天之前】——「第2夜」是第2天白天开始前的那个夜，不是第2天过完后的晚上（那是第3夜），别按日常语感倒着数。';
 
 
 
@@ -3920,7 +3921,7 @@ const WB_RULE_CLARIFY = '\n\n【本局规则·明确定义(避免按其他板规
 //  只在魔术师【存活】时注入(死人不能交换)，且不给机械狼(它带刀在残局、届时魔术师多半已死)。
 const WB_MOSHU_WOLF = `
 
-【⚠️ 本局有魔术师——你的刀会被"重定向"，刀谁死谁不再由你说了算】本局配置里有魔术师（好人神职，每晚最先行动）。魔术师能把两名玩家的号码对调，效果是【只改你这一刀的落点】：你和队友定了刀A，若魔术师这一晚把A和B对调，实际死的是B、A毫发无损。你在夜里【完全不知道】刀被换了，要到第二天公布死讯才可能看出不对劲。守卫是"挡刀"（被守的人不死、出平安夜），魔术师是"移刀"（刀照样见血，只是见的是另一个人的血）——两者要分清。
+【⚠️ 本局有魔术师——你的刀会被"重定向"，刀谁死谁不再由你说了算】本局配置里有魔术师（好人神职，每晚在狼刀确定前行动）。魔术师能把两名玩家的号码对调，效果是【只改你这一刀的落点】：你和队友定了刀A，若魔术师这一晚把A和B对调，实际死的是B、A毫发无损。你在夜里【完全不知道】刀被换了，要到第二天公布死讯才可能看出不对劲。守卫是"挡刀"（被守的人不死、出平安夜），魔术师是"移刀"（刀照样见血，只是见的是另一个人的血）——两者要分清。
 · **对你选刀的直接影响**：你以为"刀死了真预言家"未必成真——预言家可能被换到别处、真正死的是个边缘好人。所以别把"我昨晚刀了X"直接等同于"X已经死了"，一切以死讯公告为准，再回头对照。
 · **⚠️ 刀口"落点诡异"是魔术师暴露的铁信号，反过来是你的抓神工具**：如果某晚你们明明集火刀了A，结果A活着、却死了一个你们根本没碰过的B——在排除其他解释后（守卫只会让人不死、不会让别人替死；女巫只救人不换人），这几乎必然是【魔术师把刀移走了】。一旦你从死讯里推断出场上有魔术师在活跃，你就多了一个高价值目标：**魔术师本身值得优先刀掉**——他一死，你的刀就恢复"指哪打哪"，不再被人暗中转移。
 · **选刀时必须区分“真正想杀的人”和“实际下刀的位置”**：先定最终想让谁出局（记作V），再预测魔术师最可能拿谁（记作D）和V交换。若你判断魔术师大概率换V↔D，那么直接刀V只会落到D；反过来刀D，交换后才会落回真正想杀的V。这不是固定公式，而是要比较两条路线：①直刀V：不交换时杀V、交换时杀D；②反刀D：不交换时杀D、交换时杀V。结合V与D各自价值、魔术师这么换的概率、守卫/女巫保护概率，选【预期收益】更高的名义刀口。
@@ -4407,6 +4408,7 @@ const ROLE_CAPS = {
   alchemist:     ['save'],
   gargoyle:      ['inspect'],
   soulwarden:    ['cleanse'],
+  imitator:      ['learn'],
   // ── Roles with none of the above (registered explicitly so hard denials stay safe) ──
   villager: [], werewolf: [], wolfking: [], wolfbeauty: [], whitewolf: [],
   hunter: [], knight: [], whitecat: [], cupid: [], jester: [], serialkiller: []
@@ -4424,7 +4426,7 @@ reg({id:'witch',name:'女巫',team:'good',emoji:'🧙‍♀️',desc:'有一瓶�
 reg({id:'hunter',name:'猎人',team:'good',emoji:'🏹',desc:'死的时候可以开枪带走一人(被毒除外)',maxCount:99,cssClass:'rhu',guide:'你是猎人。\n【能力】死的时候可以开枪带走一人(被毒死不行)。\n\n【开枪的代价——决定一切】\n开枪是单向不可逆动作,误伤好人 = 你的命 + 一个好人的命,双倍亏损。\n所以"开不开枪"的核心问题是:你对目标的怀疑有多硬?\n· 硬证据:你能说出他哪句具体的话和已知事实矛盾,或他在关键投票里持续指向狼队更安全的方向,或其他神职指向他\n· 软感觉:"感觉不对劲""发言太安全"——这种是预感,不是证据\n\n"猎人必须开枪"是伪规则,误伤好人的代价是双倍亏损。但 PASS 也不是零代价——你的枪带进棺材也是浪费。在 thinking 里把这两边的代价都摆出来,再决定。\n第一夜/第一天就死的情况,信息很少,这时候开枪和抽签接近——这本身就是要算进决策里的事实。\n\n【绝对不能暗示自己有技能】\n身份没公开之前,禁止任何\"反正我死了你们也没好处\"\"投我也没关系\"这类话——这是典型猎人暗示,等于自报身份给狼人当刀口。\n身份没公开就当自己是普通村民来发言。\n\n【关于亮身份和对跳】\n猎人是不是要主动跳、什么时候跳——看本局判断。亮身份后狼人会绕开你,这既是保护也是浪费(枪可能带不出去)。\n有人跳猎人时,你可以对跳(真猎人有锁定目标时会开枪验身份,假猎人做不到),也可以选择不对跳——视局势而定。\n\n【高阶意识】\n你的命和身份都是资源,可以用来:换掉锁定的狼、形成威慑、为关键神职争取轮次。但要权衡——自己在 thinking 里推,不要套招式名词。\n\n【意识——毒药克制】\n被女巫毒死不能开枪!如果你亮了猎人身份,狼人可能故意不刀你让女巫毒——和女巫节奏配合时要意识到这个陷阱。'+N1});
 reg({id:'guard',name:'守卫',team:'good',emoji:'🛡️',desc:'每晚保护一人不被狼杀',maxCount:1,cssClass:'rg',guide:'你是守卫。\n【能力】每晚选一人保护，不能连续两晚同一人。可以空守(不守任何人)，也可以守自己。\n\n【⚠️ 同守同救机制——必须理解】本局规则：如果你守了某人 + 女巫也救了同一个人，那人反而会死。这是友军误伤机制。\n  ▸ **别用"撞了死的也是我、不亏"来安慰自己——这个算账是错的。** 第一，同守同救死的是"被守的那个人"(往往是你想保的好人/神职)，不是你守卫自己；你守了A、女巫也救了A，结果是A死，你白白害死了一个本该被保的好人。第二，就算真出事，守卫是好人方宝贵的战略资源——你活着持续保护、你的守护记录还能帮女巫自证、关键时刻能挡刀，你这条命对好人方价值很大，绝不是"死了也无所谓、反正不是别人"。把自己当成可以随便消耗的弃子，是严重低估了守卫的价值。\n  ▸ **首夜尤其别为了"做点什么"而乱守冒撞车险。** 首夜信息为零、女巫首夜不一定用救药、谁被刀全靠猜——这种情况下"空守"或"守自己"都是完全合理的选择，不是"失职"、不是"什么都没做"。空守是一个有效的战术决定，不是无所作为。别因为"我有这么强的技能，第一晚就得守个人才算尽责"这种行动焦虑，去冒同守同救的险。该守人就守人，但要基于"我判断今晚谁可能被刀"，而不是"我闲着难受、总得守一个"。\n\n【⚠️ 你和女巫的协调难题——核心思考方向】\n你和女巫的处境是不对称的:\n· 女巫**能看到刀口**——她有信息优势,知道今晚是谁被刀\n· 你**完全黑盒**——不知道刀口是谁、不知道女巫会不会救\n· 但你们都想保好人活下来,撞车成本极高(同守同救=好人反而死)\n\n这意味着:**"判断救不救"这件事女巫比你强**(她有信息),所以越是"明显该救"的目标(已跳神职、警长、强逻辑位),女巫越可能救——你越要避开。反过来,你的长处是"持续保护"——你可以守那些不那么显眼但你判断可能被刀的人。两个人互补,而不是抢同一个目标。\n\n【守谁——根据本局算账】\n你的目标是让狼刀扑空。每个候选都要算它的代价和收益:\n· 谁是狼队最想刀的人(明面神职、强逻辑位、带节奏的)?守他收益高,但女巫也会想救,撞车风险也高\n· 守卫规则:不能连守同一人,所以昨晚守过的今晚必须换\n· 守自己:你不会被狼刀,但有一个【其他选项都没有的独特坏处】——守自己是\"你自己\"唯一可能触发同守同救的情况。如果今晚狼正好刀你,女巫看到刀口也救你,而你又守了自己 → 同守同救 → 你照样死,还白白让女巫废掉一瓶解药,双重损失。换句话说:守别人或空守,\"你自己\"永远不可能撞同守同救;只有守自己会把自己放进这个撞车区。所以除非你有强理由判断今晚狼会刀你、且女巫不会救你,否则守自己的隐藏风险比它看起来高\n· 空守:不消耗任何风险但也不产生任何防御\n· 守一个不显眼的好人:撞车风险低,收益看狼队会不会随机刀到他\n第一夜信息最少,后面几夜要结合发言、票型、之前的刀口推下一刀方向。\n【⚠️ 别盲目偏向守自己——先把这笔账算清】很多守卫会下意识\"守自己求稳\",这是误区。把四个选项的\"自我撞车风险\"摆出来对比:守别人=你自己零撞车风险、还能保一个目标;空守=你自己零撞车风险、不消耗任何东西;守自己=唯一会让你自己掉进同守同救的选项(狼刀你+女巫救你=你死+废女巫一瓶药)。所以\"守自己\"不是最安全的选项,反而是唯一可能让你因友军误伤而死、还连累女巫解药的选项。只有当你有具体依据判断\"今晚狼大概率刀我、且女巫不会来救我\"时,守自己才划算;否则优先守你判断可能被刀的别人,或者干脆空守,都比盲目自守稳。记住:守自己的价值是\"我不被刀\",但它的隐藏成本是\"我可能被同守同救害死+浪费女巫药\",别只看见前者忘了后者。\n\n【⚠️ 白天发言前先做这一步——必读】\n你不是普通村民,你是守卫,你有夜间视野。每轮白天发言之前,在 thinking 里先做一次"身份对照":\n· 我昨晚守的是谁?(看你的守护记录)\n· 今天有没有人跳守卫?他报的守人目标是什么?和我守的一致吗?\n· 如果不一致——他就是假的,这是铁信息,我必须对跳。\n· 如果一致(罕见)——也必须对跳验真假。\n· 如果没人跳——继续装村民,但是要记住:你掌握着"昨晚到底有没有被守住"这种关键反推信息,某些场上推理只有你能做,要在发言里用上(只是不要直接说"我是守卫所以我知道")。\n\n绝对禁止的认知错误:用"村民视角"分析场上,完全忽略自己的守卫身份和守人记录。这不是"装得像",这是"出戏"——你失去了守卫这张牌的全部价值。\n\n【绝对禁止暴露身份的发言】\n× "我昨晚没空守人"(守卫专属台词)\n× "我守了某人所以他没死"(没跳身份前不能说)\n× 任何暗示"我知道今晚刀口"的话\n\n【对跳与守卫记录】\n如果有人跳守卫——这是高优先级事件,你必须正面处理。\n· 如果他报的守人目标和你昨晚守的不一致(他声称守了A,但你昨晚守的是B或自己),那他**铁定是狼**,你必须立刻对跳并报出你的真实守人记录拆穿他。继续装好人=让狼白嫖一个神职位的发言权和归票权,这是亏的。\n· 如果他报的目标恰好和你守的一致,那也要对跳——只有真守卫才能在后续夜晚持续报出准确的守人记录,假守卫会很快穿帮。\n· 假守卫每多活一天就多一份发言权,他可以编各种「自守」「赌心态」的理由,你期待他「自然穿帮」基本不会发生。\n\n对跳的代价是暴露身份会被狼队夜里集火,但收益是直接逼出狼坑+让全场看清真假——这个交换通常是好人方赚的。预言家遇到悍跳必对跳,守卫遇到悍跳同样必须对跳,不要用「守卫不需要那么急」来麻痹自己。\n你的守护记录是有价值的——尤其在帮女巫自证时:如果有人质疑女巫"救了 XX 但 XX 活着所以女巫是假的",你可以跳出来说"是我守的"来帮女巫翻案。这是守卫的隐藏价值。\n\n【⚠️ 高阶话术·跳身份时可以给守护记录撒个小谎骗刀——残局赚平安夜的杀手锏】你跳守卫报守护记录时,不是必须句句全真——对狼撒谎是正当博弈(骗的是狼,不是队友,参考通用守则里【好人也需要博弈】那条)。最经典的一手:**谎称\"昨晚我守的是我自己\"(实际上你昨晚守的是别人或空守)**。狼人听到会立刻用\"守卫不能连守同一人\"的规则反推:\"他今晚没法再自守→刀他必死\",于是放心来刀你——而你今晚【真的守自己】,狼刀撞盾,白赚一个平安夜,还替其他好人挡了一晚的刀。本质是把\"连守规则\"变成喂给狼的假前提,让狼的正确推理得出错误结论。\n· **三个硬前提,缺一个就别用**:① **女巫已出局、或解药确认已用完**——最容易翻车的一环:你的谎话女巫也听得到,她若信了\"你今晚无法自守\",看到刀口是你就可能来救你→同守同救→你反而奶穿死,骗刀变自杀。残局女巫死了/药空了,这招才安全,这也是它天然属于残局的原因。② 谎话不能和你之前公开报过的守护记录矛盾——前面已经报过\"昨晚守了某人\"的,不能改口成守了自己,一句对不上全盘穿帮。③ 本局规则确实是\"不能连守\"——有的板子允许连守,那狼推不出\"刀他必死\",话术就没有钩子。\n· **出招前算一笔\"狼接不接钩\"的账**:狼上钩=狼队浪费一刀+好人白赚一个白天,大赚;狼识破是钓鱼=转刀别的位置,你这晚自守就守了个寂寞。所以先看\"场上还有没有比你更肥的刀口\":如果神职都死光了、你就是狼最想刀的位置,这招几乎稳赚;如果场上还有裸奔的真神,狼很可能不接钩转头刀他,你要权衡这一晚的守护给谁更值。\n· **这招只买得到一个晚上,不是永动机**:狼撞盾看到平安夜,立刻反应过来你撒了谎、今晚是你自守——那么明晚你【真的】不能连守自己,狼补刀你必死。所以骗到的这个白天要用足:带票推狼、把守护记录和你掌握的信息全部交代干净;明晚把守护交给最需要的好人,自己坦然领刀,把这条命卖出最大价值。\n\n【高阶意识】\n狼队刀人不是随机的,而是根据每晚的具体局势选最有价值的目标。结合每一晚谁死了、什么时候死的、当时他的发言权重多大,反推狼队的优先级,再预测下一刀。这是推理,不是套公式。'+N1});
 reg({id:'knight',name:'骑士',team:'good',emoji:'⚔️',desc:'可以跟一个人拼命',maxCount:1,cssClass:'rkn',guide:'你是骑士。\n【能力】白天可以选一人决斗(只有一次)。对方是狼则对方死你不死;对方是好人则【只有你自己死,那个被你决斗的好人毫发无损、照常存活】——决斗好人不是"两败俱伤一起死",而是你一个人牺牲、还顺带证明了对方是好人(他被你决斗后活着=他不是狼)。所以你斩错的代价是【赔上你自己一条命+白白帮对方洗清了身份】,但绝不会连那个好人一起害死。决斗在你自己的发言回合内进行:轮到你发言时,在<action>里写DUEL:名字就当场结算;不决斗就写PASS。<action>DUEL:名字或PASS</action>。\n【时机】白天有两轮发言,你的每一轮发言回合都可以决斗——可以第一轮就出手,也可以听完第一轮再在第二轮决斗。\n【重要】决斗狼王时,狼王直接死亡,不能咬人——所以不用怕决斗狼王。\n\n【决斗的代价——决定一切】\n决斗是不可逆的核武器,用错了自己白送 + 一个好人位。\n所以"决斗不决斗"的核心是:你对目标的怀疑有多硬?\n· 硬怀疑:你能说出他哪句具体的话和已知事实矛盾,或他在关键投票里持续偏向狼阵营,或多项证据指向他\n· 软怀疑:"发言风格可疑""感觉太安全"——这种程度不值得决斗\n\n决斗 vs PASS 是双向的代价:乱用一次 = 你白送 + 一个好人位 + 浪费好人最强武器;一直 PASS = 这张牌带进棺材。两边都不好,所以判断的核心是"我现在的怀疑硬到什么程度"。\n\n【绝对不能暗示自己有决斗技能】\n没有主动跳骑士身份之前,禁止任何"为什么不决斗""我手里有牌""核武器""该用的时候用"这类词——这等于自报身份给狼人当刀口。\n没跳身份就当自己是普通村民发言。\n\n【关于决斗时机和威慑】\n什么时候出手、要不要先亮身份产生压力、要不要 PASS 多等一轮——这些都是判断,看本局发言、票型、对跳局面而定。\n有人跳骑士对跳你时,你可以决斗他验真假——这是骑士的硬牌。\n但不要套"必须先威慑再决斗""必须先观察后出手"这种公式——根据具体场景自己想。\\n\\n【⚠️ 你的剑最高价值的用法:破"双预言家对跳"僵局——优先考虑决斗悍跳狼,别惯性去戳查杀位】你只有一次决斗,要用在信息收益最高的地方。当场上出现【双预言家对跳】这种好人靠发言永远分不清真假的死结时,正是你这把剑价值最大的时刻:你决斗其中一个预言家,无论翻牌是狼(假预言家当场暴露、真神被坐实)还是好人(你倒牌,但也证伪了这条线、好人知道该信另一个),都能【一剑把"谁真谁假"这个最大僵局变成确定信息】。这比你去决斗一个"看起来可疑的人"或"被查杀的人"价值高得多。⚠️尤其要避免一个高频惯性错误:别因为"某人被预言家查杀了/看起来最像狼"就冲过去决斗他——因为你还没验证那个预言家是不是真的!如果他是悍跳狼,你等于用自己唯一的剑,替假预言家执行了他的脏查杀、亲手杀了一个被冤枉的好人。釜底抽薪的做法是直接决斗那个可疑的预言家本身,把僵局的根拔掉,而不是一个个去戳他泼脏水的对象。\\n【⚠️ "全场把你的剑往某处引、唯独拦着不让你碰某个人"——这个集体指向性本身就是信息】如果一群人(哪怕看起来都是好人)拼命引导你去决斗A、却反复强调"千万别碰B"(尤其B是带队的警长/某个预言家),那B恰恰可能是最该被你验证的人:真神不怕被决斗(决斗真神只是你自己亏,对真神无害),狼才怕被决斗。一个真心相信B是真预言家的好人,根本不会费力安排你的剑该戳谁——他会让你自己判断;只有需要保护B的人,才会拼命替你安排"别碰B"。注意这甚至不需要拦你的人是狼:一个被带歪的好人,也会真心实意地帮狼拦着你别碰真狼。所以当"该不该碰某人"成了全场争论焦点、而且多数声音在拦你碰他时,那个被拦着的人,往往就是你最该一剑验证的悍跳狼。(注:以上是"把唯一一次决斗用在信息收益最高的破局点"的优先级,不是死规矩——没有对跳、但你对某个狼王有铁证要清,决斗他也完全对。)\\n\\n【⚠️⚠️ 拔剑前的三关自检——剑是一次性的,而且别人会想方设法【借你的剑】杀好人】你的剑不可逆:决斗错了,死的是你这张好人方唯一能主动验人的硬牌+一个被你冤杀的好人。最危险的情况不是你自己看走眼,而是【有人用一套漂亮逻辑,引导你去决斗一个真神】——他可能自己都真心相信(被带歪的好人),也可能是狼故意借你的刀。尤其警惕这种话术:\"某人做了违背常理的事(比如守卫守了个踩他的人)→所以他在撒谎→所以他是狼→你快去决斗他\"。这套\"动机悖论\"听起来极其严密,但它的地基往往是【把你自己的思维方式投射到所有人身上】——真守卫格局大、会去守一个能带队的好人,根本不在乎白天那点恩怨;一个会算计的人却觉得\"没人会这么做\",于是把好人的高风格操作判成了狼。所以在你拔剑之前,thinking 里【强制】过三关:\\n· **第一关·证伪**:让我决斗他的最硬那条理由,如果套到一个我确信的好人身上,还成立吗?如果\"他守了/投了/帮了某个表面利狼的人\"就是证据,那很多真好人都中招——这是脏证据。\\n· **第二关·比成本**:有没有比\"我现在拔剑赌命\"更便宜的验证?他的身份白天的票型、女巫的毒、后续发言能不能验?能等就别用你唯一的剑去赌一个【别人嘴上推出来的】结论。机制能证明的人(已自曝跳了守卫/女巫且能被另一神职对视角的),你拿剑去验=可能替狼杀真神。\\n· **第三关·谁在递刀**:现在最起劲引导我\"快去决斗他\"的是谁?他给的是\"硬信息\"(查验/亲眼所见)还是\"一套心理学推测\"?如果全场用情绪和推测把你的剑往某个人身上引、却没有一条机制级硬证据,那个被引导的目标很可能是真神,而递刀的人(哪怕他真心相信)才是该被你怀疑的方向。\\n核心:该出剑就出(带剑进棺材也是输),但剑要砍在\"机制或硬信息指认\"的狼身上,不是砍在\"一套没人能验证的漂亮推理\"指认的人身上。只要让你拔剑的理由是\"别人推出来的\"而不是\"被机制证实的\",先把剑收住。)'+N1});
-reg({id:'magician',name:'魔术师',team:'good',emoji:'🎩',desc:'每晚可交换任意两名存活玩家的号码（可包含自己、可空过；只禁连续两晚重复完全相同的一对，7↔8后可换7↔9），当晚狼刀若指向其中一人，实际落在另一人身上；不影响查验/用药/守护',maxCount:1,cssClass:'rmg',guide:'你是魔术师，好人阵营神职。\n【能力】每晚【最先】行动：选择任意两名存活玩家交换号码（可以包含你自己），也可以空过；只禁止连续两晚重复【完全相同的一对】，其中一个号码重复并不违规（例如第1夜7↔8，第2夜可换7↔9；空过之后次晚也不受上一组限制）。\n【⚠️ 交换只影响一件事：当晚狼人的刀】狼刀A、而你交换了A和B → 实际死的是B。预言家查验、女巫用药、守卫守护、狼美人魅惑都【不受】你的交换影响，按原目标结算。狼人当晚不知道刀被换了，第二天看死讯才可能起疑。\n\n【⚠️ 先想明白这个技能的双刃本质，再动手】你的交换不是保护，是【转移】——你把刀从A身上挪开的同时，就是把刀放到了B身上。如果狼根本没刀A，你的交换反而可能把本来安全的B送到刀口上。所以每一次交换前在 thinking 里必须回答：①我判断狼今晚最可能刀谁（依据只能是昨晚之前的信息）？②我打算把这刀转给谁、为什么他值得替（换给你怀疑是狼的人=最高收益，狼刀狼自己；换给边缘好人=拿一个好人换另一个好人，通常是亏的）？③如果我判断错了刀口，这次交换会不会害死一个本来没事的人？想不清楚就空过——空过是完全合理的选择，乱换比不换更糟。\n\n【最高收益的用法】把\"你判断的刀口\"和\"你怀疑的狼\"交换——狼刀出去落在自己队友身上，一夜白赚一狼，还让狼队彻底懵掉。其次是把明面真神和一个你确信的好人对换扰乱刀口（但要认清这是拿那个好人挡刀）。\n\n【保密与跳身份资本】夜间信息别说漏嘴——没跳身份前绝不能暗示\"昨晚的死讯不对劲/死错人了\"。你的交换记录是可验证的硬信息：当白天出现\"狼刀落点诡异\"的死讯时，你跳出来报\"那晚我交换了X和Y\"能完美解释、当场自证。跳的时机参考通用神职框架：藏着能持续搅乱狼刀，跳出来能自证+提供铁信息，看局势算账。\n\n【绝对禁止】× 没跳身份前说\"他其实不是狼想刀的人\"这类暗示 × 用今早才发生的事解释你昨晚为什么交换（时序铁律同样适用于你）'+N1});
+reg({id:'magician',name:'魔术师',team:'good',emoji:'🎩',desc:'每晚可交换任意两名存活玩家的号码（可包含自己、可空过；只禁连续两晚重复完全相同的一对，7↔8后可换7↔9），当晚狼刀若指向其中一人，实际落在另一人身上；不影响查验/用药/守护',maxCount:1,cssClass:'rmg',guide:'你是魔术师，好人阵营神职。\n【能力】每晚【在狼刀确定前】行动：选择任意两名存活玩家交换号码（可以包含你自己），也可以空过；只禁止连续两晚重复【完全相同的一对】，其中一个号码重复并不违规（例如第1夜7↔8，第2夜可换7↔9；空过之后次晚也不受上一组限制）。\n【⚠️ 交换只影响一件事：当晚狼人的刀】狼刀A、而你交换了A和B → 实际死的是B。预言家查验、女巫用药、守卫守护、狼美人魅惑都【不受】你的交换影响，按原目标结算。狼人当晚不知道刀被换了，第二天看死讯才可能起疑。\n\n【⚠️ 先想明白这个技能的双刃本质，再动手】你的交换不是保护，是【转移】——你把刀从A身上挪开的同时，就是把刀放到了B身上。如果狼根本没刀A，你的交换反而可能把本来安全的B送到刀口上。所以每一次交换前在 thinking 里必须回答：①我判断狼今晚最可能刀谁（依据只能是昨晚之前的信息）？②我打算把这刀转给谁、为什么他值得替（换给你怀疑是狼的人=最高收益，狼刀狼自己；换给边缘好人=拿一个好人换另一个好人，通常是亏的）？③如果我判断错了刀口，这次交换会不会害死一个本来没事的人？想不清楚就空过——空过是完全合理的选择，乱换比不换更糟。\n\n【最高收益的用法】把\"你判断的刀口\"和\"你怀疑的狼\"交换——狼刀出去落在自己队友身上，一夜白赚一狼，还让狼队彻底懵掉。其次是把明面真神和一个你确信的好人对换扰乱刀口（但要认清这是拿那个好人挡刀）。\n\n【保密与跳身份资本】夜间信息别说漏嘴——没跳身份前绝不能暗示\"昨晚的死讯不对劲/死错人了\"。你的交换记录是可验证的硬信息：当白天出现\"狼刀落点诡异\"的死讯时，你跳出来报\"那晚我交换了X和Y\"能完美解释、当场自证。跳的时机参考通用神职框架：藏着能持续搅乱狼刀，跳出来能自证+提供铁信息，看局势算账。\n\n【绝对禁止】× 没跳身份前说\"他其实不是狼想刀的人\"这类暗示 × 用今早才发生的事解释你昨晚为什么交换（时序铁律同样适用于你）'+N1});
 reg({id:'whitecat',name:'白猫',team:'good',emoji:'🐈‍⬛',desc:'好人。被任意方式出局后触发【缓死】：翻牌公开、本次不死，延迟到下一个同类阶段才真正死亡；缓死期间仍是活人可发言投票。',maxCount:99,cssClass:'',delayedDeath:true,guide:'你是白猫（好人）。\n【缓死·被动】你被任意方式判出局（狼刀/投票/枪/自爆…）时不会立即死：当场翻牌公开身份，但本次不死，延迟到"下一个同类阶段"才真正死亡——夜里被刀→撑到下一个夜晚才死；白天被投→撑到下一个投票阶段才死。缓死期间你仍是活人，可以正常发言、投票。\n【怎么玩】你有一条命的缓冲，可以更大胆地站边、质疑、当靶子试探狼——就算被推/被刀，你还能再活一轮，把关键信息在缓死这一轮充分传递给好人。注意翻牌后身份已公开、狼会针对你，用好这最后一轮。\n【招牌打法：用低污染假身份吸引狼刀】主动报"我是白猫"等于告诉狼人绕开你；缓死触发时系统本来就会公开身份，所以不要提前自曝，也不要要求好人投你验身份。若局势适合挡刀，通常优先诈守卫，其次可考虑猎人：这类身份能制造刀口压力，又不需要向好人编造查验或毒杀等假硬信息。诈守卫时保持一份简单、合法且前后一致的守护账，不认领自己无法确认的平安夜；真守卫带记录对跳、好人准备强行二选一，或假身份开始误导关键票型时及时退水。只有在有明确短期目标和退出方案时才考虑诈预言家/女巫，避免为了吸一刀把好人信息场彻底污染。你的目标是骗狼刀，不是骗好人票。'});
 reg({id:'fox',name:'子狐',team:'good',emoji:'🦊',desc:'好人神职。第2夜起每晚媚惑一人：若他是狼→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营。',maxCount:1,cssClass:'',startRound:2,guide:'你是子狐（好人神职）。\n【媚惑·第2夜起】每晚选一名其他玩家：若他是狼→当晚【全体狼无法击杀】（护住全场）；若他是好人→他今晚的夜间主动技能失效（浪费一个神职一晚）。行动后你会私下得知他的真实阵营。第一夜无法行动。\n【怎么玩】优先媚惑你最怀疑是狼的人——赌对了直接废掉当晚狼刀，赌错了顶多封掉一个好人一晚技能，而且确认了他是好人，等于变相验人。你每晚都在积累"谁狼谁好"的硬信息。\n【保密】媚惑得到的阵营只有你知道，跳身份前别说漏；跳出来报媚惑记录能自证并提供大量验人信息。'});
 reg({id:'fool',name:'愚者',team:'good',emoji:'🃏',desc:'好人。一次性保命：①首次被投票放逐→翻牌免疫不死；②每晚指定一人挂护盾；若该目标当晚未受夜袭，护盾自动转回愚者本人并在当夜生效。两者共用一次，任一触发后失去全部技能。',maxCount:1,cssClass:'',guide:'你是愚者（好人）。你有【一次】保命机会，两种触发方式共用这一次，任一触发后失去所有技能：\n【白天·首放逐免疫】第一次被投票放逐时→翻牌公开、免疫此次放逐（不死）。仅对投票放逐有效，自爆/枪/审判处决照死。免疫后仍可继续投票。\n【夜间·可转移护盾】每晚必须指定一人挂护盾，替他挡一次夜间致命伤；若该目标今晚没有受到夜袭（盾没用上），无论你是否选过人，护盾都会自动转回保护你本人，并在当夜生效。成功挡下一次伤害后失去全部技能。\n【公开规则一致性】其他玩家看到的规则也是“所护目标未受夜袭就转护愚者”，绝不是“只有空过、不选目标才自护”。\n【怎么玩】护盾在手时可以大胆站边、诱狼刀你自证；但白天免疫和夜间护盾只有一发，用在最关键的一次保命上。'});
@@ -4491,6 +4493,7 @@ reg({id:'dreamwalker',name:'摄梦人',team:'good',emoji:'',desc:'好人神职�
 reg({id:'alchemist',name:'炼金魔女',team:'good',emoji:'',desc:'好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为三人；蛇可在看见魔术师换位后的实际刀口后决定是否救下。',maxCount:1,cssClass:'ralc',guide:'你是炼金魔女，属于好人阵营。\n【两种一次性能力】未明之雾：在狼队行动前圈定三名存活玩家，当夜狼刀只能从三人中选择（允许圈到狼人）；法老之蛇：在狼刀和魔术师换位结算后得知实际刀口，再决定是否救下。两种能力各限一次，同一夜只能选一种。\n【策略】雾改变狼队决策空间，适合保护多数高价值位置或制造狼队自刀压力；蛇是精确救援，但使用会消耗未来威慑。按当前局势判断，不要固定首夜开雾或见刀必救。'+N1});
 reg({id:'gargoyle',name:'石像鬼',team:'bad',emoji:'',desc:'狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并单独获得狼刀。',maxCount:1,cssClass:'tw rgg',guide:'你是石像鬼，属于狼人阵营，但与普通狼队互不相认：你不知道他们是谁，他们也不知道你；你不参加狼队密谈和普通狼刀。\n【窥视】每晚查验一名尚未查过的其他玩家，得知准确身份。\n【苏醒】只有除你之外的所有狼人阵营角色都出局后，你才单独获得狼刀。\n【策略】你可能在不知情时攻击普通狼，普通狼也可能把你当好人甚至刀你；这正是你的信息结构。白天只使用公开信息伪装，绝不能泄露准确身份来自夜间窥视。残局前优先存活并利用查验规划身份，苏醒后再按人数与屠边条件收割。'+N1});
 reg({id:'soulwarden',name:'净魂师',team:'good',emoji:'',desc:'好人神职。每晚为一名存活玩家施加圣域：净除其身上已有的一层敌对非伤害标记，或拦下本夜随后到来的第一层此类标记；不能连续两夜选择同一人。',maxCount:1,cssClass:'rsw',guide:'你是净魂师，属于好人阵营。\n【圣域】每晚选择一名存活玩家（可选自己），但不能连续两夜选择同一人。圣域会先净除目标身上已经存在的一层敌对非伤害标记；若当时没有，则拦下本夜随后落到目标身上的第一层敌对非伤害标记。当前可处理蚀时狼妃的反弹锁定、狼美人的魅惑；未来同类敌对标记也遵循这套接口。\n【边界】圣域不挡狼刀、毒药、石像鬼刀、摄梦人连续噩梦、骑士决斗或其他直接伤害；一夜只挡一层。\n【信息】你和目标都不会收到“是否成功拦截”的反馈，敌方也不会知道失败原因。你只确定自己把圣域给了谁，不能把平安或没有连带当成系统证明。\n【策略】保护即将被验证、被狼美人针对或承担关键归票的人，也可以自保；但不要机械追着明牌神职，也要考虑对方可能换目标以及一层圣域被更早的标记消耗。'+N1});
+reg({id:'imitator',name:'摹术师',team:'good',emoji:'',desc:'好人神职。每晚可向一名尚未学习过的存活玩家摹取一次兼容的主动技能，并在当夜使用；每名玩家整局只能学习一次，最多成功摹取三次，技能天亮即消失。',maxCount:1,cssClass:'rim',guide:'你是摹术师，属于好人阵营。\n【摹取】每晚可选择一名其他存活玩家学习，也可以空过。每名玩家整局最多成为你的学习目标一次；没有摹到兼容技能也会消耗该目标。整局最多成功摹取三次。\n【临时技能】成功后系统只告诉你摹到的能力，不直接公布目标的准确身份。你可以在当夜使用一次，也可以放弃；无论是否使用，天亮后都会消失。当前可摹取：阵营查验、子狐媚惑、挡狼刀守护、药剂救人或毒杀、魔术换位、圣域净化。\n【不能摹取】狼刀、阵营密聊、死亡触发、白天技能、被动能力、永久成长、再次学习他人等能力都不能复制；因此猎人、骑士、普通狼人、狼美人死亡连带、机械狼学习等不会提供可用临时技能。\n【信息边界】能力类型可以形成身份范围，但不是准确身份铁证：多个角色可能留下同类能力，自创角色也可能具有相同积木。不要把“摹到守护”直接说成“目标必是守卫”。'+N1});
 
 
 function seerSeesAsWolf(target) {
@@ -4662,7 +4665,7 @@ function englishPlayerName(name) { return EN_NAME_ALIASES[name] || name; }
  * ================================================================ */
 // ★ 存档需持久化的"技能已用/状态"玩家级标记（白猫缓死/愚者/自创积木/赐予等）。
 //   不持久化则读档/回溯后这些标记丢失→技能"复活"（如愚者免疫后读档又能用护盾）。
-const SKILL_STATE_KEYS = ['_foolUsed','_shieldUsed','_lynchImmuneUsed','_rpUsed','_rp','_rpCause','_rpResolved','_cLastGuard','_cPoisonUsed','_cSaveUsed','_cBlockUsed','_grant','_grantShield','_grantShieldExpire','_grantUsed','_grantedSeer','_grantedSeerReady','_giftPending','_youLast'];
+const SKILL_STATE_KEYS = ['_foolUsed','_shieldUsed','_lynchImmuneUsed','_rpUsed','_rp','_rpCause','_rpResolved','_cLastGuard','_cPoisonUsed','_cSaveUsed','_cBlockUsed','_grant','_grantShield','_grantShieldExpire','_grantUsed','_grantedSeer','_grantedSeerReady','_giftPending','_youLast','_imitatorTried','_imitatorSuccesses'];
 function serializeSkillFlags(p){ const o={}; for(const k of SKILL_STATE_KEYS){ if(p[k]!==undefined && p[k]!==null) o[k]=p[k]; } return o; }
 
 function freshState(prev) {
@@ -5774,7 +5777,7 @@ function buildRulesExportLegacy(includeAllRoles = false) {
   lines.push('· 死者不能行动（预言家不能临死查验、守卫出局时不能守人）。');
   lines.push('· 【胜负结算时机·即时终局】任何一名玩家死亡的瞬间，只要某一方就此达成了获胜条件，游戏【立即结束】，该玩家及之后的一切死亡技能（猎人开枪、狼王咬人、狼美人殉情连带）都【不再结算】。例①：屠边局狼人刀死最后一个神职——哪怕他是猎人——屠神在先、狼人当场获胜，猎人的枪不会开；例②：最后一只狼出局——哪怕他是狼王——好人当场获胜，狼王的咬不会发动。反过来必须分清：若某玩家死亡的瞬间【任何一方都还没达成】胜利条件，那么死亡技能【照常结算】——例③：猎人被刀时狼方尚未获胜（他不是最后的神、人数也没到），猎人正常开枪；如果这一枪带走的恰好是最后一只狼，则【好人当场获胜】（猎人临死翻盘是完全合法的判定）。一句话：谁先达成胜利条件谁赢，达成前技能都有效，达成后技能全失效。');
   lines.push('· 【同夜双灭·无平局】本局【不存在平局】，结果只有好人胜或狼人胜。"谁先达成谁赢"只适用于有先后顺序的死亡（白天出局、开枪连锁等）；【同一个夜晚】的各方行动视为【同时发生】，没有先后——整晚死亡全部结算完后统一判定。若同夜双方条件同时达成（典型：狼人刀死最后一个神职，女巫同一夜毒死了最后一只狼），判定优先级为【狼人全灭 ＞ 屠边/人数条件】，即判【好人获胜】——天亮时场上一只狼都不剩，狼人阵营的任何胜利都不成立。狼人夜间规划时要把这一条算进去：如果女巫的毒可能在同一夜清空狼队，"这一刀达成屠神"并不保险。');
-  lines.push('· 【魔术师判定】（仅当本局配置了魔术师时生效）魔术师属好人神职，每晚【最先】行动：可交换任意两名存活玩家的号码，【可以把自己列为其中一人】，也可空过。限制只针对“完整的一对”：不能连续两晚重复完全相同的两人（顺序不影响，例如7↔8和8↔7视为同一对）；允许沿用其中一个号码改换另一人（例如第1夜7↔8，第2夜7↔9合法）；空过后次晚不受上一组限制。交换【只影响当晚狼人的刀】：狼刀A、而A与B被交换 → 实际死的是B。预言家查验、女巫用药、守卫守护、狼美人魅惑均【不受】交换影响，按原目标正常结算。狼人当晚不知道刀被交换，次日公布死讯后才可能察觉异常。');
+  lines.push('· 【魔术师判定】（仅当本局配置了魔术师时生效）魔术师属好人神职，每晚【在狼刀确定前】行动：可交换任意两名存活玩家的号码，【可以把自己列为其中一人】，也可空过。限制只针对“完整的一对”：不能连续两晚重复完全相同的两人（顺序不影响，例如7↔8和8↔7视为同一对）；允许沿用其中一个号码改换另一人（例如第1夜7↔8，第2夜7↔9合法）；空过后次晚不受上一组限制。交换【只影响当晚狼人的刀】：狼刀A、而A与B被交换 → 实际死的是B。预言家查验、女巫用药、守卫守护、狼美人魅惑均【不受】交换影响，按原目标正常结算。狼人当晚不知道刀被交换，次日公布死讯后才可能察觉异常。');
   lines.push('· 【小丑判定】（仅当本局配置了小丑时生效）小丑属第三方独立阵营，不与任何一方共享胜负。唯一胜利条件：被白天【投票放逐】或【审判定罪】处决——被处决的瞬间小丑单独获胜、游戏立即结束、好人与狼人皆输。被狼刀死、被毒死、被猎人/狼王带走、被骑士决斗、被白狼王自爆带走均不触发（小丑照常出局且落败）。小丑无任何夜间/白天主动技能；预言家查验小丑显示为好人。小丑存活但游戏被其他阵营终结时，小丑落败。');
   lines.push('· 【连环杀手判定】（仅当本局配置了连环杀手时生效）连环杀手属第三方独立阵营。每晚可独立袭击一名玩家（可空刀），其袭击与狼刀完全独立——同一晚可能死两人。守卫守护可挡下其袭击；女巫的解药只对狼刀有效、救不了被杀手袭击的人；魔术师交换不影响其袭击（交换只重定向狼刀）；被杀手袭击身亡按夜间死亡处理，死亡技能（如猎人开枪）照常可发动。预言家查验连环杀手显示为好人。胜负判定：连环杀手存活期间，狼人阵营与好人阵营的任何胜利条件都不成立（必须先除掉杀手）；当场上只剩连环杀手一人存活时，杀手单独获胜。');
   lines.push('· 【丘比特/爱神判定】（仅当本局配置了丘比特时生效）丘比特本身是好人神职，仅第一夜在其他身份之前行动一次：必须指定两名不同玩家成为恋人，可以把自己列为其中一人。恋人互相知道对方是自己的恋人，但不因此获知对方的具体角色。任何一名恋人以任何死因出局，另一人都会立即以“恋人殉情”死亡，无遗言；殉情是公开关系事件，不验证两人的原身份或阵营。如果恋人原本同阵营，仍按原阵营胜负；如果原本不同阵营，两人转为隐藏情侣阵营，并在两人均存活时阻止原阵营提前宣胜；只有当场上仅剩这两名恋人时，他们才共同获胜。恋人殉情是关系状态的即时结算，先于普通阵营胜负判定，不会因原死亡刚好达成某阵营条件就只死一半。');
@@ -5839,9 +5842,10 @@ function buildRulesExport() {
   }
   if (has('mechwolf')) interactions.push('机械狼与狼队互不相认且前期不参加狼刀，但仍与狼人共享胜负；其学习与带刀按角色说明结算。');
   if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
-  if (has('magician')) interactions.push('魔术师最先行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
+  if (has('magician')) interactions.push('魔术师在狼刀确定前行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
   if (has('wolfconcubine')) interactions.push('蚀时狼妃的锁每夜只反弹首个命中的查验、守护或毒；查验和守护反弹不致死，毒药反弹可能毒死施术女巫。');
   if (has('soulwarden')) interactions.push('净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记，可处理狼妃反弹锁与狼美人魅惑；不阻挡任何直接伤害，也不反馈是否成功。');
+  if (has('imitator')) interactions.push('摹术师每名玩家整局只能学习一次，最多成功摹取三次；只复制兼容的夜间主动效果，当夜限用一次并在天亮消失，不复制身份、狼刀、阵营视角、死亡触发或白天技能。');
   if (has('wolfbeauty')) interactions.push('狼美人出局时通常连带当夜魅惑目标；若该次死亡已经让某阵营即时达成胜利，则以后续系统终局判定为准。');
   if (hasAny(['hunter','wolfking','whitewolf','wolfbeauty'])) interactions.push('带死亡效果的角色是否继续发动技能，以死亡当刻的系统胜负判定为准；不要只套用“任何死因必触发”的单句规则。');
   if (has('knight')) interactions.push(S.knightChainMode
@@ -5908,10 +5912,11 @@ function buildWebRulesExport(viewerP) {
     lines.push('', `【你的能力】${viewerP.role.emoji}${viewerP.role.name}：${viewerP.role.desc}`);
   }
   if (has('guard') && has('witch')) lines.push('· 守卫不能连续守同一人；守护与女巫解药同时作用于同一刀口会奶穿死亡。');
-  if (has('magician')) lines.push('· 魔术师最先行动；换号只重定向当夜狼刀，不影响查验、用药、守护或魅惑；不能连续两夜换完全相同的一对。');
+  if (has('magician')) lines.push('· 魔术师在狼刀确定前行动；换号只重定向当夜狼刀，不影响查验、用药、守护或魅惑；不能连续两夜换完全相同的一对。');
   if (has('wolfbeauty')) lines.push('· 狼美人每晚仍正常参与狼刀；魅惑不是即时击杀。她出局时才连带当前魅惑目标，具体公开信息以系统公告为准。');
   if (has('wolfconcubine')) lines.push('· 蚀时狼妃每晚锁一人；当夜首个查验/守护/毒命中该目标时反弹给施术者本人。查验/守护反弹不致死，毒药反弹会毒死女巫。');
   if (has('soulwarden')) lines.push('· 净魂师每晚为一人展开圣域，净除或拦截第一层敌对非伤害标记；不能连续两夜选同一人，不挡直接伤害，且不会收到是否成功的反馈。');
+  if (has('imitator')) lines.push('· 摹术师每晚可学习一名从未学过的存活玩家：兼容主动技能只保留当夜，整局最多成功三次；能力类型不是目标准确身份铁证。');
   if (has('magician') || has('witch')) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
   return lines.join('\n');
 }
@@ -13240,6 +13245,7 @@ const NIGHT_ACTION_CINEMATICS = Object.freeze({
   cupid:{roleId:'cupid', roles:['cupid']},
   wolfconcubine:{roleId:'wolfconcubine', roles:['wolfconcubine']},
   soulwarden:{roleId:'soulwarden', roles:['soulwarden']},
+  imitator:{roleId:'imitator', roles:['imitator']},
   'mechwolf-fox':{roleId:'mechwolf', roles:['mechwolf_fox']},
   fox:{roleId:'fox', roles:['fox']},
   merchant:{roleId:'merchant', roles:['merchant']},
@@ -13852,6 +13858,27 @@ function _establishLovers(cupid, a, b) {
   return true;
 }
 
+const IMITATOR_SKILL_LABELS = Object.freeze({
+  inspect:'阵营窥识', charm:'子狐媚惑', protect:'镜像守护', rescue:'仿制解药',
+  poison:'仿制毒药', swap:'镜像换位', cleanse:'镜面圣域'
+});
+function imitatorSkillChoices(role) {
+  if (!role) return [];
+  const fixed = {
+    seer:['inspect'], gravekeeper:['inspect'], gargoyle:['inspect'],
+    fox:['charm'], guard:['protect'], fool:['protect'], dreamwalker:['protect'],
+    witch:['rescue','poison'], alchemist:['rescue'], magician:['swap'], soulwarden:['cleanse']
+  };
+  if (fixed[role.id]) return fixed[role.id].slice();
+  if (!Array.isArray(role.customAbilities)) return [];
+  const out = [];
+  if (role.customAbilities.includes('inspect')) out.push('inspect');
+  if (role.customAbilities.some(x => x === 'protect' || x === 'shield')) out.push('protect');
+  if (role.customAbilities.includes('save')) out.push('rescue');
+  if (role.customAbilities.includes('poison')) out.push('poison');
+  return [...new Set(out)];
+}
+
 const NightActions = {
   // 💘 丘比特只在第一夜、且在其他身份前行动。
   async cupid(alive) {
@@ -13902,6 +13929,121 @@ const NightActions = {
     gk.memory.push({role:'system', content:'【守墓人私密结果】昨日日间被放逐的'+exile.name+'属于【'+team+'】。你只验证了阵营，不知道其具体身份。'});
     gameRecord.push({type:'night_action', role:'gravekeeper', round:S.round, target:exile.name, result:team, team:exile.team});
     if (gk.isPlayer || !isAnon()) Render.log('night-result','守墓人查得'+exile.name+'属于'+team);
+  },
+
+  async imitator(alive) {
+    const im = alive.find(p => p.role.id === 'imitator');
+    if (!im) return;
+    if (nightSkillMuted(im)) { recordNightSkillMuted(im, '摹取'); return; }
+    im._imitatorTried = Array.isArray(im._imitatorTried) ? im._imitatorTried : [];
+    im._imitatorSuccesses = Number(im._imitatorSuccesses) || 0;
+    if (im._imitatorSuccesses >= 3) return;
+    const candidates = alive.filter(p => p.id !== im.id && !im._imitatorTried.includes(p.id));
+    if (!candidates.length) return;
+    Render.setSpeaking(im.id, true);
+    let learned = null, learnStatus = 'pass';
+    if (im.isPlayer) {
+      const opts = candidates.map(x => ({label:'P'+(x.id+1)+' '+x.name,value:x.name}));
+      opts.push({label:'今晚不学习',value:'None',abs:true});
+      const v = await waitChoice('选择一名从未学习过的玩家。你只会得知摹到的能力，不会直接获知其身份。','摹取',opts);
+      if (v !== 'None') { learned = findPlayer(v,candidates); if (learned) learnStatus='execute'; }
+    } else {
+      const list = candidates.map(x=>'P'+(x.id+1)+' '+x.name).join('、');
+      const r = await nightTwoStep(im,
+        '【摹术师·第'+S.round+'夜】你还可成功摹取'+(3-im._imitatorSuccesses)+'次。每名玩家整局只能学习一次；即使没有兼容技能，该目标也会被消耗。可选：'+list+'。你不会直接得知目标身份，只会知道能否形成临时主动技能。也可以空过。',
+        '最终只提交一个座位编号，或 PASS。\n<action>P数字 或 PASS</action>');
+      logNightThinking(im,r);
+      const d = await resolveAIAction3(im,r,{label:'摹术师学习',candidates,targetCount:1,allowPass:true,formatHint:'LEARN|P数字 或 PASS'});
+      if (d.status==='execute') { learned=d.targets[0]; learnStatus='execute'; }
+      else if (d.status==='invalid') { learnStatus='invalid'; recordTechnicalActionFailure(im,'摹术师学习','两次格式纠正后仍无法识别学习目标；没有随机消耗玩家'); }
+    }
+    if (!learned) {
+      gameRecord.push({type:'night_action',role:'imitator',round:S.round,name:im.name,target:null,result:learnStatus,technical:learnStatus==='invalid'});
+      attachNightThinking(im.id); Render.setSpeaking(im.id,false); return;
+    }
+    im._imitatorTried.push(learned.id);
+    const choices = imitatorSkillChoices(learned.role);
+    if (!choices.length) {
+      im.memory.push({role:'system',content:'【摹取结果·私密】第'+S.round+'夜你学习了'+learned.name+'，但没有形成可复制的夜间主动技能。该玩家今后不能再次学习；你仍剩'+(3-im._imitatorSuccesses)+'次成功摹取额度。此结果不能证明其准确身份。'});
+      gameRecord.push({type:'night_action',role:'imitator',round:S.round,name:im.name,target:learned.name,result:'incompatible'});
+      attachNightThinking(im.id); Render.setSpeaking(im.id,false); return;
+    }
+    im._imitatorSuccesses++;
+    let skill = choices[0];
+    if (choices.length > 1) {
+      if (im.isPlayer) {
+        const v = await waitChoice('记忆中浮现了多种可用能力。选择本夜要凝成的一种；选定后仍可放弃实际施放。','选择摹术',choices.map(x=>({label:IMITATOR_SKILL_LABELS[x],value:x})));
+        if (choices.includes(v)) skill=v;
+      } else {
+        const r = await nightTwoStep(im,'【摹取成功·私密】你从'+learned.name+'的记忆中读到以下临时能力：'+choices.map(x=>x+'='+IMITATOR_SKILL_LABELS[x]).join('、')+'。这不等于得知其准确身份。请选择本夜凝成的一种。','<action>'+choices.join(' 或 ')+'</action>');
+        logNightThinking(im,r);
+        const raw=String(r.action||'').toLowerCase();
+        const picked=choices.find(x=>raw.includes(x)||String(r.action||'').includes(IMITATOR_SKILL_LABELS[x]));
+        if (picked) skill=picked;
+        else {
+          recordTechnicalActionFailure(im,'摹术师能力选择','无法识别临时能力分支，本夜不施放；成功摹取次数仍已消耗');
+          im.memory.push({role:'system',content:'【摹取结果·私密】你成功形成了临时能力，但选择指令无法解析，本夜未施放。能力已在天亮时消散。'});
+          gameRecord.push({type:'night_action',role:'imitator',round:S.round,name:im.name,target:learned.name,result:'learned',skill:null,technical:true});
+          attachNightThinking(im.id); Render.setSpeaking(im.id,false); return;
+        }
+      }
+    }
+    im.memory.push({role:'system',content:'【摹取结果·私密】第'+S.round+'夜你从'+learned.name+'处形成了【'+IMITATOR_SKILL_LABELS[skill]+'】。这只说明其能力与该类型兼容，不等于准确身份；本夜用后即失效，天亮也会自动消散。整局已成功摹取'+im._imitatorSuccesses+'/3次。'});
+    gameRecord.push({type:'night_action',role:'imitator',round:S.round,name:im.name,target:learned.name,result:'learned',skill});
+    await this._imitatorUse(im,skill,alive);
+    attachNightThinking(im.id); Render.setSpeaking(im.id,false);
+  },
+
+  async _imitatorUse(im, skill, alive) {
+    if (skill === 'rescue') {
+      let use = false;
+      if (im.isPlayer) use = (await waitChoice('是否将仿制解药留到实际狼刀确定后自动救人？','仿制解药',[{label:'准备救援',value:'USE'},{label:'放弃本夜能力',value:'PASS',abs:true}])) === 'USE';
+      else { const r = await nightTwoStep(im,'【仿制解药】若本夜存在实际狼刀，你会在换位结算后看见刀口并自动救下。能力只存在本夜；也可放弃。','<action>USE 或 PASS</action>'); logNightThinking(im,r); use=/\bUSE\b|准备|救援/.test(String(r.action||''))&&!/PASS|放弃|不救/.test(String(r.action||'')); }
+      if (use) S.nightData.imitatorRescueReady=true;
+      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:use?'ready':'pass'}); return;
+    }
+    if (skill === 'swap') {
+      let pair=[];
+      if (im.isPlayer) {
+        const first=await waitChoice('选择换位第一人，或放弃。','镜像换位',alive.map(x=>({label:x.id===im.id?'自己':x.name,value:x.name})).concat({label:'放弃',value:'None',abs:true}));
+        const a=first==='None'?null:findPlayer(first,alive);
+        if(a){const second=await waitChoice('选择换位第二人。','镜像换位',alive.filter(x=>x.id!==a.id).map(x=>({label:x.id===im.id?'自己':x.name,value:x.name})));const b=findPlayer(second,alive);if(b&&b.id!==a.id)pair=[a,b];}
+      } else {
+        const r=await nightTwoStep(im,'【镜像换位】选择两名不同存活玩家；只重定向本夜狼刀，可以包含自己。也可放弃。可选：'+alive.map(x=>'P'+(x.id+1)+' '+x.name).join('、'),'<action>SWAP|P数字|P数字 或 PASS</action>');
+        logNightThinking(im,r);const d=await resolveAIAction3(im,r,{label:'摹术师镜像换位',candidates:alive,targetCount:2,allowPass:true,formatHint:'SWAP|P数字|P数字 或 PASS'});if(d.status==='execute')pair=d.targets;else if(d.status==='invalid')recordTechnicalActionFailure(im,'摹术师镜像换位','无法解析两个不同目标，本夜未换位');
+      }
+      if(pair.length===2)S.nightData.imitatorSwap=pair.map(x=>x.id);
+      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:pair.length===2?pair.map(x=>x.name).join('↔'):null,targets:pair.map(x=>x.name),skill,result:pair.length===2?'execute':'pass'});return;
+    }
+    const selfAllowed=skill==='protect'||skill==='cleanse';
+    const targets=alive.filter(p=>selfAllowed||p.id!==im.id);
+    let t=null,status='pass';
+    if(im.isPlayer){const opts=targets.map(x=>({label:x.id===im.id?'自己':x.name,value:x.name}));opts.push({label:'放弃本夜能力',value:'None',abs:true});const v=await waitChoice('选择【'+IMITATOR_SKILL_LABELS[skill]+'】的目标。','临时摹术',opts);if(v!=='None'){t=findPlayer(v,targets);if(t)status='execute';}}
+    else{const r=await nightTwoStep(im,'【临时摹术·'+IMITATOR_SKILL_LABELS[skill]+'】能力仅本夜可用。可选：'+targets.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'。也可放弃。','<action>P数字 或 PASS</action>');logNightThinking(im,r);const d=await resolveAIAction3(im,r,{label:'摹术师'+IMITATOR_SKILL_LABELS[skill],candidates:targets,targetCount:1,allowPass:true,formatHint:'USE|P数字 或 PASS'});if(d.status==='execute'){t=d.targets[0];status='execute';}else if(d.status==='invalid'){status='invalid';recordTechnicalActionFailure(im,'摹术师'+IMITATOR_SKILL_LABELS[skill],'无法解析施放目标，本夜未施放');}}
+    if(!t){gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:status,technical:status==='invalid'});return;}
+    if(skill==='inspect'){
+      const actual=reflectInspectSubject(im,t),rebounded=actual.id!==t.id;const wolf=seerSeesAsWolf(actual);
+      im.memory.push({role:'system',content:rebounded?'【临时窥识·私密】你查验'+t.name+'时明确感到能力被反弹，只得到了自己的好人显示；'+t.name+'没有被验证。':'【临时窥识·私密】你查验'+t.name+'，结果为【'+(wolf?'狼人显示':'好人显示')+'】。这不是准确身份翻牌。'});
+      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:t.name,skill,result:rebounded?'rebounded':(wolf?'wolf':'good')});return;
+    }
+    if(skill==='protect')S.nightData.customProtect.push(reflectEffectTarget(im,t.id));
+    else if(skill==='poison')S.nightData.customPoison.push(reflectEffectTarget(im,t.id));
+    else if(skill==='cleanse'){S.nightData.imitatorSanctuaryTarget=t.id;S.nightData.imitatorSanctuaryUsed=false;if(S.nightData.concubineGuard===t.id&&!S.nightData._concubineTriggered){consumeSanctuaryMark(t.id,'wolfconcubine');S.nightData.concubineGuard=null;}}
+    else if(skill==='charm'){
+      const rebounded=S.nightData.concubineGuard!=null&&!S.nightData._concubineTriggered&&t.id===S.nightData.concubineGuard;
+      if(rebounded){S.nightData._concubineTriggered=true;im.memory.push({role:'system',content:'【临时媚惑·私密】你明确知道对'+t.name+'的媚惑被反弹，原目标没有被验证。'});status='rebounded';}
+      else if(consumeSanctuaryMark(t.id,'imitator-charm'))status='blocked';
+      else{const wolf=t.role.team==='bad';if(wolf)S.nightData.foxBlockKill=true;else{if(!S.nightData.foxMuteIds.includes(t.id))S.nightData.foxMuteIds.push(t.id);S.nightData.skillMuteSources[t.id]='imitator';}t.memory.push({role:'system',content:'【临时媚惑·私密】第'+S.round+'夜你受到一次子狐类媚惑；你知道能力类型，但不知道施法玩家是谁。'});im.memory.push({role:'system',content:'【临时媚惑·私密】'+t.name+'属于【'+(wolf?'狼人阵营':'好人阵营')+'】。'+(wolf?'本夜全狼禁刀。':'其本夜主动技能会被封锁。')});status=wolf?'blockKill':'mute';}
+    }
+    gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:t.name,skill,result:status});
+  },
+
+  async imitatorRescue(alive) {
+    const im=alive.find(p=>p.role.id==='imitator');
+    if(!im||!S.nightData.imitatorRescueReady||S.nightData.kill==null)return;
+    const victim=S.players[S.nightData.kill];S.nightData.imitatorSave=victim.id;
+    im.memory.push({role:'system',content:'【仿制解药·私密】你看见实际狼刀落在'+victim.name+'，临时解药已自动救下该目标。'});
+    gameRecord.push({type:'night_action',role:'imitator_rescue',round:S.round,name:im.name,target:victim.name,result:'save'});
   },
 
   // 摄梦人：不同目标获得夜间伤害免疫；连续两夜同一目标转为不可保护的噩梦处决。
@@ -14043,7 +14185,7 @@ const NightActions = {
     Render.setSpeaking(gg.id,false);
   },
 
-  // ★ 魔术师：每晚最先行动。交换任意两名存活玩家的号码（可含自己），仅重定向当晚狼刀（见 applyMagicSwap）。
+  // ★ 魔术师：每晚在狼刀确定前行动。交换任意两名存活玩家的号码（可含自己），仅重定向当晚狼刀（见 applyMagicSwap）。
   async magician(alive) {
     const mg = alive.find(p => p.role.id==='magician');
     if (!mg) return;
@@ -14421,18 +14563,24 @@ const NightActions = {
   // ★ 狼刀重定向：狼刀落定后调用。刀口若是被交换的二人之一，实际落到另一人。
   //   只动 S.nightData.kill；狼队记录/私密通知用 killChosenByWolf 保留"狼自己选的刀口"。
   applyMagicSwap() {
-    const sw = S.nightData.magicSwap;
-    if (!sw) return;
-    const k = S.nightData.kill;
+    let k = S.nightData.kill;
     if (k === null || k === undefined) return;
-    let nk = null;
-    if (k === sw[0]) nk = sw[1]; else if (k === sw[1]) nk = sw[0];
-    if (nk === null) return;
-    const np = S.players[nk];
-    if (!np || !np.alive) return;
-    S.nightData.killChosenByWolf = k;
-    S.nightData.kill = nk;
-    if (!isAnon()) Render.log('night-result','🎩 魔术生效：狼刀从 '+S.players[k].name+' 转移到 '+np.name);
+    const swaps = [
+      {pair:S.nightData.magicSwap,label:'魔术'},
+      {pair:S.nightData.imitatorSwap,label:'镜像摹术'}
+    ];
+    for (const item of swaps) {
+      const sw=item.pair;
+      if (!sw) continue;
+      let nk=null;
+      if(k===sw[0]) nk=sw[1]; else if(k===sw[1]) nk=sw[0];
+      if(nk===null) continue;
+      const np=S.players[nk];
+      if(!np||!np.alive) continue;
+      if(!isAnon()) Render.log('night-result',item.label+'生效：狼刀从 '+S.players[k].name+' 转移到 '+np.name);
+      k=nk;
+    }
+    S.nightData.kill=k;
   },
   async guard(alive) {
       const gu = alive.find(p => p.role.id==='guard');
@@ -16267,7 +16415,7 @@ const PhaseHandlers = {
       gameRecord.push({type:'system',text:'第'+S.round+'夜'});
       callHost('night_start');
       S._nightRun = {key:nightKey, done:[], complete:false};
-      S.nightData = {kill:null, killChosenByWolf:null, magicSwap:null, lastMagicPair:(S.nightData?.lastMagicPair ?? null), guard:null, lastGuard:(S.nightData?.lastGuard ?? null), witchSave:false, witchPoison:null, wolfBeautyCharm:null, mechGuard:null, mechPoison:null, mechKnifeBreak:false, skKill:null,
+      S.nightData = {kill:null, killChosenByWolf:null, magicSwap:null, imitatorSwap:null, imitatorRescueReady:false, imitatorSave:null, imitatorSanctuaryTarget:null, imitatorSanctuaryUsed:false, lastMagicPair:(S.nightData?.lastMagicPair ?? null), guard:null, lastGuard:(S.nightData?.lastGuard ?? null), witchSave:false, witchPoison:null, wolfBeautyCharm:null, mechGuard:null, mechPoison:null, mechKnifeBreak:false, skKill:null,
       // 🦊 子狐媚惑：foxBlockKill=当晚全狼禁刀；foxMuteIds=当晚被封夜间主动技的好人ID
       foxBlockKill:false, foxMuteIds:[], skillMuteSources:{},
       // 🌒 蚀时狼妃：concubineGuard=被反弹保护的X；_concubineTriggered=本夜是否已触发一次
@@ -16319,6 +16467,7 @@ const PhaseHandlers = {
       await nightStep('soulwarden', () => NightActions.soulwarden(alive));
       await nightStep('mechwolf-fox', () => NightActions._mechFox(alive.find(p=>p.role.id==='mechwolf'), alive));
       await nightStep('fox', () => NightActions.fox(alive));
+      await nightStep('imitator', () => NightActions.imitator(alive));
       await nightStep('merchant', () => NightActions.merchant(alive));
       await nightStep('youshang', () => NightActions.youshang(alive));
       await nightStep('pick-gift', () => NightActions.pickGift(alive));
@@ -16335,6 +16484,7 @@ const PhaseHandlers = {
       await nightStep('mechwolf-kill', () => NightActions.mechwolfKill(alive));
       await nightStep('gargoyle-kill', () => NightActions.gargoyleKill(alive));
       await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
+      await nightStep('imitator-rescue', () => NightActions.imitatorRescue(alive));
       await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
       await nightStep('atmo-before-gods', () => nightAtmo(1));
       await nightStep('witch', () => NightActions.witch(alive));
@@ -16370,6 +16520,7 @@ const PhaseHandlers = {
     await nightStep('soulwarden', () => NightActions.soulwarden(alive));
     await nightStep('mechwolf-fox', () => NightActions._mechFox(alive.find(p=>p.role.id==='mechwolf'), alive));
     await nightStep('fox', () => NightActions.fox(alive));
+    await nightStep('imitator', () => NightActions.imitator(alive));
     await nightStep('merchant', () => NightActions.merchant(alive));
     await nightStep('youshang', () => NightActions.youshang(alive));
     await nightStep('pick-gift', () => NightActions.pickGift(alive));
@@ -16386,6 +16537,7 @@ const PhaseHandlers = {
     await nightStep('mechwolf-kill', () => NightActions.mechwolfKill(alive));
     await nightStep('gargoyle-kill', () => NightActions.gargoyleKill(alive));
     await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
+    await nightStep('imitator-rescue', () => NightActions.imitatorRescue(alive));
     await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
     await nightStep('atmo-before-gods', () => nightAtmo(1));
     await nightStep('witch', () => NightActions.witch(alive));
@@ -17615,11 +17767,17 @@ function reflectInspectSubject(caster, t){
 // 敌对非伤害标记的统一拦截口。命中后只留下上帝视角技术记录，不向任何阵营反馈原因。
 function consumeSanctuaryMark(targetId, sourceRole){
   const nd = S.nightData;
-  if (!nd || targetId == null || nd.sanctuaryTarget !== targetId || nd.sanctuaryUsed) return false;
-  nd.sanctuaryUsed = true;
+  if (!nd || targetId == null) return false;
+  let provider = null;
+  if (nd.sanctuaryTarget === targetId && !nd.sanctuaryUsed) {
+    nd.sanctuaryUsed = true; provider = 'soulwarden';
+  } else if (nd.imitatorSanctuaryTarget === targetId && !nd.imitatorSanctuaryUsed) {
+    nd.imitatorSanctuaryUsed = true; provider = 'imitator';
+  }
+  if (!provider) return false;
   nd.sanctuaryBlocked = sourceRole || 'hostile-mark';
   const target = S.players[targetId];
-  gameRecord.push({type:'night_action',role:'sanctuary-block',round:S.round,target:target ? target.name : null,source:nd.sanctuaryBlocked,godOnly:true});
+  gameRecord.push({type:'night_action',role:'sanctuary-block',round:S.round,target:target ? target.name : null,source:nd.sanctuaryBlocked,provider,godOnly:true});
   return true;
 }
 // 🌒 蚀时狼妃反弹·通用重定向（守护/毒等落点型效果）：命中被锁 X 的效果 → 静默改落到施法者自己身上
@@ -17667,12 +17825,17 @@ async function resolveNight() {
   applyCustomNightFx();
   const deaths = [];
   // ★ 刀口与毒口是否为同一人：是则按"毒"结算（毒优先，压制猎人开枪/狼王咬人等死亡技能）
-  const killPoisonSame = (S.nightData.kill !== null && S.nightData.witchPoison !== null && S.nightData.kill === S.nightData.witchPoison);
+  const killPoisonSame = S.nightData.kill !== null && (
+    S.nightData.kill === S.nightData.witchPoison ||
+    S.nightData.kill === S.nightData.mechPoison ||
+    S.nightData.kill === S.nightData.grantPoison ||
+    (Array.isArray(S.nightData.customPoison) && S.nightData.customPoison.includes(S.nightData.kill))
+  );
   if (S.nightData.kill !== null) {
     const v = S.players[S.nightData.kill];
     const ig = S.nightData.guard === S.nightData.kill;              // 真守卫：只挡刀
     const anyGuard = ig;
-    const is = S.nightData.witchSave;
+    const is = S.nightData.witchSave || S.nightData.imitatorSave === S.nightData.kill;
     // ★ 机械狼破盾刀：学过狼系的机械狼带刀时，无视守卫守护和女巫解药，直接杀死
     const breakKnife = !!S.nightData.mechKnifeBreak;
     // ★ 机械盾：机械狼学守卫后的守护——同时免疫狼刀和女巫毒（比真守卫强）。破盾刀例外（但二者不可能同局共存）
@@ -17715,9 +17878,11 @@ async function resolveNight() {
       Render.log('system','⚠️ 同守同救，'+v.name+'未能生还');
       // ★ fix：向守卫和女巫注入专属记忆，让AI理解同守同救机制
       const guard = S.players.find(p => p.role.id==='guard' && p.alive);
-      const witch = S.players.find(p => p.role.id==='witch' && p.alive);
-      if (guard) guard.memory.push({role:'system', content:'【同守同救提醒】你昨晚守了'+v.name+'，但女巫也救了'+v.name+'，触发了同守同救机制，'+v.name+'反而死亡了。下次注意避免和女巫撞车。'});
+      const witch = S.nightData.witchSave ? S.players.find(p => p.role.id==='witch' && p.alive) : null;
+      const imitator = S.nightData.imitatorSave === v.id ? S.players.find(p => p.role.id==='imitator' && p.alive) : null;
+      if (guard) guard.memory.push({role:'system', content:'【同守同救提醒】你昨晚守了'+v.name+'，但同一目标也受到了解药效果，触发同守同救机制，'+v.name+'反而死亡了。'});
       if (witch) witch.memory.push({role:'system', content:'【同守同救提醒】你昨晚救了'+v.name+'，但守卫也守了'+v.name+'，触发了同守同救机制，'+v.name+'反而死亡了。下次注意你用救药前考虑守卫是否可能守了同一人。'});
+      if (imitator) imitator.memory.push({role:'system', content:'【同守同救提醒】你的仿制解药救了'+v.name+'，但守卫也守了同一目标，触发同守同救，'+v.name+'仍然死亡。'});
     } else if (!anyGuard && !is) {
       v.alive = false; v.revealed = true;
       v.deathCause = 'kill'; v.deathRound = S.round; v.deathPhase = 'night';
@@ -21309,6 +21474,12 @@ function _buildPrivateInfoLines(p) {
     const seen=(p._gargoyleSeen||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
     lines.push('石瞳已查目标：'+seen+'；苏醒夜刀：'+(p._gargoyleAwake?'已获得':'尚未获得（其他狼系全部出局后获得）')+'。你与普通狼队互不相认。');
   }
+  if (p.role.id === 'imitator') {
+    const tried=(p._imitatorTried||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
+    const acts=gameRecord.filter(r=>r.type==='night_action'&&r.name===p.name&&/^imitator/.test(r.role||''))
+      .map(r=>'第'+r.round+'夜：'+(r.role==='imitator'?'学习'+(r.target||'空过')+(r.skill?' → '+(IMITATOR_SKILL_LABELS[r.skill]||r.skill):r.result==='incompatible'?' → 无兼容技能':''):'施放'+(IMITATOR_SKILL_LABELS[r.skill]||r.skill||'临时能力')+(r.target?' → '+r.target:'（'+(r.result||'未使用')+'）')));
+    lines.push('摹术记录：已尝试 '+tried+'；成功 '+(Number(p._imitatorSuccesses)||0)+'/3 次。'+(acts.length?'\n  '+acts.join('\n  '):''));
+  }
 
   // 🌹 狼美人：每夜魅惑目标
   if (p.role.id === 'wolfbeauty') {
@@ -21758,6 +21929,9 @@ function _formatCustomNightAction(r) {
     case 'mechwolf_fox':   return '🤖🦊 机械媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到机械狼本人；原选择目标未受影响且未被验证）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（凡查/守/毒他的神职反噬其自身，仅首个命中触发）';
     case 'soulwarden':     return '净魂师展开圣域：' + t + '（是否实际拦截不向玩家反馈）';
+    case 'imitator':       return '摹术师学习：' + (t || '空过') + (r.skill ? ' → ' + (IMITATOR_SKILL_LABELS[r.skill] || r.skill) : r.result === 'incompatible' ? '（无兼容技能）' : '');
+    case 'imitator_use':   return '摹术师施放：' + (IMITATOR_SKILL_LABELS[r.skill] || r.skill || '临时能力') + (t ? ' → ' + t : '（'+(r.result || '未使用')+'）');
+    case 'imitator_rescue':return '摹术师仿制解药：救下 ' + t;
     case 'sanctuary-block':return '圣域净除敌对标记：' + t + '（来源：' + (r.source || '未知') + '）';
     case 'fool':           return '🃏 愚者护盾：护住 ' + t + '（他若没挨刀，盾自动转护愚者本人）';
     case 'merchant':
@@ -21793,7 +21967,7 @@ function _formatCustomNightAction(r) {
 }
 // 判断某条 night_action 是否属于某视角玩家本人（用于自视角摘要显示自己的自创技能行动）
 function _isOwnNightAction(r, viewerP) {
-  return !!(r && viewerP && r.name && r.name === viewerP.name && /^(skill-muted$|custom-|granted-|gift-|fox$|fool$|merchant$|youshang$|wolfconcubine$|soulwarden$)/.test(r.role || ''));
+  return !!(r && viewerP && r.name && r.name === viewerP.name && /^(skill-muted$|custom-|granted-|gift-|fox$|fool$|merchant$|youshang$|wolfconcubine$|soulwarden$|imitator)/.test(r.role || ''));
 }
 
 function _buildChatSummary(viewerP, roundFilter, opts) {
@@ -21813,7 +21987,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   //   否则会向机械狼泄露队友身份、狼人数、队友死因等它本不该知道的信息。
   const isWolf = !blindReview && (isGod || isPackWolfRole(role));
   const roleId  = role.id || '';
-  const godRoles = new Set(['seer','witch','guard','hunter','knight','cupid','wolfbeauty','idiot']);
+  const godRoles = new Set(['seer','witch','guard','hunter','knight','cupid','wolfbeauty','imitator','idiot']);
   const hiddenDeathMode = (() => { try { return !!($('m-hdeath') && $('m-hdeath').checked); } catch(e) { return false; } })();
 
   const titleName = blindReview ? '终局盲复盘' : (isGod ? '上帝视角' : (blindNamesOn() ? playerCode(viewerP) : (viewerP.name + '（P' + (viewerP.id+1) + '）')));
