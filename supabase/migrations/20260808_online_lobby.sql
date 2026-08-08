@@ -97,7 +97,7 @@ create or replace function public.online_create_room(
   p_display_name text,
   p_max_seats integer default 12
 )
-returns table (room_id uuid, room_code text)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -128,12 +128,12 @@ begin
 
   insert into public.online_room_members(room_id,user_id,seat_no,display_name)
   values (v_room_id,auth.uid(),1,left(trim(p_display_name),24));
-  return query select v_room_id,v_code;
+  return jsonb_build_object('room_id',v_room_id,'room_code',v_code);
 end;
 $$;
 
 create or replace function public.online_join_room(p_code text,p_display_name text)
-returns table (room_id uuid,room_code text)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -145,16 +145,15 @@ begin
   if auth.uid() is null then raise exception 'authentication required'; end if;
   if char_length(trim(coalesce(p_display_name,''))) not between 1 and 24 then raise exception 'invalid display name'; end if;
 
-  select * into v_room from public.online_rooms
-  where code = upper(trim(p_code)) and status = 'lobby'
+  select r.* into v_room from public.online_rooms as r
+  where r.code = upper(trim(p_code)) and r.status = 'lobby'
   for update;
   if not found then raise exception 'room not found or already started'; end if;
 
-  if exists(select 1 from public.online_room_members where room_id=v_room.id and user_id=auth.uid()) then
-    update public.online_room_members set display_name=left(trim(p_display_name),24),last_seen_at=now()
-    where room_id=v_room.id and user_id=auth.uid();
-    return query select v_room.id,v_room.code;
-    return;
+  if exists(select 1 from public.online_room_members as m where m.room_id=v_room.id and m.user_id=auth.uid()) then
+    update public.online_room_members as m set display_name=left(trim(p_display_name),24),last_seen_at=now()
+    where m.room_id=v_room.id and m.user_id=auth.uid();
+    return jsonb_build_object('room_id',v_room.id,'room_code',v_room.code);
   end if;
 
   select seats.seat into v_seat from generate_series(1,v_room.max_seats) as seats(seat)
@@ -164,8 +163,8 @@ begin
 
   insert into public.online_room_members(room_id,user_id,seat_no,display_name)
   values(v_room.id,auth.uid(),v_seat,left(trim(p_display_name),24));
-  update public.online_rooms set updated_at=now() where id=v_room.id;
-  return query select v_room.id,v_room.code;
+  update public.online_rooms as r set updated_at=now() where r.id=v_room.id;
+  return jsonb_build_object('room_id',v_room.id,'room_code',v_room.code);
 end;
 $$;
 

@@ -7,22 +7,25 @@
 1. 登录当前云存档所使用的 Supabase 项目。
 2. 打开 **SQL Editor**，新建查询。
 3. 复制并执行 [`supabase/migrations/20260808_online_lobby.sql`](../supabase/migrations/20260808_online_lobby.sql) 的全部内容。
-4. 在 Table Editor 中确认出现：
+4. 再执行 [`supabase/migrations/20260809_multi_key_seats.sql`](../supabase/migrations/20260809_multi_key_seats.sql)，启用一名玩家托管多个 AI 席位。
+5. 在 Table Editor 中确认出现：
    - `online_rooms`
    - `online_room_members`
    - `online_room_messages`
-5. 用两个不同账号或两个浏览器会话测试创建、加入、准备和聊天。
+   - `online_room_ai_seats`
+6. 用两个不同账号或两个浏览器会话测试创建、加入、准备和聊天。
 
 迁移可以重复执行。表、索引、函数与策略均使用可重复部署的写法；已有房间数据不会因为重复执行而被清空。
 
 ## 安全边界
 
 - 前端只使用 Supabase 的 publishable key。
-- 三张表都启用了 RLS。
+- 四张联机表都启用了 RLS。
 - 创建、加入、更新席位、锁定阵容和离开房间通过 `security definer` RPC 完成，并在函数内重新验证 `auth.uid()`。
 - 普通用户只能读取自己已经加入的房间。
 - 聊天消息必须使用当前登录用户作为发送者。
 - API Key、世界书正文、模型请求和隐藏身份不进入第一期联机表。
+- 多席位模式只保存 `provider_user_id`、公开模型名、容量和串行/并发偏好；API Key 仍只存在提供者设备。
 
 不要把 Supabase `service_role` key、数据库密码或玩家模型 API Key 写进网页和仓库。
 
@@ -38,3 +41,13 @@
 - 服务端发牌、夜间结算与胜负判断；
 - 超时托管、断线恢复和完整事件战报；
 - 玩家设备本地调用自己的模型，只上传标准化发言与行动。
+
+## 一 Key 多席位
+
+每名玩家可以主动开启“允许这台设备提供 AI 席位”，设置最多托管数量和请求调度方式。房主随后选择空位策略：
+
+- **等待玩家**：不自动生成 AI 席位。
+- **房主模型全部补齐**：所有空位由房主设备上的同一个模型配置负责。
+- **平均分配**：在主动开启托管的玩家之间轮流分配空位，并严格遵守各自容量。
+
+生成的 AI 席位拥有独立座位和公开名称。正式对局接入后，每个席位仍会收到独立身份视角、记忆与任务；共用的是 API 提供者和调用额度，不会共用角色记忆。
