@@ -1947,6 +1947,18 @@ body.blind-review .le.ending { display:none !important; }
 .role-flip .role-card-title small { color:var(--role-accent); }
 .role-flip .role-sigil { color:color-mix(in srgb,var(--role-accent) 42%,#e8c46a); }
 .role-flip:hover .role-card-face { box-shadow:0 16px 34px rgba(0,0,0,.48),0 0 22px color-mix(in srgb,var(--role-accent) 20%,transparent),inset 0 0 0 1px rgba(232,196,106,.1); }
+.cr-art-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin:7px 0 11px; }
+.cr-art-box { position:relative; min-width:0; border:1px solid rgba(208,160,240,.22); border-radius:12px; background:rgba(8,6,14,.42); overflow:hidden; }
+.cr-art-preview { height:132px; display:grid; place-items:center; background:radial-gradient(circle at 50% 35%,rgba(144,112,205,.22),transparent 45%),#100c18; color:#746986; font-size:.69rem; text-align:center; padding:10px; background-size:cover; background-position:center; }
+.cr-art-preview.cg { height:90px; margin-top:21px; }
+.cr-art-box.has-art .cr-art-preview { color:transparent; }
+.cr-art-actions { display:flex; gap:5px; padding:7px; border-top:1px solid rgba(208,160,240,.14); }
+.cr-art-actions label,.cr-art-actions button { flex:1; min-width:0; border:1px solid rgba(208,160,240,.28); border-radius:8px; background:rgba(208,160,240,.09); color:#cdbce0; font-size:.67rem; text-align:center; padding:6px 4px; cursor:pointer; }
+.cr-art-actions button { color:#aa8392; }
+.cr-art-caption { position:absolute; left:8px; top:7px; z-index:2; color:#d8c6ed; font-family:var(--font-title); font-size:.67rem; letter-spacing:.06em; text-shadow:0 1px 5px #000; }
+.cr-art-note { color:#71677f; font-size:.64rem; line-height:1.55; margin:-3px 0 8px; }
+.cr-role-thumb .role-sigil { width:35px; height:35px; }
+@media (max-width:520px) { .cr-art-grid { grid-template-columns:1fr; } .cr-art-preview { height:154px; } .cr-art-preview.cg { height:104px; } }
 .lobby-tools { width:min(1040px,100%); display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:12px auto 6px; }
 .lobby-tools > button { width:100%; min-height:46px; margin:0 !important; justify-content:center; }
 .custom-cover-box { margin:10px 0 4px; padding:10px; border:1px solid rgba(232,196,106,.22); border-radius:12px; background:rgba(8,6,14,.35); }
@@ -2736,6 +2748,11 @@ body.has-wp::after {
   <div style="font-size:0.72em;color:#8880a8;text-align:center;margin-bottom:12px">创建专属身份，加入自定义局中使用</div>
   <div class="ct-row"><label>角色名</label><input type="text" id="cr-name" placeholder="例：魔术师" style="flex:1;max-width:none"></div>
   <div class="ct-row"><label>Emoji</label><input type="text" id="cr-emoji" placeholder="🪄" style="max-width:60px;text-align:center;font-size:1.2em"><label style="margin-left:12px">阵营</label><select id="cr-team" style="min-width:80px"><option value="good">✅ 好人</option><option value="bad">🐺 狼人</option><option value="third">🎭 第三方</option></select></div>
+  <div class="cr-art-grid">
+    <div class="cr-art-box" id="cr-portrait-box"><span class="cr-art-caption">图鉴立绘 · 3:4</span><div class="cr-art-preview" id="cr-portrait-preview">上传后显示在角色图鉴正面</div><div class="cr-art-actions"><label>选择图片<input type="file" id="cr-portrait-file" accept="image/*" hidden></label><button type="button" id="cr-portrait-clear">移除</button></div></div>
+    <div class="cr-art-box" id="cr-cg-box"><span class="cr-art-caption">行动 CG · 16:9</span><div class="cr-art-preview cg" id="cr-cg-preview">发动夜间技能时全屏展示</div><div class="cr-art-actions"><label>选择图片<input type="file" id="cr-cg-file" accept="image/*" hidden></label><button type="button" id="cr-cg-clear">移除</button></div></div>
+  </div>
+  <div class="cr-art-note" id="cr-art-status">图片仅保存在你的配置中；系统会自动裁切并压缩。立绘建议竖图，CG 建议横图、无文字无边框。</div>
   <div class="ct-row"><label>技能模板</label><select id="cr-ability" style="flex:1;max-width:none"><option value="">无（只有人设，夜里无技能）</option><option value="seer">🔮 预言家 · 每晚验人</option><option value="witch">🧪 女巫 · 解药+毒药</option><option value="guard">🛡️ 守卫 · 每晚守护一人</option><option value="hunter">🔫 猎人 · 死亡时开枪带走一人</option><option value="knight">⚔️ 骑士 · 白天可发起决斗</option><option value="magician">🪄 魔术师 · 每晚交换两人</option><option value="werewolf">🐺 狼人 · 参与夜间狼刀</option><option value="wolfking">👹 狼王 · 夜刀+死亡咬人</option></select></div>
   <div style="font-size:0.66em;color:#6a6080;margin:-2px 0 8px;line-height:1.5">💡 单选模板：整个角色<b>变成该内置角色</b>（复用其机制，阵营随模板定）。想<b>自由拼技能</b>请用下面的「积木」多选。</div>
   <div class="ct-row" style="align-items:flex-start"><label style="padding-top:4px">积木技能<br><span style="font-size:0.72em;color:#8880a8;font-weight:400">可多选叠加</span></label>
@@ -4525,6 +4542,11 @@ function mechLearnSummaryText() {
 /* ── 自创角色全局存储 ── */
 window._customRolesDefs = window._customRolesDefs || [];
 
+// 自创角色美术只接受本地压缩后生成的图片 data URL；导入配置时也走同一白名单，避免把任意协议塞进 img/src。
+function safeCustomRoleArt(value) {
+  return (typeof value === 'string' && /^data:image\/(?:webp|jpeg|png);base64,[a-z0-9+/=]+$/i.test(value) && value.length <= 750000) ? value : '';
+}
+
 // ★ 允许自创角色映射到的"技能模板"白名单（值为内置角色id，其夜间机制会被完整复用）
 const CUSTOM_ABILITY_BASE = ['seer','witch','guard','hunter','knight','magician','werewolf','wolfking'];
 
@@ -4552,7 +4574,7 @@ function buildCustomAbilityGuide(name, team, abilities){
 }
 
 function registerCustomRole(cr) {
-  // cr: {id, name, emoji, team, desc, guide, ability, abilities}
+  // cr: {id, name, emoji, team, desc, guide, ability, abilities, portrait, actionCG}
   // ★ 优先级：勾了积木(abilities) → 积木组合(保留自身id、通用引擎结算)；否则单选模板(ability)克隆内置角色；否则纯人设皮。
   const abilities = Array.isArray(cr.abilities) ? cr.abilities.filter(a => CUSTOM_BLOCKS[a]) : [];
   if (abilities.length) {
@@ -4561,6 +4583,7 @@ function registerCustomRole(cr) {
     reg({
       id: cr.id, name: cr.name, team, emoji: cr.emoji, desc: cr.desc, maxCount: 99,
       customAbilities: abilities,                         // ★ 积木列表，通用引擎据此逐块结算
+      portrait: safeCustomRoleArt(cr.portrait), actionCG: safeCustomRoleArt(cr.actionCG),
       delayedDeath: abilities.includes('delayedDeath') || undefined,  // 缓死复用白猫机制
       cssClass: team === 'bad' ? 'tw' : '',
       guide: baseGuide + buildCustomAbilityGuide(cr.name, team, abilities)
@@ -4577,6 +4600,7 @@ function registerCustomRole(cr) {
     desc: cr.desc,
     maxCount: 99,
     baseAbility: base,                 // ★ 空串=无技能；否则=内置角色id
+    portrait: safeCustomRoleArt(cr.portrait), actionCG: safeCustomRoleArt(cr.actionCG),
     cssClass: team==='bad'?'tw':'',
     guide: cr.guide || ('你是' + cr.name + '。\n【能力】' + cr.desc)
   });
@@ -4589,14 +4613,16 @@ function resolveRoleForPlay(rid) {
   const def = ALL_ROLES[rid];
   // ★ 积木组合角色：保留自身 id（通用引擎按 customAbilities 结算），不克隆内置角色。
   if (def && Array.isArray(def.customAbilities) && def.customAbilities.length) {
-    return Object.assign({}, def, { customId: def.id, customName: def.name, customEmoji: def.emoji });
+    return Object.assign({}, def, { customId: def.id, customName: def.name, customEmoji: def.emoji,
+      customPortrait: safeCustomRoleArt(def.portrait), customActionCG: safeCustomRoleArt(def.actionCG) });
   }
   if (def && def.baseAbility && ALL_ROLES[def.baseAbility]) {
     const b = ALL_ROLES[def.baseAbility];
     return Object.assign({}, b, {
       id: b.id,                        // 机械身份=模板，夜间技能据此生效
       name: def.name, emoji: def.emoji, desc: def.desc, team: b.team,
-      customId: def.id, customName: def.name, customEmoji: def.emoji
+      customId: def.id, customName: def.name, customEmoji: def.emoji,
+      customPortrait: safeCustomRoleArt(def.portrait), customActionCG: safeCustomRoleArt(def.actionCG)
     });
   }
   return def || ALL_ROLES['villager'];
@@ -7370,8 +7396,8 @@ function loadCfg() {
       if (typeof renderCustomModeCards === 'function') renderCustomModeCards();
     }
     if (d.customRolesDefs && Array.isArray(d.customRolesDefs)) {
-      window._customRolesDefs = d.customRolesDefs;
-      d.customRolesDefs.forEach(cr => registerCustomRole(cr));
+      window._customRolesDefs = d.customRolesDefs.map(cr => Object.assign({}, cr, {portrait:safeCustomRoleArt(cr.portrait), actionCG:safeCustomRoleArt(cr.actionCG)}));
+      window._customRolesDefs.forEach(cr => registerCustomRole(cr));
       initRoles();
     }
     if (d.personaPool && Array.isArray(d.personaPool)) {
@@ -13153,18 +13179,23 @@ async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     }
     document.querySelector('.role-cinematic')?.remove();
     const role = ALL_ROLES[roleId] || {};
-    const team = opts.team || role.team || 'good';
+    const actorPlayer = (S.players || []).find(p => p && p.name === actorName);
+    const actorRole = opts.actorRole || (actorPlayer && actorPlayer.role) || role;
+    const team = opts.team || actorRole.team || role.team || 'good';
     const reduced = document.body.classList.contains('fx-lite') || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const duration = reduced ? 700 : (opts.duration || 2300);
     const cgKey = opts.cgKey || roleId;
     const actionCG = window.RoleActionCG && (window.RoleActionCG[cgKey] || window.RoleActionCG[roleId]);
+    const customActionCG = safeCustomRoleArt(actorRole.customActionCG || actorRole.actionCG);
+    const customPortrait = safeCustomRoleArt(actorRole.customPortrait || actorRole.portrait);
     const inEnglishDir = /\/en(?:\/|$)/.test(location.pathname);
     const actionBase = inEnglishDir ? '../assets/action-cg/' : 'assets/action-cg/';
     const portraitBase = inEnglishDir ? '../icons/roles/' : 'icons/roles/';
-    const artSrc = actionCG ? actionBase + actionCG.src : portraitBase + encodeURIComponent(roleId) + '.jpg';
+    const artSrc = customActionCG || (actionCG ? actionBase + actionCG.src : (customPortrait || portraitBase + encodeURIComponent(roleId) + '.jpg'));
     const artReady = await waitForActionCG(artSrc);
-    const resolvedTitle = title || (actionCG && (uiEnglish() ? actionCG.titleEn : actionCG.titleZh)) || role.name || roleId;
-    const sigil = window.RoleSigils ? window.RoleSigils.render(roleId, 'cinema-sigil') : '';
+    const resolvedTitle = customActionCG ? (actorRole.name || title || roleId) : (title || (actionCG && (uiEnglish() ? actionCG.titleEn : actionCG.titleZh)) || actorRole.name || role.name || roleId);
+    const sigilId = actorRole.customId || roleId;
+    const sigil = window.RoleSigils ? window.RoleSigils.render(sigilId, 'cinema-sigil') : '';
     const el = document.createElement('div');
     el.className = `role-cinematic ${team}`;
     el.setAttribute('aria-hidden', 'true');
@@ -13218,6 +13249,7 @@ const NIGHT_ACTION_CINEMATICS = Object.freeze({
 function meaningfulNightAction(record) {
   if (!record || record.type !== 'night_action' || record.technical) return false;
   if (record.role === 'witch') return !!(record.saved || record.poisoned);
+  if (record.role === 'custom-block') return true;
   return record.target !== null && record.target !== undefined && record.target !== '' && record.target !== '无';
 }
 
@@ -13234,6 +13266,24 @@ function actionCinematicSubtitle(record) {
 }
 
 async function showNightStepCinematic(step, records) {
+  // 积木自创角色共享一个夜间步骤；逐个角色找第一条有效行动，让每个上传过美术的角色都能演出一次。
+  if (step === 'custom-gods' && Array.isArray(records)) {
+    let shown = false;
+    const seen = new Set();
+    for (const event of records.filter(r => meaningfulNightAction(r) && String(r.role || '').startsWith('custom-'))) {
+      const actor = S.players.find(p => p && p.name === event.name);
+      if (!actor || seen.has(actor.id)) continue;
+      seen.add(actor.id);
+      const customArt = safeCustomRoleArt(actor.role && (actor.role.customActionCG || actor.role.actionCG || actor.role.customPortrait || actor.role.portrait));
+      if (!customArt) continue;
+      if (isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) continue;
+      shown = await showRoleCinematic(actor.role.customId || actor.role.id, actor.name, actor.role.name, actionCinematicSubtitle(event), {
+        actorRole:actor.role, team:actor.role.team, duration:1800,
+        key:`night-action:${S.gameId}:${S.round}:custom-gods:${actor.id}`
+      }) || shown;
+    }
+    return shown;
+  }
   const spec = NIGHT_ACTION_CINEMATICS[step];
   if (!spec || !Array.isArray(records)) return false;
   const event = records.find(r => meaningfulNightAction(r) &&
@@ -22149,6 +22199,7 @@ function exportConfig() {
     blindNames: $('m-blindnames') ? $('m-blindnames').checked : false,
     sheriffDailyOrder: $('m-sheriff-daily-order') ? $('m-sheriff-daily-order').checked : false,
     pconfigs: playerConfigs,
+    customRolesDefs: window._customRolesDefs || [],
     conc: {
       speak: getC('c-speak'), vote: getC('c-vote'), wolf: getC('c-wolf'),
       wvote: getC('c-wvote'), trial: getC('c-trial'), end: getC('c-end')
@@ -22201,6 +22252,11 @@ function importConfigApply() {
           delete playerConfigs[k].role;
         }
       }
+    }
+    if (Array.isArray(d.customRolesDefs)) {
+      window._customRolesDefs = d.customRolesDefs.map(cr => Object.assign({}, cr, {portrait:safeCustomRoleArt(cr.portrait), actionCG:safeCustomRoleArt(cr.actionCG)}));
+      window._customRolesDefs.forEach(cr => registerCustomRole(cr));
+      initRoles();
     }
     if (d.conc) {
       for (const [k, el] of [['speak','c-speak'],['vote','c-vote'],['wolf','c-wolf'],
@@ -23233,6 +23289,74 @@ function bindEvents() {
 /* ================================================================
  *  § 自创角色管理
  * ================================================================ */
+let customRoleArtDraft = {portrait:'', actionCG:''};
+
+function updateCustomRoleArtPreview() {
+  [['portrait','cr-portrait-preview','cr-portrait-box'],['actionCG','cr-cg-preview','cr-cg-box']].forEach(([key,previewId,boxId]) => {
+    const data = safeCustomRoleArt(customRoleArtDraft[key]);
+    const preview = $(previewId), box = $(boxId);
+    if (!preview || !box) return;
+    preview.style.backgroundImage = data ? `url("${data}")` : '';
+    box.classList.toggle('has-art', !!data);
+  });
+}
+
+function compressCustomRoleArt(file, kind) {
+  return new Promise((resolve, reject) => {
+    if (!file || !String(file.type || '').startsWith('image/')) return reject(new Error('请选择图片文件'));
+    if (file.size > 20 * 1024 * 1024) return reject(new Error('原图超过 20MB，请先缩小'));
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片无法读取')); };
+    img.onload = () => {
+      try {
+        const target = kind === 'portrait' ? {w:600,h:800} : {w:1280,h:720};
+        const ratio = target.w / target.h;
+        let sx=0, sy=0, sw=img.naturalWidth, sh=img.naturalHeight;
+        if (sw / sh > ratio) { const nw = sh * ratio; sx = (sw - nw) / 2; sw = nw; }
+        else { const nh = sw / ratio; sy = (sh - nh) / 2; sh = nh; }
+        const scale = Math.min(1, target.w / sw, target.h / sh);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(sw * scale));
+        canvas.height = Math.max(1, Math.round(sh * scale));
+        canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        let data = '', quality = kind === 'portrait' ? .8 : .76;
+        do {
+          data = canvas.toDataURL('image/webp', quality);
+          if (!data.startsWith('data:image/webp')) data = canvas.toDataURL('image/jpeg', quality);
+          quality -= .08;
+        } while (data.length > 420000 && quality >= .48);
+        URL.revokeObjectURL(url);
+        if (!safeCustomRoleArt(data)) return reject(new Error('压缩后仍然过大，请换一张细节更少的图片'));
+        resolve(data);
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.src = url;
+  });
+}
+
+function bindCustomRoleArtInputs() {
+  const status = $('cr-art-status');
+  [['portrait','cr-portrait-file'],['actionCG','cr-cg-file']].forEach(([kind,id]) => {
+    const input = $(id); if (!input || input.dataset.bound) return;
+    input.dataset.bound = '1';
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0]; input.value = ''; if (!file) return;
+      if (status) status.textContent = '正在裁切并压缩图片…';
+      try {
+        customRoleArtDraft[kind] = await compressCustomRoleArt(file, kind);
+        updateCustomRoleArtPreview();
+        if (status) status.textContent = kind === 'portrait' ? '图鉴立绘已就绪，保存角色后生效。' : '行动 CG 已就绪，保存角色后生效。';
+      } catch (e) { if (status) status.textContent = '图片处理失败：' + e.message; }
+    });
+  });
+  if ($('cr-portrait-clear') && !$('cr-portrait-clear').dataset.bound) {
+    $('cr-portrait-clear').dataset.bound='1'; $('cr-portrait-clear').onclick=()=>{customRoleArtDraft.portrait='';updateCustomRoleArtPreview();};
+  }
+  if ($('cr-cg-clear') && !$('cr-cg-clear').dataset.bound) {
+    $('cr-cg-clear').dataset.bound='1'; $('cr-cg-clear').onclick=()=>{customRoleArtDraft.actionCG='';updateCustomRoleArtPreview();};
+  }
+}
+
 function openCustomRoleDialog() {
   // 清空表单（新建模式）
   $('cr-name').value = '';
@@ -23242,6 +23366,8 @@ function openCustomRoleDialog() {
   $('cr-guide').value = '';
   if ($('cr-ability')) $('cr-ability').value = '';
   document.querySelectorAll('.cr-blk').forEach(cb => cb.checked = false);
+  customRoleArtDraft = {portrait:'', actionCG:''};
+  bindCustomRoleArtInputs(); updateCustomRoleArtPreview();
   $('crpop-title').textContent = '── ✏️ 自创角色 ──';
   // 删除隐藏的编辑id
   $('cr-save').dataset.editId = '';
@@ -23260,16 +23386,18 @@ function renderCustomRoleList() {
   const teamColor = {bad:'var(--cinnabar-light)', good:'var(--jade)', third:'var(--third-amber)'};
   const teamName = {bad:'狼人阵营', good:'好人阵营', third:'第三方'};
   list.innerHTML = '<div style="font-size:0.72em;color:#8880a8;margin-bottom:6px;font-family:var(--font-title)">── 已创建的角色 ──</div>'
-    + defs.map(cr => `
+    + defs.map(cr => { const portrait=safeCustomRoleArt(cr.portrait); const visual=portrait?`<img src="${portrait}" alt="" style="width:38px;height:48px;object-fit:cover;border-radius:7px;border:1px solid rgba(208,160,240,.24)">`:(window.RoleSigils?window.RoleSigils.render(cr.id):''); return `
     <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(208,160,240,0.04);border:1px solid rgba(208,160,240,0.1);border-radius:var(--r);margin-bottom:4px">
-      <span style="font-size:1.2em">${cr.emoji||'❓'}</span>
+      <span class="cr-role-thumb" style="width:38px;flex:0 0 38px;display:grid;place-items:center">${visual}</span>
       <div style="flex:1">
-        <div style="font-size:0.82em;font-family:var(--font-title);color:${teamColor[cr.team]||'#d8d0e8'}">${cr.name}</div>
-        <div style="font-size:0.65em;color:#6a6080">${teamName[cr.team]||''} · ${cr.desc||''}</div>
+        <div style="font-size:0.82em;font-family:var(--font-title);color:${teamColor[cr.team]||'#d8d0e8'}">${escapeHtml(cr.name)}</div>
+        <div style="font-size:0.65em;color:#6a6080">${teamName[cr.team]||''} · ${escapeHtml(cr.desc||'')}</div>
       </div>
-      <button onclick="editCustomRole('${cr.id}')" style="padding:3px 8px;font-size:0.7em;background:rgba(104,184,232,0.1);color:var(--jade);border:1px solid var(--jade);border-radius:var(--r);cursor:pointer">编辑</button>
-      <button onclick="deleteCustomRole('${cr.id}')" style="padding:3px 8px;font-size:0.7em;background:rgba(200,48,64,0.1);color:var(--cinnabar-light);border:1px solid rgba(200,48,64,0.3);border-radius:var(--r);cursor:pointer">删除</button>
-    </div>`).join('');
+      <button data-cr-edit="${escapeHtml(cr.id)}" style="padding:3px 8px;font-size:0.7em;background:rgba(104,184,232,0.1);color:var(--jade);border:1px solid var(--jade);border-radius:var(--r);cursor:pointer">编辑</button>
+      <button data-cr-delete="${escapeHtml(cr.id)}" style="padding:3px 8px;font-size:0.7em;background:rgba(200,48,64,0.1);color:var(--cinnabar-light);border:1px solid rgba(200,48,64,0.3);border-radius:var(--r);cursor:pointer">删除</button>
+    </div>`; }).join('');
+  list.querySelectorAll('[data-cr-edit]').forEach(btn => btn.onclick=()=>editCustomRole(btn.dataset.crEdit));
+  list.querySelectorAll('[data-cr-delete]').forEach(btn => btn.onclick=()=>deleteCustomRole(btn.dataset.crDelete));
 }
 
 function editCustomRole(id) {
@@ -23283,6 +23411,8 @@ function editCustomRole(id) {
   if ($('cr-ability')) $('cr-ability').value = cr.ability||'';
   const abils = Array.isArray(cr.abilities) ? cr.abilities : [];
   document.querySelectorAll('.cr-blk').forEach(cb => cb.checked = abils.includes(cb.value));
+  customRoleArtDraft = {portrait:safeCustomRoleArt(cr.portrait), actionCG:safeCustomRoleArt(cr.actionCG)};
+  bindCustomRoleArtInputs(); updateCustomRoleArtPreview();
   $('crpop-title').textContent = '── ✏️ 编辑角色 ──';
   $('cr-save').dataset.editId = id;
 }
@@ -23309,6 +23439,8 @@ function saveCustomRole() {
   const ability = ($('cr-ability') && $('cr-ability').value) || '';  // ★ 技能模板（单选）
   // ★ 积木技能（多选，可叠加）；勾了任意积木则优先用积木组合
   const abilities = Array.from(document.querySelectorAll('.cr-blk')).filter(cb => cb.checked).map(cb => cb.value);
+  const portrait = safeCustomRoleArt(customRoleArtDraft.portrait);
+  const actionCG = safeCustomRoleArt(customRoleArtDraft.actionCG);
 
   if (!name) { $('cr-name').focus(); $('cr-name').style.borderColor='var(--cinnabar)'; return; }
   $('cr-name').style.borderColor='';
@@ -23319,21 +23451,26 @@ function saveCustomRole() {
   if (editId) {
     // 编辑模式：原id保留
     id = editId;
-    window._customRolesDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,desc,guide,ability,abilities} : x);
+    const nextDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,desc,guide,ability,abilities,portrait,actionCG} : x);
+    if (nextDefs.reduce((n,x)=>n+(x.portrait||'').length+(x.actionCG||'').length,0) > 1800000) { alert('自创角色图片总量过大，请移除部分图片后再保存。'); return; }
+    window._customRolesDefs = nextDefs;
   } else {
     // 新建：生成唯一id
-    id = 'custom_' + name.replace(/\s/g,'_') + '_' + Date.now();
+    id = 'custom_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
     window._customRolesDefs = window._customRolesDefs || [];
-    window._customRolesDefs.push({id, name, emoji, team, desc, guide, ability, abilities});
+    const next = {id, name, emoji, team, desc, guide, ability, abilities, portrait, actionCG};
+    if ((window._customRolesDefs||[]).reduce((n,x)=>n+(x.portrait||'').length+(x.actionCG||'').length,0)+(portrait||'').length+(actionCG||'').length > 1800000) { alert('自创角色图片总量过大，请移除部分图片后再保存。'); return; }
+    window._customRolesDefs.push(next);
   }
 
-  registerCustomRole({id, name, emoji, team, desc, guide, ability, abilities});
+  registerCustomRole({id, name, emoji, team, desc, guide, ability, abilities, portrait, actionCG});
   saveCfg();
-  initRoles();
+  roleBookPage = Math.max(0, Math.ceil(Object.keys(ALL_ROLES).length / ROLE_BOOK_PAGE_SIZE) - 1); initRoles();
   renderCustomRoleList();
 
   // 重置表单到新建状态
   $('cr-name').value=''; $('cr-emoji').value=''; $('cr-desc').value=''; $('cr-guide').value='';
+  customRoleArtDraft={portrait:'',actionCG:''}; updateCustomRoleArtPreview();
   $('crpop-title').textContent='── ✏️ 自创角色 ──';
   $('cr-save').dataset.editId='';
 
@@ -23722,7 +23859,8 @@ function initRoles() {
     const tc = r.team === 'bad' ? 'bad' : r.team === 'third' ? 'third' : 'good';
     const team = {bad:'Wolf team',good:'Town team',third:'Third party'}[r.team];
     const sigil = window.RoleSigils ? window.RoleSigils.render(id) : '';
-    return `<button type="button" class="ri0 role-flip ${tc}" data-role-card="${escapeHtml(id)}" aria-label="${escapeHtml(name)}, tap to read the ability"><span class="role-card-inner"><span class="role-card-face role-card-front"><span class="role-card-fallback">${sigil}</span><img src="../icons/roles/${encodeURIComponent(id)}.jpg" alt="${escapeHtml(name)} portrait" loading="lazy" onerror="this.remove()"><i class="role-card-shade"></i><span class="role-card-title"><strong>${escapeHtml(name)}</strong><small>${team}</small></span></span><span class="role-card-face role-card-back">${sigil}<strong>${escapeHtml(name)}</strong><span class="role-card-rule">${escapeHtml(desc)}</span><small>Tap to return to the portrait</small></span></span></button>`;
+    const portrait = safeCustomRoleArt(r.portrait) || `../icons/roles/${encodeURIComponent(id)}.jpg`;
+    return `<button type="button" class="ri0 role-flip ${tc}" data-role-card="${escapeHtml(id)}" aria-label="${escapeHtml(name)}, tap to read the ability"><span class="role-card-inner"><span class="role-card-face role-card-front"><span class="role-card-fallback">${sigil}</span><img src="${portrait}" alt="${escapeHtml(name)} portrait" loading="lazy" onerror="this.remove()"><i class="role-card-shade"></i><span class="role-card-title"><strong>${escapeHtml(name)}</strong><small>${team}</small></span></span><span class="role-card-face role-card-back">${sigil}<strong>${escapeHtml(name)}</strong><span class="role-card-rule">${escapeHtml(desc)}</span><small>Tap to return to the portrait</small></span></span></button>`;
   }).join('');
   const page = $('role-page'); if (page) page.textContent = (roleBookPage + 1) + ' / ' + pages;
   const prev = $('role-prev'), next = $('role-next');
