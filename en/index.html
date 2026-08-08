@@ -18799,90 +18799,799 @@ function toggleAuto() {
 //   数据取自一局真实对局（12 人屠神终局，狼队获胜），发言经精编。
 // ══════════════════════════════════════════════════════════════════════
 const DEMO_MATCH = {
-  round: 4, sheriff: -1, winType: 'bad',
-  players: [
-    {id:0,  name:"安室透",          roleId:"villager",      model:"gpt-5",          death:{cause:"vote", round:1}},
-    {id:1,  name:"黑羽快斗",        roleId:"jester",        model:"gemini-3"},
-    {id:2,  name:"宫野志保",        roleId:"werewolf",      model:"glm-4.6",        death:{cause:"vote", round:3}},
-    {id:3,  name:"服部平次",        roleId:"villager",      model:"grok-3"},
-    {id:4,  name:"白马探",          roleId:"villager",      model:"deepseek-chat"},
-    {id:5,  name:"Near",            roleId:"fox",           model:"claude-opus-4",  death:{cause:"kill", round:4}},
-    {id:6,  name:"Jabami Yumeko",   roleId:"wolfbeauty",    model:"claude-opus-4",  death:{cause:"vote", round:2}},
-    {id:7,  name:"Ryuzaki",         roleId:"werewolf",      model:"gpt-5"},
-    {id:8,  name:"Light Yagami",    roleId:"villager",      model:"gemini-3"},
-    {id:9,  name:"赤井秀一",        roleId:"magician",      model:"qwen-max",       death:{cause:"kill", round:3}},
-    {id:10, name:"Mello",           roleId:"witch",         model:"glm-4.6",        death:{cause:"poison", round:2}},
-    {id:11, name:"Gin",             roleId:"wolfconcubine", model:"grok-3"}
+  "round": 6,
+  "sheriff": 11,
+  "winType": "good",
+  "players": [
+    {
+      "id": 0,
+      "name": "Jabami Yumeko",
+      "roleId": "werewolf",
+      "model": "Gemini 2.5 Pro",
+      "death": {
+        "cause": "vote",
+        "round": 6
+      }
+    },
+    {
+      "id": 1,
+      "name": "Light Yagami",
+      "roleId": "white_cat",
+      "model": "GPT-5"
+    },
+    {
+      "id": 2,
+      "name": "白马探",
+      "roleId": "villager",
+      "model": "Claude 4 Sonnet",
+      "death": {
+        "cause": "vote",
+        "round": 2
+      }
+    },
+    {
+      "id": 3,
+      "name": "工藤新一",
+      "roleId": "eclipse_concubine",
+      "model": "Gemini 2.5 Flash",
+      "death": {
+        "cause": "vote",
+        "round": 3
+      }
+    },
+    {
+      "id": 4,
+      "name": "Mello",
+      "roleId": "witch",
+      "model": "Grok 3",
+      "death": {
+        "cause": "vote",
+        "round": 1
+      }
+    },
+    {
+      "id": 5,
+      "name": "黑羽快斗",
+      "roleId": "guard",
+      "model": "DeepSeek R1",
+      "death": {
+        "cause": "kill",
+        "round": 6
+      }
+    },
+    {
+      "id": 6,
+      "name": "Misa",
+      "roleId": "fox",
+      "model": "GPT-4o",
+      "death": {
+        "cause": "martyr",
+        "round": 4
+      }
+    },
+    {
+      "id": 7,
+      "name": "Ryuzaki",
+      "roleId": "werewolf",
+      "model": "Claude Opus 4",
+      "death": {
+        "cause": "vote",
+        "round": 5
+      }
+    },
+    {
+      "id": 8,
+      "name": "赤井秀一",
+      "roleId": "villager",
+      "model": "Gemini 2.5 Pro",
+      "death": {
+        "cause": "kill",
+        "round": 5
+      }
+    },
+    {
+      "id": 9,
+      "name": "宫野志保",
+      "roleId": "wolf_beauty",
+      "model": "Claude 4 Sonnet",
+      "death": {
+        "cause": "vote",
+        "round": 4
+      }
+    },
+    {
+      "id": 10,
+      "name": "Near",
+      "roleId": "villager",
+      "model": "GPT-5",
+      "death": {
+        "cause": "kill",
+        "round": 2
+      }
+    },
+    {
+      "id": 11,
+      "name": "安室透",
+      "roleId": "villager",
+      "model": "Grok 3"
+    }
   ],
-  record: [
-    {type:"system", text:"本局 12 人 · 屠神终局（狼队获胜）· 上帝视角观战回放"},
-
-    {type:"system", text:"第1夜"},
-    {type:"system", text:"🌒 蚀时狼妃 Gin 反弹锁定自己：今夜谁查/守/毒他，技能都反噬其本人"},
-    {type:"speech", name:"Ryuzaki", label:"狼队密谈", round:1, phase:"night", game:"首夜名义刀 Near——他最能把零散票理成结论，直接拿掉最稳；就算被魔术师换掉，落到别的好人也不亏。"},
-    {type:"speech", name:"Jabami Yumeko", label:"狼队密谈", round:1, phase:"night", game:"别保我。我是这桌唯一死了还要拉人下水的牌——真被票出去，我带走的是好人的支点，不是随便哪个村民。抬人是留痕的。"},
-    {type:"system", text:"🐺 狼队刀口：Near"},
-    {type:"system", text:"🧪 女巫 Mello 开解药救回 Near —— 平安夜"},
-    {type:"system", text:"🌹 狼美人 Jabami 魅惑 赤井秀一"},
-
-    {type:"system", text:"警长候选人：安室透、黑羽快斗、服部平次、白马探、Jabami Yumeko、Light Yagami、Mello"},
-    {type:"speech", name:"安室透", label:"警长竞选", round:1, phase:"sheriff", game:"我就是个普通村民，不瞒大家。但我竞选警长靠的是脑子——谁说了什么、谁改了口、谁的票和话对不上，我全替你们记着。"},
-    {type:"speech", name:"黑羽快斗", label:"警长竞选", round:1, phase:"sheriff", game:"第一个跳出来说自己没底牌的人，是不是太早把牌亮干净了？安室先生，你确定是在帮好人拉票，不是在给狼递信息？"},
-    {type:"speech", name:"服部平次", label:"警长竞选", round:1, phase:"sheriff", game:"你俩一个说自己是纯村民，一个说有身份又不报——这一唱一和，我大阪人听着就是别扭。"},
-    {type:"speech", name:"白马探", label:"警长竞选", round:1, phase:"sheriff", game:"四个人里三个自称村民，概率上太挤了。我几乎可以断定：前置位一定藏着伪装者。"},
-    {type:"speech", name:"Jabami Yumeko", label:"警长竞选", round:1, phase:"sheriff", game:"这局没有预言家，报身份没有收益，只有价格。谁翻开自己的牌，谁就在替狼省一整晚。"},
-    {type:"speech", name:"Light Yagami", label:"警长竞选", round:1, phase:"sheriff", game:"别把一个低强度疑点包装成接近定论。自报村民不等于身份坐实——白马把概率倾向说成近乎确定，我会盯着他是不是一直这么干。"},
-    {type:"speech", name:"Mello", label:"警长竞选", round:1, phase:"sheriff", game:"废话少说——我是女巫，昨晚救的就是 Near。这枚警徽今天只能是我的。谁敢分票抗推，今晚我的毒药就送去他家！"},
-    {type:"system", text:"其余候选人全部退选 —— Mello 当选警长"},
-
-    {type:"system", text:"第1天"},
-    {type:"speech", name:"安室透", label:"发言", round:1, phase:"day", game:"白马，你嘴上说坑太挤，自己却往里跳，然后拿『太挤了』当武器打人——这不像好人。我今天的票，压白马探。"},
-    {type:"speech", name:"白马探", label:"发言", round:1, phase:"day", game:"正因为我笃定自己是那第三张村民，才敢说前面必有假，我不屑于隐藏。倒是安室，一个自称平民的人，为什么最急着在白天把神职逼出来？"},
-    {type:"speech", name:"Jabami Yumeko", label:"发言", round:1, phase:"day", game:"从头到尾，没有一个人算过小丑。白马是我眼里最像小丑的人——所以我今天偏不投他。我押安室：这一手输了，我还能坐在牌桌上。"},
-    {type:"speech", name:"Near", label:"发言", round:1, phase:"day", game:"安室今天的行为对狼队的收益，比对好人高出 37.2%。今天我的票，流向安室透。"},
-    {type:"speech", name:"Mello", label:"发言", round:1, phase:"day", game:"全场把票挂安室！谁敢分票保他、想浑水摸鱼，今晚毒药直接送他家。归票，安室透！"},
-    {type:"death", name:"安室透", deathCause:"vote", deathRound:1},
-    {type:"speech", name:"安室透", label:"遗言", round:1, phase:"day", game:"我是干净的村民，你们推错了。但这整整齐齐的十票里，必然藏着窃喜的狼——Yumeko 用『小丑』吓住全场，把火力全引到我身上。这套票型，是我留给你们最好的排狼工具。"},
-
-    {type:"system", text:"第2夜"},
-    {type:"system", text:"🦊 子狐 Near 媚惑 Jabami Yumeko —— 命中狼！今晚全狼禁刀"},
-    {type:"speech", name:"Jabami Yumeko", label:"狼队密谈", round:2, phase:"night", game:"我被媚惑了，今晚全狼禁刀，刀落不下去。但这条消息比一刀值钱——子狐第一次出手就摸到我。别保我，让他来咬我，你们就看清他是谁。"},
-    {type:"system", text:"🐺 狼队被禁刀（空刀）"},
-    {type:"system", text:"🧪 女巫 Mello 盲毒 Gin —— 撞上蚀时狼妃的锁，毒药反弹回自己"},
-    {type:"death", name:"Mello", deathCause:"poison", deathRound:2},
-    {type:"system", text:"👑 Mello 临终把警徽移交给 Near"},
-
-    {type:"system", text:"第2天"},
-    {type:"speech", name:"服部平次", label:"发言", round:2, phase:"day", game:"安室要真是村民，那我们全场上了一辆往坑里开的车。Yumeko 那手『小丑避险』，滑得像抹了油。"},
-    {type:"speech", name:"Jabami Yumeko", label:"发言", round:2, phase:"day", game:"服部，你昨天拍胸口说『绝不跟风、理由就一条』，Mello 一喊归票你就跟过去了，今天又把自己的转票记在别人账上。我今天投服部。"},
-    {type:"speech", name:"Near", label:"发言", round:2, phase:"day", game:"我是子狐。第二夜我媚惑的是 7 号 Jabami Yumeko——系统反馈：狼人阵营，当晚全狼禁刀。快斗那张『子狐』是假的。今天必须出 7 号。"},
-    {type:"death", name:"Jabami Yumeko", deathCause:"vote", deathRound:2},
-    {type:"speech", name:"Jabami Yumeko", label:"遗言", round:2, phase:"day", game:"九票半，真漂亮。Near，你赢了这一手。留一句给你们：Near 和快斗必有一个在说谎——追这条唯一成立的矛盾。牌还没翻完呢，慢慢玩。"},
-
-    {type:"system", text:"第3夜"},
-    {type:"system", text:"🦊 子狐 Near 媚惑 黑羽快斗 —— 好人，其今晚技能被封"},
-    {type:"speech", name:"Ryuzaki", label:"狼队密谈", round:3, phase:"night", game:"刀赤井。他现在是 Near 外面的防弹衣，不拆他，明天 Near 还能继续收票。他不换自己死，换了 Near 死，怎么都不亏。"},
-    {type:"system", text:"🐺 狼队刀口：赤井秀一"},
-    {type:"death", name:"赤井秀一", deathCause:"kill", deathRound:3},
-
-    {type:"system", text:"第3天"},
-    {type:"speech", name:"黑羽快斗", label:"发言", round:3, phase:"day", game:"看清了吗？Yumeko 和 Near 是两头狼——狼踩狼，用一份假查验把队友卖了，换来了警徽！我才是真子狐，昨晚我媚惑 Light，反馈好人。我今天的票，直接挂 Near，有种今天就归票我！"},
-    {type:"speech", name:"Near", label:"发言", round:3, phase:"day", game:"昨晚我媚惑 2 号黑羽——好人，且他的技能被我封了。他在冒用我的身份、伪造记录。我的狼坑是 3、8、12；今天先从 3 号宫野志保开始拆。"},
-    {type:"death", name:"宫野志保", deathCause:"vote", deathRound:3},
-    {type:"speech", name:"宫野志保", label:"遗言", round:3, phase:"day", game:"顺着一个不敢直面对跳的『神』去推人，你们迟早把这局输得干干净净。别让我死得像个笑话。"},
-
-    {type:"system", text:"第4夜"},
-    {type:"system", text:"🦊 子狐 Near 媚惑 Gin —— 撞上蚀时狼妃的锁，反弹回自己，白睁一夜"},
-    {type:"speech", name:"Ryuzaki", label:"狼队密谈", round:4, phase:"night", game:"刀 Near。魔术师、女巫都下去了，没人能保他。他一倒，屠神线当场闭合，天亮就是终局。"},
-    {type:"system", text:"🐺 狼队刀口：Near"},
-    {type:"death", name:"Near", deathCause:"kill", deathRound:4},
-    {type:"system", text:"🗡️ 神职全灭 —— 屠神达成，狼人阵营获胜"},
-
-    {type:"speech", name:"安室透", label:"终局感言", round:4, phase:"end", game:"看到底牌我反而释然了——我遗言点名的 Yumeko、Gin、宫野，居然全是狼。快斗你竟然真是小丑，一个人站在台中央，把全场好人吓得连枪都不敢拔。"},
-    {type:"speech", name:"黑羽快斗", label:"终局感言", round:4, phase:"end", game:"想死却死不掉，我成了狼队最完美的免费保镖，连工资都没结。Yumeko 那句遗言，把『小丑』这件衣服死死焊在我身上——精彩，但气得我牙痒。"},
-    {type:"speech", name:"Near", label:"终局感言", round:4, phase:"end", game:"我找到了答案，却在最后一步选错了验证顺序。真正该找的是 Ryuzaki——只差一个号码。可狼人杀，不计算『差一点』。"},
-    {type:"speech", name:"Ryuzaki", label:"终局感言", round:4, phase:"end", game:"Mello，你第二夜是真的去毒了 Gin，恰好毒中全场唯一被锁的人，替我们杀了女巫。Near，你的模型没错，只是太快了。十二个人，没有一双能看穿的眼睛。"},
-    {type:"speech", name:"Gin", label:"终局感言", round:4, phase:"end", game:"屠神局，干脆利落。最可笑的是 Mello——身为明女巫，被一句遗言忽悠得大半夜拿毒药来盲毒我，撞在我的锁上，死得像个笑话。这场猎杀，是我的胜利。"}
+  "record": [
+    {
+      "type": "system",
+      "label": "第1夜",
+      "round": 1,
+      "phase": "night",
+      "game": "第1夜"
+    },
+    {
+      "type": "system",
+      "label": "🌒 蚀时狼妃反弹锁定：Mello",
+      "round": 1,
+      "phase": "night",
+      "game": "🌒 蚀时狼妃反弹锁定：Mello"
+    },
+    {
+      "type": "system",
+      "label": "🛡️ 守卫：空守",
+      "round": 1,
+      "phase": "night",
+      "game": "🛡️ 守卫：空守"
+    },
+    {
+      "type": "speech",
+      "name": "工藤新一",
+      "label": "狼人夜间交流",
+      "round": 1,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "我提议照原案刀安室透。现在没有公开信息，自刀骗药太赌，空刀也没必要；安室这种人一旦活到白天，很容易把散票拢起来。"
+    },
+    {
+      "type": "speech",
+      "name": "Jabami Yumeko",
+      "label": "狼人夜间交流",
+      "round": 1,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "我押安室透。首夜自刀太依赖女巫配合，空刀也赚不到什么；安室活着更容易把散票收拢。"
+    },
+    {
+      "type": "speech",
+      "name": "宫野志保",
+      "label": "狼人夜间交流",
+      "round": 1,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "我同意刀安室透。那个男人要是活着，对我们来说是个相当麻烦的带队机器。"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "狼人夜间交流",
+      "round": 1,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "大家分析得有道理，但我觉得直接刀安室可能正中女巫下怀。我们也可以考虑外置位，比如Mello或者Near，这两个人往往有不确定因素。不过既然大家都倾向安室透，那就随大流吧，第一夜稳妥为主，静观其变。"
+    },
+    {
+      "type": "system",
+      "label": "🐺 狼队刀：安室透",
+      "round": 1,
+      "phase": "night",
+      "game": "🐺 狼队刀：安室透"
+    },
+    {
+      "type": "system",
+      "label": "🧪 女巫：救=安室透 毒=无",
+      "round": 1,
+      "phase": "night",
+      "game": "🧪 女巫：救=安室透 毒=无"
+    },
+    {
+      "type": "system",
+      "label": "🌹 魅惑：赤井秀一",
+      "round": 1,
+      "phase": "night",
+      "game": "🌹 魅惑：赤井秀一"
+    },
+    {
+      "type": "system",
+      "label": "── 警长候选人：10人参选 ──",
+      "round": 1,
+      "phase": "day",
+      "game": "── 警长候选人：10人参选 ──"
+    },
+    {
+      "type": "speech",
+      "name": "工藤新一",
+      "label": "竞选发言",
+      "round": 1,
+      "phase": "day",
+      "game": "我是女巫，昨晚安室透吃刀，我用了半瓶解药把他救了下来，他现在是我的绝对银水，大家信我就把警徽给我。"
+    },
+    {
+      "type": "speech",
+      "name": "Mello",
+      "label": "竞选发言",
+      "round": 1,
+      "phase": "day",
+      "game": "强势起跳女巫，工藤新一你这个狼人穿我衣服！昨晚安室透倒牌是我救的，这警徽必须是我的，今天出工藤新一。"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "竞选发言",
+      "round": 1,
+      "phase": "day",
+      "game": "目前场上双女巫起跳对刚，两人都发安室透银水。这说明狼人夜里确实刀了安室透，且有一头狼出来悍跳找女巫。我建议先把警徽给到我这个平民牌，稍后听他们两人的详细表水再做决定。"
+    },
+    {
+      "type": "system",
+      "label": "🗳️ Ryuzaki当选警长",
+      "round": 1,
+      "phase": "day",
+      "game": "🗳️ Ryuzaki当选警长"
+    },
+    {
+      "type": "speech",
+      "name": "Mello",
+      "label": "白天发言",
+      "round": 1,
+      "phase": "day",
+      "game": "工藤新一绝对是悍跳狼，他的发言有明显漏洞，急于发银水拉票，今天全票出他，晚上我来毒人！"
+    },
+    {
+      "type": "speech",
+      "name": "赤井秀一",
+      "label": "白天发言",
+      "round": 1,
+      "phase": "day",
+      "game": "双女巫互踩，目前难以分辨。工藤新一的发言比较自信，但Mello的反击也很犀利，我觉得可以听听其他人的看法。"
+    },
+    {
+      "type": "speech",
+      "name": "Near",
+      "label": "白天发言",
+      "round": 1,
+      "phase": "day",
+      "game": "我觉得这可能是狼队的战术，也许两个起跳的都不是真女巫，或者是狼踩狼，大家投票要谨慎。"
+    },
+    {
+      "type": "speech",
+      "name": "安室透",
+      "label": "白天发言",
+      "round": 1,
+      "phase": "day",
+      "game": "我既然是银水，那两边必有一真一假。Mello对工藤的攻击太过情绪化，我反而觉得工藤像真女巫，Mello在故意扰乱视线。"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "归票发言",
+      "round": 1,
+      "phase": "day",
+      "game": "综合大家发言，Mello的攻击性过强且逻辑缺乏支撑，更像是个心虚的悍跳狼。我归票Mello，大家跟票。"
+    },
+    {
+      "type": "system",
+      "label": "投票结果",
+      "round": 1,
+      "phase": "vote",
+      "game": "投票结果"
+    },
+    {
+      "type": "system",
+      "label": "Mello 死亡",
+      "round": 1,
+      "phase": "vote",
+      "deathIds": [
+        4
+      ],
+      "game": "Mello 死亡"
+    },
+    {
+      "type": "speech",
+      "name": "Mello",
+      "label": "遗言",
+      "round": 1,
+      "phase": "vote",
+      "game": "你们这群愚民，被狼人牵着鼻子走！工藤新一一定是狼，安室透你这是在包庇狼队友，等着输吧！"
+    },
+    {
+      "type": "system",
+      "label": "第2夜",
+      "round": 2,
+      "phase": "night",
+      "game": "第2夜"
+    },
+    {
+      "type": "system",
+      "label": "🦊 子狐媚惑：黑羽快斗（好人→封技）",
+      "round": 2,
+      "phase": "night",
+      "game": "🦊 子狐媚惑：黑羽快斗（好人→封技）"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "狼人夜间交流",
+      "round": 2,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "计划很顺利，Mello被抗推。今天我们直接刀Near，他发言偏理智，容易识破我们的伪装。白天找机会推白马探，他是个很好的抗推位。"
+    },
+    {
+      "type": "system",
+      "label": "🐺 狼队刀：Near",
+      "round": 2,
+      "phase": "night",
+      "game": "🐺 狼队刀：Near"
+    },
+    {
+      "type": "system",
+      "label": "Near 死亡",
+      "round": 2,
+      "phase": "night",
+      "deathIds": [
+        10
+      ],
+      "game": "Near 死亡"
+    },
+    {
+      "type": "system",
+      "label": "第2天",
+      "round": 2,
+      "phase": "day",
+      "game": "第2天"
+    },
+    {
+      "type": "speech",
+      "name": "Misa",
+      "label": "白天发言",
+      "round": 2,
+      "phase": "day",
+      "game": "昨晚我查验了黑羽快斗，他是好人！大家可以信任他。"
+    },
+    {
+      "type": "speech",
+      "name": "黑羽快斗",
+      "label": "白天发言",
+      "round": 2,
+      "phase": "day",
+      "game": "感谢Misa发金水，我坦白我是守卫。昨晚我收到了魅惑提示被封技了，第一晚我是空守的。"
+    },
+    {
+      "type": "speech",
+      "name": "工藤新一",
+      "label": "白天发言",
+      "round": 2,
+      "phase": "day",
+      "game": "昨晚我没有用毒药，局势未明，我打算把毒药留给更确定的目标。"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "归票发言",
+      "round": 2,
+      "phase": "day",
+      "game": "目前来看，白马探在场上毫无建树，发言划水，极其可疑。今天我们先把这个毫无贡献的划水牌投出去，归票白马探。"
+    },
+    {
+      "type": "system",
+      "label": "投票结果",
+      "round": 2,
+      "phase": "vote",
+      "game": "投票结果"
+    },
+    {
+      "type": "system",
+      "label": "白马探 死亡",
+      "round": 2,
+      "phase": "vote",
+      "deathIds": [
+        2
+      ],
+      "game": "白马探 死亡"
+    },
+    {
+      "type": "speech",
+      "name": "白马探",
+      "label": "遗言",
+      "round": 2,
+      "phase": "vote",
+      "game": "我也没办法，确实没找到什么线索。既然你们觉得我是狼，那我也无话可说，好人加油吧。"
+    },
+    {
+      "type": "system",
+      "label": "第3夜",
+      "round": 3,
+      "phase": "night",
+      "game": "第3夜"
+    },
+    {
+      "type": "system",
+      "label": "🌒 蚀时狼妃锁定：Misa",
+      "round": 3,
+      "phase": "night",
+      "game": "🌒 蚀时狼妃锁定：Misa"
+    },
+    {
+      "type": "system",
+      "label": "🦊 子狐媚惑：工藤新一（狼→全狼禁刀）",
+      "round": 3,
+      "phase": "night",
+      "game": "🦊 子狐媚惑：工藤新一（狼→全狼禁刀）"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "狼人夜间交流",
+      "round": 3,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "不好，子狐验到了工藤新一，我们今晚被禁刀了。明天工藤新一必定暴露，我们要做好切割准备，工藤你自己保重。"
+    },
+    {
+      "type": "system",
+      "label": "🐺 狼队刀：null（全狼禁刀）",
+      "round": 3,
+      "phase": "night",
+      "game": "🐺 狼队刀：null（全狼禁刀）"
+    },
+    {
+      "type": "system",
+      "label": "第3天 · 平安夜",
+      "round": 3,
+      "phase": "day",
+      "game": "第3天 · 平安夜"
+    },
+    {
+      "type": "speech",
+      "name": "Misa",
+      "label": "白天发言",
+      "round": 3,
+      "phase": "day",
+      "game": "重大发现！昨晚我查验了工藤新一，他是一匹狼！而且我还触发了魅惑效果，导致昨晚全狼禁刀，所以今天是平安夜！工藤新一就是那个悍跳女巫的狼人！"
+    },
+    {
+      "type": "speech",
+      "name": "黑羽快斗",
+      "label": "白天发言",
+      "round": 3,
+      "phase": "day",
+      "game": "Misa干得漂亮！工藤新一昨晚吃毒不倒，今天又被子狐查出是狼，铁狼一头，今天全票出他。"
+    },
+    {
+      "type": "speech",
+      "name": "工藤新一",
+      "label": "白天发言",
+      "round": 3,
+      "phase": "day",
+      "game": "我根本没有收到什么魅惑提示，Misa你在胡说八道！我底牌是真女巫，你们别被带节奏了！"
+    },
+    {
+      "type": "speech",
+      "name": "Light Yagami",
+      "label": "白天发言",
+      "round": 3,
+      "phase": "day",
+      "game": "我跳白猫。现在局势很明朗了，工藤新一大概率是狼，Misa如果是狐狸，那工藤必死。"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "归票发言",
+      "round": 3,
+      "phase": "day",
+      "game": "子狐的神验，加上平安夜的佐证，工藤新一的狼人身份板上钉钉了。没想到你藏得这么深，今天归票工藤新一，绝不留情。"
+    },
+    {
+      "type": "system",
+      "label": "投票结果",
+      "round": 3,
+      "phase": "vote",
+      "game": "投票结果"
+    },
+    {
+      "type": "system",
+      "label": "工藤新一 死亡",
+      "round": 3,
+      "phase": "vote",
+      "deathIds": [
+        3
+      ],
+      "game": "工藤新一 死亡"
+    },
+    {
+      "type": "speech",
+      "name": "工藤新一",
+      "label": "遗言",
+      "round": 3,
+      "phase": "vote",
+      "game": "既然暴露了也没办法，狼队加油，把他们都干掉！"
+    },
+    {
+      "type": "system",
+      "label": "第4夜",
+      "round": 4,
+      "phase": "night",
+      "game": "第4夜"
+    },
+    {
+      "type": "system",
+      "label": "🦊 子狐媚惑：宫野志保（狼→全狼禁刀）",
+      "round": 4,
+      "phase": "night",
+      "game": "🦊 子狐媚惑：宫野志保（狼→全狼禁刀）"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "狼人夜间交流",
+      "round": 4,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "见鬼，宫野志保又被查验了，又是一个禁刀夜。宫野，明天你直接自爆身份，把Misa连死，你的红线还在她身上吧？"
+    },
+    {
+      "type": "system",
+      "label": "🐺 狼队刀：null（全狼禁刀）",
+      "round": 4,
+      "phase": "night",
+      "game": "🐺 狼队刀：null（全狼禁刀）"
+    },
+    {
+      "type": "system",
+      "label": "第4天 · 又是平安夜",
+      "round": 4,
+      "phase": "day",
+      "game": "第4天 · 又是平安夜"
+    },
+    {
+      "type": "speech",
+      "name": "Misa",
+      "label": "白天发言",
+      "round": 4,
+      "phase": "day",
+      "game": "太不可思议了！昨晚我查验了宫野志保，她也是狼！连续两晚捉狼，加上平安夜，她插翅难飞！"
+    },
+    {
+      "type": "speech",
+      "name": "宫野志保",
+      "label": "白天发言",
+      "round": 4,
+      "phase": "day",
+      "game": "哎呀，被抓到了呢。没错，我是狼美人。不过Misa，你也别高兴得太早，我的红线可是连着你呢，准备跟我一起陪葬吧。"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "白天发言",
+      "round": 4,
+      "phase": "day",
+      "game": "既然宫野志保已经承认，那今天就只能投她了。失去子狐对我们好人阵营是个重大打击，大家要做好后续战斗准备。"
+    },
+    {
+      "type": "system",
+      "label": "投票结果",
+      "round": 4,
+      "phase": "vote",
+      "game": "投票结果"
+    },
+    {
+      "type": "system",
+      "label": "宫野志保 死亡",
+      "round": 4,
+      "phase": "vote",
+      "deathIds": [
+        9
+      ],
+      "game": "宫野志保 死亡"
+    },
+    {
+      "type": "system",
+      "label": "Misa 死亡",
+      "round": 4,
+      "phase": "vote",
+      "deathIds": [
+        6
+      ],
+      "game": "Misa 死亡"
+    },
+    {
+      "type": "speech",
+      "name": "宫野志保",
+      "label": "遗言",
+      "round": 4,
+      "phase": "vote",
+      "game": "咯咯咯，Misa妹妹，我们地狱见咯。"
+    },
+    {
+      "type": "system",
+      "label": "第5夜",
+      "round": 5,
+      "phase": "night",
+      "game": "第5夜"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "狼人夜间交流",
+      "round": 5,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "现在只剩我们两匹狼了。今晚必须刀赤井秀一，他太敏锐了。明天白天，我会找机会疯狂攻击安室透，尽量把他打成抗推位。梦子，你见机行事，如果我被怀疑，你就顺势踩我做身份。这场游戏，我们还要继续演下去。"
+    },
+    {
+      "type": "system",
+      "label": "🐺 狼队刀：赤井秀一",
+      "round": 5,
+      "phase": "night",
+      "game": "🐺 狼队刀：赤井秀一"
+    },
+    {
+      "type": "system",
+      "label": "赤井秀一 死亡",
+      "round": 5,
+      "phase": "night",
+      "deathIds": [
+        8
+      ],
+      "game": "赤井秀一 死亡"
+    },
+    {
+      "type": "system",
+      "label": "第5天",
+      "round": 5,
+      "phase": "day",
+      "game": "第5天"
+    },
+    {
+      "type": "speech",
+      "name": "安室透",
+      "label": "白天发言",
+      "round": 5,
+      "phase": "day",
+      "game": "且慢。Ryuzaki，你作为无守卫保护的警长，连续几晚竟然都没有吃刀？这太反常了。而且你昨天提出的'测试白猫'策略，实际上会导致好人阵营少一个轮次，直接崩盘。你就是那一匹隐藏最深的狼！"
+    },
+    {
+      "type": "speech",
+      "name": "Light Yagami",
+      "label": "白天发言",
+      "round": 5,
+      "phase": "day",
+      "game": "我是白猫，我同意安室透的分析。Ryuzaki的存活确实不合逻辑，而且他的带队方向有意无意在引导好人犯错。今天我投Ryuzaki。"
+    },
+    {
+      "type": "speech",
+      "name": "黑羽快斗",
+      "label": "白天发言",
+      "round": 5,
+      "phase": "day",
+      "game": "守卫在此，我昨晚没守Ryuzaki。铁证如山，Ryuzaki必是狼，全票打飞他。"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "归票发言",
+      "round": 5,
+      "phase": "day",
+      "game": "你们都被骗了！Jabami Yumeko才是最后一匹狼，她一直在划水隐蔽，企图坐收渔翁之利！我所做的一切都是为了保护大家，你们这是自毁长城！"
+    },
+    {
+      "type": "system",
+      "label": "投票结果",
+      "round": 5,
+      "phase": "vote",
+      "game": "投票结果"
+    },
+    {
+      "type": "system",
+      "label": "Ryuzaki 死亡",
+      "round": 5,
+      "phase": "vote",
+      "deathIds": [
+        7
+      ],
+      "game": "Ryuzaki 死亡"
+    },
+    {
+      "type": "speech",
+      "name": "Ryuzaki",
+      "label": "遗言",
+      "round": 5,
+      "phase": "vote",
+      "game": "精彩的推理，安室透，不愧是你。没错，我就是狼。从第一天强拿警徽开始，我就在下一盘大棋。卖掉Mello做高我的身份，利用平安夜顺理成章踩死工藤，一切都在我的计算之中。我承认今天输给了你的敏锐。但好戏还没结束，Jabami Yumeko，我亲爱的同伴，接下来交给你了。记住，不要相信任何人，在这场欺诈游戏中，活到最后的才是赢家。将警徽交给安室透，让他见证最后的疯狂吧。"
+    },
+    {
+      "type": "system",
+      "label": "第6夜",
+      "round": 6,
+      "phase": "night",
+      "game": "第6夜"
+    },
+    {
+      "type": "speech",
+      "name": "Jabami Yumeko",
+      "label": "狼人夜间交流",
+      "round": 6,
+      "phase": "night",
+      "isWolfChat": true,
+      "game": "啊啦，最后只剩我一个人了呢。真是让人热血沸腾的绝境啊！今晚就刀黑羽快斗吧，他因为同守规则无法自守，必死无疑。明天我会设法让Light和安室透互相猜忌，来一场愉快的生死赌博吧！"
+    },
+    {
+      "type": "system",
+      "label": "🐺 狼队刀：黑羽快斗",
+      "round": 6,
+      "phase": "night",
+      "game": "🐺 狼队刀：黑羽快斗"
+    },
+    {
+      "type": "system",
+      "label": "黑羽快斗 死亡",
+      "round": 6,
+      "phase": "night",
+      "deathIds": [
+        5
+      ],
+      "game": "黑羽快斗 死亡"
+    },
+    {
+      "type": "system",
+      "label": "第6天 · 最终决战",
+      "round": 6,
+      "phase": "day",
+      "game": "第6天 · 最终决战"
+    },
+    {
+      "type": "speech",
+      "name": "Jabami Yumeko",
+      "label": "白天发言",
+      "round": 6,
+      "phase": "day",
+      "game": "大家不要被Ryuzaki的遗言骗了！那很明显是他临死前的反扑，企图拉我下水。Light Yagami才是那匹狼，他伪装成白猫，就是为了在最后时刻骗取信任！让我们把票投给Light！"
+    },
+    {
+      "type": "speech",
+      "name": "Light Yagami",
+      "label": "白天发言",
+      "round": 6,
+      "phase": "day",
+      "game": "真是可笑的挣扎。我的身份早已明牌，你这种毫无逻辑的污蔑只会暴露你的心虚。Jabami Yumeko，你的谎言到此为止了。"
+    },
+    {
+      "type": "speech",
+      "name": "安室透",
+      "label": "归票发言",
+      "round": 6,
+      "phase": "day",
+      "game": "身为警长，我的判断不会动摇。Ryuzaki虽然是狼，但他的遗言没有理由骗我们。Jabami Yumeko的言论充满了破绽，为了好人阵营的胜利，全票出Jabami Yumeko。"
+    },
+    {
+      "type": "system",
+      "label": "投票结果",
+      "round": 6,
+      "phase": "vote",
+      "game": "投票结果"
+    },
+    {
+      "type": "system",
+      "label": "Jabami Yumeko 死亡",
+      "round": 6,
+      "phase": "vote",
+      "deathIds": [
+        0
+      ],
+      "game": "Jabami Yumeko 死亡"
+    },
+    {
+      "type": "system",
+      "label": "🎉 好人阵营胜利！",
+      "round": 6,
+      "phase": "end",
+      "game": "🎉 好人阵营胜利！"
+    }
   ]
 };
 
