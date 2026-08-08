@@ -27,9 +27,10 @@
     gravekeeper:{name:'Gravekeeper',desc:'Good team. Each night learns the faction of the player exiled during the previous day.'},
     dreamwalker:{name:'Dreamwalker',desc:'Good team. Sends one player into a protected dream each night; choosing the same player on consecutive nights turns the dream lethal.'},
     alchemist:{name:'Alchemist Witch',desc:'Good team. Once per game may restrict the wolf attack to three players, and once per game may save the actual wolf-attack victim.'},
-    gargoyle:{name:'Gargoyle',desc:'Wolf team but unknown to the pack. Checks an exact role each night and gains its own attack after every other wolf is gone.'}
+    gargoyle:{name:'Gargoyle',desc:'Wolf team but unknown to the pack. Checks an exact role each night and gains its own attack after every other wolf is gone.'},
+    soulwarden:{name:'Soul Warden',desc:'Good team. Each night places Sanctuary on one living player, cleansing or blocking the first hostile non-damage mark. Cannot choose the same target on consecutive nights.'}
   };
-  const ROLE_ZH = {werewolf:'狼人',wolfking:'狼王',wolfbeauty:'狼美人',seer:'预言家',witch:'女巫',hunter:'猎人',guard:'守卫',knight:'骑士',magician:'魔术师',whitecat:'白猫',fox:'子狐',fool:'愚者',merchant:'奇迹商人',youshang:'游商',wolfconcubine:'蚀时狼妃',villager:'村民',whitewolf:'白狼王',mechwolf:'机械狼',jester:'小丑',cupid:'丘比特（爱神）',serialkiller:'连环杀手',gravekeeper:'守墓人',dreamwalker:'摄梦人',alchemist:'炼金魔女',gargoyle:'石像鬼'};
+  const ROLE_ZH = {werewolf:'狼人',wolfking:'狼王',wolfbeauty:'狼美人',seer:'预言家',witch:'女巫',hunter:'猎人',guard:'守卫',knight:'骑士',magician:'魔术师',whitecat:'白猫',fox:'子狐',fool:'愚者',merchant:'奇迹商人',youshang:'游商',wolfconcubine:'蚀时狼妃',villager:'村民',whitewolf:'白狼王',mechwolf:'机械狼',jester:'小丑',cupid:'丘比特（爱神）',serialkiller:'连环杀手',gravekeeper:'守墓人',dreamwalker:'摄梦人',alchemist:'炼金魔女',gargoyle:'石像鬼',soulwarden:'净魂师'};
 
   const EXACT = {
     '🐺 AI狼人杀 · 多个大模型在线自动对局·可观战':'🐺 AI Werewolf · multi-model autonomous games · spectator mode',

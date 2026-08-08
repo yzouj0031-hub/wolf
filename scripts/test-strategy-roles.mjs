@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const clients = ['index.html', 'en/index.html'];
-const roles = ['gravekeeper', 'dreamwalker', 'alchemist', 'gargoyle'];
+const roles = ['gravekeeper', 'dreamwalker', 'alchemist', 'gargoyle', 'soulwarden'];
 const fail = [];
 
 function expect(ok, message) {
@@ -20,15 +20,22 @@ for (const file of clients) {
   expect(src.includes("cause:'dreamkill'"), `${file}: missing lethal second-dream settlement`);
   expect(src.includes("cause:'dreamlink'"), `${file}: missing dreamer death link`);
   expect(src.includes('alchemistBlocked = S.nightData.alchemistSave'), `${file}: missing serpent rescue settlement`);
+  expect(src.includes('sanctuaryTarget:null, sanctuaryUsed:false, sanctuaryBlocked:null'), `${file}: missing sanctuary state`);
+  expect(src.indexOf("nightStep('wolfconcubine'") < src.indexOf("nightStep('soulwarden'"), `${file}: Soul Warden must act after Eclipse Consort`);
+  expect(src.indexOf("nightStep('soulwarden'") < src.indexOf("nightStep('fox'"), `${file}: Soul Warden cleansing must resolve before later good actions`);
+  expect(src.includes("consumeSanctuaryMark(attemptedCharm, 'wolfbeauty')"), `${file}: Wolf Beauty charm must use sanctuary interception`);
+  expect(src.includes("consumeSanctuaryMark(t.id, 'wolfconcubine')"), `${file}: Eclipse Consort mark must be cleansable`);
+  expect(src.includes("case 'sanctuary-block'"), `${file}: missing god-view sanctuary record formatter`);
 }
 
 const map = fs.readFileSync('action-cg.js', 'utf8');
-for (const key of ['gravekeeper','dreamwalker','dreamwalkerNightmare','alchemist','alchemistRescue','gargoyle','gargoyleAwaken']) {
+for (const key of ['gravekeeper','dreamwalker','dreamwalkerNightmare','alchemist','alchemistRescue','gargoyle','gargoyleAwaken','soulwarden']) {
   expect(new RegExp('\\b'+key+'\\s*:').test(map), `action-cg.js: missing ${key}`);
 }
 for (const file of [
   'gravekeeper-revelation-v1.webp','dreamwalker-protection-v1.webp','dreamwalker-nightmare-v1.webp',
-  'alchemist-mist-v1.webp','alchemist-serpent-v1.webp','gargoyle-scry-v1.webp','gargoyle-awakening-v1.webp'
+  'alchemist-mist-v1.webp','alchemist-serpent-v1.webp','gargoyle-scry-v1.webp','gargoyle-awakening-v1.webp',
+  'soulwarden-sanctuary-v1.webp'
 ]) expect(fs.existsSync('assets/action-cg/'+file), `missing action CG ${file}`);
 for (const role of roles) expect(fs.existsSync('icons/roles/'+role+'.jpg'), `missing portrait ${role}.jpg`);
 
