@@ -13078,6 +13078,36 @@ function waitForActionCG(src, timeoutMs=4500) {
   ]);
 }
 
+// 🖼️ 预加载本局会用到的行动 CG。
+//   CG 原本只在演出前一刻才现拉，单张 230~440KB，手机网络下常常跑不进 4.5s 超时，
+//   结果 artReady=false、图片被整个跳过，画面只剩一个兜底徽记（"CG 丢失"的真相）。
+//   开局就按本局阵容后台顺序预取，等夜晚演出时已经在缓存里。只取本局在场角色，不浪费流量。
+function preloadActionCGForRoster() {
+  try {
+    if (!window.RoleActionCG || !S || !Array.isArray(S.players)) return;
+    const inEnglishDir = /\/en(?:\/|$)/.test(location.pathname);
+    const base = inEnglishDir ? '../assets/action-cg/' : 'assets/action-cg/';
+    const ids = new Set(S.players.map(p => p && p.role && p.role.id).filter(Boolean));
+    const variants = { witch:['witchSave','witchPoison'], wolfbeauty:['wolfbeautyDeath'] };
+    const keys = [];
+    ids.forEach(id => {
+      if (window.RoleActionCG[id]) keys.push(id);
+      (variants[id] || []).forEach(k => { if (window.RoleActionCG[k]) keys.push(k); });
+    });
+    let i = 0;
+    const step = () => {
+      if (i >= keys.length) return;
+      const src = base + window.RoleActionCG[keys[i++]].src;
+      // 顺序预取（不并发），避免开局抢带宽拖慢首屏；超时给足，纯后台不阻塞任何流程
+      waitForActionCG(src, 30000).then(schedule, schedule);
+    };
+    // 用 setTimeout 而非 requestIdleCallback：后者在部分环境/后台标签页可能长期不触发，
+    // 预取就永远不会开始。200ms 的间隔已足够温和，不会和首屏抢带宽。
+    const schedule = () => setTimeout(step, 200);
+    schedule();
+  } catch (e) {}
+}
+
 async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
   try {
     const gc = document.getElementById('gc');
@@ -13109,7 +13139,7 @@ async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
     el.innerHTML = `<div class="role-cinema-panel">
       <div class="role-cinema-art-wrap">
         <div class="role-cinema-fallback">${sigil}</div>
-        ${artReady ? `<img class="role-cinema-art" src="${artSrc}" alt="" decoding="async"${actionCG && actionCG.position ? ` style="object-position:${actionCG.position}"` : ''} onerror="this.remove()">` : ''}
+        <img class="role-cinema-art" src="${artSrc}" alt="" decoding="async" loading="eager"${actionCG && actionCG.position ? ` style="object-position:${actionCG.position}"` : ''} onerror="this.remove()">
       </div>
       <div class="role-cinema-copy">
         <div class="role-cinema-kicker">ROLE AWAKENING</div>
@@ -18648,6 +18678,7 @@ function startGame() {
   S._initGodCount = S.players.filter(p => p.role.team==='good' && p.role.id!=='villager').length;
   S._initVillagerCount = S.players.filter(p => p.role.team==='good' && p.role.id==='villager').length;
   shuffleBgm(S.players);
+  preloadActionCGForRoster();   // 🖼️ 后台预取本局用得到的行动CG，避免演出时来不及加载只剩徽记
   S.silenced=-1;
   S._duelUsed=false;
   S._duelRound=-1;
