@@ -3196,6 +3196,7 @@ body.has-wp::after {
         <label class="mti" data-ui-icon="volume"><input type="checkbox" id="m-audio" checked>音效</label>
         <label class="mti" data-ui-icon="volume"><input type="checkbox" id="m-playerbgm" checked>Player-specific BGM</label>
         <label class="mti" data-ui-icon="sparkles" title="关掉毛玻璃和常驻动画。若你在浏览器里遇到「玩着玩着某块画面变空白，但游戏照常」，打开它即可解决——那是浏览器合成高负载特效时的老毛病，与游戏逻辑无关。桌面默认关闭（保留华丽特效）。"><input type="checkbox" id="m-litefx">精简特效</label>
+        <label class="mti" data-ui-icon="settings" title="Game UI zoom is separate from browser zoom. 100% is the normal original size; Auto fit shrinks the interface on landscape tablets to show more content."><span>UI zoom</span><select id="m-ui-zoom" onchange="setUiZoomMode(this.value)" style="margin-left:2px;font-size:.92em;padding:2px 5px"><option value="1" selected>100%</option><option value="auto">Auto fit</option><option value="0.9">90%</option><option value="0.8">80%</option><option value="0.7">70%</option></select></label>
         <div class="bgm-controls" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 0;font-size:0.75em;align-items:center">
       <span style="color:#8a8090">🌙夜间BGM</span>
       <select id="bgm-night-src" style="font-size:0.8em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)">
@@ -26952,23 +26953,33 @@ if ('serviceWorker' in navigator &&
 
 </script>
 <script>
-/* ═══ 平板横屏自动整体缩放：把UI压回桌面密度（图2效果） ═══ */
+/* ═══ 游戏内界面缩放：默认 100%，平板自动适配改为明确的可选项 ═══ */
 (function(){
+  var allowedModes=['1','0.9','0.8','0.7','auto'];
+  function readMode(){
+    var mode=null;
+    try{mode=localStorage.getItem('uiZoom');}catch(_){}
+    if(mode==='off')mode='1';
+    if(!allowedModes.includes(mode)){
+      mode='1';
+      try{localStorage.removeItem('uiZoom');}catch(_){}
+    }
+    return mode;
+  }
+  function syncPicker(mode){
+    var picker=document.getElementById('m-ui-zoom');
+    if(picker&&picker.value!==mode)picker.value=mode;
+  }
   function fitUI(){
     var w=window.innerWidth,hh=window.innerHeight;
     var z=1;
-    if(w>=601&&w>hh){ z=Math.min(1,w/1340); if(z>0.97)z=1; z=Math.max(0.62,z); }
-    var manual=null;
-    try{manual=localStorage.getItem('uiZoom');}catch(_){}
-    if(manual==='off'){z=1;}
-    else if(manual!==null){
-      var parsed=Number(manual);
-      if(Number.isFinite(parsed)){z=parsed;}
-      else{try{localStorage.removeItem('uiZoom');}catch(_){}}
-    }
+    var mode=readMode();
+    if(mode==='auto'&&w>=601&&w>hh){z=Math.min(1,w/1340);if(z>0.97)z=1;z=Math.max(0.62,z);}
+    else if(mode!=='auto'){z=Number(mode)||1;}
     // Imported/legacy settings must never collapse the whole UI into a thin strip.
     z=Math.min(1,Math.max(0.62,z));
     z=Math.round(z*1000)/1000;
+    syncPicker(mode);
     document.querySelectorAll('.gc').forEach(function(el){
       if(z<1){
         el.style.zoom=z;
@@ -26979,6 +26990,11 @@ if ('serviceWorker' in navigator &&
       }
     });
   }
+  window.setUiZoomMode=function(mode){
+    if(!allowedModes.includes(mode))mode='1';
+    try{localStorage.setItem('uiZoom',mode);}catch(_){}
+    fitUI();
+  };
   window.__fitUI=fitUI;
   window.addEventListener('resize',fitUI);
   window.addEventListener('orientationchange',function(){setTimeout(fitUI,300);});

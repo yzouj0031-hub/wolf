@@ -36,9 +36,15 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, 'let target = explicitHumanAction ? parseWolfTarget(explicitHumanAction, validWolfTargets) : null', `${label} does not infer human wolf target from discussion prose`);
   requireText(source, "value:'__NO_PROPOSAL__'", `${label} records human wolf proposals through an explicit choice`);
   requireText(source, "value:String(x.id)", `${label} uses stable player ids for manual choices`);
-  requireText(source, 'Number.isFinite(parsed)', `${label} UI zoom validation`);
+  requireText(source, 'id="m-ui-zoom"', `${label} visible UI zoom selector`);
+  requireText(source, "var allowedModes=['1','0.9','0.8','0.7','auto']", `${label} UI zoom mode allowlist`);
+  requireText(source, "if(mode==='auto'&&w>=601&&w>hh)", `${label} opt-in tablet auto-fit`);
+  requireText(source, 'window.setUiZoomMode=function(mode)', `${label} UI zoom reset handler`);
   requireText(source, 'localStorage.removeItem(\'uiZoom\')', `${label} invalid UI zoom cleanup`);
   requireText(source, 'Math.min(1,Math.max(0.62,z))', `${label} UI zoom safety clamp`);
+  if (source.includes('if(w>=601&&w>hh){ z=Math.min(1,w/1340)')) {
+    throw new Error(`${label} still forces tablet auto-fit at browser 100%`);
+  }
   requireText(source, '━━ 信息边界·必须遵守 ━━', `${label} exported hard information boundary`);
   requireText(source, '━━ 推理建议·非强制 ━━', `${label} exported advisory reasoning section`);
   requireText(source, '自主采用、调整或拒绝这些建议', `${label} reasoning autonomy guidance`);
