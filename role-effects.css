@@ -40,6 +40,9 @@
 .pc.role-cupid { background-image: url('icons/roles/cupid.jpg'); }
 .pc.role-serialkiller { background-image: url('icons/roles/serialkiller.jpg'); }
 
+/* All current and future role cards receive their portrait path at runtime. */
+.pc.role-theme { background-image: var(--role-portrait, none); }
+
 .ri0[style*="background-image"] {
     background-size: cover;
     background-position: center 20%;
