@@ -43,6 +43,10 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, '━━ 推理建议·非强制 ━━', `${label} exported advisory reasoning section`);
   requireText(source, '自主采用、调整或拒绝这些建议', `${label} reasoning autonomy guidance`);
   requireText(source, '不得要求其他玩家遵循这些建议', `${label} non-enforcement guidance`);
+  requireText(source, '阶段发言权限：只有系统明确标注为', `${label} exported phase speaking boundary`);
+  requireText(source, '现在是投票阶段，不是发言阶段', `${label} web handoff vote-only instruction`);
+  requireText(source, '只向主持人提交一个投票目标', `${label} web handoff choice-only vote output`);
+  requireText(source, '现在是夜间私密操作阶段，不是公开发言', `${label} web handoff private night-action boundary`);
   if (source.includes('━━ 阅读与推理 ━━')) {
     throw new Error(`${label} still exports reasoning guidance as an undifferentiated rules section`);
   }
@@ -70,6 +74,7 @@ for (const [needle, label] of [
 requireText(i18n, 'characterData:true', 'dynamic text mutation translation');
 requireText(i18n, 'After voting starts, every AI judge scores each player', 'dynamic MVP translation fallback');
 requireText(i18n, 'The game has not started. Finish the role setup', 'empty-rule translation fallback');
+requireText(i18n, 'Speaking permission by phase:', 'English exported phase speaking boundary');
 for (const roleId of ['werewolf','wolfking','wolfbeauty','seer','witch','guard','hunter','knight','magician','villager','fool','jester','merchant','fox','whitecat','cupid','serialkiller','mechwolf']) {
   requireText(sigils, `${roleId}:`, `role sigil for ${roleId}`);
 }
