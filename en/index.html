@@ -4557,6 +4557,8 @@ ALL_ROLES.witch.guide = ALL_ROLES.witch.guide.replace(
   '那就【果断救】,别犹豫!没有守护承诺时,你不救=预言家直接死,这种"留药"是真送。',
   '没有守护承诺会降低“已经有人挡刀”的可信度，但仍要结合屠边压力、刀口价值、身份暴露和长期药效计算，不能只凭这一点自动得出必救。'
 ) + '\n\n【银水与带队价值】救人不只增加一个存活人数，还会形成一条真实的救药行动记录。尤其第一夜，你可以在警长竞选中如实报出自己救过谁、争取警徽并带队；被救者也能成为阶段性的“银水”参考。但银水不是铁好（存在自刀等可能），跳身份也会暴露女巫，所以要把带队收益、身份暴露、刀口价值、屠边压力、守卫撞药风险与保留解药的信息价值一起计算，不能据此机械得出必救或不救。';
+ALL_ROLES.witch.guide += '\n\n【与炼金魔女同场】女巫是第一救援位：你先按本夜刀口价值正常决定是否使用解药，不要为了猜测炼金魔女可能准备了法老之蛇而机械停药。只有你没有救下刀口时，系统才会让法老之蛇进行补救。';
+ALL_ROLES.alchemist.guide += '\n\n【与女巫同场·救援顺序】女巫先决定是否使用解药；只有刀口仍未获救时，法老之蛇才进入救援决定。若女巫已经救下刀口，你会收到明确的私密通知，法老之蛇不会发动也不会消耗。不要和女巫重复交药。';
 ALL_ROLES.serialkiller.guide = ALL_ROLES.serialkiller.guide.replace(
   '所以中后期你的存活优先级 > 一切——白天绝不当出头鸟、绝不站上抗推位，深水到底。',
   '所以中后期要把存活价值和主动控场价值一起计算；低调、带票或制造冲突都只是可选路线，按当前威胁决定。'
@@ -5893,6 +5895,7 @@ function buildRulesExport() {
   }
   if (has('mechwolf')) interactions.push('机械狼与狼队互不相认且前期不参加狼刀，但仍与狼人共享胜负；其学习与带刀按角色说明结算。');
   if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
+  if (has('witch') && has('alchemist')) interactions.push('女巫先决定是否使用解药；只有刀口仍未获救时，炼金魔女的法老之蛇才进行补救。女巫已救时会通知炼金魔女且不消耗法老之蛇。');
   if (has('magician')) interactions.push('魔术师在狼刀确定前行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
   if (has('wolfconcubine')) interactions.push('蚀时狼妃的锁每夜只反弹首个命中的查验、守护或毒；查验和守护反弹不致死，毒药反弹可能毒死施术女巫。');
   if (has('soulwarden')) interactions.push('净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记，可处理狼妃反弹锁与狼美人魅惑；不阻挡任何直接伤害，也不反馈是否成功。');
@@ -5963,6 +5966,7 @@ function buildWebRulesExport(viewerP) {
     lines.push('', `【你的能力】${viewerP.role.emoji}${viewerP.role.name}：${viewerP.role.desc}`);
   }
   if (has('guard') && has('witch')) lines.push('· 守卫不能连续守同一人；守护与女巫解药同时作用于同一刀口会奶穿死亡。');
+  if (has('witch') && has('alchemist')) lines.push('· 女巫优先处理刀口；若解药已经救下目标，法老之蛇不再重复发动且不会消耗。女巫未救时，炼金魔女才可补救。');
   if (has('magician')) lines.push('· 魔术师在狼刀确定前行动；换号只重定向当夜狼刀，不影响查验、用药、守护或魅惑；不能连续两夜换完全相同的一对。');
   if (has('wolfbeauty')) lines.push('· 狼美人每晚仍正常参与狼刀；魅惑不是即时击杀。她出局时才连带当前魅惑目标，具体公开信息以系统公告为准。');
   if (has('wolfconcubine')) lines.push('· 蚀时狼妃每晚锁一人；当夜首个查验/守护/毒命中该目标时反弹给施术者本人。查验/守护反弹不致死，毒药反弹会毒死女巫。');
@@ -14294,6 +14298,13 @@ const NightActions = {
     const al = alive.find(p => p.role.id === 'alchemist');
     if (!al || S.nightData.alchemistMode !== 'serpent' || al._serpentUsed || S.nightData.kill == null) return;
     const victim = S.players[S.nightData.kill];
+    if (S.nightData.witchSave) {
+      const notice = '【炼金记录】法老之蛇看见实际狼刀落在'+victim.name+'，但该刀口已经被女巫解药救下；无需重复救援，法老之蛇未消耗。';
+      al.memory.push({role:'system',content:notice});
+      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'covered_by_witch'});
+      logPrivateNightResult(al,'刀口'+victim.name+'已被女巫救下，法老之蛇未消耗','The Witch already saved '+victim.name+'; the Pharaoh\'s Serpent was not consumed');
+      return;
+    }
     let save = false;
     Render.setSpeaking(al.id,true);
     if (al.isPlayer) {
@@ -16683,9 +16694,9 @@ const PhaseHandlers = {
       await nightStep('gargoyle-kill', () => NightActions.gargoyleKill(alive));
       await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
       await nightStep('imitator-rescue', () => NightActions.imitatorRescue(alive));
-      await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
       await nightStep('atmo-before-gods', () => nightAtmo(1));
       await nightStep('witch', () => NightActions.witch(alive));
+      await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
       await nightStep('custom-gods', () => NightActions.customGods(alive));
       await nightStep('seer', () => NightActions.seer(alive));
       await nightStep('granted-skill', () => NightActions.grantedSkill(alive));
@@ -16736,9 +16747,9 @@ const PhaseHandlers = {
     await nightStep('gargoyle-kill', () => NightActions.gargoyleKill(alive));
     await nightStep('magic-swap', async () => NightActions.applyMagicSwap());
     await nightStep('imitator-rescue', () => NightActions.imitatorRescue(alive));
-    await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
     await nightStep('atmo-before-gods', () => nightAtmo(1));
     await nightStep('witch', () => NightActions.witch(alive));
+    await nightStep('alchemist-rescue', () => NightActions.alchemistRescue(alive));
     await nightStep('custom-gods', () => NightActions.customGods(alive));
     await nightStep('seer', () => NightActions.seer(alive));
     await nightStep('granted-skill', () => NightActions.grantedSkill(alive));
