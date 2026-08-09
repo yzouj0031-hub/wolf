@@ -22,6 +22,9 @@ for (const file of clients) {
   expect(src.includes("result:'covered_by_witch'"), `${file}: Alchemist does not record an already rescued target`);
   expect(src.includes('法老之蛇未消耗'), `${file}: Alchemist is not told that duplicate rescue was skipped`);
   expect(src.includes('if (S.nightData.witchSave)'), `${file}: duplicate Alchemist rescue is not blocked`);
+  expect(src.includes("target:victim.name,result:'hold'"), `${file}: declined Serpent rescue forgets the observed attack target`);
+  expect(src.includes('你看见实际狼刀落在\'+victim.name+\'，选择保留法老之蛇'), `${file}: declined Serpent rescue is not stored in private memory`);
+  expect(src.includes("gameRecord.filter(r=>r.role==='alchemist_rescue'&&r.target)"), `${file}: Serpent observations cannot be reconstructed after memory compression`);
   const magicianSteps = [...src.matchAll(/nightStep\('magician'/g)].map(match => match.index);
   const wolfKillSteps = [...src.matchAll(/nightStep\('wolf-kill'/g)].map(match => match.index);
   expect(magicianSteps.length >= 2 && wolfKillSteps.length >= 2, `${file}: missing repeated night order steps`);
