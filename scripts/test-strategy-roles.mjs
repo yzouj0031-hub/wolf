@@ -15,6 +15,13 @@ for (const file of clients) {
   expect(src.includes('alchemistMist:null, alchemistMode:null, alchemistSave:null'), `${file}: missing alchemist state`);
   expect(src.indexOf("nightStep('alchemist-plan'") < src.indexOf("nightStep('wolf-kill'"), `${file}: mist must precede wolf attack`);
   expect(src.indexOf("nightStep('magic-swap'") < src.indexOf("nightStep('alchemist-rescue'"), `${file}: serpent must see redirected attack`);
+  const witchSteps = [...src.matchAll(/nightStep\('witch'/g)].map(match => match.index);
+  const alchemistRescueSteps = [...src.matchAll(/nightStep\('alchemist-rescue'/g)].map(match => match.index);
+  expect(witchSteps.length >= 2 && alchemistRescueSteps.length >= 2, `${file}: missing Witch/Alchemist rescue steps`);
+  expect(witchSteps.every((position, index) => position < alchemistRescueSteps[index]), `${file}: Witch must receive first rescue priority`);
+  expect(src.includes("result:'covered_by_witch'"), `${file}: Alchemist does not record an already rescued target`);
+  expect(src.includes('法老之蛇未消耗'), `${file}: Alchemist is not told that duplicate rescue was skipped`);
+  expect(src.includes('if (S.nightData.witchSave)'), `${file}: duplicate Alchemist rescue is not blocked`);
   const magicianSteps = [...src.matchAll(/nightStep\('magician'/g)].map(match => match.index);
   const wolfKillSteps = [...src.matchAll(/nightStep\('wolf-kill'/g)].map(match => match.index);
   expect(magicianSteps.length >= 2 && wolfKillSteps.length >= 2, `${file}: missing repeated night order steps`);
