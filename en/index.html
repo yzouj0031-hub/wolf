@@ -13893,6 +13893,13 @@ function imitatorSkillChoices(role) {
   return [...new Set(out)];
 }
 
+function logPrivateNightResult(actor, zh, en) {
+  if (!actor) return;
+  const observerView = isMC() || S.directorMode || S.pureAI;
+  if (!(actor.isPlayer || !isAnon() || observerView)) return;
+  Render.log(observerView && isAnon() ? 'system' : 'night-result', uiEnglish() ? en : zh);
+}
+
 const NightActions = {
   // 💘 丘比特只在第一夜、且在其他身份前行动。
   async cupid(alive) {
@@ -14089,6 +14096,7 @@ const NightActions = {
     dw._dreamLastTarget = t.id;
     dw.memory.push({role:'system',content:'【摄梦记录】第'+S.round+'夜你选择了'+t.name+'；'+(nightmare?'这是连续第二夜，同一目标将因噩梦死亡。':'若你熬过本夜，该目标免疫当夜伤害。')});
     gameRecord.push({type:'night_action',role:'dreamwalker',round:S.round,target:t.name,result:nightmare?'nightmare':'protect'});
+    logPrivateNightResult(dw,'摄梦人选择了'+t.name+(nightmare?'，连续梦境将引发致命噩梦':'作为本夜梦游者'),'The Dreamwalker chose '+t.name+(nightmare?' for a second consecutive dream, causing a lethal nightmare':' as tonight\'s dreamer'));
     Render.setSpeaking(dw.id,false);
   },
 
@@ -14131,10 +14139,15 @@ const NightActions = {
       al._mistUsed = true; S.nightData.alchemistMist = mistTargets.map(x=>x.id);
       al.memory.push({role:'system',content:'【炼金记录】本夜未明之雾已发动，狼刀只能落在：'+mistTargets.map(x=>x.name).join('、')+'。'});
       gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:mistTargets.map(x=>x.name).join('、'),targets:mistTargets.map(x=>x.name),result:'mist'});
+      logPrivateNightResult(al,'炼金魔女发动未明之雾：'+mistTargets.map(x=>x.name).join('、'),'The Alchemist cast the Nameless Mist around: '+mistTargets.map(x=>x.name).join(', '));
     } else if (mode === 'SERPENT' && !al._serpentUsed) {
       S.nightData.alchemistMode='serpent';
       al.memory.push({role:'system',content:'【炼金记录】你已准备法老之蛇；实际狼刀确定后仍可选择不救，不选择不会消耗药剂。'});
-    } else gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:null,result:'pass'});
+      logPrivateNightResult(al,'炼金魔女准备了法老之蛇，等待实际刀口','The Alchemist prepared the Pharaoh\'s Serpent and awaits the final attack target');
+    } else {
+      gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:null,result:'pass'});
+      logPrivateNightResult(al,'炼金魔女本夜保留全部炼金术','The Alchemist held both formulas tonight');
+    }
     Render.setSpeaking(al.id,false);
   },
 
@@ -14155,7 +14168,11 @@ const NightActions = {
       al._serpentUsed=true; S.nightData.alchemistSave=S.nightData.kill;
       al.memory.push({role:'system',content:'【炼金记录】你消耗法老之蛇，救下了实际刀口'+victim.name+'。'});
       gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'save'});
-    } else gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:null,result:'hold'});
+      logPrivateNightResult(al,'法老之蛇救下了实际刀口'+victim.name,'The Pharaoh\'s Serpent saved '+victim.name+' from the final attack');
+    } else {
+      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:null,result:'hold'});
+      logPrivateNightResult(al,'炼金魔女看见刀口后选择保留法老之蛇','The Alchemist saw the attack target and held the Pharaoh\'s Serpent');
+    }
     Render.setSpeaking(al.id,false);
   },
 
@@ -14181,6 +14198,7 @@ const NightActions = {
     gg._gargoyleSeen.push(t.id);
     gg.memory.push({role:'system',content:'【石像鬼私密结果】第'+S.round+'夜，你窥见'+t.name+'的准确身份是【'+t.role.name+'】。不得在未建立公开信息来源时直接泄露。'});
     gameRecord.push({type:'night_action',role:'gargoyle',round:S.round,target:t.name,roleId:t.role.id,roleName:t.role.name,result:'exact'});
+    logPrivateNightResult(gg,'石像鬼窥视'+t.name+'，真实身份为【'+t.role.name+'】','The Gargoyle scrutinized '+t.name+': exact role ['+t.role.name+']');
     Render.setSpeaking(gg.id,false);
   },
 
