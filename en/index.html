@@ -4486,7 +4486,7 @@ reg({id:'mechwolf',name:'机械狼',team:'bad',emoji:'🤖',desc:'狼阵营·孤
 
 // ★ 机械狼增强规则：覆盖旧简介/指南中的“平民与魔术师白学、永远验狼”等旧设定。
 // 所有 AI 的角色总览读取 desc，机械狼本人读取 guide；两处必须保持同一口径。
-ALL_ROLES.mechwolf.desc = '狼阵营·孤狼学习牌：整局学习一次、次夜生效；学预言家可验准确身份，学魔术师可看见当夜换位，学平民后获得好人查验伪装；其余角色复制强化技能。其他狼系全灭后获得狼刀，可空刀但不能主动自刀；与狼队互不相认、不能自爆。';
+ALL_ROLES.mechwolf.desc = '狼阵营·孤狼学习牌：整局学习一次、次夜生效；学预言家可验准确身份，学魔术师可看见当夜换位，学平民后获得好人查验伪装；其余角色复制强化技能。其他狼系全灭后获得独立狼刀，可刀任意候选玩家（包括自己）或空刀，并私下得知所选刀口最终是否死亡；与狼队互不相认、不能自爆。';
 ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
   .replace('学到预言家 → 从下一晚起，每晚可查验一名玩家的真实身份（结果只有你自己知道）。', '学到预言家 → 从下一晚起，每晚可查验一名玩家的【准确身份】（例如预言家、白狼王），不只是好人/狼人阵营；结果只有你自己知道。')
   .replace('学到平民、魔术师等【没有可复制技能】的角色 → 只知道其身份，【不获得任何技能】（等于白学）。', '学到魔术师 → 从下一晚起，每晚在魔术师行动后得知当夜真实换位A↔B（或空过），带刀时可据此反算名义刀口；狼刀仍按换位正常重定向，并非免疫换位。\n  - 学到平民 → 从下一晚起获得【平民身份伪装】：真正的预言家查验你显示为好人；此前已经产生的查验记录不改变。')
@@ -4537,6 +4537,8 @@ reg({id:'gravekeeper',name:'守墓人',team:'good',emoji:'',desc:'好人神职�
 reg({id:'dreamwalker',name:'摄梦人',team:'good',emoji:'',desc:'好人神职。每晚令一名其他玩家梦游并免疫当夜伤害；连续两晚选择同一人，则该玩家在第二夜因噩梦死亡；摄梦人夜间死亡会带走当夜梦游者。',maxCount:1,cssClass:'rdw',guide:'你是摄梦人，属于好人阵营。\n【能力】每晚选择一名其他存活玩家。若与上夜目标不同，他免疫当夜伤害；若连续两晚选择同一人，第二夜直接因噩梦死亡，不再获得保护。你若在夜间最终死亡，当夜梦游者也会随你死亡。\n【策略】换人是保护，连选是主动处决。第二夜是否连梦必须基于具体信息权衡，不能机械追梦；也要计算自己可能被刀时会不会误带关键好人。行动和结果都是私密信息。'+N1});
 reg({id:'alchemist',name:'炼金魔女',team:'good',emoji:'',desc:'好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为三人；蛇可在看见魔术师换位后的实际刀口后决定是否救下。',maxCount:1,cssClass:'ralc',guide:'你是炼金魔女，属于好人阵营。\n【两种一次性能力】未明之雾：在狼队行动前圈定三名存活玩家，当夜狼刀只能从三人中选择（允许圈到狼人）；法老之蛇：在狼刀和魔术师换位结算后得知实际刀口，再决定是否救下。两种能力各限一次，同一夜只能选一种。\n【策略】雾改变狼队决策空间，适合保护多数高价值位置或制造狼队自刀压力；蛇是精确救援，但使用会消耗未来威慑。按当前局势判断，不要固定首夜开雾或见刀必救。'+N1});
 reg({id:'gargoyle',name:'石像鬼',team:'bad',emoji:'',desc:'狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并单独获得狼刀。',maxCount:1,cssClass:'tw rgg',guide:'你是石像鬼，属于狼人阵营，但与普通狼队互不相认：你不知道他们是谁，他们也不知道你；你不参加狼队密谈和普通狼刀。\n【窥视】每晚查验一名尚未查过的其他玩家，得知准确身份。\n【苏醒】只有除你之外的所有狼人阵营角色都出局后，你才单独获得狼刀。\n【策略】你可能在不知情时攻击普通狼，普通狼也可能把你当好人甚至刀你；这正是你的信息结构。白天只使用公开信息伪装，绝不能泄露准确身份来自夜间窥视。残局前优先存活并利用查验规划身份，苏醒后再按人数与屠边条件收割。'+N1});
+ALL_ROLES.gargoyle.desc = '狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并获得独立狼刀，可刀任意候选玩家（包括自己）或空刀，并私下得知所选刀口最终是否死亡。';
+ALL_ROLES.gargoyle.guide += '\n【独立刀口】苏醒后可刀任意候选玩家（包括自己）或空刀；天亮后会私下得知所选刀口是否死亡，记录会永久保留。自刀可能让唯一狼人立即落败，只有确有特殊收益时才考虑。';
 reg({id:'soulwarden',name:'净魂师',team:'good',emoji:'',desc:'好人神职。每晚为一名存活玩家施加圣域：净除其身上已有的一层敌对非伤害标记，或拦下本夜随后到来的第一层此类标记；不能连续两夜选择同一人。',maxCount:1,cssClass:'rsw',guide:'你是净魂师，属于好人阵营。\n【圣域】每晚选择一名存活玩家（可选自己），但不能连续两夜选择同一人。圣域会先净除目标身上已经存在的一层敌对非伤害标记；若当时没有，则拦下本夜随后落到目标身上的第一层敌对非伤害标记。当前可处理蚀时狼妃的反弹锁定、狼美人的魅惑；未来同类敌对标记也遵循这套接口。\n【边界】圣域不挡狼刀、毒药、石像鬼刀、摄梦人连续噩梦、骑士决斗或其他直接伤害；一夜只挡一层。\n【信息】你和目标都不会收到“是否成功拦截”的反馈，敌方也不会知道失败原因。你只确定自己把圣域给了谁，不能把平安或没有连带当成系统证明。\n【策略】保护即将被验证、被狼美人针对或承担关键归票的人，也可以自保；但不要机械追着明牌神职，也要考虑对方可能换目标以及一层圣域被更早的标记消耗。'+N1});
 reg({id:'imitator',name:'摹术师',team:'good',emoji:'',desc:'好人神职。每晚可向一名尚未学习过的存活玩家摹取一次兼容的主动技能，并在当夜使用；每名玩家整局只能学习一次，最多成功摹取三次，技能天亮即消失。',maxCount:1,cssClass:'rim',guide:'你是摹术师，属于好人阵营。\n【摹取】每晚可选择一名其他存活玩家学习，也可以空过。每名玩家整局最多成为你的学习目标一次；没有摹到兼容技能也会消耗该目标。整局最多成功摹取三次。\n【临时技能】成功后系统只告诉你摹到的能力，不直接公布目标的准确身份。你可以在当夜使用一次，也可以放弃；无论是否使用，天亮后都会消失。当前可摹取：阵营查验、子狐媚惑、挡狼刀守护、药剂救人或毒杀、魔术换位、圣域净化。\n【不能摹取】狼刀、阵营密聊、死亡触发、白天技能、被动能力、永久成长、再次学习他人等能力都不能复制；因此猎人、骑士、普通狼人、狼美人死亡连带、机械狼学习等不会提供可用临时技能。\n【信息边界】能力类型可以形成身份范围，但不是准确身份铁证：多个角色可能留下同类能力，自创角色也可能具有相同积木。不要把“摹到守护”直接说成“目标必是守卫”。'+N1});
 
@@ -5839,7 +5841,7 @@ function buildRulesExportLegacy(includeAllRoles = false) {
   lines.push('· 【小丑判定】（仅当本局配置了小丑时生效）小丑属第三方独立阵营，不与任何一方共享胜负。唯一胜利条件：被白天【投票放逐】或【审判定罪】处决——被处决的瞬间小丑单独获胜、游戏立即结束、好人与狼人皆输。被狼刀死、被毒死、被猎人/狼王带走、被骑士决斗、被白狼王自爆带走均不触发（小丑照常出局且落败）。小丑无任何夜间/白天主动技能；预言家查验小丑显示为好人。小丑存活但游戏被其他阵营终结时，小丑落败。');
   lines.push('· 【连环杀手判定】（仅当本局配置了连环杀手时生效）连环杀手属第三方独立阵营。每晚可独立袭击一名玩家（可空刀），其袭击与狼刀完全独立——同一晚可能死两人。守卫守护可挡下其袭击；女巫的解药只对狼刀有效、救不了被杀手袭击的人；魔术师交换不影响其袭击（交换只重定向狼刀）；被杀手袭击身亡按夜间死亡处理，死亡技能（如猎人开枪）照常可发动。预言家查验连环杀手显示为好人。胜负判定：连环杀手存活期间，狼人阵营与好人阵营的任何胜利条件都不成立（必须先除掉杀手）；当场上只剩连环杀手一人存活时，杀手单独获胜。');
   lines.push('· 【丘比特/爱神判定】（仅当本局配置了丘比特时生效）丘比特本身是好人神职，仅第一夜在其他身份之前行动一次：必须指定两名不同玩家成为恋人，可以把自己列为其中一人。恋人互相知道对方是自己的恋人，但不因此获知对方的具体角色。任何一名恋人以任何死因出局，另一人都会立即以“恋人殉情”死亡，无遗言；殉情是公开关系事件，不验证两人的原身份或阵营。如果恋人原本同阵营，仍按原阵营胜负；如果原本不同阵营，两人转为隐藏情侣阵营，并在两人均存活时阻止原阵营提前宣胜；只有当场上仅剩这两名恋人时，他们才共同获胜。恋人殉情是关系状态的即时结算，先于普通阵营胜负判定，不会因原死亡刚好达成某阵营条件就只死一半。');
-  lines.push('· 【机械狼判定】（仅当本局配置了机械狼时生效）机械狼属狼人阵营，但与狼队【互不相认】、不参与狼队夜刀讨论、不能自爆。① 学习：整局可在任意一夜学习一名其他玩家，仅一次，得知其真实身份并复制强化技能，从下一夜生效。学预言家→每晚查验一人的【准确角色名】（如女巫、白狼王），不只是阵营；学魔术师→每晚在魔术师行动后得知真实换位A↔B或空过，带刀时可据此反算名义刀口，但刀仍按换位正常重定向；学平民→获得身份伪装，生效后真正的预言家验机械狼显示为好人（此前查验不追溯改变）；学子狐→每晚发动机械媚惑，狼目标令全狼禁刀、好人目标被封夜间主动技能，并私下得知阵营；机械媚惑也可被蚀时狼妃反弹；学女巫→每晚可毒且被机械毒者不能发动死亡技能；学守卫→每晚守护且机械盾同时免疫狼刀与女巫毒；学猎人→出局时开枪；学骑士→一次性机械决斗；学狼系→带刀后为无视守护/解药的破盾刀。② 带刀：仅当除机械狼外的其他狼系角色全部出局后，机械狼才获得狼刀；每晚可刀一名其他玩家，也可选择【空刀】且系统不得随机补目标；不能主动自刀，但魔术师交换可能把刀间接转回机械狼。③ 默认伪装：未学平民或平民伪装尚未生效时，预言家查验机械狼仍显示狼人。');
+  lines.push('· 【机械狼判定】（仅当本局配置了机械狼时生效）机械狼属狼人阵营，但与狼队【互不相认】、不参与狼队夜刀讨论、不能自爆。① 学习：整局可在任意一夜学习一名其他玩家，仅一次，得知其真实身份并复制强化技能，从下一夜生效。学预言家→每晚查验一人的【准确角色名】（如女巫、白狼王），不只是阵营；学魔术师→每晚在魔术师行动后得知真实换位A↔B或空过，带刀时可据此反算名义刀口，但刀仍按换位正常重定向；学平民→获得身份伪装，生效后真正的预言家验机械狼显示为好人（此前查验不追溯改变）；学子狐→每晚发动机械媚惑，狼目标令全狼禁刀、好人目标被封夜间主动技能，并私下得知阵营；机械媚惑也可被蚀时狼妃反弹；学女巫→每晚可毒且被机械毒者不能发动死亡技能；学守卫→每晚守护且机械盾同时免疫狼刀与女巫毒；学猎人→出局时开枪；学骑士→一次性机械决斗；学狼系→带刀后为无视守护/解药的破盾刀。② 带刀：仅当除机械狼外的其他狼系角色全部出局后，机械狼才获得狼刀；每晚可刀任意候选玩家（包括自己），也可选择【空刀】且系统不得随机补目标；天亮结算后会私下得知自己所选刀口最终是否死亡并永久保留记录。③ 默认伪装：未学平民或平民伪装尚未生效时，预言家查验机械狼仍显示狼人。');
   lines.push('');
   lines.push('（提示：以上为本局规则框架，具体身份能力以"在场角色及技能"一节为准。请以本局规则进行推理与发言。）');
 
@@ -9000,6 +9002,9 @@ ${userPersona}
   let mechLogBlock = '';
   if (p.role.id === 'mechwolf') {
     const parts = [];
+    const knifeHistory = (gameRecord || []).filter(r => r.type==='night_action' && r.role==='mechwolf_kill')
+      .map(r => '  第'+r.round+'夜：'+(r.blocked?'受到禁刀，未能出刀':r.technical?'刀口指令解析失败，未出刀':r.empty?'主动空刀':('刀'+r.target+(r.selfKill?'（自刀）':'')+' → '+(r.result==='success'?'目标已死亡':r.result==='failed'?'目标未死亡':'尚未结算'))));
+    if (knifeHistory.length) parts.push('· 你的永久刀口记录（私有）：\n'+knifeHistory.join('\n'));
     if (S.mechLearn && S.mechLearn.learned) {
       const currentMechSkill = S.mechLearn.skill || mechSkillOf(S.mechLearn.role);
       const skillTxt = (S.mechLearn.role==='knight') ? ('一次性决斗——白天可在自己的发言回合或投票前最终确认时指名处死一人（必死、不看阵营），决斗后翻牌暴露但不出局；发言时用 <action>DUEL:P编号</action> 触发，未使用则投票前会再次询问' + (S._mechDuelUsed?'（⚠️已用过，不能再决斗）':'（尚未使用）')) : ({seer:'每晚查验一名玩家的准确身份（具体角色名）',guard:'每晚可守护一名玩家（不能连守同一人）；机械盾守到的人当晚免疫狼刀+女巫毒',witch:'每晚可毒杀一名玩家',hunter:'出局时（被毒除外）可开枪带走一人',wolf:'带刀后为破盾刀（无视守护/解药）',magician:'每晚得知魔术师的真实换位或空过；可据此反算刀口，但刀仍受换位影响',villager:'平民身份伪装已生效后，预言家验你显示好人',fox:'每晚可媚惑一人：狼目标令全狼禁刀，好人目标被封夜间主动技能；你私下得知阵营'}[currentMechSkill] || '该身份无可复制技能（只知道身份）');
@@ -9023,7 +9028,15 @@ ${userPersona}
     const camouflageText = isMechVillagerCamouflaged(p)
       ? '你已学到平民且伪装生效：从现在起预言家验你显示好人。'
       : '你尚未获得生效的平民伪装：预言家验你显示狼人。';
-    mechLogBlock = '\n\n【🤖 机械狼·状态（必须记住）】\n' + parts.join('\n') + '\n⚠️ 你与狼队互不相认：你不知道谁是狼，别在发言里暗示有队友。'+camouflageText+'带刀后可以明确选择空刀，但不能主动自刀。';
+    mechLogBlock = '\n\n【🤖 机械狼·状态（必须记住）】\n' + parts.join('\n') + '\n⚠️ 你与狼队互不相认：你不知道谁是狼，别在发言里暗示有队友。'+camouflageText+'带刀后可以明确选择空刀或战术性自刀；自刀可能让唯一狼人立即落败，必须先算清胜负。';
+  }
+
+  // ★ 石像鬼独立刀口永久重注入：普通 memory 被压缩后仍能记住自己刀过谁、目标是否倒牌。
+  let gargoyleKillLogBlock = '';
+  if (p.role.id === 'gargoyle') {
+    const rows = (gameRecord || []).filter(r => r.type==='night_action' && r.role==='gargoyle_kill')
+      .map(r => '第'+r.round+'夜：'+(r.blocked?'受到禁刀，未能出刀':r.technical?'刀口指令解析失败，未出刀':r.empty?'主动空刀':('刀'+r.target+(r.selfKill?'（自刀）':'')+' → '+(r.result==='success'?'目标已死亡':r.result==='failed'?'目标未死亡':'尚未结算'))));
+    if (rows.length) gargoyleKillLogBlock = '\n\n【石像鬼永久刀口记录·私密】\n'+rows.join('\n')+'\n⚠️这些结果只有你知道，白天不能直接泄露刀口。';
   }
 
   // ★ 猎人开枪记录：永久注入所有玩家的系统prompt，防止记忆截断后AI误判猎人身份
@@ -9307,7 +9320,7 @@ ${userPersona}
   }
   wolfPrivateBlock = planBlock + loverPrivateBlock + wolfPrivateBlock;
 
-  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${duelLogBlock}${hunterLogBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
+  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
@@ -14380,15 +14393,16 @@ const NightActions = {
   async gargoyleKill(alive) {
     const gg=alive.find(p=>p.role.id==='gargoyle');
     if(!gg || alive.some(p=>p.role.team==='bad' && p.id!==gg.id) || S.nightData.kill!=null) return;
-    if(S.nightData.foxBlockKill){gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,blocked:true});logPrivateNightResult(gg,'石像鬼本夜受到禁刀影响，无法发动袭击','The Gargoyle was prevented from attacking tonight');return;}
-    const ts=(Array.isArray(S.nightData.alchemistMist)?alive.filter(p=>S.nightData.alchemistMist.includes(p.id)):alive.filter(p=>p.id!==gg.id));
+    if(S.nightData.foxBlockKill){gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,target:null,blocked:true,result:'blocked'});logPrivateNightResult(gg,'石像鬼本夜受到禁刀影响，无法发动袭击','The Gargoyle was prevented from attacking tonight');return;}
+    // 苏醒后的石像鬼使用独立狼刀，可以像普通狼队一样战术性自刀；未明之雾仍严格限制候选池。
+    const ts=(Array.isArray(S.nightData.alchemistMist)?alive.filter(p=>S.nightData.alchemistMist.includes(p.id)):alive.slice());
     if(!ts.length)return;
     if(!gg._gargoyleAwake){gg._gargoyleAwake=true;gameRecord.push({type:'night_action',role:'gargoyle_awaken',round:S.round,target:gg.name,result:'awaken'});logPrivateNightResult(gg,'其他狼系已全部出局，石像鬼苏醒并获得独立狼刀','All other wolves are gone; the Gargoyle awakened and gained an independent attack');}
     let t=null; Render.setSpeaking(gg.id,true);
-    if(gg.isPlayer){const opts=ts.map(x=>({label:'P'+(x.id+1)+' '+x.name,value:x.name}));opts.push({label:'空刀',value:'None',abs:true});const v=await waitChoice('其他狼系已全部出局，你已苏醒。今晚刀谁？','石像鬼夜刀',opts);t=v==='None'?null:findPlayer(v,ts);}
-    else{const r=await nightTwoStep(gg,'【石像鬼苏醒·第'+S.round+'夜】其他狼系已全部出局。可刀：'+ts.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'。可明确空刀。','<action>玩家名 或 PASS</action>');logNightThinking(gg,r);const d=await resolveAIAction3(gg,r,{label:'石像鬼夜刀',candidates:ts,targetCount:1,allowPass:true,formatHint:'KILL|P数字 或 PASS'});if(d.status==='execute')t=d.targets[0];}
-    if(t){S.nightData.kill=t.id;S.nightData.killChosenByWolf=t.id;gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:t.name});logPrivateNightResult(gg,'石像鬼选择袭击'+t.name,'The Gargoyle chose to attack '+t.name);}
-    else{gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,empty:true});logPrivateNightResult(gg,'石像鬼本夜选择空刀','The Gargoyle chose not to attack tonight');}
+    if(gg.isPlayer){const opts=ts.map(x=>({label:'P'+(x.id+1)+' '+x.name+(x.id===gg.id?'（自刀）':''),value:x.name}));opts.push({label:'空刀',value:'None',abs:true});const v=await waitChoice('其他狼系已全部出局，你已苏醒。今晚刀谁？','石像鬼夜刀',opts);t=v==='None'?null:findPlayer(v,ts);}
+    else{const r=await nightTwoStep(gg,'【石像鬼苏醒·第'+S.round+'夜】其他狼系已全部出局。可刀：'+ts.map(x=>'P'+(x.id+1)+' '+x.name+(x.id===gg.id?'（你自己，可自刀）':'')).join('、')+'。可明确空刀；自刀会让唯一狼人面临立即落败，只有确有特殊收益时才考虑。','<action>玩家名 或 PASS</action>');logNightThinking(gg,r);const d=await resolveAIAction3(gg,r,{label:'石像鬼夜刀',candidates:ts,targetCount:1,allowPass:true,formatHint:'KILL|P数字 或 PASS'});if(d.status==='execute')t=d.targets[0];}
+    if(t){S.nightData.kill=t.id;S.nightData.killChosenByWolf=t.id;S.nightData.killActorRole='gargoyle';gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,targetId:t.id,target:t.name,selfKill:t.id===gg.id,result:'pending'});logPrivateNightResult(gg,'石像鬼选择袭击'+t.name,'The Gargoyle chose to attack '+t.name);}
+    else{gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,target:null,empty:true,result:'empty'});logPrivateNightResult(gg,'石像鬼本夜选择空刀','The Gargoyle chose not to attack tonight');}
     Render.setSpeaking(gg.id,false);
   },
 
@@ -14696,12 +14710,13 @@ const NightActions = {
       S.nightData.kill = null;
       S.nightData.killChosenByWolf = null;
       if (!isAnon()) Render.log('night-result','机械狼本夜受到全狼禁刀影响，无法选择刀口');
-      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:null, blocked:true, reason:'foxBlockKill'});
+      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:null, blocked:true, reason:'foxBlockKill', casterId:mw.id, result:'blocked'});
       return;
     }
+    // 独立带刀后允许战术性自刀；未明之雾仍严格限制候选池。
     const ts = Array.isArray(S.nightData.alchemistMist)
       ? alive.filter(p => S.nightData.alchemistMist.includes(p.id))
-      : alive.filter(p => p.id!==mw.id);
+      : alive.slice();
     if (!ts.length) return;
     if (!isAnon()) Render.log('night-detail','🤖🔪 机械狼带刀行凶…');
     Render.setSpeaking(mw.id, true);
@@ -14716,20 +14731,20 @@ const NightActions = {
           : '你已知本夜魔术师空过，没有换位。')
       : '';
     if (mw.isPlayer) {
-      const knifeOpts = ts.map(x=>({label:x.name,value:x.name}));
+      const knifeOpts = ts.map(x=>({label:x.name+(x.id===mw.id?'（自刀）':''),value:x.name}));
       knifeOpts.push({label:'空刀（制造平安夜）',value:'None',abs:true});
       const v = await waitChoice('🤖🔪 你现在带刀了，刀谁？'+(knownSwapText?'\n'+knownSwapText:''),'🔪 狼刀',knifeOpts);
       if (v === 'None') choseEmpty = true;
       else t = findPlayer(v, ts);
     } else {
-      const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
+      const targetList = ts.map(x => `P${x.id + 1} ${x.name}${x.id===mw.id?'（你自己，可自刀）':''}`).join('、');
       const brkNote = (S.mechLearn && S.mechLearn.learned && S.mechLearn.learnRound < S.round && S.mechLearn.skill==='wolf')
         ? '\n你学过狼系，这一刀是【破盾刀】：无视守卫守护和女巫解药，直接杀死。' : '';
       const magicNote = S.players.some(x => x.alive && x.role && x.role.id === 'magician')
         ? '\n\n🎩 魔术师仍存活，这把刀可能被交换重定向。先定真正想杀的V，再预测魔术师最可能拿D与V交换：直刀V在交换时会杀D；反刀D在交换时才会杀回V。至少比较这两条路线，并继续考虑魔术师可能识破反刀、改换第三人或空过。最终 action 填【名义刀口】，不是你口头设想的最终受害者；证据不足时不要随机反刀。'
         : '';
       const intelNote = knownSwapText ? '\n\n【你学到魔术师后的实时私有情报】'+knownSwapText+'你的刀仍受换位影响，请据此反算名义刀口。' : '';
-      const ctx = '【机械狼·带刀·第'+S.round+'夜】\n场上除你以外的其他狼系角色已全部出局，现在你是唯一的狼、获得了狼刀。'+brkNote+'\n可刀目标：'+targetList+'\n你可以刀一名其他玩家，也可以明确选择空刀制造平安夜；不能主动自刀。空刀是合法策略，系统不会随机补目标。\n你要靠刀人把好人杀到人数≤狼数（或达成屠边）才能赢，正常情况下优先选产出最高的目标。'+magicNote+intelNote;
+      const ctx = '【机械狼·带刀·第'+S.round+'夜】\n场上除你以外的其他狼系角色已全部出局，现在你是唯一的狼、获得了狼刀。'+brkNote+'\n可刀目标：'+targetList+'\n你可以刀任意候选玩家（包括自己），也可以明确选择空刀制造平安夜。自刀会让唯一狼人面临立即落败，只有确有特殊收益时才考虑；空刀同样是合法策略，系统不会随机补目标。\n你要靠刀人把好人杀到人数≤狼数（或达成屠边）才能赢，正常情况下优先选产出最高的目标。'+magicNote+intelNote;
       const act = '刀谁？\n<action>玩家名 或 None（空刀）</action>';
       const r = await nightTwoStep(mw, ctx, act);
       logNightThinking(mw, r);
@@ -14748,21 +14763,22 @@ const NightActions = {
     if (t) {
       S.nightData.kill = t.id;
       S.nightData.killChosenByWolf = t.id;
+      S.nightData.killActorRole = 'mechwolf';
       if (S.mechLearn && S.mechLearn.learned && S.mechLearn.learnRound < S.round && S.mechLearn.skill==='wolf') {
         S.nightData.mechKnifeBreak = true;
       }
       if (!isAnon()) Render.log('night-result','🤖🔪 机械狼刀了'+t.name);
-      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:t.name});
+      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, selfKill:t.id===mw.id, result:'pending'});
     } else if (choseEmpty) {
       S.nightData.kill = null;
       S.nightData.killChosenByWolf = null;
       if (mw.isPlayer || !isAnon()) Render.log('night-result','🤖🔪 机械狼选择空刀');
-      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:null, empty:true});
+      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, casterId:mw.id, target:null, empty:true, result:'empty'});
     } else if (killActionStatus === 'invalid') {
       S.nightData.kill = null;
       S.nightData.killChosenByWolf = null;
       if (!isAnon()) Render.log('night-result','🤖🔪 机械狼夜刀技术解析失败（未出刀，不是主动空刀）');
-      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:null, technical:true});
+      gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, casterId:mw.id, target:null, technical:true, result:'technical'});
     }
     Render.setSpeaking(mw.id, false);
   },
@@ -16648,7 +16664,7 @@ const PhaseHandlers = {
       gameRecord.push({type:'system',text:'第'+S.round+'夜'});
       callHost('night_start');
       S._nightRun = {key:nightKey, done:[], complete:false};
-      S.nightData = {kill:null, killChosenByWolf:null, magicSwap:null, imitatorSwap:null, imitatorRescueReady:false, imitatorSave:null, imitatorSanctuaryTarget:null, imitatorSanctuaryUsed:false, lastMagicPair:(S.nightData?.lastMagicPair ?? null), guard:null, lastGuard:(S.nightData?.lastGuard ?? null), witchSave:false, witchPoison:null, wolfBeautyCharm:null, mechGuard:null, mechPoison:null, mechKnifeBreak:false, skKill:null,
+      S.nightData = {kill:null, killChosenByWolf:null, killActorRole:null, magicSwap:null, imitatorSwap:null, imitatorRescueReady:false, imitatorSave:null, imitatorSanctuaryTarget:null, imitatorSanctuaryUsed:false, lastMagicPair:(S.nightData?.lastMagicPair ?? null), guard:null, lastGuard:(S.nightData?.lastGuard ?? null), witchSave:false, witchPoison:null, wolfBeautyCharm:null, mechGuard:null, mechPoison:null, mechKnifeBreak:false, skKill:null,
       // 🦊 子狐媚惑：foxBlockKill=当晚全狼禁刀；foxMuteIds=当晚被封夜间主动技的好人ID
       foxBlockKill:false, foxMuteIds:[], skillMuteSources:{},
       // 🌒 蚀时狼妃：concubineGuard=被反弹保护的X；_concubineTriggered=本夜是否已触发一次
@@ -18287,9 +18303,6 @@ async function resolveNight() {
 
   // ★ 机械狼是孤狼，不参与狼队夜刀 → 不接收狼队刀口记录（避免它拿到"睁眼"信息穿帮）
   const ws = S.players.filter(p => p.alive && isPackWolfRole(p.role));
-  // ★ 机械狼独狼行凶时（普通狼已全灭），它自己知道刀口结果，单独给它记录
-  const _mwAlive = S.players.find(p => p.alive && p.role.id==='mechwolf');
-  const _normalWolvesAlive = S.players.some(p => p.alive && p.role.team==='bad' && p.role.id!=='mechwolf');
   if (S.nightData.kill !== null) {
     // ★ 狼队记录必须用"狼自己选的刀口"（killChosenByWolf），而不是魔术师重定向后的实际落点——
     //   狼当晚不知道刀被交换，记录写成实际落点会直接向狼泄露魔术师的交换。
@@ -18299,14 +18312,31 @@ async function resolveNight() {
     //   否则狼刀被守卫挡下、但连环杀手同夜袭杀了同一目标时（cause='serialkill'），
     //   狼队会被告知"目标没死（被保护）"，与天亮公告矛盾，还会误推出"有守护"。
     const killSuccess = deaths.some(d => d.player.id===v.id);
-    if (!S.wolfKillLog) S.wolfKillLog = {};
-    S.wolfKillLog[S.round] = {target: v.name, success: killSuccess};
     const _hasMagician = S.players.some(p => p.role.id==='magician');
     const _failHint = _hasMagician ? '（可能被守卫/女巫保护了，也可能被魔术师交换了刀口）' : '（可能被守卫/女巫保护了）';
-    ws.forEach(w => w.memory.push({role:'system',content: killSuccess ? '【狼队私密】昨晚的目标'+v.name+'已死亡。⚠️这是只有狼人才知道的信息，白天绝对不能提到刀口是谁！' : '【狼队私密】昨晚的目标'+v.name+'没死'+_failHint+'。⚠️这是只有狼人才知道的信息，白天绝对不能提到刀口是谁！'}));
-    // 机械狼带刀行凶（普通狼已全灭）→ 只有它自己知道这一刀
-    if (_mwAlive && !_normalWolvesAlive) {
-      _mwAlive.memory.push({role:'system',content: killSuccess ? '【🤖 机械狼私密】昨晚你刀的'+v.name+'已死亡。⚠️白天绝对不能提到刀口！' : '【🤖 机械狼私密】昨晚你刀的'+v.name+'没死（被守卫/女巫保护了）。⚠️白天绝对不能提到刀口！'});
+    const independentRole = S.nightData.killActorRole;
+    if (independentRole === 'mechwolf' || independentRole === 'gargoyle') {
+      // 独立狼刀的选择与最终结果写回永久战报，避免普通 memory 压缩后忘记。
+      const actionRole = independentRole === 'mechwolf' ? 'mechwolf_kill' : 'gargoyle_kill';
+      const rec = [...gameRecord].reverse().find(r => r.type==='night_action' && r.round===S.round && r.role===actionRole && r.target);
+      const actor = rec && Number.isInteger(rec.casterId) ? S.players[rec.casterId] : S.players.find(p => p.role.id===independentRole);
+      if (rec) {
+        rec.success = killSuccess;
+        rec.result = killSuccess ? 'success' : 'failed';
+        rec.actualTargetId = S.nightData.kill;
+        rec.actualTarget = S.players[S.nightData.kill] ? S.players[S.nightData.kill].name : null;
+      }
+      if (actor) {
+        const label = independentRole === 'mechwolf' ? '机械狼' : '石像鬼';
+        actor.memory.push({role:'system',content: killSuccess
+          ? '【'+label+'私密刀口结果】昨晚你选择刀的'+v.name+'已死亡。⚠️这是你的私密信息，白天不能表现出知道刀口！'
+          : '【'+label+'私密刀口结果】昨晚你选择刀的'+v.name+'没有死亡'+_failHint+'。⚠️这是你的私密信息，白天不能表现出知道刀口！'});
+        logPrivateNightResult(actor, label+'刀口结果：'+v.name+(killSuccess?'已死亡':'没有死亡'), label+' attack result: '+v.name+(killSuccess?' died':' survived'));
+      }
+    } else {
+      if (!S.wolfKillLog) S.wolfKillLog = {};
+      S.wolfKillLog[S.round] = {target: v.name, success: killSuccess};
+      ws.forEach(w => w.memory.push({role:'system',content: killSuccess ? '【狼队私密】昨晚的目标'+v.name+'已死亡。⚠️这是只有狼人才知道的信息，白天绝对不能提到刀口是谁！' : '【狼队私密】昨晚的目标'+v.name+'没死'+_failHint+'。⚠️这是只有狼人才知道的信息，白天绝对不能提到刀口是谁！'}));
     }
   }
   if (!deaths.length) { 
@@ -21746,6 +21776,8 @@ function _buildPrivateInfoLines(p) {
   if (p.role.id === 'gargoyle') {
     const seen=(p._gargoyleSeen||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
     lines.push('石瞳已查目标：'+seen+'；苏醒夜刀：'+(p._gargoyleAwake?'已获得':'尚未获得（其他狼系全部出局后获得）')+'。你与普通狼队互不相认。');
+    const attacks=gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle_kill').map(r=>'第'+r.round+'夜：'+(r.blocked?'受到禁刀':r.empty?'空刀':('刀'+r.target+(r.selfKill?'（自刀）':'')+'，'+(r.result==='success'?'目标已死亡':r.result==='failed'?'目标未死亡':'等待结算'))));
+    if(attacks.length) lines.push('石像鬼刀口记录（绝密）：\n  '+attacks.join('\n  '));
   }
   if (p.role.id === 'imitator') {
     const tried=(p._imitatorTried||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
@@ -21808,7 +21840,7 @@ function _buildPrivateInfoLines(p) {
       else if (rec.role === 'mechwolf_guard') mechActs.push(`第${rec.round}夜：${rec.technical?'守护指令技术解析失败（非主动空守）':'机械守护'+(rec.target || '空守')}`);
       else if (rec.role === 'mechwolf_poison') mechActs.push(`第${rec.round}夜：${rec.technical?'毒药指令技术解析失败（非主动保留）':'机械毒杀'+(rec.target || '未毒')}`);
       else if (rec.role === 'mechwolf_magician') mechActs.push(`第${rec.round}夜：魔术情报${rec.target || '魔术师空过'}`);
-      else if (rec.role === 'mechwolf_kill') mechActs.push(`第${rec.round}夜：${rec.technical?'夜刀指令技术解析失败（非主动空刀）':(rec.target ? '带刀'+rec.target : '选择空刀')}`);
+      else if (rec.role === 'mechwolf_kill') mechActs.push(`第${rec.round}夜：${rec.blocked?'受到禁刀、未能出刀':rec.technical?'夜刀指令技术解析失败（非主动空刀）':rec.empty?'选择空刀':'带刀'+rec.target+(rec.selfKill?'（自刀）':'')+'，'+(rec.result==='success'?'目标已死亡':rec.result==='failed'?'目标未死亡':'等待结算')}`);
     });
     if (mechActs.length) lines.push(`你的机械技能行动记录：\n  ${mechActs.join('\n  ')}`);
     if (S.mechLearn && S.mechLearn.learned && S.mechLearn.role === 'knight') {

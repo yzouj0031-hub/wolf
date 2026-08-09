@@ -62,6 +62,17 @@ for (const file of clients) {
   expect(src.includes("logPrivateNightResult(al,'法老之蛇救下了实际刀口"), `${file}: Alchemist rescue is absent from the live observer feed`);
   expect(src.includes('logPrivateNightResult(gg,scryReflected?'), `${file}: Gargoyle scry is absent from the live observer feed`);
   expect(src.includes("if (!(actor.isPlayer || !isAnon() || observerView)) return"), `${file}: private action feed can leak into anonymous public view`);
+  expect(src.includes("S.nightData.killActorRole='gargoyle'"), `${file}: Gargoyle attack source is not persisted for settlement`);
+  expect(src.includes("S.nightData.killActorRole = 'mechwolf'"), `${file}: Mech Wolf attack source is not persisted for settlement`);
+  expect(src.includes("selfKill:t.id===gg.id"), `${file}: Gargoyle self-attack is not recorded`);
+  expect(src.includes("selfKill:t.id===mw.id"), `${file}: Mech Wolf self-attack is not recorded`);
+  expect(src.includes("x.id===gg.id?'（自刀）'"), `${file}: human Gargoyle cannot explicitly select self-attack`);
+  expect(src.includes("x.id===mw.id?'（自刀）'"), `${file}: human Mech Wolf cannot explicitly select self-attack`);
+  expect(!src.includes('不能主动自刀') && !src.includes('可空刀但不能主动自刀'), `${file}: stale rule still forbids independent self-attack`);
+  expect(src.includes("const independentRole = S.nightData.killActorRole"), `${file}: independent attack results are not resolved separately`);
+  expect(src.includes("rec.result = killSuccess ? 'success' : 'failed'"), `${file}: independent attack result is not written back permanently`);
+  expect(src.includes('【石像鬼永久刀口记录·私密】'), `${file}: Gargoyle permanent attack history is not reinjected`);
+  expect(src.includes('你的永久刀口记录（私有）'), `${file}: Mech Wolf permanent attack history is not reinjected`);
 }
 
 const map = fs.readFileSync('action-cg.js', 'utf8');
