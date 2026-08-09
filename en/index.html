@@ -558,6 +558,14 @@ body.anon .pc.dead.rev .rt { color: #a898c0 !important; text-shadow: none !impor
 body.anon .log-thought { display: none; }
 body.anon .le.wolfchat, body.anon .le.meeting, body.anon .le.night-detail, body.anon .le.night-result { display: none; }
 body.anon.is-wolf .le.wolfchat, body.anon.is-wolf .le.meeting { display: block; }
+body.observer-ai-view .le.perspective-visible { display:block !important; }
+body.observer-ai-view .le.perspective-hidden { display:none !important; }
+body.observer-god-view .le.wolfchat,
+body.observer-god-view .le.meeting,
+body.observer-god-view .le.night-detail,
+body.observer-god-view .le.night-result { display:block !important; }
+body.observer-ai-view .pc.perspective-role-hidden .rt { color:transparent !important; background:rgba(20,18,35,.8); text-shadow:0 0 5px #5a5080; }
+body.observer-ai-view .pc.perspective-role-hidden { border-color:rgba(245,160,184,.08) !important; box-shadow:none !important; }
 body.hmbti .mbtitag { display: none; }
 
 /* ⚡ 精简特效（性能模式）：关掉毛玻璃与常驻动画，解决部分浏览器高负载时"画面缺一块"的合成问题。
@@ -1338,6 +1346,15 @@ body.blind-review .le.ending { display:none !important; }
 .le.spectator { border-left: 3px solid #c8a0e8; background: linear-gradient(90deg, rgba(160,100,220,0.07), rgba(130,80,180,0.03), transparent); position: relative; }
 .le.spectator::after { content: '观众'; position: absolute; top: 6px; right: 8px; font-family: var(--font-title); font-size: 0.55em; color: #b080d8; background: rgba(160,100,220,0.1); border: 1px solid rgba(160,100,220,0.2); border-radius: 3px; padding: 1px 5px; letter-spacing: 0.1em; }
 .le.spectator .lh .name { color: #c8a0e8; }
+
+.observer-perspective-bar { display:none; align-items:center; gap:10px; margin:0 0 7px; padding:9px 12px; border:1px solid rgba(161,125,220,.22); border-radius:var(--r-lg); background:linear-gradient(105deg,rgba(64,45,94,.28),rgba(15,13,28,.72)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.observer-perspective-bar.active { display:flex; }
+.observer-perspective-mark { width:8px; height:8px; flex:0 0 auto; border-radius:50%; background:#c7a4ed; box-shadow:0 0 12px rgba(199,164,237,.72); }
+.observer-perspective-copy { min-width:0; flex:1; }
+.observer-perspective-copy strong { display:block; font-family:var(--font-title); font-size:.78em; color:#d8c5ef; letter-spacing:.08em; }
+.observer-perspective-copy small { display:block; margin-top:2px; color:#827997; font-size:.62em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.observer-perspective-select { min-width:180px; max-width:46%; padding:7px 28px 7px 10px; border:1px solid rgba(199,164,237,.3); border-radius:var(--r); color:#e0d6ed; background:#171323; font-size:.72em; cursor:pointer; }
+@media (max-width:700px) { .observer-perspective-bar { align-items:stretch; flex-wrap:wrap; gap:7px; } .observer-perspective-copy { min-width:calc(100% - 20px); } .observer-perspective-select { width:100%; max-width:none; } }
 
 /* 群聊模式 */
 .gchat-view {
@@ -3212,6 +3229,11 @@ body.has-wp::after {
     </details>
     <!-- 主持人发言面板 -->
     <div id="mc-speak-panel" style="display:none;background:rgba(245,160,32,0.08);border:1px solid rgba(245,160,32,0.3);border-radius:var(--r-lg);padding:10px 12px;margin-bottom:6px"></div>
+    <div id="observer-perspective-bar" class="observer-perspective-bar" aria-live="polite">
+      <span class="observer-perspective-mark" aria-hidden="true"></span>
+      <span class="observer-perspective-copy"><strong>Spectator perspective</strong><small id="observer-perspective-hint">God view: all roles, private meetings and night actions are visible</small></span>
+      <select id="observer-perspective-select" class="observer-perspective-select" aria-label="Choose spectator perspective"><option value="god">Omniscient · God view</option></select>
+    </div>
     <div class="gl" id="gl"><div class="le system">── 准备就绪 ──</div></div>
     <button id="gl-jump-bottom" class="scroll-jump-bottom" type="button">↓ 回到最新</button>
     <div class="ctrls">
@@ -4741,7 +4763,8 @@ function freshState(prev) {
     wolfStrategyRevised: false,    // ★ 主方案是否被夜间修订过
     wolfStrategyRevisedRound: 0,   // ★ 修订发生的夜晚
     directorMode: prev ? prev.directorMode : false,
-    directorIds: prev ? prev.directorIds : []
+    directorIds: prev ? prev.directorIds : [],
+    observerPerspective: prev ? (prev.observerPerspective || 'god') : 'god'
   };
 }
 let S = freshState();
@@ -5966,6 +5989,7 @@ function isPackWolfRole(role) {
   return !!(role && role.team === 'bad' && role.id !== 'mechwolf' && role.id !== 'gargoyle');
 }
 function getEmoji(p) {
+  if (S && S.pureAI && S.players && S.players.length) return observerPerspectiveCanSeeRole(p) ? p.role.emoji : '💬';
   if (!isAnon()) return p.role.emoji;
   if (p.isPlayer || canSee(p)) return p.role.emoji;
   if (!p.alive && p.revealed && !$('m-hdeath').checked) return p.role.emoji;
@@ -6680,7 +6704,7 @@ function saveGame(options = {}) {
       _daySpeakOrder: (S._daySpeakOrder || []).map(p => Number.isInteger(p) ? p : (p && p.id)).filter(Number.isInteger),
       _daySpeakOrderMeta: S._daySpeakOrderMeta, wolfChatHistory: S.wolfChatHistory,
       directorMode: S.directorMode, directorIds: S.directorIds,
-      pureAI: S.pureAI, gameId: S.gameId, _matchUid:S._matchUid, _winType:S._winType, blindReviewMode:!!S.blindReviewMode, killEdgeMode: S.killEdgeMode, singleRound: S.singleRound, sheriffDailyOrderMode: S.sheriffDailyOrderMode,
+      pureAI: S.pureAI, observerPerspective:S.observerPerspective || 'god', gameId: S.gameId, _matchUid:S._matchUid, _winType:S._winType, blindReviewMode:!!S.blindReviewMode, killEdgeMode: S.killEdgeMode, singleRound: S.singleRound, sheriffDailyOrderMode: S.sheriffDailyOrderMode,
       players: S.players.map(p => ({
         id: p.id, alive: p.alive, revealed: p.revealed,
         name: p.name, isPlayer: p.isPlayer, poisoned: p.poisoned,
@@ -6780,7 +6804,7 @@ function loadGame(slotArg, opts) {
       _lastNightDeaths: ss._lastNightDeaths || [], _daySpeakOrder: ss._daySpeakOrder || [], _daySpeakOrderMeta: ss._daySpeakOrderMeta || null,
       wolfChatHistory: ss.wolfChatHistory || [],
       directorMode: ss.directorMode || false, directorIds: ss.directorIds || [],
-      pureAI: ss.pureAI || false, gameId: (ss.gameId || 0) + 1,
+      pureAI: ss.pureAI || false, observerPerspective:ss.observerPerspective || 'god', gameId: (ss.gameId || 0) + 1,
       _matchUid: ss._matchUid || ('legacy_'+(snap._time||Date.now())+'_'+(ss.gameId||0)), _winType:ss._winType || null, blindReviewMode:!!ss.blindReviewMode,
       killEdgeMode: ss.killEdgeMode || false, // ★ 修复：读档时一并恢复屠边/屠城设置
       singleRound: ss.singleRound || false,   // ★ 读档恢复发言轮数设置
@@ -7477,8 +7501,83 @@ function stripLogDecor(html) {
   return typeof html === 'string' ? html.replace(LOG_DECOR_RE, '$1') : html;
 }
 
+function observerPerspectivePlayer() {
+  if (!S || !S.pureAI || !Array.isArray(S.players)) return null;
+  const m = String(S.observerPerspective || 'god').match(/^player:(\d+)$/);
+  return m ? S.players.find(p => p.id === Number(m[1])) || null : null;
+}
+function observerPerspectiveCanSeeRole(p) {
+  if (!p) return false;
+  const viewer = observerPerspectivePlayer();
+  if (!viewer) return true;
+  if (viewer.id === p.id) return true;
+  if (isPackWolfRole(viewer.role) && isPackWolfRole(p.role)) return true;
+  if (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) {
+    if (viewer.role.id === 'gargoyle' && gameRecord.some(r => r.type==='night_action' && r.role==='gargoyle' && r.target===p.name && r.result==='exact')) return true;
+    if (viewer.role.id === 'mechwolf' && gameRecord.some(r => r.type==='night_action' && ((r.role==='mechwolf_seer' && r.target===p.name && r.result==='exact') || (r.role==='mechwolf' && String(r.target || '').startsWith('学习'+p.name+'('))))) return true;
+  }
+  return false;
+}
+let _activeNightLogVisibility = null;
+function markLogVisibility(node, type, visibility) {
+  if (!node) return node;
+  let scope = visibility || ((type === 'night-detail' || type === 'night-result') ? _activeNightLogVisibility : null);
+  if (Number.isInteger(scope)) scope = {players:[scope]};
+  if (typeof scope === 'string') scope = {scope};
+  scope = scope || {};
+  let kind = scope.scope;
+  if (!kind) {
+    if (Array.isArray(scope.players) || Number.isInteger(scope.actorId)) kind = 'players';
+    else if (type === 'wolfchat' || type === 'meeting') kind = 'pack';
+    else if (type === 'night-detail' || type === 'night-result') kind = 'observer';
+    else kind = 'public';
+  }
+  const players = Array.isArray(scope.players) ? scope.players.slice() : [];
+  if (Number.isInteger(scope.actorId) && !players.includes(scope.actorId)) players.push(scope.actorId);
+  node.dataset.visibility = kind;
+  node.dataset.visiblePlayers = players.filter(Number.isInteger).join(',');
+  if (Number.isInteger(scope.actorId)) node.dataset.actorId = String(scope.actorId);
+  return node;
+}
+function perspectiveLogNodes() {
+  const gl = $('gl'); if (!gl) return [];
+  const nodes = Array.from(gl.querySelectorAll('.le'));
+  const folded = gl.querySelector('.le-folded');
+  if (folded && Array.isArray(folded._hidden)) nodes.push(...folded._hidden);
+  return [...new Set(nodes)];
+}
+function logVisibleToPerspective(node, viewer) {
+  const scope = node.dataset.visibility || 'public';
+  if (scope === 'public') return true;
+  if (scope === 'pack') return !!(viewer && isPackWolfRole(viewer.role));
+  if (scope === 'players') {
+    const ids = String(node.dataset.visiblePlayers || '').split(',').map(Number).filter(Number.isInteger);
+    return !!(viewer && ids.includes(viewer.id));
+  }
+  return false;
+}
+function refreshObserverPerspectiveControl() {
+  const bar=$('observer-perspective-bar'), select=$('observer-perspective-select');
+  if (!bar || !select) return;
+  const active=!!(S && S.pureAI && Array.isArray(S.players) && S.players.length);
+  bar.classList.toggle('active',active); if(!active)return;
+  const wanted=['god',...S.players.map(p=>'player:'+p.id)];
+  if(wanted.join('|')!==Array.from(select.options).map(o=>o.value).join('|')){
+    select.innerHTML=''; const god=document.createElement('option'); god.value='god'; god.textContent='Omniscient · God view'; select.appendChild(god);
+    S.players.forEach(p=>{const o=document.createElement('option');o.value='player:'+p.id;o.textContent='Follow · P'+(p.id+1)+' '+p.name;select.appendChild(o);});
+  }
+  if(!wanted.includes(S.observerPerspective))S.observerPerspective='god'; select.value=S.observerPerspective||'god';
+}
+function applyObserverPerspective(refreshCards=true){
+  refreshObserverPerspectiveControl(); const viewer=observerPerspectivePlayer(); const active=!!(S&&S.pureAI&&S.players&&S.players.length);
+  document.body.classList.toggle('observer-ai-view',active&&!!viewer); document.body.classList.toggle('observer-god-view',active&&!viewer);
+  perspectiveLogNodes().forEach(node=>{const visible=!viewer||logVisibleToPerspective(node,viewer);node.classList.toggle('perspective-visible',!!viewer&&visible);node.classList.toggle('perspective-hidden',!!viewer&&!visible);node.querySelectorAll('.log-thought').forEach(t=>{t.style.display=!viewer||Number(node.dataset.actorId)===viewer.id?'':'none';});});
+  const hint=$('observer-perspective-hint'); if(hint)hint.textContent=viewer?'Following '+viewer.name+' ['+viewer.role.name+']: only information actually available to this AI is shown':'God view: all roles, private meetings and night actions are visible';
+  if(refreshCards&&S&&Array.isArray(S.players))S.players.forEach(p=>Render.card(p));
+}
+
 const Render = {
-  log(type, html) {
+  log(type, html, visibility) {
     const d = document.createElement('div');
     d.className = 'le ' + type;
     // 日志类型已由颜色和排版表达，行首不再叠加装饰性 emoji。
@@ -7487,7 +7586,9 @@ const Render = {
     //   并且保留 ⚠❌✅——详见上面注释。）
     d.innerHTML = stripLogDecor(html);
     blindMaskElementText(d);
+    markLogVisibility(d, type, visibility);
     $('gl').appendChild(d);
+    applyObserverPerspective(false);
     scrollGL();
     pruneGL();
   },
@@ -7497,6 +7598,7 @@ const Render = {
     d.className = 'le speech';
     d.innerHTML = `<div class="lh"><span>${getAvatarHtml(p, 24)}</span><span class="name">${publicPlayerLabel(p)}</span>${getModelTagHtml(p)}<button class="le-copy-btn" title="复制这条发言">📋</button></div><div class="log-game"></div>`;
     d.querySelector('.log-game').textContent = publicGame;
+    markLogVisibility(d, 'speech', {scope:'public', actorId:p.id});
     d.querySelector('.le-copy-btn').onclick = (e) => {
       e.stopPropagation();
       const txt = publicPlayerLabel(p) + '：' + publicGame;
@@ -7507,6 +7609,7 @@ const Render = {
       });
     };
     $('gl').appendChild(d);
+    applyObserverPerspective(false);
     scrollGL();
     pruneGL();
     // 🔊 朗读AI公开发言(狼聊和玩家自己的发言不读)
@@ -7540,6 +7643,8 @@ const Render = {
     const isWolfDirector = S.directorMode && S.directorIds &&
       S.directorIds.some(id => S.players[id] && S.players[id].role && S.players[id].role.team === 'bad');
     document.body.classList.toggle('is-wolf', !!(isWolfPlayer || isWolfDirector));
+    refreshObserverPerspectiveControl();
+    applyObserverPerspective(false);
     S.players.forEach(p => Render.card(p));
     // 观众席只在斗蛐蛐模式下显示
     const sd = $('spec-det');
@@ -7562,7 +7667,11 @@ const Render = {
     const ia = isAnon(), hd = $('m-hdeath').checked;
     const blindReview = !!(S && S.gameOver && S.blindReviewMode);
     const sd = !p.alive && p.revealed && !hd;
-    const show = !blindReview && (!ia || p.isPlayer || canSee(p) || sd);
+    const perspectiveViewer = observerPerspectivePlayer();
+    const perspectiveMode = !!(S && S.pureAI && S.players && S.players.length);
+    const perspectiveKnown = observerPerspectiveCanSeeRole(p);
+    if (perspectiveViewer && !perspectiveKnown && !sd) c.classList.add('perspective-role-hidden');
+    const show = !blindReview && (perspectiveMode ? (perspectiveKnown || sd) : (!ia || p.isPlayer || canSee(p) || sd));
     if (show) { const cls = ROLE_CLS[p.role.id]; if(cls) cls.split(' ').forEach(x=>c.classList.add(x)); }
     if (canSee(p)) c.classList.add('stp');
     if (sd) c.classList.add('rev');
@@ -10849,6 +10958,7 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
   }
   const entry = document.createElement('div');
   entry.className = 'le ' + (isWolfChat ? 'wolfchat' : 'speech');
+  markLogVisibility(entry, isWolfChat ? 'wolfchat' : 'speech', isWolfChat ? {scope:'pack', actorId:player.id} : {scope:'public', actorId:player.id});
   const em = isWolfChat ? '🐺' : getEmoji(player);
   // ★ 主持人模式下，公开发言节点带 ↩️ 撤回按钮（密谈不带，狼队密谈不影响主持人面板）
   // ★ v9.9.24：遗言节点（noUndo=true）也不带撤回按钮——遗言阶段无法撤回，避免误导。
@@ -10889,6 +10999,7 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
   }
 
   $('gl').appendChild(entry);
+  applyObserverPerspective(false);
   scrollGL();
   // 🔊 朗读与打字机【同时】启动:先按句切分入队,首句音频到位即开口,不必等整段合成
   if (result.game && !isWolfChat && !(player && player.isPlayer) && !TTS.claimLive(player)) TTS.speak(player, result.game);
@@ -13219,6 +13330,13 @@ async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
   try {
     const gc = document.getElementById('gc');
     if (!gc || !gc.classList.contains('active')) return Promise.resolve(false);
+    const role = ALL_ROLES[roleId] || {};
+    const actorPlayer = (S.players || []).find(p => p && p.name === actorName);
+    const perspectiveViewer = observerPerspectivePlayer();
+    if (perspectiveViewer && opts.privateScope) {
+      const allowed = opts.privateScope === 'pack' ? isPackWolfRole(perspectiveViewer.role) : (actorPlayer && perspectiveViewer.id === actorPlayer.id);
+      if (!allowed) return Promise.resolve(false);
+    }
     const key = opts.key || '';
     if (key) {
       S._roleCinematics ||= {};
@@ -13226,8 +13344,6 @@ async function showRoleCinematic(roleId, actorName, title, subtitle, opts={}) {
       S._roleCinematics[key] = true;
     }
     document.querySelector('.role-cinematic')?.remove();
-    const role = ALL_ROLES[roleId] || {};
-    const actorPlayer = (S.players || []).find(p => p && p.name === actorName);
     const actorRole = opts.actorRole || (actorPlayer && actorPlayer.role) || role;
     const team = opts.team || actorRole.team || role.team || 'good';
     const reduced = document.body.classList.contains('fx-lite') || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -13325,9 +13441,11 @@ async function showNightStepCinematic(step, records) {
       seen.add(actor.id);
       const customArt = safeCustomRoleArt(actor.role && (actor.role.customActionCG || actor.role.actionCG || actor.role.customPortrait || actor.role.portrait));
       if (!customArt) continue;
-      if (isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) continue;
+      const perspectiveViewer = observerPerspectivePlayer();
+      if (perspectiveViewer && perspectiveViewer.id !== actor.id) continue;
+      if (!perspectiveViewer && isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) continue;
       shown = await showRoleCinematic(actor.role.customId || actor.role.id, actor.name, actor.role.name, actionCinematicSubtitle(event), {
-        actorRole:actor.role, team:actor.role.team, duration:1800,
+        actorRole:actor.role, team:actor.role.team, duration:1800, privateScope:'actor',
         key:`night-action:${S.gameId}:${S.round}:custom-gods:${actor.id}`
       }) || shown;
     }
@@ -13340,7 +13458,9 @@ async function showNightStepCinematic(step, records) {
   if (!event) return false;
   const actor = S.players.find(p => p.role && p.role.id === spec.roleId);
   if (!actor) return false;
-  if (isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) return false;
+  const perspectiveViewer = observerPerspectivePlayer();
+  if (perspectiveViewer && perspectiveViewer.id !== actor.id) return false;
+  if (!perspectiveViewer && isAnon() && !actor.isPlayer && !(typeof canSee === 'function' && canSee(actor))) return false;
   if (event.role === 'witch') {
     let shown = false;
     const variants = [
@@ -13352,7 +13472,7 @@ async function showNightStepCinematic(step, records) {
       shown = await showRoleCinematic('witch', actor.name,
         variantCG ? (uiEnglish() ? variantCG.titleEn : variantCG.titleZh) : actor.role.name,
         uiEnglish() ? `Target: ${variant.target}` : `目标：${variant.target}`,
-        {team:actor.role.team, cgKey:variant.cgKey, duration:1800,
+        {team:actor.role.team, cgKey:variant.cgKey, duration:1800, privateScope:'actor',
           key:`night-action:${S.gameId}:${S.round}:${step}:${variant.cgKey}`}) || shown;
     }
     return shown;
@@ -13366,6 +13486,7 @@ async function showNightStepCinematic(step, records) {
     team:actor.role.team,
     cgKey,
     duration:1800,
+    privateScope:'actor',
     key:`night-action:${S.gameId}:${S.round}:${step}`
   });
 }
@@ -13826,7 +13947,7 @@ async function lastWords(p) {
 let _pendingNightThinking = {};  // {playerId: {thinking, game}}
 function logNightThinking(player, result) {
   if (S.pureAI && result && result.thinking) {
-    Render.log('night-detail', '💭 ' + player.name + '的想法：' + result.thinking);
+    Render.log('night-detail', '💭 ' + player.name + '的想法：' + result.thinking, {players:[player.id], actorId:player.id});
   }
   // 不管是否 pureAI，都暂存 thinking,后续 night_action 会回填到 gameRecord
   if (result && (result.thinking || result.game)) {
@@ -13911,7 +14032,7 @@ function logPrivateNightResult(actor, zh, en) {
   if (!actor) return;
   const observerView = isMC() || S.directorMode || S.pureAI;
   if (!(actor.isPlayer || !isAnon() || observerView)) return;
-  Render.log(observerView && isAnon() ? 'system' : 'night-result', uiEnglish() ? en : zh);
+  Render.log(observerView && isAnon() ? 'system' : 'night-result', uiEnglish() ? en : zh, {players:[actor.id], actorId:actor.id});
 }
 
 const NightActions = {
@@ -14035,7 +14156,8 @@ const NightActions = {
       if (im.isPlayer) use = (await waitChoice('是否将仿制解药留到实际狼刀确定后自动救人？','仿制解药',[{label:'准备救援',value:'USE'},{label:'放弃本夜能力',value:'PASS',abs:true}])) === 'USE';
       else { const r = await nightTwoStep(im,'【仿制解药】若本夜存在实际狼刀，你会在换位结算后看见刀口并自动救下。能力只存在本夜；也可放弃。','<action>USE 或 PASS</action>'); logNightThinking(im,r); use=/\bUSE\b|准备|救援/.test(String(r.action||''))&&!/PASS|放弃|不救/.test(String(r.action||'')); }
       if (use) S.nightData.imitatorRescueReady=true;
-      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:use?'ready':'pass'}); return;
+      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:use?'ready':'pass'});
+      logPrivateNightResult(im,use?'摹术师已准备仿制解药，等待实际刀口':'摹术师放弃了本夜的仿制解药',use?'The Imitator prepared a copied antidote':'The Imitator held the copied antidote'); return;
     }
     if (skill === 'swap') {
       let pair=[];
@@ -14048,18 +14170,19 @@ const NightActions = {
         logNightThinking(im,r);const d=await resolveAIAction3(im,r,{label:'摹术师镜像换位',candidates:alive,targetCount:2,allowPass:true,formatHint:'SWAP|P数字|P数字 或 PASS'});if(d.status==='execute')pair=d.targets;else if(d.status==='invalid')recordTechnicalActionFailure(im,'摹术师镜像换位','无法解析两个不同目标，本夜未换位');
       }
       if(pair.length===2)S.nightData.imitatorSwap=pair.map(x=>x.id);
-      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:pair.length===2?pair.map(x=>x.name).join('↔'):null,targets:pair.map(x=>x.name),skill,result:pair.length===2?'execute':'pass'});return;
+      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:pair.length===2?pair.map(x=>x.name).join('↔'):null,targets:pair.map(x=>x.name),skill,result:pair.length===2?'execute':'pass'});
+      logPrivateNightResult(im,pair.length===2?'摹术师镜像换位：'+pair.map(x=>x.name).join(' ↔ '):'摹术师本夜没有发动镜像换位',pair.length===2?'The Imitator swapped '+pair.map(x=>x.name).join(' ↔ '):'The Imitator did not use the mirrored swap');return;
     }
     const selfAllowed=skill==='protect'||skill==='cleanse';
     const targets=alive.filter(p=>selfAllowed||p.id!==im.id);
     let t=null,status='pass';
     if(im.isPlayer){const opts=targets.map(x=>({label:x.id===im.id?'自己':x.name,value:x.name}));opts.push({label:'放弃本夜能力',value:'None',abs:true});const v=await waitChoice('选择【'+IMITATOR_SKILL_LABELS[skill]+'】的目标。','临时摹术',opts);if(v!=='None'){t=findPlayer(v,targets);if(t)status='execute';}}
     else{const r=await nightTwoStep(im,'【临时摹术·'+IMITATOR_SKILL_LABELS[skill]+'】能力仅本夜可用。可选：'+targets.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'。也可放弃。','<action>P数字 或 PASS</action>');logNightThinking(im,r);const d=await resolveAIAction3(im,r,{label:'摹术师'+IMITATOR_SKILL_LABELS[skill],candidates:targets,targetCount:1,allowPass:true,formatHint:'USE|P数字 或 PASS'});if(d.status==='execute'){t=d.targets[0];status='execute';}else if(d.status==='invalid'){status='invalid';recordTechnicalActionFailure(im,'摹术师'+IMITATOR_SKILL_LABELS[skill],'无法解析施放目标，本夜未施放');}}
-    if(!t){gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:status,technical:status==='invalid'});return;}
+    if(!t){gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:status,technical:status==='invalid'});logPrivateNightResult(im,'摹术师没有施放【'+IMITATOR_SKILL_LABELS[skill]+'】','The Imitator did not cast ['+IMITATOR_SKILL_LABELS[skill]+']');return;}
     if(skill==='inspect'){
       const actual=reflectInspectSubject(im,t),rebounded=actual.id!==t.id;const wolf=seerSeesAsWolf(actual);
       im.memory.push({role:'system',content:rebounded?'【临时窥识·私密】你查验'+t.name+'时明确感到能力被反弹，只得到了自己的好人显示；'+t.name+'没有被验证。':'【临时窥识·私密】你查验'+t.name+'，结果为【'+(wolf?'狼人显示':'好人显示')+'】。这不是准确身份翻牌。'});
-      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:t.name,skill,result:rebounded?'rebounded':(wolf?'wolf':'good')});return;
+      gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:t.name,skill,result:rebounded?'rebounded':(wolf?'wolf':'good')});logPrivateNightResult(im,rebounded?'摹术师窥识'+t.name+'时被反弹，原目标未被验证':'摹术师窥识'+t.name+'，得到【'+(wolf?'狼人显示':'好人显示')+'】',rebounded?'The Imitator\'s inspection of '+t.name+' was reflected; the original target remains unverified':'The Imitator inspected '+t.name+': '+(wolf?'wolf':'good')+' result');return;
     }
     if(skill==='protect')S.nightData.customProtect.push(reflectEffectTarget(im,t.id));
     else if(skill==='poison')S.nightData.customPoison.push(reflectEffectTarget(im,t.id));
@@ -14071,6 +14194,7 @@ const NightActions = {
       else{const wolf=t.role.team==='bad';if(wolf)S.nightData.foxBlockKill=true;else{if(!S.nightData.foxMuteIds.includes(t.id))S.nightData.foxMuteIds.push(t.id);S.nightData.skillMuteSources[t.id]='imitator';}t.memory.push({role:'system',content:'【临时媚惑·私密】第'+S.round+'夜你受到一次子狐类媚惑；你知道能力类型，但不知道施法玩家是谁。'});im.memory.push({role:'system',content:'【临时媚惑·私密】'+t.name+'属于【'+(wolf?'狼人阵营':'好人阵营')+'】。'+(wolf?'本夜全狼禁刀。':'其本夜主动技能会被封锁。')});status=wolf?'blockKill':'mute';}
     }
     gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:t.name,skill,result:status});
+    logPrivateNightResult(im,'摹术师对'+t.name+'施放【'+IMITATOR_SKILL_LABELS[skill]+'】','The Imitator cast ['+IMITATOR_SKILL_LABELS[skill]+'] on '+t.name);
   },
 
   async imitatorRescue(alive) {
@@ -14079,6 +14203,7 @@ const NightActions = {
     const victim=S.players[S.nightData.kill];S.nightData.imitatorSave=victim.id;
     im.memory.push({role:'system',content:'【仿制解药·私密】你看见实际狼刀落在'+victim.name+'，临时解药已自动救下该目标。'});
     gameRecord.push({type:'night_action',role:'imitator_rescue',round:S.round,name:im.name,target:victim.name,result:'save'});
+    logPrivateNightResult(im,'摹术师的仿制解药救下了'+victim.name,'The Imitator\'s copied antidote saved '+victim.name);
   },
 
   // 摄梦人：不同目标获得夜间伤害免疫；连续两夜同一目标转为不可保护的噩梦处决。
@@ -14219,15 +14344,15 @@ const NightActions = {
   async gargoyleKill(alive) {
     const gg=alive.find(p=>p.role.id==='gargoyle');
     if(!gg || alive.some(p=>p.role.team==='bad' && p.id!==gg.id) || S.nightData.kill!=null) return;
-    if(S.nightData.foxBlockKill){ gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,blocked:true}); return; }
+    if(S.nightData.foxBlockKill){gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,blocked:true});logPrivateNightResult(gg,'石像鬼本夜受到禁刀影响，无法发动袭击','The Gargoyle was prevented from attacking tonight');return;}
     const ts=(Array.isArray(S.nightData.alchemistMist)?alive.filter(p=>S.nightData.alchemistMist.includes(p.id)):alive.filter(p=>p.id!==gg.id));
     if(!ts.length)return;
-    if(!gg._gargoyleAwake){gg._gargoyleAwake=true;gameRecord.push({type:'night_action',role:'gargoyle_awaken',round:S.round,target:gg.name,result:'awaken'});}
+    if(!gg._gargoyleAwake){gg._gargoyleAwake=true;gameRecord.push({type:'night_action',role:'gargoyle_awaken',round:S.round,target:gg.name,result:'awaken'});logPrivateNightResult(gg,'其他狼系已全部出局，石像鬼苏醒并获得独立狼刀','All other wolves are gone; the Gargoyle awakened and gained an independent attack');}
     let t=null; Render.setSpeaking(gg.id,true);
     if(gg.isPlayer){const opts=ts.map(x=>({label:'P'+(x.id+1)+' '+x.name,value:x.name}));opts.push({label:'空刀',value:'None',abs:true});const v=await waitChoice('其他狼系已全部出局，你已苏醒。今晚刀谁？','石像鬼夜刀',opts);t=v==='None'?null:findPlayer(v,ts);}
     else{const r=await nightTwoStep(gg,'【石像鬼苏醒·第'+S.round+'夜】其他狼系已全部出局。可刀：'+ts.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'。可明确空刀。','<action>玩家名 或 PASS</action>');logNightThinking(gg,r);const d=await resolveAIAction3(gg,r,{label:'石像鬼夜刀',candidates:ts,targetCount:1,allowPass:true,formatHint:'KILL|P数字 或 PASS'});if(d.status==='execute')t=d.targets[0];}
-    if(t){S.nightData.kill=t.id;S.nightData.killChosenByWolf=t.id;gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:t.name});}
-    else gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,empty:true});
+    if(t){S.nightData.kill=t.id;S.nightData.killChosenByWolf=t.id;gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:t.name});logPrivateNightResult(gg,'石像鬼选择袭击'+t.name,'The Gargoyle chose to attack '+t.name);}
+    else{gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,target:null,empty:true});logPrivateNightResult(gg,'石像鬼本夜选择空刀','The Gargoyle chose not to attack tonight');}
     Render.setSpeaking(gg.id,false);
   },
 
@@ -14768,7 +14893,7 @@ const NightActions = {
     await showRoleCinematic('werewolf', uiEnglish() ? 'Wolf Pack' : '狼人阵营',
       uiEnglish() ? 'WOLVES AWAKEN' : '狼人睁眼',
       uiEnglish() ? 'The pack gathers beneath the night.' : '夜幕之下，狼群开始密谈。',
-      {team:'bad', key:`wolf-open:${wolfRunKey}`});
+      {team:'bad', privateScope:'pack', key:`wolf-open:${wolfRunKey}`});
 
     // ★ v9.2 重构：狼队讨论改为三阶段架构（开场陈述 → 回响 → 投票）
     //   解决问题：
@@ -16461,6 +16586,15 @@ function buildSheriffOrderRuleBlock() {
 /* ================================================================
  *  § 16. 阶段状态机
  * ================================================================ */
+function nightStepLogVisibility(step) {
+  if (step === 'wolf-strategy' || step === 'wolf-kill') return {scope:'pack'};
+  const rolesByStep = {cupid:['cupid'],gravekeeper:['gravekeeper'],wolfconcubine:['wolfconcubine'],soulwarden:['soulwarden'],'mechwolf-fox':['mechwolf'],fox:['fox'],imitator:['imitator'],merchant:['merchant'],youshang:['youshang'],fool:['fool'],'alchemist-plan':['alchemist'],dreamwalker:['dreamwalker'],gargoyle:['gargoyle'],magician:['magician'],mechwolf:['mechwolf'],guard:['guard'],'mechwolf-kill':['mechwolf'],'gargoyle-kill':['gargoyle'],'imitator-rescue':['imitator'],'alchemist-rescue':['alchemist'],witch:['witch'],seer:['seer'],'serial-killer':['serialkiller'],'wolf-beauty':['wolfbeauty']};
+  let ids=(S.players||[]).filter(p=>(rolesByStep[step]||[]).includes(p.role&&p.role.id)).map(p=>p.id);
+  if(step==='magic-swap')ids=(S.players||[]).filter(p=>['magician','imitator'].includes(p.role&&p.role.id)).map(p=>p.id);
+  if(step==='pick-gift'||step==='granted-skill')ids=(S.players||[]).filter(p=>p._giftPending||p._grant||p._grantedSeer).map(p=>p.id);
+  if(step==='custom-gods')ids=(S.players||[]).filter(p=>Array.isArray(p.role&&p.role.customAbilities)&&p.role.customAbilities.length).map(p=>p.id);
+  return ids.length?{players:ids,actorId:ids.length===1?ids[0]:undefined}:null;
+}
 const PhaseHandlers = {
   async night() {
     const nightKey = `${S.gameId}:${S.round}`;
@@ -16501,8 +16635,14 @@ const PhaseHandlers = {
     const nightStep = async (key, fn) => {
       if (S._nightRun.done.includes(key)) return;
       const actionRecordStart = gameRecord.length;
-      await fn();
-      await showNightStepCinematic(key, gameRecord.slice(actionRecordStart));
+      const previousLogVisibility = _activeNightLogVisibility;
+      _activeNightLogVisibility = nightStepLogVisibility(key);
+      try {
+        await fn();
+        await showNightStepCinematic(key, gameRecord.slice(actionRecordStart));
+      } finally {
+        _activeNightLogVisibility = previousLogVisibility;
+      }
       S._nightRun.done.push(key);
     };
     const alive = S.players.filter(p => p.alive);
@@ -19207,6 +19347,7 @@ function forceReset() {
   if (S.abortCtrl) S.abortCtrl.abort();
   const pur = S.pureAI;
   S = freshState(S);
+  S.observerPerspective = 'god';
   document.body.classList.remove('blind-review');
   S.pureAI = pur;
   // ★ 修复：以「🗡️ 屠边」复选框的当前勾选状态为准，避免 freshState 后状态与界面脱钩
@@ -19240,6 +19381,8 @@ function forceReset() {
 // ★ 新增：重置时解锁设置开关
 ['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled = false; });
 if (S.pureAI) { $('m-anon').checked = false; document.body.classList.remove('anon'); }
+refreshObserverPerspectiveControl();
+applyObserverPerspective(false);
 }
 
 function startGame() {
@@ -19259,6 +19402,7 @@ function startGame() {
   S.directorMode = directorIds.length > 0 || parseInt($('p-sel').value) === -3;
   S.directorIds = directorIds;
   S.playerId = pid;
+  S.observerPerspective = 'god';
   S.abortCtrl = new AbortController();
   // ★ 支持手动指定角色身份：先收集手动指定的，再随机分配剩余
   const roleArray = cfg.roles.slice(); // 复制角色池
@@ -19337,6 +19481,8 @@ function startGame() {
   window._specIndexGlobal = 0;
   $('bst').disabled = true; $('bne').disabled = false;
   S.players.forEach(p => { Render.card(p); const pn=$('pn-'+p.id); if(pn) pn.textContent=publicPlayerLabel(p); });
+  refreshObserverPerspectiveControl();
+  applyObserverPerspective();
   renderBatch();
   // 导演模式：显示所有命牌上的切换按钮
   if (S.directorMode) refreshDirectorButtons();
@@ -23272,6 +23418,11 @@ function bindEvents() {
   });
 
   $('m-anon').addEventListener('change', Render.modes);
+  if ($('observer-perspective-select')) $('observer-perspective-select').addEventListener('change', e => {
+    S.observerPerspective = e.target.value || 'god';
+    applyObserverPerspective();
+    scrollGL();
+  });
   $('m-hdeath').addEventListener('change', Render.modes);
   $('m-mbti').addEventListener('change', Render.modes);
   $('m-cosplay').addEventListener('change', () => { saveCfg(); renderCosplayPresets(); });
