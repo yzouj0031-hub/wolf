@@ -16,7 +16,7 @@ for(const file of ['index.html','en/index.html']){
   for(const group of expectedGroups) expect(src.includes(group),`${file}: missing overlap group ${group}`);
   expect(src.includes('function getRoleOverlapHints(counts)'),`${file}: missing overlap detector`);
   expect(src.includes('selected.length > 1'),`${file}: hint must require two selected roles in a group`);
-  expect(src.includes("$('cgo').disabled = !ok;\n  renderRoleOverlapHints();"),`${file}: selection changes do not refresh hints`);
+  expect(/\$\('cgo'\)\.disabled\s*=\s*!ok;\s*renderRoleOverlapHints\(\);/.test(src),`${file}: selection changes do not refresh hints`);
   expect(src.includes('This is advisory and never blocks the game')||src.includes('这不是错误，也不会阻止开局'),`${file}: warning does not explain that it is advisory`);
 }
 
