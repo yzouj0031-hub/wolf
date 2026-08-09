@@ -1,5 +1,9 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const ReasoningControl = require('../reasoning-control.js');
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -20,11 +24,8 @@ const players = [
   {id: 4, name: 'Mello'},
   {id: 6, name: 'Ryuzaki'}
 ];
-let kimiMode = 'smart';
 const context = {
-  $(id) {
-    return id === 'kimi-thinking-mode' ? {value: kimiMode} : null;
-  },
+  ReasoningControl,
   findPlayerBySeatRef(value, pool) {
     const match = String(value).match(/P\s*#?\s*(\d+)/i);
     return match ? pool.find(player => player.id === Number(match[1]) - 1) || null : null;
@@ -38,8 +39,8 @@ vm.runInContext([
   functionSource('_extractExactMachineTargets'),
   functionSource('_stripConditionalActionClauses'),
   functionSource('_hasExplicitExplodeIntent'),
-  functionSource('applyKimiThinkingControl'),
-  functionSource('removeKimiThinkingControl')
+  functionSource('applyCompatibleReasoningControl'),
+  functionSource('removeCompatibleReasoningControl')
 ].join('\n'), context);
 
 const yes = [
@@ -82,20 +83,21 @@ for (const value of ['PASS', 'None', 'NO_ACTION']) {
 }
 
 let kimiBody = {};
-let kimiResult = context.applyKimiThinkingControl(kimiBody, 'Pro/moonshotai/Kimi-K2.6', {skillConfirm:true});
-if (kimiResult.effective !== 'instant' || kimiBody.chat_template_kwargs?.thinking !== false || 'thinking_budget' in kimiBody) {
-  throw new Error('Smart Kimi action must use Instant mode');
+let kimiReasoning = ReasoningControl.resolveMode({globalMode:'smart', opts:{skillConfirm:true}});
+let kimiResult = context.applyCompatibleReasoningControl(kimiBody, 'Pro/moonshotai/Kimi-K2.6', kimiReasoning, {isKimiK2:true});
+if (kimiResult.mode !== 'low' || kimiBody.chat_template_kwargs?.thinking !== true || kimiBody.thinking_budget !== 1024) {
+  throw new Error('Smart Kimi action must use Low reasoning');
 }
 kimiBody = {};
-kimiResult = context.applyKimiThinkingControl(kimiBody, 'Pro/moonshotai/Kimi-K2.6', {});
-if (kimiResult.effective !== 'standard' || kimiBody.chat_template_kwargs?.thinking !== true || kimiBody.thinking_budget !== 4096) {
-  throw new Error('Smart Kimi speech must use Standard reasoning');
+kimiReasoning = ReasoningControl.resolveMode({globalMode:'smart'});
+kimiResult = context.applyCompatibleReasoningControl(kimiBody, 'Pro/moonshotai/Kimi-K2.6', kimiReasoning, {isKimiK2:true});
+if (kimiResult.mode !== 'medium' || kimiBody.chat_template_kwargs?.thinking !== true || kimiBody.thinking_budget !== 4096) {
+  throw new Error('Smart Kimi speech must use Medium reasoning');
 }
-kimiMode = 'deep';
 kimiBody = {};
-context.applyKimiThinkingControl(kimiBody, 'kimi-k2.6', {});
-if (kimiBody.thinking_budget !== 16384) throw new Error('Deep Kimi budget must be 16384');
-context.removeKimiThinkingControl(kimiBody);
+context.applyCompatibleReasoningControl(kimiBody, 'kimi-k2.6', {effective:'xhigh'}, {isKimiK2:true});
+if (kimiBody.thinking_budget !== 16384) throw new Error('Extra-high Kimi budget must be 16384');
+context.removeCompatibleReasoningControl(kimiBody);
 if ('chat_template_kwargs' in kimiBody || 'thinking_budget' in kimiBody) throw new Error('Kimi fallback cleanup failed');
 
 console.log(`action protocol: ${yes.length + no.length + targetCases.length + 8} cases passed`);

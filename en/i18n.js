@@ -389,6 +389,7 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
       opts.hiddenDeath ? '• Hidden deaths: ordinary night deaths reveal neither identity nor private cause. Public skill events remain public.' : '• Public deaths: identities revealed by the system are factual.',
       '• A night choice may only be explained with information available before that night action. A future plan is not an executed action.', '', '— Roles in this game —'];
     ids.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${r.desc}`); });
+    lines.push('• Only the roles listed above exist in this match. Unlisted roles and their mechanics must not be used as premises for reasoning.');
     lines.push('', '— Terminology —','• Use standard English Werewolf/Mafia terms: town, wolf result, town result, counterclaim, bussing, miselimination, voting pattern, and night-kill target. Never translate Chinese jargon literally.','', '— Evidence discipline —','• System verification and your own explicit private action results have highest priority; claims and last words are not automatic proof.','• A single slip, wording issue, rule-summary mismatch, or speaking style is suspicion only—not a standalone conviction.','• Repetition by several players is still one argument. Use voting patterns, sustained behavior, information access, and faction benefit.');
     return lines.join('\n');
   }
