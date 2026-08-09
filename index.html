@@ -40,6 +40,7 @@
 <!-- Supabase 不再在这里同步加载（同样会阻塞解析导致白屏），改由 CloudSave 运行时异步注入 -->
 <script src="./i18n.js"></script>
 <script src="./native-http.js"></script>
+<script src="./reasoning-control.js"></script>
 <link rel="stylesheet" href="./exit-guard.css">
 <script src="./exit-guard.js"></script>
 <!-- 🔥 热更新：必须在主脚本之前加载——它的启动守护要赶在主脚本可能崩溃之前记下尝试次数 -->
@@ -3142,7 +3143,7 @@ body.has-wp::after {
           <div class="conc-item"><label>🎤 感言</label><input type="number" id="c-end" value="3" min="1" max="10"></div>
         </div>
       </details>
-      <details class="conc-det"><summary>⏱️ AI 思考时间（秒）</summary>
+      <details class="conc-det"><summary>AI 思考强度与超时</summary>
         <div class="conc-grid">
           <div class="conc-item"><label>💬 单次请求上限</label><input type="number" id="t-single" value="600" min="30" max="1800"></div>
           <div class="conc-item"><label>🐺 密约·提案</label><input type="number" id="t-wprop" value="240" min="30" max="900"></div>
@@ -3150,17 +3151,18 @@ body.has-wp::after {
         </div>
         <div style="font-size:0.62em;color:#7068a0;padding:4px 6px;line-height:1.5">慢思考模型(Kimi/GLM/Gemini)若常被掐断，调大「单次请求」和「密约·提案」。值越大越能容纳长思考，但卡住时等待也越久。</div>
         <div class="cr" style="margin-top:6px;align-items:center">
-          <label style="font-size:.7em;color:#a8a0c8;white-space:nowrap">🌙 硅基流动 Kimi 思考</label>
-          <select id="kimi-thinking-mode" style="font-size:.72em;flex:1">
+          <label style="font-size:.7em;color:#a8a0c8;white-space:nowrap">思考强度</label>
+          <select id="g-reasoning-mode" style="font-size:.72em;flex:1">
             <option value="smart" selected>智能分流（推荐）</option>
-            <option value="instant">即时模式（关闭深度思考）</option>
-            <option value="light">轻量思考（1024）</option>
-            <option value="standard">标准思考（4096）</option>
-            <option value="deep">深度思考（16384）</option>
             <option value="auto">接口默认（不干预）</option>
+            <option value="off">最低 / 尝试关闭</option>
+            <option value="low">低</option>
+            <option value="medium">中</option>
+            <option value="high">高</option>
+            <option value="xhigh">极高</option>
           </select>
         </div>
-        <div style="font-size:0.62em;color:#7068a0;padding:2px 6px 4px;line-height:1.5">智能分流会让查验、守护、投票等明确操作走即时模式，公开发言保留标准思考。仅对 OpenAI 兼容接口中的 Kimi-K2.x 生效；接口不支持时会自动撤销参数重试。</div>
+        <div style="font-size:0.62em;color:#7068a0;padding:2px 6px 4px;line-height:1.5">智能分流：查验、守护、投票等明确操作用低档，普通发言用中档，狼队密约提案等复杂决策用高档。支持 GPT-5/o 系列、Claude、Gemini、Kimi，并为部分 Qwen/GLM/MiniMax 提供开关控制；模型不支持某档时会降级为其可用档位或撤销参数重试。</div>
       </details>
       <div class="cr"><label>名讳</label><input type="text" id="cnames" placeholder="留空随机 | 逗号分隔"></div>
       <div class="nhint">点击命牌可单独设名字和API</div>
@@ -3433,6 +3435,19 @@ body.has-wp::after {
   </div>
   <details style="margin:6px 0;border:1px solid rgba(245,160,184,0.12);border-radius:var(--r);padding:6px 8px;background:rgba(0,0,0,0.15)">
     <summary style="cursor:pointer;font-size:0.78em;color:var(--gold);font-family:var(--font-title)">🎛️ AI参数调节（勾选启用，不勾则用默认值）</summary>
+    <div style="margin-top:8px">
+      <label style="color:#8a8090;font-size:0.75em">思考强度 <span style="color:#5a5060;font-size:0.85em">（可覆盖全局）</span></label>
+      <select id="pc-reasoning-mode" style="width:100%;margin-top:3px">
+        <option value="inherit" selected>跟随全局</option>
+        <option value="smart">智能分流</option>
+        <option value="auto">接口默认</option>
+        <option value="off">最低 / 尝试关闭</option>
+        <option value="low">低</option>
+        <option value="medium">中</option>
+        <option value="high">高</option>
+        <option value="xhigh">极高</option>
+      </select>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:8px;font-size:0.75em">
       <div>
         <label style="color:#8a8090"><input type="checkbox" id="pc-temp-on" style="margin-right:3px">Temperature <span id="pc-temp-val" style="color:var(--gold)">1.0</span></label>
@@ -7447,7 +7462,7 @@ function saveCfg() {
     hdeath:$('m-hdeath').checked, mbti:$('m-mbti').checked, cosplay:$('m-cosplay').checked, blindNames:$('m-blindnames')?$('m-blindnames').checked:false, hardcore:$('m-hardcore')?$('m-hardcore').checked:false, cnames:$('cnames').value, lastwill:$('m-lastwill')?$('m-lastwill').value:'first', killEdge:$('m-kill-edge')?$('m-kill-edge').checked:false, singleRound:$('m-single-round')?$('m-single-round').checked:false, knightChain:$('m-knight-chain')?$('m-knight-chain').checked:false, sheriffDailyOrder:$('m-sheriff-daily-order')?$('m-sheriff-daily-order').checked:false, extraSpeech:$('m-extra-speech')?$('m-extra-speech').checked:false,
     modeltag:$('m-modeltag')?$('m-modeltag').checked:true,
     thinking:$('m-thinking')?$('m-thinking').checked:true,
-    kimiThinkingMode:$('kimi-thinking-mode')?$('kimi-thinking-mode').value:'smart',
+    reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     pconfigs:playerConfigs,
@@ -7500,7 +7515,11 @@ function loadCfg() {
     if (d.hardcore !== undefined && $('m-hardcore')) $('m-hardcore').checked = d.hardcore;
     if (d.modeltag !== undefined && $('m-modeltag')) $('m-modeltag').checked = d.modeltag;
     if (d.thinking !== undefined && $('m-thinking')) $('m-thinking').checked = d.thinking;
-    if (d.kimiThinkingMode && $('kimi-thinking-mode')) $('kimi-thinking-mode').value = d.kimiThinkingMode;
+    if ($('g-reasoning-mode')) {
+      $('g-reasoning-mode').value = d.reasoningMode
+        ? ReasoningControl.normalizeMode(d.reasoningMode, 'smart')
+        : ReasoningControl.migrateLegacyKimiMode(d.kimiThinkingMode);
+    }
     if (d.freeOutput !== undefined && $('m-free-output')) $('m-free-output').checked = d.freeOutput;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
     if (d.cnames) $('cnames').value = d.cnames;
@@ -9656,28 +9675,51 @@ async function demoResponder(p, prompt) {
   return { thinking: '', game: say(isWolf ? DEMO_WOLF_LINES : DEMO_TOWN_LINES), action };   // thinking 留空→演示里不刷"💭想法"
 }
 
-// Kimi K2.x 在不同 OpenAI 兼容服务上的默认思考模式并不一致。
-// SiliconFlow 支持 thinking_budget；Moonshot 对第三方部署建议通过
-// chat_template_kwargs.thinking 切换 Instant/Thinking。若端点拒绝这些
-// 扩展字段，callAI 会撤销后自动重试，避免兼容中转站被直接打断。
-function applyKimiThinkingControl(body, model, opts) {
-  const mn = String(model || '').toLowerCase();
-  if (!(mn.includes('kimi-k2') || mn.includes('kimi_k2'))) return {applied:false};
-  const selected = $('kimi-thinking-mode') ? $('kimi-thinking-mode').value : 'smart';
-  if (selected === 'auto') return {applied:false, selected};
-  const effective = selected === 'smart' ? (opts && opts.skillConfirm ? 'instant' : 'standard') : selected;
-  body.chat_template_kwargs = Object.assign({}, body.chat_template_kwargs || {}, {thinking: effective !== 'instant'});
-  if (effective === 'instant') delete body.thinking_budget;
-  else body.thinking_budget = ({light:1024, standard:4096, deep:16384})[effective] || 4096;
-  return {applied:true, selected, effective, budget:body.thinking_budget || 0};
+// 统一思考强度：先按阶段和命牌覆盖算出档位，再映射到各供应商支持的字段。
+// 这些均属于可选扩展字段；端点明确拒绝时会撤销后重试，避免兼容中转站阻断整局。
+function resolveAIReasoning(p, prompt, opts) {
+  return ReasoningControl.resolveMode({
+    globalMode: $('g-reasoning-mode') ? $('g-reasoning-mode').value : 'smart',
+    playerMode: (playerConfigs[p.id] || {}).reasoningMode || 'inherit',
+    prompt,
+    opts
+  });
 }
-function removeKimiThinkingControl(body) {
+function applyCompatibleReasoningControl(body, model, reasoning, flags) {
+  const mode = reasoning.effective;
+  const fields = [];
+  if (mode === 'auto') return {applied:false, mode, fields};
+
+  if (flags.isKimiK2) {
+    body.chat_template_kwargs = Object.assign({}, body.chat_template_kwargs || {}, {thinking: mode !== 'off'});
+    fields.push('chat_template_kwargs');
+    if (mode !== 'off') {
+      body.thinking_budget = ReasoningControl.thinkingBudget(mode);
+      fields.push('thinking_budget');
+    }
+  } else if (flags.isGPT5Thinking || flags.isOpenAIReasoning || flags.isGemini3Compat) {
+    body.reasoning_effort = ReasoningControl.openAIEffort(flags.isGemini3Compat && mode === 'off' ? 'low' : mode, flags.isGPT5Thinking);
+    fields.push('reasoning_effort');
+  } else if (flags.isQwen3Thinking || flags.isGLMThinking) {
+    body.enable_thinking = mode !== 'off';
+    fields.push('enable_thinking');
+  } else if (flags.isMiniMaxThinking && mode === 'off') {
+    body.thinking = {type:'disabled'};
+    fields.push('thinking');
+  }
+  return {applied:fields.length > 0, mode, fields};
+}
+function removeCompatibleReasoningControl(body) {
   delete body.chat_template_kwargs;
   delete body.thinking_budget;
+  delete body.reasoning_effort;
+  delete body.enable_thinking;
+  delete body.thinking;
 }
 
 async function callAI(p, prompt, opts) {
   opts = opts || {};
+  const reasoning = resolveAIReasoning(p, prompt, opts);
   if (window.__DEMO__) return await demoResponder(p, prompt);   // 🎬 演示模式：本地脚本，无需 key
   const rationalCap = opts.skillConfirm ? 0.5 : Infinity;
   const myGid = S.gameId;
@@ -9827,6 +9869,8 @@ async function callAI(p, prompt, opts) {
         { type: 'text', text: sysContent, cache_control: { type: 'ephemeral' } }
       ] : '';
       const body = {model: useApi.model, max_tokens: maxTk, messages: anthMsgs, system: systemBlocks};
+      const anthropicEffort = ReasoningControl.anthropicEffort(reasoning.effective);
+      if (anthropicEffort) body.output_config = {effort: anthropicEffort};
       res = await fetch(useApi.url + '/v1/messages', {
         method: 'POST',
         headers: {'Content-Type':'application/json','x-api-key': useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -9834,6 +9878,18 @@ async function callAI(p, prompt, opts) {
         signal: combinedSignal
       });
       if (S.gameId !== myGid) return null;
+      if (!res.ok && res.status === 400 && body.output_config) {
+        const t = await res.text().catch(()=> '');
+        if (/effort|output_config|output config/i.test(t)) {
+          Render.devLog('err', `[P${p.id+1}] Claude模型不支持思考强度 ${anthropicEffort}，撤销参数重试`);
+          delete body.output_config;
+          res = await fetch(useApi.url + '/v1/messages', {
+            method:'POST',
+            headers:{'Content-Type':'application/json','x-api-key':useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+            body:JSON.stringify(body), signal:combinedSignal
+          });
+        }
+      }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
       const data = await res.json();
       const content = data.content?.find(b => b.type==='text')?.text || '';
@@ -9887,11 +9943,12 @@ async function callAI(p, prompt, opts) {
         temperature: Math.min(rationalCap, (playerConfigs[p.id]||{}).temperature !== undefined && (playerConfigs[p.id]||{}).temperature !== null ? (playerConfigs[p.id]||{}).temperature : 0.9)
       };
       if (isGemini3) {
-        // Gemini 3：总预算下限 16384，其中 thinking 上限 4096，可见输出至少能拿到 12K+
+        // Gemini 3：总预算下限 16384，避免思考占满可见输出额度。
         if (effectiveMaxTk < 16384) effectiveMaxTk = 16384;
         genConfig.maxOutputTokens = effectiveMaxTk;
-        genConfig.thinkingConfig = { thinkingBudget: 4096 };
       }
+      const nativeReasoningConfig = ReasoningControl.geminiThinkingConfig(useApi.model, reasoning.effective);
+      if (nativeReasoningConfig) genConfig.thinkingConfig = nativeReasoningConfig;
       const body = {
         contents: gemMsgs,
         systemInstruction: sysContent ? {parts:[{text:sysContent}]} : undefined,
@@ -9905,6 +9962,14 @@ async function callAI(p, prompt, opts) {
         signal: combinedSignal
       });
       if (S.gameId !== myGid) return null;
+      if (!res.ok && res.status === 400 && nativeReasoningConfig) {
+        const t = await res.text().catch(()=> '');
+        Render.devLog('err', `[P${p.id+1}] Gemini端点不支持思考档位 ${reasoning.effective}，撤销参数重试: ${t.slice(0,120)}`);
+        delete genConfig.thinkingConfig;
+        res = await fetch(gemUrl, {
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body), signal: combinedSignal
+        });
+      }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
       const data = await res.json();
       // ★★ 核心修复：用 Gemini 原生 thought 字段隔离思考，不再依赖 AI 自己打 <thinking>/<game> 标签 ★★
@@ -9986,6 +10051,7 @@ async function callAI(p, prompt, opts) {
       const isGemini3Compat = mn.includes('gemini-3') || mn.includes('gemini3');
       // GPT-5.x 全系（gpt-5 / gpt-5.2 / gpt-5.3 / gpt-5.4 及其 thinking/pro/mini/nano 变体）
       const isGPT5Thinking = /gpt-?5(\.\d+)?/.test(mn) && !mn.includes('gpt-5-chat');
+      const isOpenAIReasoning = /(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
       // Qwen 思考模型识别
       //   ① qwen3-*-thinking / qwen-max-thinking 等带显式 thinking 后缀的版本
       //   ② ★ v9.9.18: Qwen3.5 / Qwen3.6 系列是混合推理模型，默认就带思考能力
@@ -10021,7 +10087,7 @@ async function callAI(p, prompt, opts) {
       const isExcludedThinking = mn.includes('claude') || mn.includes('deepseek-reasoner') || mn.includes('deepseek-r1') || mn.includes('k2-thinking');
       const hasGenericSuffix = !isExcludedThinking && (mn.includes('-thinking') || mn.includes('-reasoning') || mn.endsWith('thinking') || mn.endsWith('reasoning'));
       // 综合判定：是否需要 thinking 预算保护
-      const needsThinkingBudgetFix = isGemini3Compat || isGPT5Thinking || isQwen3Thinking || isGrokReasoning || isGLMThinking || isKimiK2 || isDeepSeekV4 || isMiniMaxThinking || hasGenericSuffix;
+      const needsThinkingBudgetFix = isGemini3Compat || isGPT5Thinking || isOpenAIReasoning || isQwen3Thinking || isGrokReasoning || isGLMThinking || isKimiK2 || isDeepSeekV4 || isMiniMaxThinking || hasGenericSuffix;
 
       // ① 保护：max_tokens 下限抬到 8192，保证可见输出充足
       //   Gemini 3 单独抬到 16384——它的 thinking 和输出共享预算，狼人杀场景下 8K 仍易被烧光
@@ -10034,7 +10100,7 @@ async function callAI(p, prompt, opts) {
 
       // 开发日志：识别到 thinking 模型时输出，方便调试
       if (needsThinkingBudgetFix) {
-        const tag = isGPT5Thinking ? 'GPT-5' : isGemini3Compat ? 'Gemini3' : isQwen3Thinking ? 'Qwen3-Think' : isGrokReasoning ? 'Grok-R' : isGLMThinking ? 'GLM-Think' : isKimiK2 ? 'Kimi-K2' : isDeepSeekV4 ? 'DeepSeek-V4' : isMiniMaxThinking ? 'MiniMax' : 'Generic-Think';
+        const tag = isGPT5Thinking ? 'GPT-5' : isOpenAIReasoning ? 'OpenAI-o' : isGemini3Compat ? 'Gemini3' : isQwen3Thinking ? 'Qwen3-Think' : isGrokReasoning ? 'Grok-R' : isGLMThinking ? 'GLM-Think' : isKimiK2 ? 'Kimi-K2' : isDeepSeekV4 ? 'DeepSeek-V4' : isMiniMaxThinking ? 'MiniMax' : 'Generic-Think';
         Render.devLog('req', `[P${p.id+1}] 🧠 thinking模型保护已启用 [${tag}] max_tokens=${compatMaxTk}`);
       }
 
@@ -10049,15 +10115,15 @@ async function callAI(p, prompt, opts) {
         body.reasoning_split = true;
         body.max_completion_tokens = Math.min(compatMaxTk, 2048);
         delete body.max_tokens;
-        // M3 can truly disable thinking for short game dialogue. M2.x accepts this but may ignore it.
-        if (/(?:minimax[-_]?m?3|(?:^|[\/_-])m3(?:\.|[-_]|$))/.test(mn)) body.thinking = {type:'disabled'};
         delete body.frequency_penalty;
         delete body.presence_penalty;
       }
-      const kimiThinkingCtl = applyKimiThinkingControl(body, useApi.model, opts);
-      if (kimiThinkingCtl.applied) {
-        const budgetInfo = kimiThinkingCtl.budget ? ` budget=${kimiThinkingCtl.budget}` : '';
-        Render.devLog('req', `[P${p.id+1}] 🌙 Kimi思考控制=${kimiThinkingCtl.effective}${budgetInfo}`);
+      const reasoningCtl = applyCompatibleReasoningControl(body, useApi.model, reasoning, {
+        isKimiK2, isGPT5Thinking, isOpenAIReasoning, isGemini3Compat,
+        isQwen3Thinking, isGLMThinking, isMiniMaxThinking
+      });
+      if (reasoningCtl.applied) {
+        Render.devLog('req', `[P${p.id+1}] 思考强度=${reasoningCtl.mode} 阶段=${reasoning.stage} 参数=${reasoningCtl.fields.join(',')}`);
       }
       // ★ v9.7: 主动启用 stream:true。
       //   背景:某些中转(如 codex/gpt-5.x)对非流式请求会"非流转流"内部处理出 bug——
@@ -10081,17 +10147,7 @@ async function callAI(p, prompt, opts) {
       if (mn.includes('deepseek-reasoner') || mn.includes('deepseek-r1')) { delete body.frequency_penalty; delete body.presence_penalty; }
       if (isMiniMaxThinking) { delete body.frequency_penalty; delete body.presence_penalty; }
       // GPT-5.x 推理模型不支持 top_p / temperature / frequency_penalty / presence_penalty
-      if (isGPT5Thinking) { delete body.top_p; delete body.temperature; delete body.frequency_penalty; delete body.presence_penalty; }
-
-      // ② 保护：为 GPT-5.x 显式传 reasoning_effort，平衡质量与 token 消耗
-      //   GPT-5.2+ 默认 effort 可能偏高，导致 thinking 烧 token；显式设 medium 更稳
-      //   不支持此参数的模型（中转/其他 OpenAI 兼容端点）会忽略此字段，无副作用
-      if (isGPT5Thinking) {
-        // ★ fix: 从模型名自动识别 reasoning_effort（xhigh/high/medium/low）
-        //   用户在模型名里写 gpt-5.4-xhigh 即可生效，pcfg.reasoningEffort 可进一步覆盖
-        const effortFromName = ['xhigh', 'high', 'medium', 'low'].find(e => mn.includes(e));
-        body.reasoning_effort = pcfg.reasoningEffort || effortFromName || 'medium';
-      }
+      if (isGPT5Thinking || isOpenAIReasoning) { delete body.top_p; delete body.temperature; delete body.frequency_penalty; delete body.presence_penalty; }
 
       // ★ v9.9.17: GLM-5.x 不再强制关闭 thinking 模式（恢复正常）
       //   旧版(v9.9.5)为了防止思维链外露/沉默,强制 enable_thinking=false 阉割了 GLM 的思考能力。
@@ -10113,10 +10169,11 @@ async function callAI(p, prompt, opts) {
       if (!res.ok) {
         const t = await res.text().catch(()=>'');
         Render.devLog('err', `[P${p.id+1}] HTTP ${res.status}: ${t.slice(0,200)}`);
-        // ★ 如果是 400 错误且包含 reasoning_effort 关键词，说明端点不支持此参数——去掉重试一次
-        if (res.status === 400 && kimiThinkingCtl.applied && (body.chat_template_kwargs || body.thinking_budget)) {
-          Render.devLog('err', `[P${p.id+1}] 当前端点不接受Kimi思考参数，撤销后自动重试`);
-          removeKimiThinkingControl(body);
+        // 思考强度属于可选能力；兼容端点拒绝时撤销后重试，不能阻断整局。
+        const rejectedReasoning = reasoningCtl.fields.some(field => t.toLowerCase().includes(field.toLowerCase())) || /reasoning|thinking/i.test(t);
+        if (res.status === 400 && reasoningCtl.applied && !isMiniMaxThinking && rejectedReasoning) {
+          Render.devLog('err', `[P${p.id+1}] 端点不支持思考强度参数，撤销后重试`);
+          removeCompatibleReasoningControl(body);
           res = await fetch(useApi.url+'/chat/completions', {
             method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
             body:JSON.stringify(body), signal:combinedSignal
@@ -10132,17 +10189,6 @@ async function callAI(p, prompt, opts) {
             body:JSON.stringify(body), signal:combinedSignal
           });
           if (!res.ok) { const t2=await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t2.slice(0,100)); }
-        }
-        else if (res.status === 400 && body.reasoning_effort && t.toLowerCase().includes('reasoning_effort')) {
-          Render.devLog('err', `[P${p.id+1}] 端点不支持 reasoning_effort，去除后重试`);
-          delete body.reasoning_effort;
-          res = await fetch(useApi.url+'/chat/completions', {
-            method:'POST',
-            headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
-            body: JSON.stringify(body),
-            signal: combinedSignal
-          });
-          if (!res.ok) { const t2 = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t2.slice(0,100)); }
         }
         // ★ v9.7: 如果是 400 错误且提到 stream,说明端点不支持流式——去掉 stream 重试
         else if (res.status === 400 && body.stream && /stream/i.test(t)) {
@@ -12652,7 +12698,7 @@ async function wolfStrategyDiscuss(wolves) {
   // 1. AI 狼并发提案
   const proposalPromises = aiWolves.map(async (w) => {
     try {
-      const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, timeoutMs: 360000, maxRetries: 2});
+      const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2});
       proposals[w.id] = r;
     } catch(e) {
       proposals[w.id] = null;
@@ -12793,7 +12839,7 @@ async function wolfStrategyDiscuss(wolves) {
     } else if (choice === 'ai') {
       // AI 代写：和 AI 狼走同样流程
       try {
-        const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, timeoutMs: 360000, maxRetries: 2});
+        const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2});
         proposals[w.id] = r;
       } catch(e) {
         proposals[w.id] = null;
@@ -23135,7 +23181,18 @@ async function testAPIForPC() {
         if (isGPT5Reasoning) { delete b.top_p; delete b.temperature; delete b.frequency_penalty; delete b.presence_penalty; }
         // ★ fix: Claude 系列经 OpenAI 兼容端点调用时，temperature 和 top_p 不能同传，否则 400
         if (mnLower.includes('claude')) { delete b.top_p; }
-        applyKimiThinkingControl(b, m, {skillConfirm:true});
+        const testReasoning = ReasoningControl.resolveMode({
+          globalMode:$('g-reasoning-mode') ? $('g-reasoning-mode').value : 'smart', playerMode:'inherit', opts:{skillConfirm:true}
+        });
+        applyCompatibleReasoningControl(b, m, testReasoning, {
+          isKimiK2:mnLower.includes('kimi-k2') || mnLower.includes('kimi_k2'),
+          isGPT5Thinking:isGPT5Reasoning,
+          isOpenAIReasoning:/(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mnLower),
+          isGemini3Compat:mnLower.includes('gemini-3') || mnLower.includes('gemini3'),
+          isQwen3Thinking:mnLower.includes('qwen') && (mnLower.includes('thinking') || /qwen[-_]?3\.[56]/.test(mnLower)),
+          isGLMThinking:/glm[-_]?(4\.[567]|5(\.\d+)?)/.test(mnLower),
+          isMiniMaxThinking:mnLower.includes('minimax')
+        });
         return b;
       };
       const tryCall = async (testPrompt) => {
@@ -23145,8 +23202,8 @@ async function testAPIForPC() {
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},
           body:JSON.stringify(b)
         });
-        if (r.status === 400 && (b.chat_template_kwargs || b.thinking_budget)) {
-          removeKimiThinkingControl(b);
+        if (r.status === 400 && (b.chat_template_kwargs || b.thinking_budget || b.reasoning_effort !== undefined || b.enable_thinking !== undefined || b.thinking)) {
+          removeCompatibleReasoningControl(b);
           r = await fetch(u+'/chat/completions', {
             method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+k}, body:JSON.stringify(b)
           });
@@ -23775,7 +23832,7 @@ function bindEvents() {
   $('m-trial').addEventListener('change', saveCfg);
   // ★ 思维链 / 自由输出 全局开关也需要持久化
   { const t = $('m-thinking'); if (t) t.addEventListener('change', saveCfg); }
-  { const k = $('kimi-thinking-mode'); if (k) k.addEventListener('change', saveCfg); }
+  { const r = $('g-reasoning-mode'); if (r) r.addEventListener('change', saveCfg); }
   { const f = $('m-free-output'); if (f) f.addEventListener('change', saveCfg); }
   { const m = $('m-manual-retry'); if (m) m.addEventListener('change', saveCfg); }
   { const s = $('m-sheriff-daily-order'); if (s) s.addEventListener('change', saveCfg); }
@@ -23878,6 +23935,7 @@ function bindEvents() {
       $(slider).value = slider === 'pc-topp' ? '1' : slider === 'pc-temp' ? '1' : '0';
       $(val).textContent = $(slider).value;
     });
+    if ($('pc-reasoning-mode')) $('pc-reasoning-mode').value = 'inherit';
   });
   // 头像URL输入预览
   $('pcavatar').addEventListener('input', () => updateAvatarPreview($('pcavatar').value.trim()));
@@ -24493,6 +24551,8 @@ function openPCfg(i) {
   };
   $('pc-maxtk').value = c.maxTokens || '';
   $('pc-memlimit').value = c.memLimit !== undefined ? c.memLimit : '';
+  $('pc-reasoning-mode').value = c.reasoningMode || 'inherit';
+  loadParam('pc-temp-on', 'pc-temp', 'pc-temp-val', c.temperature, '1');
   loadParam('pc-topp-on', 'pc-topp', 'pc-topp-val', c.top_p, '1');
   loadParam('pc-fp-on', 'pc-fp', 'pc-fp-val', c.frequency_penalty, '0');
   loadParam('pc-pp-on', 'pc-pp', 'pc-pp-val', c.presence_penalty, '0');
@@ -24549,11 +24609,12 @@ function savePCfg() {
   const maxTokens = parseInt($('pc-maxtk').value) || null;
   const memLimitRaw = $('pc-memlimit') ? $('pc-memlimit').value.trim() : '';
   const memLimit = memLimitRaw !== '' ? parseInt(memLimitRaw) : undefined;
+  const reasoningMode = $('pc-reasoning-mode') ? $('pc-reasoning-mode').value : 'inherit';
   const temperature = $('pc-temp-on').checked ? parseFloat($('pc-temp').value) : null;
   const top_p = $('pc-topp-on').checked ? parseFloat($('pc-topp').value) : null;
   const frequency_penalty = $('pc-fp-on').checked ? parseFloat($('pc-fp').value) : null;
   const presence_penalty = $('pc-pp-on').checked ? parseFloat($('pc-pp').value) : null;
-  if (nm||u||k||m||persona||cot||disableFreeOutput||role||avatar||charBgm||muteBgm||temperature!==null||top_p!==null||frequency_penalty!==null||presence_penalty!==null||memLimit!==undefined) {
+  if (nm||u||k||m||persona||cot||disableFreeOutput||role||avatar||charBgm||muteBgm||reasoningMode!=='inherit'||temperature!==null||top_p!==null||frequency_penalty!==null||presence_penalty!==null||memLimit!==undefined) {
     if (!playerConfigs[currentCfgP]) playerConfigs[currentCfgP]={};
     if (maxTokens) playerConfigs[currentCfgP].maxTokens=maxTokens; else delete playerConfigs[currentCfgP].maxTokens;
     if (memLimit !== undefined) playerConfigs[currentCfgP].memLimit=memLimit; else delete playerConfigs[currentCfgP].memLimit;
@@ -24574,6 +24635,7 @@ function savePCfg() {
     if (top_p!==null) playerConfigs[currentCfgP].top_p=top_p; else delete playerConfigs[currentCfgP].top_p;
     if (frequency_penalty!==null) playerConfigs[currentCfgP].frequency_penalty=frequency_penalty; else delete playerConfigs[currentCfgP].frequency_penalty;
     if (presence_penalty!==null) playerConfigs[currentCfgP].presence_penalty=presence_penalty; else delete playerConfigs[currentCfgP].presence_penalty;
+    if (reasoningMode !== 'inherit') playerConfigs[currentCfgP].reasoningMode=ReasoningControl.normalizeMode(reasoningMode, 'smart'); else delete playerConfigs[currentCfgP].reasoningMode;
     // 清理空对象
     if (Object.keys(playerConfigs[currentCfgP]).length === 0) delete playerConfigs[currentCfgP];
   } else {

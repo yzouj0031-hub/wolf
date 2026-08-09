@@ -1,8 +1,9 @@
-const CACHE_NAME = 'wolf-pwa-v36-role-art-refresh';
+const CACHE_NAME = 'wolf-pwa-v37-reasoning-control';
 const APP_SHELL = [
   './',
   './index.html',
   './i18n.js',
+  './reasoning-control.js',
   './manifest.webmanifest',
   './tablet.css',
   './role-effects.css?v=36',
