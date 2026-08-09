@@ -37,18 +37,27 @@ for (const file of clients) {
   expect(src.includes('wolfRun.mistNoticeShown = true'), `${file}: wolves are not shown the locked target notice`);
   expect(src.includes("ws.forEach(w => w.memory.push({role:'system',content:notice}))"), `${file}: AI wolves do not receive the locked target notice`);
   expect(src.includes('const allTargets = validWolfTargets.slice()'), `${file}: final wolf voting escapes the mist target pool`);
-  expect(src.includes('只能在这三人中提议和投票') || src.includes('Other targets cannot be submitted'), `${file}: human wolf input lacks the mist constraint`);
+  expect(src.includes('只能在这份名单中提议和投票') || src.includes('Other targets cannot be submitted'), `${file}: human wolf input lacks the mist constraint`);
+  expect(src.includes('minTargetCount:2,maxTargetCount:Math.min(3,alive.length)'), `${file}: AI Alchemist cannot choose a 2-or-3 target mist`);
+  expect(src.includes('mistTargets.length >= 2 && mistTargets.length <= 3'), `${file}: two-target mist is rejected at settlement`);
+  expect(src.includes('未明之雾（圈定2～3人）'), `${file}: human Alchemist lacks the flexible mist choice`);
   expect(src.includes('sanctuaryTarget:null, sanctuaryUsed:false, sanctuaryBlocked:null'), `${file}: missing sanctuary state`);
   expect(src.indexOf("nightStep('wolfconcubine'") < src.indexOf("nightStep('soulwarden'"), `${file}: Soul Warden must act after Eclipse Consort`);
   expect(src.indexOf("nightStep('soulwarden'") < src.indexOf("nightStep('fox'"), `${file}: Soul Warden cleansing must resolve before later good actions`);
   expect(src.includes("consumeSanctuaryMark(attemptedCharm, 'wolfbeauty')"), `${file}: Wolf Beauty charm must use sanctuary interception`);
   expect(src.includes("consumeSanctuaryMark(t.id, 'wolfconcubine')"), `${file}: Eclipse Consort mark must be cleansable`);
+  expect(src.includes("new Set(['inspect','protect','poison','charm','dream'])"), `${file}: Eclipse Consort lacks the unified reflectable-effect registry`);
+  expect(src.includes("reflectTargetedNightSkill(dw, t.id, 'dream')"), `${file}: Dreamwalker is not connected to Eclipse Consort reflection`);
+  expect(src.includes('const actualScry = reflectInspectSubject(gg, t)'), `${file}: Gargoyle scry is not connected to Eclipse Consort reflection`);
+  expect(src.includes("reflectTargetedNightSkill(gu, submittedGuard, 'protect')"), `${file}: Guard reflection is not resolved in night-action order`);
+  expect(src.includes("reflectTargetedNightSkill(wi, submittedWitchPoison, 'poison')"), `${file}: Witch poison reflection is not resolved in night-action order`);
+  expect(src.includes('群体领域、自动信息、净化、救援、白天技与死亡技不受影响'), `${file}: Eclipse Consort exclusions are not documented`);
   expect(src.includes("case 'sanctuary-block'"), `${file}: missing god-view sanctuary record formatter`);
   expect(src.includes('function logPrivateNightResult(actor, zh, en)'), `${file}: missing private night-result visibility guard`);
-  expect(src.includes("logPrivateNightResult(dw,'摄梦人选择了'"), `${file}: Dreamwalker action is absent from the live observer feed`);
+  expect(src.includes('logPrivateNightResult(dw,dreamReflected?'), `${file}: Dreamwalker action is absent from the live observer feed`);
   expect(src.includes("logPrivateNightResult(al,'炼金魔女发动未明之雾"), `${file}: Alchemist mist is absent from the live observer feed`);
   expect(src.includes("logPrivateNightResult(al,'法老之蛇救下了实际刀口"), `${file}: Alchemist rescue is absent from the live observer feed`);
-  expect(src.includes("logPrivateNightResult(gg,'石像鬼窥视"), `${file}: Gargoyle scry is absent from the live observer feed`);
+  expect(src.includes('logPrivateNightResult(gg,scryReflected?'), `${file}: Gargoyle scry is absent from the live observer feed`);
   expect(src.includes("if (!(actor.isPlayer || !isAnon() || observerView)) return"), `${file}: private action feed can leak into anonymous public view`);
 }
 
