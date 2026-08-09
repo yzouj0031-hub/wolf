@@ -25,6 +25,14 @@ for (const id of builtInIds) {
   expect(fs.existsSync(`icons/roles/${id}.jpg`), `built-in encyclopedia portrait missing: ${id}.jpg`);
 }
 
+for (const file of ['role-effects.js', 'en/role-effects.js']) {
+  const effects = fs.readFileSync(file, 'utf8');
+  expect(effects.includes("base+encodeURIComponent(role.id)+'.jpg'"), `${file}: player cards do not derive portraits from role ids`);
+  expect(effects.includes("setProperty('--role-portrait'"), `${file}: derived player-card portrait is never applied`);
+}
+const effectsCss = fs.readFileSync('role-effects.css', 'utf8');
+expect(effectsCss.includes('background-image: var(--role-portrait, none)'), 'player-card CSS does not consume runtime portrait paths');
+
 if (failures.length) {
   console.error(failures.map(x => `FAIL ${x}`).join('\n'));
   process.exit(1);
