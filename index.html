@@ -14544,8 +14544,9 @@ const NightActions = {
       gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'save'});
       logPrivateNightResult(al,'法老之蛇救下了实际刀口'+victim.name,'The Pharaoh\'s Serpent saved '+victim.name+' from the final attack');
     } else {
-      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:null,result:'hold'});
-      logPrivateNightResult(al,'炼金魔女看见刀口后选择保留法老之蛇','The Alchemist saw the attack target and held the Pharaoh\'s Serpent');
+      al.memory.push({role:'system',content:'【炼金记录】你看见实际狼刀落在'+victim.name+'，选择保留法老之蛇；药剂未消耗。'});
+      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'hold'});
+      logPrivateNightResult(al,'炼金魔女看见实际刀口'+victim.name+'后选择保留法老之蛇','The Alchemist saw the final attack target '+victim.name+' and held the Pharaoh\'s Serpent');
     }
     Render.setSpeaking(al.id,false);
   },
@@ -21979,6 +21980,8 @@ function _buildPrivateInfoLines(p) {
   }
   if (p.role.id === 'alchemist') {
     lines.push('炼金药剂：未明之雾'+(p._mistUsed?'已使用':'可用')+'；法老之蛇'+(p._serpentUsed?'已使用':'可用')+'。同夜只能选择一种。');
+    const serpentHistory=gameRecord.filter(r=>r.role==='alchemist_rescue'&&r.target).map(r=>'第'+r.round+'夜：实际刀口'+r.target+'，'+(r.result==='save'?'已用法老之蛇救下':r.result==='covered_by_witch'?'已由女巫救下，法老之蛇未消耗':'选择不救，法老之蛇未消耗'));
+    if (serpentHistory.length) lines.push('法老之蛇所见：'+serpentHistory.join('；'));
   }
   if (p.role.id === 'gargoyle') {
     const seen=(p._gargoyleSeen||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
@@ -22458,7 +22461,7 @@ function _formatCustomNightAction(r) {
     case 'gravekeeper':   return '守墓人验墓：' + t + ' → ' + (r.result || '未知阵营');
     case 'dreamwalker':   return '摄梦：' + t + (r.result === 'nightmare' ? '（连续第二夜，噩梦致死）' : '（梦境保护）');
     case 'alchemist':     return r.result === 'mist' ? '炼金魔女发动未明之雾：狼刀限于 ' + (r.targets || []).join('、') : '炼金魔女空过';
-    case 'alchemist_rescue': return r.result === 'save' ? '法老之蛇救下实际刀口：' + t : '法老之蛇保留';
+    case 'alchemist_rescue': return r.result === 'save' ? '法老之蛇救下实际刀口：' + t : r.result === 'covered_by_witch' ? '法老之蛇看见实际刀口：' + t + '（已由女巫救下，药剂未消耗）' : '法老之蛇看见实际刀口：' + t + '，选择保留';
     case 'gargoyle':      return '石像鬼窥视：' + t + ' → ' + (r.roleName || '未知身份');
     case 'gargoyle_awaken': return '石像鬼苏醒，获得独立狼刀';
     case 'gargoyle_kill': return t === '无' ? '石像鬼空刀' : '石像鬼夜刀：' + t;
