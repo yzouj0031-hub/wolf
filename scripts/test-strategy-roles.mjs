@@ -32,6 +32,12 @@ for (const file of clients) {
   expect(src.includes("consumeSanctuaryMark(attemptedCharm, 'wolfbeauty')"), `${file}: Wolf Beauty charm must use sanctuary interception`);
   expect(src.includes("consumeSanctuaryMark(t.id, 'wolfconcubine')"), `${file}: Eclipse Consort mark must be cleansable`);
   expect(src.includes("case 'sanctuary-block'"), `${file}: missing god-view sanctuary record formatter`);
+  expect(src.includes('function logPrivateNightResult(actor, zh, en)'), `${file}: missing private night-result visibility guard`);
+  expect(src.includes("logPrivateNightResult(dw,'摄梦人选择了'"), `${file}: Dreamwalker action is absent from the live observer feed`);
+  expect(src.includes("logPrivateNightResult(al,'炼金魔女发动未明之雾"), `${file}: Alchemist mist is absent from the live observer feed`);
+  expect(src.includes("logPrivateNightResult(al,'法老之蛇救下了实际刀口"), `${file}: Alchemist rescue is absent from the live observer feed`);
+  expect(src.includes("logPrivateNightResult(gg,'石像鬼窥视"), `${file}: Gargoyle scry is absent from the live observer feed`);
+  expect(src.includes("if (!(actor.isPlayer || !isAnon() || observerView)) return"), `${file}: private action feed can leak into anonymous public view`);
 }
 
 const map = fs.readFileSync('action-cg.js', 'utf8');
