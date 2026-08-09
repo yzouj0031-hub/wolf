@@ -26,6 +26,11 @@ for (const file of clients) {
   expect(src.includes("cause:'dreamkill'"), `${file}: missing lethal second-dream settlement`);
   expect(src.includes("cause:'dreamlink'"), `${file}: missing dreamer death link`);
   expect(src.includes('alchemistBlocked = S.nightData.alchemistSave'), `${file}: missing serpent rescue settlement`);
+  expect(src.includes('const mistLocked = Array.isArray(S.nightData.alchemistMist)'), `${file}: wolf flow does not detect the Nameless Mist lock`);
+  expect(src.includes('wolfRun.mistNoticeShown = true'), `${file}: wolves are not shown the locked target notice`);
+  expect(src.includes("ws.forEach(w => w.memory.push({role:'system',content:notice}))"), `${file}: AI wolves do not receive the locked target notice`);
+  expect(src.includes('const allTargets = validWolfTargets.slice()'), `${file}: final wolf voting escapes the mist target pool`);
+  expect(src.includes('只能在这三人中提议和投票') || src.includes('Other targets cannot be submitted'), `${file}: human wolf input lacks the mist constraint`);
   expect(src.includes('sanctuaryTarget:null, sanctuaryUsed:false, sanctuaryBlocked:null'), `${file}: missing sanctuary state`);
   expect(src.indexOf("nightStep('wolfconcubine'") < src.indexOf("nightStep('soulwarden'"), `${file}: Soul Warden must act after Eclipse Consort`);
   expect(src.indexOf("nightStep('soulwarden'") < src.indexOf("nightStep('fox'"), `${file}: Soul Warden cleansing must resolve before later good actions`);

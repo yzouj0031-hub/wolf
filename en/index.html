@@ -14785,6 +14785,17 @@ const NightActions = {
     const validWolfTargets = Array.isArray(S.nightData.alchemistMist)
       ? alive.filter(x => S.nightData.alchemistMist.includes(x.id))
       : alive.slice();
+    const mistLocked = Array.isArray(S.nightData.alchemistMist);
+    const mistTargetNames = mistLocked ? validWolfTargets.map(x => x.name).join('、') : '';
+    if (mistLocked && !wolfRun.mistNoticeShown) {
+      wolfRun.mistNoticeShown = true;
+      const notice = uiEnglish()
+        ? '【Nameless Mist · targets locked】The pack may attack only: '+validWolfTargets.map(x=>x.name).join(', ')+'. All other proposals and votes are invalid.'
+        : '【未明之雾·刀口锁定】本夜只能从 '+mistTargetNames+' 中选择刀口；其他玩家的提议和投票均无效。';
+      ws.forEach(w => w.memory.push({role:'system',content:notice}));
+      if (ws.some(w=>w.isPlayer) || S.directorMode || S.pureAI) Render.log('system', notice);
+      else if (!isAnon()) Render.log('wolfchat', notice);
+    }
     // 解析/API 全部失败时不能“随机战术自刀”；随机兜底仍只从非狼与未知机械狼中选。
     // 刀已知队友必须来自狼队明确讨论或人工选择，不能由技术故障触发。
     const safeRandomWolfTargets = validWolfTargets.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf' || x.role.id === 'gargoyle');
@@ -14899,11 +14910,12 @@ const NightActions = {
     // 统一调度狼人发言(AI 走 callAI,人类走 waitInput)
     async function speakOneWolf(p, prompt, isOpening) {
       if (p.isPlayer) {
-        const hint = killBlocked
+        const mistHint = mistLocked ? (uiEnglish() ? '【Nameless Mist】Attack targets are locked to: '+validWolfTargets.map(x=>x.name).join(', ')+'. Other targets cannot be submitted.\n' : '【未明之雾】刀口已锁定为：'+mistTargetNames+'。只能在这三人中提议和投票，其他目标不会被接受。\n') : '';
+        const hint = mistHint + (killBlocked
           ? '【狼队·禁刀夜讨论】本夜狼刀已被封锁，只讨论明天的身份策略、发言配合和抗推方向；或输入 PASS'
           : isOpening
           ? '【狼队·开场陈述】说出你的判断、提议刀谁、理由;或输入 PASS'
-          : '【狼队·回响】可以附议/反驳队友,坚持自己或改主意;或输入 PASS';
+          : '【狼队·回响】可以附议/反驳队友,坚持自己或改主意;或输入 PASS');
         let sp = await waitInput(hint, p.role.name + '密谈', p);
         let explicitHumanAction = '';
         // ★ v9.9.24：读取导演填写的 thinking（与白天发言一致）
@@ -15292,7 +15304,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     }
 
     // === 从 wolfLastActions 生成 wolfVotes(供下方导演主控/平票/补漏路径使用) ===
-    const allTargets = alive.filter(p => p.id !== undefined);
+    const allTargets = validWolfTargets.slice();
     const wolfVotes = {};
     ws.forEach(w => {
       if (w.isPlayer) return; // 人类玩家走下方现成的弹窗选择
