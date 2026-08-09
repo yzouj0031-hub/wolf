@@ -1,10 +1,12 @@
-const CACHE_NAME = 'wolf-pwa-v35-teaching-worldbooks';
+const CACHE_NAME = 'wolf-pwa-v36-role-art-refresh';
 const APP_SHELL = [
   './',
   './index.html',
   './i18n.js',
   './manifest.webmanifest',
   './tablet.css',
+  './role-effects.css?v=36',
+  './role-effects.js?v=36',
   './role-sigils.js',
   './action-cg.js',
   './ui-icons.js',
@@ -15,6 +17,12 @@ const APP_SHELL = [
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png'
 ];
+
+function shouldRefreshFromNetwork(url) {
+  return url.pathname.endsWith('/role-effects.js') ||
+    url.pathname.endsWith('/role-effects.css') ||
+    url.pathname.includes('/icons/roles/');
+}
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
@@ -46,6 +54,24 @@ self.addEventListener('fetch', event => {
           return response;
         })
         .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // Role-card code and portraits change whenever roles are added. Fetching these
+  // from the network first prevents an older service-worker cache from leaving
+  // newly added roles as blank cards; the cached copy still keeps offline play.
+  if (shouldRefreshFromNetwork(url)) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }

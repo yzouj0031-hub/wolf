@@ -33,6 +33,18 @@ for (const file of ['role-effects.js', 'en/role-effects.js']) {
 const effectsCss = fs.readFileSync('role-effects.css', 'utf8');
 expect(effectsCss.includes('background-image: var(--role-portrait, none)'), 'player-card CSS does not consume runtime portrait paths');
 
+const serviceWorker = fs.readFileSync('sw.js', 'utf8');
+expect(serviceWorker.includes("'./role-effects.css?v=36'"), 'service worker app shell omits the current role-effects.css');
+expect(serviceWorker.includes("'./role-effects.js?v=36'"), 'service worker app shell omits the current role-effects.js');
+expect(serviceWorker.includes("url.pathname.endsWith('/role-effects.js')"), 'role-effects.js is not refreshed network-first');
+expect(serviceWorker.includes("url.pathname.endsWith('/role-effects.css')"), 'role-effects.css is not refreshed network-first');
+expect(serviceWorker.includes("url.pathname.includes('/icons/roles/')"), 'built-in role portraits are not refreshed network-first');
+for (const file of clients) {
+  const src = fs.readFileSync(file, 'utf8');
+  expect(src.includes('./role-effects.css?v=36'), `${file}: role-effects.css lacks a cache-busting version`);
+  expect(src.includes('./role-effects.js?v=36'), `${file}: role-effects.js lacks a cache-busting version`);
+}
+
 if (failures.length) {
   console.error(failures.map(x => `FAIL ${x}`).join('\n'));
   process.exit(1);
