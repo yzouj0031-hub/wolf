@@ -17368,7 +17368,7 @@ const PhaseHandlers = {
       if (candidates.length && sheriffP.isPlayer) {
         // ★ 警长可以把自己设为起点（优先发言流），所以候选里带上自己
         const opts = candidates.map(x => ({label: `P${x.id + 1} ${x.name}`, value: String(x.id)}));
-        opts.unshift({label: `P${sheriffP.id + 1} ${sheriffP.name}（我自己·抢先定调）`, value: String(sheriffP.id)});
+        opts.unshift({label: `P${sheriffP.id + 1} ${sheriffP.name}（我自己·优先发言并放弃归票）`, value: String(sheriffP.id)});
         const chosen = await waitChoice(nightContext + '\n从谁开始今天的发言？', '👑 警长定序', opts);
         const parsed = parseInt(chosen);
         if (Number.isInteger(parsed)) startId = parsed;
@@ -17377,16 +17377,21 @@ const PhaseHandlers = {
           {label:'逆时针 ←', value:'ccw'}
         ]);
         direction = dirChoice === 'ccw' ? -1 : 1;
-        // ★ 归票流 or 优先发言流：这是一个真实取舍，交给警长自己定
-        const seatChoice = await waitChoice(
-          '你想什么时候发言？\n· 最后归票：听完所有人再定调、直接指挥投票\n· 按座位顺序：抢先定调逼别人围着你表态，但放弃归票权',
-          '👑 警长发言位', [
-            {label:'🗳️ 最后归票（传统）', value:'last'},
-            {label:'⚡ 按座位顺序发言（放弃归票）', value:'inline'}
-          ]);
-        sheriffSpeaksLast = seatChoice !== 'inline';
+        // 起点就是警长本人时，“优先发言”已经确定，不能再自相矛盾地选择末位归票。
+        if (startId === sheriffP.id) {
+          sheriffSpeaksLast = false;
+        } else {
+          const seatChoice = await waitChoice(
+            '你想什么时候发言？\n· 最后归票：听完所有人再定调、直接指挥投票\n· 按座位顺序：在既定顺序中发言，但放弃归票权',
+            '👑 警长发言位', [
+              {label:'🗳️ 最后归票（传统）', value:'last'},
+              {label:'⚡ 按座位顺序发言（放弃归票）', value:'inline'}
+            ]);
+          sheriffSpeaksLast = seatChoice !== 'inline';
+        }
       } else if (candidates.length) {
-        const seatList = candidates.concat([sheriffP]).map(x => `P${x.id + 1} ${x.name}${x.id===sheriffP.id?'(你自己)':''}`).join('、');
+        const orderCandidates = candidates.concat([sheriffP]);
+        const seatList = orderCandidates.map(x => `P${x.id + 1} ${x.name}${x.id===sheriffP.id?'(你自己；选自己即优先发言并放弃归票)':''}`).join('、');
         const modeNote = S.sheriffDailyOrderMode
           ? '本局开启“警长每日定序”，今天仍由你决定。'
           : '这是第一天，按本局基础规则由你决定。';
@@ -17396,13 +17401,13 @@ const PhaseHandlers = {
           '请选择一名玩家先发言，并选择顺时针或逆时针。顺序会影响信息量：前置位先表态，后置位能听完更多人的判断。\n'+
           '<thinking>结合当前票型、身份声明和谁需要先交信息，决定最有利于好人方的起点与方向</thinking>\n'+
           '<game>不用公开发言</game>\n'+
-          '\n【你还要决定自己在第几个说】两种打法各有得失，按本局局势选：\n· 最后归票：听完全场再定调、直接指挥投票；代价是你的信息最晚出，狼有一整轮围绕你布局。\n· 按座位顺序发言（可以把起点就设成你自己）：抢先定调、逼所有人围着你的信息表态（真预言家想尽早甩查验和警徽流时尤其有用）；代价是放弃归票权，后面所有人都能针对你说的话调整。\n在 action 末尾追加「最后归票」或「按序发言」表明你的选择（不写默认最后归票）。\n'+
+          '\n【你还要决定自己在第几个说】两种打法各有得失，按本局局势选：\n· 最后归票：听完全场再定调、直接指挥投票；代价是你的信息最晚出，狼有一整轮围绕你布局。\n· 按座位顺序发言：在既定顺序中发言；若把起点设为你自己，就是优先发言、抢先定调。代价是放弃归票权。\n【硬约束】起点选你自己时，系统必定按“优先发言并放弃归票”执行，不能同时选择最后归票；若想最后归票，起点必须选择其他玩家。\n在 action 末尾追加「最后归票」或「按序发言」表明你的选择（不写默认最后归票）。\n'+
           '<action>玩家完整名字,顺时针或逆时针,最后归票或按序发言</action>',
           {noMemory:true, skillConfirm:true});
         logNightThinking(sheriffP, r);
         const actionText = ((r && r.action) || '') + '，' + ((r && r.game) || '');
-        const targetName = extractTargetName(actionText, candidates);
-        const targetP = targetName ? candidates.find(x => x.name === targetName) : null;
+        const targetName = extractTargetName(actionText, orderCandidates);
+        const targetP = targetName ? orderCandidates.find(x => x.name === targetName) : null;
         if (targetP) startId = targetP.id;
         // ★ 方向优先只从 action 判定：action 里写了方向词就只看 action，没写才退回 game；
         //   且必须"含逆且不含顺"才逆——避免公开发言里顺带提到"逆时针"把方向判反。
@@ -17410,14 +17415,18 @@ const PhaseHandlers = {
         direction = (/逆/.test(_dirSrc) && !/顺/.test(_dirSrc)) ? -1 : 1;
         // ★ 发言位：只有明确表示"按序/抢先/不归票"才放弃归票权，其余一律回退到传统的最后归票
         const _seatSrc = ((r && r.action) || '') + ' ' + ((r && r.thinking) || '');
-        sheriffSpeaksLast = !(/按序发言|按座位|按顺序发言|抢先|优先发言|不归票|放弃归票/.test(_seatSrc));
+        sheriffSpeaksLast = startId === sheriffP.id
+          ? false
+          : !(/按序发言|按座位|按顺序发言|抢先|优先发言|不归票|放弃归票/.test(_seatSrc));
       }
 
       speakOrder = buildCircularSpeakOrder(S.players, startId, direction);
       const dirText = direction === -1 ? '逆时针' : '顺时针';
       const sourceText = S.sheriffDailyOrderMode ? '警长每日定序' : '首日警长定序';
       _syncSeat();
-      const seatText = sheriffSpeaksLast ? '警长最后归票' : '警长按座位顺序发言（已放弃归票权）';
+      const seatText = sheriffSpeaksLast
+        ? '警长最后归票'
+        : (startId === sheriffP.id ? '警长优先发言（已放弃归票权）' : '警长按座位顺序发言（已放弃归票权）');
       speakOrderMeta = {
         title: `👑 ${sheriffP.name}指定：从${S.players[startId].name}开始 · ${dirText}`,
         rule: `${nightContext} · ${sourceText} · ${seatText}`
