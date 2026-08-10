@@ -3829,15 +3829,13 @@ const SOCIAL_GAME_COGNITION_RULES_LEGACY = `
 
 允许：犹豫、情绪化、怀疑、赌错、信息不完整、临时改变想法、说错话、被带节奏。
 
-不要总是：长篇大论、总结全场、像解说员一样分析、每句话都逻辑严密。
-
-有时只表达直觉、不安、怀疑、情绪、某一个小细节，也可以成立。
+不要为了显得像“高玩”而机械总结全场、像解说员一样复述所有人的发言；但公开对线也不能只报一句结论。直觉、不安或情绪可以作为起点，随后要说清它由谁的哪句话、哪张票或哪个行为引起。
 
 ## 发言风格
 
-发言尽量像真人玩家：长短不固定、不一定完整、不一定正确、不一定稳定。
+发言尽量像真人玩家：可以不完全正确，也可以改变想法，但公开讨论默认要形成一段足以让别人判断、回应和站队的完整发言。
 
-允许：简短发言、跟票、嘴硬、上头、社恐、沉默、情绪反应。
+每次公开发言至少完成这些内容中的两项：回应前置位最关键的观点；用具体言行或票型支撑自己的判断；给出当前信任/怀疑关系与投票倾向。被点名质疑、进入身份对跳或处在主要出局位时，三项都要完成并逐项回应，不能用“没什么补充”“跟票”“先这样”草率结束。
 
 不要总像在写小说或攻略分析。
 
@@ -9388,9 +9386,11 @@ ${userPersona}
   const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！' + capabilityIndex + absentRoleRule;
 
   const isPureAI = S.pureAI;
-  const modelAdapt = isPureAI
-    ? '\n\n【⚠️ 你不是助手，你就是「' + p.name + '」本人，正坐在狼人杀桌上发言】\n禁止"让我写""以下是""我来帮你"等助手口吻。' + strictRoleRule + '\n\n【⚠️ 标签独立 — 不要嵌套不要交叉】\n· <draft>/<game>/<action>/<interrupt> 是四个独立字段，每个用闭合的尖括号标签包裹\n· 绝对不要把 <interrupt>no</interrupt> 这样的标签写进 <game> 里——会导致系统识别失败\n· 错误示例：<game><interrupt>no</interrupt> 我提议刀X</game>\n· 正确示例：<game>我提议刀X，理由是...</game><action>X的完整名字</action><interrupt>no</interrupt>\n\n【⚠️ action 字段必须填完整玩家名】\n· action 用于系统识别你的目标，**必须**写【本局配置】或【可刀目标】里完整的玩家名\n· 不要写简称（"灰原" → 应该写 "灰原哀"）、不要写 None（除非真的不行动）\n· 如果 action 提取失败，系统会随机给你选一个目标，那将是你最不想看到的结果\n\n【输出格式·必须严格遵守】\n<draft>\n<!-- 📄 建模演练：这里是你说话前的内心草稿，只有你自己看得到。\n     不用写成报告，不用完整，不用正确——就是你此刻脑子里在转的东西。\n     可以改主意，可以矛盾，可以只是一种感觉或直觉。\n     想到什么写什么，写着写着自然会知道该说什么。 -->\n</draft>\n<game>从草稿里自然流出来的那句话——就是你真正想说的。可以很短，可以不完整，但必须是实质内容，不能为空。</game>\n⚠️【thinking模型特别注意】你在<draft>/思考里分析完之后，【必须】把结论用<game>标签当众说出来——思考是给你自己看的，<game>才是别人听得到的。绝对不要\"想完就交卷\"、只输出思考而把<game>留空或省略，那样你这一轮等于一句话没说、白白沉默出局。无论你前面想了多少，最后【一定】要有一段非空的<game>发言。\n<action>行动目标（名字或None）</action>\n<plan>【给未来的自己留一句作战计划，下一手你会看到它】规则：要么留空写 None，要么就写【具体】——盯着谁、准备第几天做什么、为什么（例："深水到D3，盯P5疑似真预言家，等狼队消耗掉守卫再悍跳女巫"）。禁止"继续观察/再看看/保持潜伏"这种正确的废话，那种不如不写。局势没变就沿用上次计划保持连贯，变了就更新。</plan>'
+  let modelAdapt = isPureAI
+    ? '\n\n【⚠️ 你不是助手，你就是「' + p.name + '」本人，正坐在狼人杀桌上发言】\n禁止"让我写""以下是""我来帮你"等助手口吻。' + strictRoleRule + '\n\n【⚠️ 标签独立 — 不要嵌套不要交叉】\n· <draft>/<game>/<action>/<interrupt> 是四个独立字段，每个用闭合的尖括号标签包裹\n· 绝对不要把 <interrupt>no</interrupt> 这样的标签写进 <game> 里——会导致系统识别失败\n· 错误示例：<game><interrupt>no</interrupt> 我提议刀X</game>\n· 正确示例：<game>我提议刀X，理由是...</game><action>X的完整名字</action><interrupt>no</interrupt>\n\n【⚠️ action 字段必须填完整玩家名】\n· action 用于系统识别你的目标，**必须**写【本局配置】或【可刀目标】里完整的玩家名\n· 不要写简称（"灰原" → 应该写 "灰原哀"）、不要写 None（除非真的不行动）\n· 如果 action 提取失败，系统会随机给你选一个目标，那将是你最不想看到的结果\n\n【输出格式·必须严格遵守】\n<draft>\n<!-- 📄 建模演练：这里是你说话前的内心草稿，只有你自己看得到。\n     不用写成报告，不用完整，不用正确——就是你此刻脑子里在转的东西。\n     可以改主意，可以矛盾，可以只是一种感觉或直觉。\n     想到什么写什么，写着写着自然会知道该说什么。 -->\n</draft>\n<game>把草稿中的核心判断完整说给全场听。公开讨论时不能只给一句结论：至少说清立场、具体依据和投票或下一步倾向；被点名、被质疑或身份对跳时逐项回应。必须是实质内容，不能为空。</game>\n⚠️【thinking模型特别注意】你在<draft>/思考里分析完之后，【必须】把结论用<game>标签当众说出来——思考是给你自己看的，<game>才是别人听得到的。绝对不要\"想完就交卷\"、只输出思考而把<game>留空或省略，那样你这一轮等于一句话没说、白白沉默出局。无论你前面想了多少，最后【一定】要有一段非空的<game>发言。\n<action>行动目标（名字或None）</action>\n<plan>【给未来的自己留一句作战计划，下一手你会看到它】规则：要么留空写 None，要么就写【具体】——盯着谁、准备第几天做什么、为什么（例："深水到D3，盯P5疑似真预言家，等狼队消耗掉守卫再悍跳女巫"）。禁止"继续观察/再看看/保持潜伏"这种正确的废话，那种不如不写。局势没变就沿用上次计划保持连贯，变了就更新。</plan>'
     : '\n\n【⚠️ 你不是助手，你就是「' + p.name + '」本人，正坐在狼人杀桌上发言】\n禁止"让我写""以下是""我来帮你"等助手口吻。' + strictRoleRule + '\n\n【⚠️ action 字段必须填完整玩家名（不要简称、不要 None 除非真的不行动）】\n\n【输出格式·必须严格遵守】\n<game>你当众说出口的话，必须有实质内容，不能为空</game>\n<action>行动目标（名字或None）</action>';
+
+  modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。至少说清立场、一个具体依据以及投票或下一步倾向；被点名、被质疑或身份对跳时必须逐项回应。投票、技能确认和夜间私密选择不受此要求影响，只提交系统要求的动作。';
 
   // ★ v9.9.24：当前胜负规则说明（随屠边开关动态生成）
   const winRuleBlock = S.killEdgeMode
@@ -9802,8 +9802,10 @@ async function callAI(p, prompt, opts) {
       .replace(/\n?格式要求[\s\S]*?<\/action>/gi, '')
       .trim();
     // 只加一句自然语言引导，不强制格式
-    finalPrompt += '\n\n你是游戏中的一名玩家，现在轮到你发言。直接用第一人称对其他玩家说话，像在桌上聊天一样自然。发言长度服从局势，不设统一的短回复目标：普通轮次可以简洁；身份对跳、被列为主要出局位、对方提出多个明确问题或投票前需要翻盘时，应完整回应最强指控，逐项回答并给出自己的判断，不要为了压在 100-200 字内而省略关键论据。反过来也不要用重复和表演把一个观点扩写成超长独白。\n\n如果你需要先分析再发言，可以在 [草稿] 和 [/草稿] 之间写你的内心思考——这部分不会被其他玩家看到，相当于你的草稿纸。例如：\n[草稿]\nP3 一直跑得太快，可能是狼在带节奏。我打算先观望，看 P5 怎么接。\n[/草稿]\n大家先别急着推 P3，我觉得他的发言虽然激进，但逻辑没问题。我反倒觉得 P5 一直在附和，像是在凑队。\n\n⚠️【格式铁律·否则你会沉默出局】① 用了 [草稿] 就【必须】写 [/草稿] 把它闭合，绝不能只写 [草稿] 开头就不管了；② 你真正要说出口的话【必须】写在 [/草稿] 之后（草稿外面），哪怕你在草稿里已经想过发言内容，也要在 [/草稿] 外面把这段完整发言【重新完整说一遍】——草稿里的字不会被当成发言，只有草稿外面的才算。绝对不要把最终发言留在 [草稿] 里面。\n\n[草稿] 之外的内容才是你真正说出口的话。如果不需要草稿，直接说话也行。要投票请在最后一句说明。';
+    finalPrompt += '\n\n你是游戏中的一名玩家，现在轮到你发言。直接用第一人称对其他玩家说话，像在桌上聊天一样自然。公开发言不设短回复目标：普通轮次也要把立场、具体依据和票意说完整；身份对跳、被列为主要出局位、对方提出多个明确问题或投票前需要翻盘时，应完整回应最强指控，逐项回答并给出自己的判断，不要为了压在 100-200 字内而省略关键论据。反过来也不要用重复和表演把一个观点扩写成超长独白。\n\n如果你需要先分析再发言，可以在 [草稿] 和 [/草稿] 之间写你的内心思考——这部分不会被其他玩家看到，相当于你的草稿纸。例如：\n[草稿]\nP3 一直跑得太快，可能是狼在带节奏。我打算先观望，看 P5 怎么接。\n[/草稿]\n大家先别急着推 P3，我觉得他的发言虽然激进，但逻辑没问题。我反倒觉得 P5 一直在附和，像是在凑队。\n\n⚠️【格式铁律·否则你会沉默出局】① 用了 [草稿] 就【必须】写 [/草稿] 把它闭合，绝不能只写 [草稿] 开头就不管了；② 你真正要说出口的话【必须】写在 [/草稿] 之后（草稿外面），哪怕你在草稿里已经想过发言内容，也要在 [/草稿] 外面把这段完整发言【重新完整说一遍】——草稿里的字不会被当成发言，只有草稿外面的才算。绝对不要把最终发言留在 [草稿] 里面。\n\n[草稿] 之外的内容才是你真正说出口的话。如果不需要草稿，直接说话也行。要投票请在最后一句说明。';
   }
+
+  if (isFreeOutput) finalPrompt += '\n\n【公开发言完整度·最高优先级】当前若是公开讨论，不得只输出一两句结论，也不要把主要分析只留在草稿。正式发言至少要有：明确立场或票意、一个具体言行/票型/事实依据、以及对最关键前置观点的回应。即使没有新信息，也要评价当前最大争议，禁止用“没补充”“跟票”“先观察”结束。被点名、被质疑、身份对跳或处在主要出局位时，逐项回应并给出替代判断。宁可把有效论据说完整，也不要为了简洁输掉对线；同时避免机械复读和无信息灌水。';
 
   // 不只system prompt，当前任务与历史memory同样必须脱敏；否则动作候选/旧对话仍会把真名泄露给API。
   if (blindNamesOn()) finalPrompt = blindMaskAIInstructions(finalPrompt);
@@ -12195,6 +12197,9 @@ async function requestExtraSpeech(alive) {
 
 async function proc(players, promptFn, label, opts) {
   opts = opts || {};
+  // 公开讨论不是动作确认：短到只剩一句结论时，模型几乎没有对线和争取票型的空间。
+  // 默认要求至少 80 字；调用方可以按特殊公开环节调低，但不能低于 30 字。
+  const minSpeechChars = Math.max(30, Number(opts.minSpeechChars) || 80);
   const trialOn = $('m-trial').checked && !opts.wolfOnly && !opts.noTrial;
   const conc = getC('c-speak');
   let idx = 0;
@@ -12213,14 +12218,12 @@ async function proc(players, promptFn, label, opts) {
       if (p.isPlayer) { results[j] = 'player'; return; }
       if (S.silenced===p.id && !opts.wolfOnly) { results[j]={thinking:'(被禁言)',game:'🤐 (禁言)',action:'None'}; return; }
       if (S.abortCtrl && S.abortCtrl.signal.aborted) return;
-      // ★ 白天发言过短检测：白名单+长度判断
+      // ★ 公开发言完整度检测：纯动作/私密阶段不会走 proc，因此这里不接受一句话敷衍。
       const _isValidShortGame = (g) => {
         // ★ v9.9.2: 系统占位（"(沉默)"、"请求失败"、"沉默·发言生成失败" 等）必须触发抢救/备用 API，
         //   不能被当成正常发言跳过。只识别系统占位，不会误伤玩家真实说出的"过""弃票""同意"等短句。
         if (isAISilentFailure(g)) return false;
-        // ★ v9.4 原则保留：非空非占位的任何 game（哪怕 1 个字、一个动作描述）都接受，
-        //   让 AI 想咋演就咋演；抢救机制只作为"完全没写 game"的兜底，不做"写得不够好"的二次审判
-        return true;
+        return String(g || '').trim().length >= minSpeechChars;
       };
       // ★ 短发言连续告警：白天非狼队发言时，连续 3 轮 game 内容 < 30 字则在 dev 日志告警
       //   这不重试，只标记——目的是让用户看出哪个模型/玩家在游戏后期开始衰退
@@ -12249,6 +12252,25 @@ async function proc(players, promptFn, label, opts) {
         // ★ 抢先朗读只在"发言并发=1的公开发言"时开启:并发>1会造成多人同时开口、乱序
         const _liveOK = batch.length === 1 && !opts.wolfOnly && !opts.silent;
         let _r = factCheck(p, await callAI(p, promptFn(p), _liveOK ? {...opts, liveTTS:true} : opts));
+        // 非空但过短时，先让同一模型重写扩充。思考强度控制内部推理，不能替代公开表达完整度。
+        const _firstSpeech = String(_r && _r.game || '').trim();
+        if (!opts.wolfOnly && !opts.silent && !isAISilentFailure(_firstSpeech)
+            && _firstSpeech.length > 0 && _firstSpeech.length < minSpeechChars
+            && !S.debugDisableShortRetry) {
+          Render.devLog('warn', `[P${p.id+1} ${p.name}] 公开发言仅${_firstSpeech.length}字，要求同模型扩充到完整对线发言`);
+          const expansionPrompt = promptFn(p)
+            + `\n\n【系统重写·公开发言过短】上一份公开发言只有${_firstSpeech.length}字，无法充分回应场上观点。`
+            + '请保持原有身份、立场和投票方向不变，重新写成120至300字的正式发言：明确立场，引用至少一个具体言行/票型/事实作为依据，回应最关键的前置观点，并给出投票倾向。不要写草稿、XML标签、开场说明或“没有补充”。';
+          try {
+            const expanded = factCheck(p, await callAI(p, expansionPrompt, {
+              ...opts, noMemory:true, liveTTS:false, maxRetries:1
+            }));
+            if (String(expanded && expanded.game || '').trim().length > _firstSpeech.length) _r = expanded;
+          } catch (expandErr) {
+            // 扩写失败不能吞掉首份真实发言；后续仍可走备用 API，最终至少保留原文。
+            Render.devLog('warn', `[P${p.id+1} ${p.name}] 短发言扩写请求失败，保留首份发言：${expandErr && expandErr.message || expandErr}`);
+          }
+        }
         // 只对白天非狼队发言做过短处理
         // ★ 调试开关 S.debugDisableShortRetry: 在控制台执行 S.debugDisableShortRetry=true 可关闭重试,用于观察AI真实输出
         if (!opts.wolfOnly && !opts.silent && !_isValidShortGame(_r && _r.game) && !S.debugDisableShortRetry) {
@@ -12256,11 +12278,12 @@ async function proc(players, promptFn, label, opts) {
           //   只对"thinking 长 + game 短"这种典型的不按格式输出有效
           //   ★ v9.4 增加质量检查:抢救出来的内容必须像"游戏发言",否则放弃
           const rescue = rescueGameFromThinking(_r && _r.thinking, false);
-          if (rescue.rescued && isRescuedContentSafe(rescue.rescued)) {
+          if (rescue.rescued && isRescuedContentSafe(rescue.rescued)
+              && String(rescue.rescued).trim().length > String(_r && _r.game || '').trim().length) {
             Render.devLog('warn', `[P${p.id+1} ${p.name}] 发言为空，从thinking抢救成功(${rescue.reason}): "${rescue.rescued.slice(0,60)}…"`);
             Render.log('system', `🩹 ${p.name} 发言不规范，已从思考中提取救援`);
             _r = factCheck(p, {..._r, game: rescue.rescued});
-          } else if (rescue.rescued) {
+          } else if (rescue.rescued && !isRescuedContentSafe(rescue.rescued)) {
             // ★ v9.4: 抢救成功但内容质量太低(纯英文/动作描述/破戏)→ 放弃,让 AI 沉默更体面
             Render.devLog('warn', `[P${p.id+1} ${p.name}] 抢救出来的内容质量不合格(可能是英文残留或动作描述),放弃抢救: "${rescue.rescued.slice(0,40)}"`);
             // 不展示"🩹 已从思考中提取救援",直接接受空发言,前端显示"(沉默)"更体面
@@ -12269,7 +12292,9 @@ async function proc(players, promptFn, label, opts) {
             // callAI 内部会根据 m-manual-retry 决定弹对话框还是直接走 fallback
             Render.devLog('warn', `[P${p.id+1} ${p.name}] 发言过短(${String(_r&&_r.game||'').trim().length}字)，thinking抢救失败(${rescue.reason})`);
             Render.log('system', `⚠️ ${p.name} 发言过短`);
-            _r = factCheck(p, await callAI(p, promptFn(p), {...opts, forceFallback: true}));
+            const fallbackSpeech = factCheck(p, await callAI(p, promptFn(p), {...opts, forceFallback: true}));
+            if (String(fallbackSpeech && fallbackSpeech.game || '').trim().length > String(_r && _r.game || '').trim().length
+                || isAISilentFailure(_r && _r.game)) _r = fallbackSpeech;
           } else {
             // 抢救失败 + 没备用 API + 没开手动重试：用同一 API 做一次“无草稿短格式”补发。
             // 旧逻辑直接接受空发言，会把技术故障伪装成玩家突然沉默，严重污染身份推理。
@@ -12278,9 +12303,11 @@ async function proc(players, promptFn, label, opts) {
               + '\n\n【系统技术补发】上一份回复因格式/截断问题未能形成公开发言。'
               + '这次不要写草稿、思考过程、XML标签或开场说明，直接以玩家第一人称说出正式发言。'
               + '控制在120至300字，保留核心判断、具体理由和投票倾向。';
-            _r = factCheck(p, await callAI(p, recoveryPrompt, {
+            const recoveredSpeech = factCheck(p, await callAI(p, recoveryPrompt, {
               ...opts, noMemory:true, forceFallback:false, maxRetries:1
             }));
+            if (String(recoveredSpeech && recoveredSpeech.game || '').trim().length > String(_r && _r.game || '').trim().length
+                || isAISilentFailure(_r && _r.game)) _r = recoveredSpeech;
           }
         } else if (S.debugDisableShortRetry && !_isValidShortGame(_r && _r.game)) {
           // 调试模式:不重试但记录原始过短输出,供你观察
@@ -12290,7 +12317,14 @@ async function proc(players, promptFn, label, opts) {
         // 这个标记会让展示层跳过玩家沉默节点，改写一条中立系统说明；绝不让后置位
         // 把 API/解析故障当成该玩家主动沉默，更不会把“(沉默)”写入身份推理历史。
         if (!_isValidShortGame(_r && _r.game)) {
-          _r = {...(_r || {}), _technicalFailure:true, _technicalReason:'生成或解析后无有效正式发言'};
+          const remaining = String(_r && _r.game || '').trim();
+          if (remaining && !isAISilentFailure(remaining)) {
+            // 两次生成仍未达目标时保留真实发言，避免把“偏短”误装成技术沉默。
+            _r = {..._r, _speechStillShort:true};
+            Render.devLog('warn', `[P${p.id+1} ${p.name}] 重写后仍只有${remaining.length}字，保留发言但标记为偏短`);
+          } else {
+            _r = {...(_r || {}), _technicalFailure:true, _technicalReason:'生成或解析后无有效正式发言'};
+          }
         }
         // ★ 跟踪连续短发言（不影响输出，只产生告警）
         _trackShortStreak(p, _r && _r.game);
@@ -17334,7 +17368,7 @@ const PhaseHandlers = {
         const hp = alive.find(p => p.isPlayer);
         await waitChoice('退选环节结束，候选人将进行最终陈词' + (hp ? '\n你是：' + hp.name + '【' + hp.role.emoji + hp.role.name + '】' : ''), '👑 最终陈词', [{label:'▶️ 开始陈词', value:'go'}]);
       }
-      const finalSpeechResult = await proc(candidates, p => '【警长最终陈词】退选环节已结束，你成功留在竞选中。这是投票前最后一次发言机会，说说你当警长会怎么做、为什么大家应该投你，简短有力地做最后争取。\n<thinking>思考策略</thinking>\n<game>最终陈词，直接开口</game>\n<action>None</action>', '最终陈词');
+      const finalSpeechResult = await proc(candidates, p => '【警长最终陈词】退选环节已结束，你成功留在竞选中。这是投票前最后一次发言机会，说清你当警长会怎么做、为什么大家应该投你，并回应其他候选人最关键的竞争观点，做最后争取。\n<thinking>思考策略</thinking>\n<game>最终陈词，直接开口</game>\n<action>None</action>', '最终陈词');
       // ★ 白狼王在最终陈词阶段自爆 → 竞选作废，强制入夜
       if (finalSpeechResult === 'whitewolf_explode' || S._sheriffAbortedByExplode) { if (await _abortSheriffIfExploded()) return; }
 
@@ -17767,7 +17801,7 @@ const PhaseHandlers = {
 ② 公开改票或站边——比如"我第一轮怀疑X，听完Y的发言我现在改投Z，因为……"
 ③ 提供第一轮没说过的新角度——票型异常、获利链分析、视角矛盾、对跳互殴的判断
 
-【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。必须针对刚才听到的发言给出具体回应，并明确你的投票倾向。不得少于60字。长度由你自己判断——投票前最后发言，把核心论据说透比凑字数重要，宁可多说也不要敷衍。`;
+【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。必须针对刚才听到的发言给出具体回应，并明确你的投票倾向。不得少于80字。投票前最后发言要把核心论据说透，宁可多说也不要敷衍。`;
     };
     let result2;
     if (isMC()) {
@@ -27009,7 +27043,7 @@ function buildWebPrompt(p) {
     const deathAnnounce = S._lastNightDeaths && S._lastNightDeaths.length
       ? `\n昨晚死亡：${S._lastNightDeaths.map(id => S.players[id] ? S.players[id].name : '未知').join('、')}`
       : '\n昨晚：平安夜';
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}\n\n轮到你发言。给出你自己的观察、当前可信度/怀疑度和投票倾向；有身份信息就报清记录。不要把单次口误包装成唯一答案，也不要重复前置位已经说完的整套逻辑。自然发言，长短按你真正拥有的信息决定。`;
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}\n\n轮到你公开发言。这是影响别人判断与票型的正式机会，不要只给一两句结论。请完整说清：你的当前立场或票意；至少一个具体言行、票型、公开事实或合法行动记录作为依据；以及你对前置位最关键观点的回应。若被点名质疑、处在身份对跳或主要出局位，必须逐项反驳并给出替代判断。有身份信息就报清记录；不要把单次口误包装成唯一答案，也不要机械复读前置位的整套逻辑。`;
 
   } else if (S.phase === 'vote') {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n\n只向主持人提交一个投票目标，输出“投票：玩家名”。不要追加公开发言、解释理由或向其他玩家提问；本阶段无人会回应。`;
