@@ -14121,6 +14121,24 @@ function logPrivateNightResult(actor, zh, en) {
   Render.log(observerView && isAnon() ? 'system' : 'night-result', uiEnglish() ? en : zh, {players:[actor.id], actorId:actor.id});
 }
 
+// ★ 夜间行动统一记录口：私密记忆 + 复盘记录 + UI 日志一次写全。
+//   历史教训：logPrivateNightResult 只写 UI 日志、attachNightThinking 与
+//   recordTechnicalActionFailure 只写 gameRecord —— 三个函数名字都像"在记录"，
+//   但没有一个碰 actor.memory。照抄这套三件套的角色（机械狼刀/毒、狼美人、
+//   连环杀手、石像鬼刀、愚者、自创守护/护盾、摹术师镜像换位）因此完全不记得
+//   自己夜里做过什么，白天发言出现无法解释的断裂，还会把引擎缺陷记成模型的
+//   规则违规、污染多模型对局统计。
+//   新增夜间角色一律走这个口，不要再手写三件套。
+//   memo 省略时默认用 zh 作为记忆文本；显式传 null/false 表示该事件是公开信息
+//   （警长竞选、投票、审判等），不需要写进私密记忆。
+function recordNightAction(actor, opts) {
+  if (!actor || !opts) return;
+  const memoText = (opts.memo === undefined) ? opts.zh : opts.memo;
+  if (memoText) actor.memory.push({role:'system', content: memoText});
+  if (opts.record) gameRecord.push(opts.record);
+  if (opts.zh) logPrivateNightResult(actor, opts.zh, opts.en || opts.zh);
+}
+
 const NightActions = {
   // 💘 丘比特只在第一夜、且在其他身份前行动。
   async cupid(alive) {
@@ -14257,6 +14275,9 @@ const NightActions = {
       }
       if(pair.length===2)S.nightData.imitatorSwap=pair.map(x=>x.id);
       gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:pair.length===2?pair.map(x=>x.name).join('↔'):null,targets:pair.map(x=>x.name),skill,result:pair.length===2?'execute':'pass'});
+      im.memory.push({role:'system', content:pair.length===2
+        ? '【摹取·镜像换位记录·私密】第'+S.round+'夜你交换了'+pair.map(x=>x.name).join(' ↔ ')+'。本夜狼刀若落在这两人之一，会转移到另一人身上。这是只有你知道的信息，白天不得泄露。'
+        : '【摹取·镜像换位记录·私密】第'+S.round+'夜你没有完成换位，本夜没有任何人被交换。'});
       logPrivateNightResult(im,pair.length===2?'摹术师镜像换位：'+pair.map(x=>x.name).join(' ↔ '):'摹术师本夜没有发动镜像换位',pair.length===2?'The Imitator swapped '+pair.map(x=>x.name).join(' ↔ '):'The Imitator did not use the mirrored swap');return;
     }
     const selfAllowed=skill==='protect'||skill==='cleanse';
@@ -14449,16 +14470,16 @@ const NightActions = {
   async gargoyleKill(alive) {
     const gg=alive.find(p=>p.role.id==='gargoyle');
     if(!gg || alive.some(p=>p.role.team==='bad' && p.id!==gg.id) || S.nightData.kill!=null) return;
-    if(S.nightData.foxBlockKill){gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,target:null,blocked:true,result:'blocked'});logPrivateNightResult(gg,'石像鬼本夜受到禁刀影响，无法发动袭击','The Gargoyle was prevented from attacking tonight');return;}
+    if(S.nightData.foxBlockKill){recordNightAction(gg,{memo:'【石像鬼记录·私密】第'+S.round+'夜你受到禁刀影响，无法发动袭击；本夜你没有造成任何击杀，不要把它当作自己成功行动过。',zh:'石像鬼本夜受到禁刀影响，无法发动袭击',en:'The Gargoyle was prevented from attacking tonight',record:{type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,target:null,blocked:true,result:'blocked'}});return;}
     // 苏醒后的石像鬼使用独立狼刀，可以像普通狼队一样战术性自刀；未明之雾仍严格限制候选池。
     const ts=(Array.isArray(S.nightData.alchemistMist)?alive.filter(p=>S.nightData.alchemistMist.includes(p.id)):alive.slice());
     if(!ts.length)return;
-    if(!gg._gargoyleAwake){gg._gargoyleAwake=true;gameRecord.push({type:'night_action',role:'gargoyle_awaken',round:S.round,target:gg.name,result:'awaken'});logPrivateNightResult(gg,'其他狼系已全部出局，石像鬼苏醒并获得独立狼刀','All other wolves are gone; the Gargoyle awakened and gained an independent attack');}
+    if(!gg._gargoyleAwake){gg._gargoyleAwake=true;recordNightAction(gg,{memo:'【石像鬼记录·私密】第'+S.round+'夜其他狼系已全部出局，你就此苏醒并获得独立狼刀，从今夜起每晚可单独袭击一人。这是只有你知道的信息。',zh:'其他狼系已全部出局，石像鬼苏醒并获得独立狼刀',en:'All other wolves are gone; the Gargoyle awakened and gained an independent attack',record:{type:'night_action',role:'gargoyle_awaken',round:S.round,target:gg.name,result:'awaken'}});}
     let t=null; Render.setSpeaking(gg.id,true);
     if(gg.isPlayer){const opts=ts.map(x=>({label:'P'+(x.id+1)+' '+x.name+(x.id===gg.id?'（自刀）':''),value:x.name}));opts.push({label:'空刀',value:'None',abs:true});const v=await waitChoice('其他狼系已全部出局，你已苏醒。今晚刀谁？','石像鬼夜刀',opts);t=v==='None'?null:findPlayer(v,ts);}
     else{const r=await nightTwoStep(gg,'【石像鬼苏醒·第'+S.round+'夜】其他狼系已全部出局。可刀：'+ts.map(x=>'P'+(x.id+1)+' '+x.name+(x.id===gg.id?'（你自己，可自刀）':'')).join('、')+'。可明确空刀；自刀会让唯一狼人面临立即落败，只有确有特殊收益时才考虑。','<action>玩家名 或 PASS</action>');logNightThinking(gg,r);const d=await resolveAIAction3(gg,r,{label:'石像鬼夜刀',candidates:ts,targetCount:1,allowPass:true,formatHint:'KILL|P数字 或 PASS'});if(d.status==='execute')t=d.targets[0];}
-    if(t){S.nightData.kill=t.id;S.nightData.killChosenByWolf=t.id;S.nightData.killActorRole='gargoyle';gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,targetId:t.id,target:t.name,selfKill:t.id===gg.id,result:'pending'});logPrivateNightResult(gg,'石像鬼选择袭击'+t.name,'The Gargoyle chose to attack '+t.name);}
-    else{gameRecord.push({type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,target:null,empty:true,result:'empty'});logPrivateNightResult(gg,'石像鬼本夜选择空刀','The Gargoyle chose not to attack tonight');}
+    if(t){S.nightData.kill=t.id;S.nightData.killChosenByWolf=t.id;S.nightData.killActorRole='gargoyle';recordNightAction(gg,{memo:'【石像鬼记录·私密】第'+S.round+'夜你袭击了'+t.name+(t.id===gg.id?'（自刀）':'')+'。这是你的夜间行动，白天不得泄露，也不要在发言里表现出知道刀口。',zh:'石像鬼选择袭击'+t.name,en:'The Gargoyle chose to attack '+t.name,record:{type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,targetId:t.id,target:t.name,selfKill:t.id===gg.id,result:'pending'}});}
+    else{recordNightAction(gg,{memo:'【石像鬼记录·私密】第'+S.round+'夜你选择空刀，没有袭击任何人；本夜的死亡（如果有）与你无关。',zh:'石像鬼本夜选择空刀',en:'The Gargoyle chose not to attack tonight',record:{type:'night_action',role:'gargoyle_kill',round:S.round,casterId:gg.id,target:null,empty:true,result:'empty'}});}
     Render.setSpeaking(gg.id,false);
   },
 
@@ -14710,10 +14731,14 @@ const NightActions = {
       S.mechGuardLast = t.id;
       if (!isAnon()) Render.log('night-result','🤖🛡️ 机械狼守护了'+t.name);
       gameRecord.push({type:'night_action', role:'mechwolf_guard', round:S.round, target:t.name});
+      mw.memory.push({role:'system', content:'【🤖机械狼·守护记录·私密】第'+S.round+'夜你用学来的守护能力守了'+(t.id===mw.id?'你自己':t.name)+'。下一夜不能再守同一人。这是只有你知道的信息。'});
     } else {
       S.mechGuardLast = null;
       if (!isAnon()) Render.log('night-result', actionStatus==='invalid' ? '🤖🛡️ 机械狼守护技术解析失败（未守护，不是主动空守）' : '🤖🛡️ 机械狼主动空守');
       gameRecord.push({type:'night_action', role:'mechwolf_guard', round:S.round, target:null, technical:actionStatus==='invalid'});
+      mw.memory.push({role:'system', content:actionStatus==='invalid'
+        ? '【🤖机械狼·守护记录·私密】第'+S.round+'夜你的守护没有成功执行，本夜没有任何人被你守到。不要把它当作成功行动或编造守护结果。'
+        : '【🤖机械狼·守护记录·私密】第'+S.round+'夜你主动空守，没有守护任何人。'});
     }
   },
 
@@ -14749,9 +14774,13 @@ const NightActions = {
       S.nightData.mechPoison = t.id;
       if (!isAnon()) Render.log('night-result','🤖☠️ 机械狼毒了'+t.name);
       gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, target:t.name});
+      mw.memory.push({role:'system', content:'【🤖机械狼·毒药记录·私密】第'+S.round+'夜你用学来的毒药毒了'+t.name+'，毒药已消耗完毕，之后不再拥有毒。这是只有你知道的信息，白天不得泄露。'});
     } else {
       if (!isAnon()) Render.log('night-result', actionStatus==='invalid' ? '🤖☠️ 机械狼毒药技术解析失败（未使用，不是主动保留）' : '🤖☠️ 机械狼主动保留毒药');
       gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, target:null, technical:actionStatus==='invalid'});
+      mw.memory.push({role:'system', content:actionStatus==='invalid'
+        ? '【🤖机械狼·毒药记录·私密】第'+S.round+'夜你的毒药没有成功使用，毒药未消耗、仍在你手上。不要把它当作已经毒过人。'
+        : '【🤖机械狼·毒药记录·私密】第'+S.round+'夜你主动保留了毒药，没有毒任何人；毒药仍在你手上。'});
     }
   },
 
@@ -14767,6 +14796,7 @@ const NightActions = {
       S.nightData.killChosenByWolf = null;
       if (!isAnon()) Render.log('night-result','机械狼本夜受到全狼禁刀影响，无法选择刀口');
       gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, target:null, blocked:true, reason:'foxBlockKill', casterId:mw.id, result:'blocked'});
+      mw.memory.push({role:'system', content:'【🤖机械狼·夜刀记录·私密】第'+S.round+'夜你受到禁刀影响，无法选择刀口；本夜你没有杀死任何人，不要把它当作自己出过刀。'});
       return;
     }
     // 独立带刀后允许战术性自刀；未明之雾仍严格限制候选池。
@@ -14825,11 +14855,13 @@ const NightActions = {
       }
       if (!isAnon()) Render.log('night-result','🤖🔪 机械狼刀了'+t.name);
       gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, selfKill:t.id===mw.id, result:'pending'});
+      mw.memory.push({role:'system', content:'【🤖机械狼·夜刀记录·私密】第'+S.round+'夜你刀了'+t.name+(t.id===mw.id?'（自刀）':'')+'。这是你的夜间行动，白天不得泄露，也不要在发言里表现出提前知道刀口。'});
     } else if (choseEmpty) {
       S.nightData.kill = null;
       S.nightData.killChosenByWolf = null;
       if (mw.isPlayer || !isAnon()) Render.log('night-result','🤖🔪 机械狼选择空刀');
       gameRecord.push({type:'night_action', role:'mechwolf_kill', round:S.round, casterId:mw.id, target:null, empty:true, result:'empty'});
+      mw.memory.push({role:'system', content:'【🤖机械狼·夜刀记录·私密】第'+S.round+'夜你主动选择空刀，没有杀死任何人；本夜的死亡（如果有）与你无关。'});
     } else if (killActionStatus === 'invalid') {
       S.nightData.kill = null;
       S.nightData.killChosenByWolf = null;
@@ -14978,7 +15010,19 @@ const NightActions = {
     const submittedGuard = S.nightData.guard;
     if (submittedGuard !== null) {
       S.nightData.guard = reflectTargetedNightSkill(gu, submittedGuard, 'protect');
-      S.nightData.lastGuard = S.nightData.guard;
+      // ★ 反弹后复查连守：候选名单（ts）只能拦住"主动选同一人"，但蚀时狼妃的反弹发生在
+      //   选择之后，没有任何复查。连续两夜把盾弹回守卫自己时，实际落点连续两夜相同，
+      //   绕过了"不能连守"这条硬规则——守卫白嫖两层盾，而守卫 guide 里"谎称自守骗刀"
+      //   的高阶话术整套建立在"狼人能用连守规则反推"的前提上，规则被架空会让它失效。
+      //   判定以实际落点为准：反弹后若撞上上一夜的实际守护对象，本夜守护无效。
+      //   反弹本身对守卫保密，所以这里不写记忆、不发日志，只留上帝视角技术记录。
+      if (S.nightData.guard !== null && S.nightData.guard === lastGuardId) {
+        Render.devLog && Render.devLog('info', '[守卫] 反弹后撞上连守限制（实际落点 '+S.players[lastGuardId].name+'），本夜守护无效');
+        S.nightData.guard = null;
+        S.nightData.lastGuard = null;
+      } else {
+        S.nightData.lastGuard = S.nightData.guard;
+      }
     }
     gameRecord.push({type:'night_action', role:'guard', round:S.round, target: submittedGuard!==null ? S.players[submittedGuard].name : null, actualTarget:S.nightData.guard!==null ? S.players[S.nightData.guard].name : null, reflected:submittedGuard!==S.nightData.guard});
     attachNightThinking(gu.id);
@@ -15763,6 +15807,12 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       target:S.nightData.wolfBeautyCharm!==null ? S.players[S.nightData.wolfBeautyCharm].name : null,
       attemptedTarget:attemptedCharm!==null ? S.players[attemptedCharm].name : null,
       technical:charmTechnicalFailure, blocked:sanctuaryBlocked});
+    // 记忆按"她自己知道的"写：只记发动对象，绝不写圣域是否拦下 —— 狼美人拿不到失败反馈。
+    wb.memory.push({role:'system', content:attemptedCharm!==null
+      ? '【🌹狼美人·魅惑记录·私密】第'+S.round+'夜你对'+S.players[attemptedCharm].name+'发动了魅惑。你不会收到"是否生效"的反馈，不要把结果当成已确认的事实。这是只有你知道的信息，白天不得泄露。'
+      : (charmTechnicalFailure
+        ? '【🌹狼美人·魅惑记录·私密】第'+S.round+'夜你的魅惑没有成功执行，本夜没有对任何人发动魅惑。不要把它当作成功行动。'
+        : '【🌹狼美人·魅惑记录·私密】第'+S.round+'夜你没有发动魅惑。')});
     attachNightThinking(wb.id);
     // ★ fix: 持久化魅惑目标到 S.charmedPlayer，防止 nightData 重置后白天死亡连带失效
     if (S.nightData.wolfBeautyCharm !== null) {
@@ -15941,9 +15991,11 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
           S.nightData.skKill = t.id;
           Render.log('night','🔪 你袭击了 '+t.name);
           gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:t.name});
+          sk.memory.push({role:'system', content:'【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你袭击了'+t.name+'。你的刀与狼刀彼此独立，白天不得泄露，也不要表现出提前知道谁会死。'});
         }
       } else {
         gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:null});
+        sk.memory.push({role:'system', content:'【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你主动空刀，没有袭击任何人；本夜的死亡（如果有）与你无关。'});
       }
     } else {
       const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
@@ -15961,6 +16013,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         S.nightData.skKill = t.id;
         if (!isAnon()) Render.log('night-result','🔪 连环杀手袭击了 '+t.name);
         gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:t.name});
+        sk.memory.push({role:'system', content:'【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你袭击了'+t.name+'。你的刀与狼刀彼此独立，白天不得泄露，也不要表现出提前知道谁会死。'});
         attachNightThinking(sk.id);
       } else {
         if (decision.status === 'invalid') {
@@ -15968,6 +16021,9 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
           if (!isAnon()) Render.log('night-result','🔪 连环杀手本夜因技术解析失败未能袭击（不是主动空刀）');
         } else if (!isAnon()) Render.log('night-result','🔪 连环杀手今晚主动空刀');
         gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:null, technical:decision.status==='invalid'});
+        sk.memory.push({role:'system', content:decision.status==='invalid'
+          ? '【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你的袭击没有成功执行，本夜你没有杀死任何人。不要把它当作成功行动或编造袭击结果。'
+          : '【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你主动空刀，没有袭击任何人；本夜的死亡（如果有）与你无关。'});
         attachNightThinking(sk.id);
       }
     }
@@ -16227,6 +16283,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       S.nightData.foolShield = t.id;
       if (!isAnon()) Render.log('night-result','🃏 愚者护住了'+(t.id===fl.id?'自己':t.name));
       gameRecord.push({type:'night_action', role:'fool', round:S.round, target:t.name});
+      fl.memory.push({role:'system', content:'【🃏愚者·护盾记录·私密】第'+S.round+'夜你护住了'+(t.id===fl.id?'你自己':t.name)+'。这是只有你知道的信息，白天不得泄露。'});
     }
     Render.setSpeaking(fl.id, false);
   },
@@ -16426,7 +16483,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, cand) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, cand, 'guard'), cand));
         }
-        if (t) { S.nightData.customProtect.push(reflectEffectTarget(p, t.id, 'protect')); p._cLastGuard = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'守护了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-protect', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); }
+        if (t) { S.nightData.customProtect.push(reflectEffectTarget(p, t.id, 'protect')); p._cLastGuard = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'守护了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-protect', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); p.memory.push({role:'system', content:'【自创技能·守护记录·私密】第'+S.round+'夜你守护了'+(t.id===p.id?'你自己':t.name)+'。下一夜不能再守同一人。这是只有你知道的信息，白天不得泄露。'}); }
         else p._cLastGuard = -1;
       }
       // 🔮 查验
@@ -16529,7 +16586,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
           logNightThinking(p, r);
           t = findPlayer(r.action, cand) || (/自己|自我|自身/.test(r.action||'') ? p : null) || p;
         }
-        if (t) { S.nightData.customShield[p.id] = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'护住了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-shield', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); }
+        if (t) { S.nightData.customShield[p.id] = t.id; if (!isAnon()) Render.log('night-result','🛡️ '+p.name+'护住了'+(t.id===p.id?'自己':t.name)); gameRecord.push({type:'night_action', role:'custom-shield', round:S.round, name:p.name, custom:p.role.name, target:(t.id===p.id?'自己':t.name)}); p.memory.push({role:'system', content:'【自创技能·护盾记录·私密】第'+S.round+'夜你把护盾给了'+(t.id===p.id?'你自己':t.name)+'。这是只有你知道的信息，白天不得泄露。'}); }
       }
       // 🎁 赐予（复用奇迹商人机制：盾即时/查验毒次夜；幸运儿是狼→当场出局）
       if (ab.includes('grant') && others.length) {
