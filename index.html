@@ -3087,8 +3087,12 @@ body.has-wp::after {
     <div class="pbar-toggle" id="pbarTog">── 展开命牌 ▼ ──</div>
     <div class="pbar" id="pbar"></div>
     <details class="cfg"><summary data-ui-icon="settings">设置面板</summary>
+      <div class="cr"><label style="font-size:.72em;color:#8a8090;min-width:34px">渠道</label><select id="g-apitype" style="flex:1;font-size:.75em"></select></div>
       <div class="cr"><input type="text" id="g-url" placeholder="API 地址"><input type="password" id="g-key" placeholder="API 密钥"></div>
-      <div class="cr"><input type="text" id="g-model" placeholder="模型名称" value="gemini-2.0-flash"><select id="p-sel"></select></div>
+      <!-- 实时显示最终会请求的完整 URL：三种渠道的 /v1 约定不同，配错一层是最高频的失败原因，
+           在这里当场看见比开局报错再回来猜要省事得多。 -->
+      <div id="g-endpoint-preview" style="font-size:.63em;color:#6a6080;line-height:1.5;margin:-2px 0 4px;word-break:break-all"></div>
+      <div class="cr"><input type="text" id="g-model" placeholder="模型名称" value="gemini-2.0-flash" list="g-model-list"><datalist id="g-model-list"></datalist><select id="p-sel"></select></div>
       <!-- 导演模式：多角色选择 -->
       <div id="director-panel" style="display:none;background:rgba(112,80,160,0.08);border:1px solid rgba(112,80,160,0.25);border-radius:var(--r);padding:7px 10px;margin-bottom:4px">
         <div style="font-size:.72em;color:#c0a0e8;font-family:var(--font-title);margin-bottom:5px">🎬 导演模式 — 预选你要操控的角色（可留空，开局后点命牌随时接管/交还）</div>
@@ -6097,12 +6101,116 @@ function canSee(p) {
   if (isPackWolfRole(me.role) && isPackWolfRole(p.role)) return true;
   return p.id === S.playerId;
 }
+/* ================================================================
+ *  § API 渠道预设
+ *  tryOnce() 早就实现了 openai / anthropic / gemini 三套原生适配，但主 API
+ *  路径一直写死 'openai'，而连通测试靠域名字符串猜格式——反代域名（例如
+ *  catiecli.sukaka.top 这种 Gemini 中转）一律被猜成 OpenAI 兼容，于是官方
+ *  原生接口在主 API 上根本用不了。这里把"渠道"变成显式选择。
+ *
+ *  三种格式拼 URL 的约定各不相同，是最容易配错的地方：
+ *    anthropic → url + '/v1/messages'                地址不带 /v1
+ *    gemini    → url + '/v1beta/models/<模型>:...'    地址不带 /v1
+ *    openai    → url + '/chat/completions'           地址要带 /v1
+ *  所以配置界面必须实时显示"最终会请求哪个 URL"，让人当场看出多写或少写了
+ *  一层路径，而不是等到开局报错才发现。
+ * ================================================================ */
+const API_PROVIDERS = [
+  { id:'anthropic', name:'Claude（Anthropic 官方）', type:'anthropic',
+    url:'https://api.anthropic.com', webDirect:true,
+    models:['claude-opus-4-5','claude-sonnet-4-5','claude-haiku-4-5'] },
+  { id:'gemini',    name:'Gemini（Google 官方）',     type:'gemini',
+    url:'https://generativelanguage.googleapis.com', webDirect:true,
+    models:['gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash'] },
+  { id:'openai',    name:'OpenAI 官方',               type:'openai',
+    url:'https://api.openai.com/v1', webDirect:null,
+    models:['gpt-4.1','gpt-4o','o4-mini'] },
+  { id:'deepseek',  name:'DeepSeek 官方',             type:'openai',
+    url:'https://api.deepseek.com/v1', webDirect:null,
+    models:['deepseek-chat','deepseek-reasoner'] },
+  { id:'siliconflow', name:'SiliconFlow 硅基流动',    type:'openai',
+    url:'https://api.siliconflow.cn/v1', webDirect:null, models:[] },
+  { id:'openrouter', name:'OpenRouter',               type:'openai',
+    url:'https://openrouter.ai/api/v1', webDirect:null, models:[] },
+  { id:'ollama',    name:'Ollama（本地）',            type:'openai',
+    url:'http://localhost:11434/v1', webDirect:true, models:[] },
+  { id:'custom-anthropic', name:'Claude 反代 / 中转（Anthropic 格式）', type:'anthropic', url:'', models:[] },
+  { id:'custom-gemini',    name:'Gemini 反代 / 中转（Gemini 格式）',    type:'gemini',    url:'', models:[] },
+  { id:'custom',    name:'自定义 / 中转（OpenAI 兼容）', type:'openai', url:'', models:[] }
+];
+const getProvider = (id) => API_PROVIDERS.find(x => x.id === id) || null;
+
+// 渠道下拉 + 预览行的渲染。autofillUrl=true 表示是用户主动换渠道，
+// 此时才覆盖地址栏；载入存档时传 false，避免把用户填好的反代地址冲掉。
+function refreshApiChannelUI(autofillUrl) {
+  const sel = $('g-apitype'); if (!sel) return;
+  if (!sel.options.length) {
+    sel.innerHTML = API_PROVIDERS.map(pv => `<option value="${pv.id}">${pv.name}</option>`).join('');
+  }
+  const prov = getProvider(sel.value) || API_PROVIDERS[0];
+  const urlEl = $('g-url'), modelEl = $('g-model');
+  if (autofillUrl && prov.url && urlEl) urlEl.value = prov.url;
+  const dl = $('g-model-list');
+  if (dl) dl.innerHTML = (prov.models || []).map(m => `<option value="${m}">`).join('');
+
+  const box = $('g-endpoint-preview'); if (!box) return;
+  const url = urlEl ? urlEl.value : '';
+  const ep = resolveEndpointPreview(prov.type, url, modelEl ? modelEl.value : '');
+  const warn = endpointPathWarning(prov.type, url);
+  // webDirect 是实测过的 CORS 结果，不是猜的：Anthropic 与 Gemini 官方接口都返回了
+  // 允许浏览器直连的响应头；其余渠道没实测过，就如实标"未验证"而不是打包票。
+  const cors = prov.webDirect === true
+    ? '<span style="color:#7fbf8f">网页端可直连（官方接口允许浏览器访问）</span>'
+    : prov.webDirect === false
+      ? '<span style="color:#c88">网页端会被 CORS 拦，请用 APK 或中转地址</span>'
+      : '<span style="color:#9a8f70">网页端能否直连未验证；APK 走原生请求不受 CORS 限制</span>';
+  box.innerHTML = (ep ? '预览：' + escapeHtml(ep) + '<br>' : '填入地址后这里会显示最终请求的完整 URL<br>')
+    + (warn ? '<span style="color:#d8a050">⚠ ' + escapeHtml(warn) + '</span><br>' : '') + cors;
+}
+
+// 旧配置里没有渠道字段，沿用原来的域名启发式推断一次，保证升级后不需要重配。
+// 只在"用户从没显式选过渠道"时使用；一旦选过就以选择为准，反代域名才不会再被猜错。
+function inferApiType(url) {
+  const s = String(url || '').toLowerCase();
+  if (s.includes('anthropic.com')) return 'anthropic';
+  if (s.includes('generativelanguage.googleapis.com') && !s.includes('/openai')) return 'gemini';
+  return 'openai';
+}
+
+// 预览必须和 tryOnce 里真正 fetch 的路径逐字一致，否则比不给预览更糟。
+function resolveEndpointPreview(type, baseUrl, model) {
+  const u = String(baseUrl || '').trim().replace(/\/+$/, '');
+  if (!u) return '';
+  const m = String(model || '').trim() || '<模型名>';
+  if (type === 'anthropic') return u + '/v1/messages';
+  if (type === 'gemini')    return u + '/v1beta/models/' + m + ':generateContent';
+  return u + '/chat/completions';
+}
+
+// 预览行里顺带提示明显配错的路径层级（三种格式的 /v1 约定不一样，这是最高频的坑）。
+function endpointPathWarning(type, baseUrl) {
+  const u = String(baseUrl || '').trim().replace(/\/+$/, '').toLowerCase();
+  if (!u) return '';
+  if ((type === 'anthropic' || type === 'gemini') && /\/v1(beta)?$/.test(u)) {
+    return '地址结尾多了 /v1，这个渠道会自己补路径，通常应删掉';
+  }
+  if (type === 'openai' && !/\/v\d+$/.test(u) && !/\/openai$/.test(u)) {
+    return '这个渠道要在地址末尾带上 /v1（除非你的中转另有约定）';
+  }
+  return '';
+}
+
 function getAPI(i) {
   const c = playerConfigs[i] || {};
+  const url = (c.url || $('g-url').value).replace(/\/$/, '');
+  // 渠道优先级：玩家独立配置 > 全局选择 > 旧配置的域名推断
+  const picked = c.apiType || ($('g-apitype') && $('g-apitype').value) || '';
+  const prov = getProvider(picked);
   return {
-    url:   (c.url   || $('g-url').value).replace(/\/$/, ''),
+    url,
     key:    c.key   || $('g-key').value,
-    model:  c.model || $('g-model').value
+    model:  c.model || $('g-model').value,
+    type:   (prov && prov.type) || (picked === 'anthropic' || picked === 'gemini' || picked === 'openai' ? picked : inferApiType(url))
   };
 }
 
@@ -7456,6 +7564,7 @@ function saveCfg() {
     litefx:$('m-litefx')?$('m-litefx').checked:false,
     playerbgm:$('m-playerbgm')?$('m-playerbgm').checked:true,
     url:$('g-url').value, key:$('g-key').value, model:$('g-model').value,
+    apiType:$('g-apitype')?$('g-apitype').value:'',
     maxtk:$('g-maxtk')?$('g-maxtk').value:'131072', mem:$('g-mem')?$('g-mem').value:'40',
     fbUrl:$('fb-url')?$('fb-url').value:'', fbKey:$('fb-key')?$('fb-key').value:'', fbModel:$('fb-model')?$('fb-model').value:'', fbType:$('fb-type')?$('fb-type').value:'openai',
     sumUrl:$('sum-url')?$('sum-url').value:'', sumKey:$('sum-key')?$('sum-key').value:'', sumModel:$('sum-model')?$('sum-model').value:'', sumType:$('sum-type')?$('sum-type').value:'openai', memCompress:$('mem-compress-enable')?$('mem-compress-enable').checked:true,
@@ -7497,6 +7606,20 @@ function loadCfg() {
     if (typeof d.memCompress === 'boolean' && $('mem-compress-enable')) $('mem-compress-enable').checked = d.memCompress;
     if (d.key) $('g-key').value = d.key;
     if (d.model) $('g-model').value = d.model;
+    // 旧存档没有 apiType：按地址推断一次并回填，升级后不用重配；一旦用户显式选过就以选择为准，
+    // 反代域名（Gemini 中转之类）才不会再被域名启发式猜成 OpenAI 兼容。
+    if ($('g-apitype')) {
+      const saved = d.apiType || '';
+      if (saved && getProvider(saved)) $('g-apitype').value = saved;
+      else {
+        const guessed = inferApiType(d.url || '');
+        const cur = String(d.url || '').replace(/\/+$/, '').toLowerCase();
+        const match = API_PROVIDERS.find(pv => pv.type === guessed && pv.url && cur.startsWith(pv.url.toLowerCase()))
+                   || API_PROVIDERS.find(pv => pv.type === guessed && !pv.url);
+        if (match) $('g-apitype').value = match.id;
+      }
+      refreshApiChannelUI(false);
+    }
     if (d.spd) $('g-spd').value = d.spd;
     if (d.anon   !== undefined) $('m-anon').checked   = d.anon;
     if (d.trial  !== undefined) $('m-trial').checked  = d.trial;
@@ -10360,7 +10483,9 @@ async function callAI(p, prompt, opts) {
     for (let att = 1; att <= maxRetries && !silentDetected; att++) {
       if (S.gameId !== myGid) return {thinking:'',game:'',action:''};
       try {
-        const result = await tryOnce(api, att, 'openai');
+        // 主 API 以前写死 'openai'，等于 tryOnce 里那两套原生适配（Anthropic /v1/messages、
+        // Gemini :generateContent）只有备选 API 用得上。改成读用户选的渠道。
+        const result = await tryOnce(api, att, api.type || 'openai');
         if (result === null) return {thinking:'',game:'',action:''};
         // ★ 检测到复读沉默：直接跳到备用API，不在同一个模型上浪费重试
         if (result._isRepeatSilent && getFallbacks().length > 0) {
@@ -23274,10 +23399,14 @@ async function testAPIForPC() {
     return;
   }
 
-  // 识别接口格式（参考全局 testAPI 的逻辑）
+  // 接口格式以用户选的渠道为准。旧逻辑靠域名字符串猜，反代域名（例如 Gemini 中转）
+  // 一律被猜成 OpenAI 兼容，于是测试用错格式、报一个和真实原因无关的失败。
   const urlLower = u.toLowerCase();
-  const isAnthropic = urlLower.includes('anthropic.com');
-  const isGeminiNative = urlLower.includes('generativelanguage.googleapis.com') && !urlLower.includes('/openai');
+  const _t = (c.apiType && getProvider(c.apiType) ? getProvider(c.apiType).type : '')
+          || (($('g-apitype') && getProvider($('g-apitype').value)) ? getProvider($('g-apitype').value).type : '')
+          || inferApiType(u);
+  const isAnthropic = _t === 'anthropic';
+  const isGeminiNative = _t === 'gemini';
   const fmt = isAnthropic ? 'Claude官方' : isGeminiNative ? 'Gemini原生' : 'OpenAI兼容';
 
   btn.disabled = true;
@@ -23394,10 +23523,10 @@ async function testAPIForPC() {
     }
     const ms = Date.now() - t0;
     if (ok) {
-      // 兼容性提醒：游戏只支持 OpenAI 兼容格式
-      const compatWarn = (isAnthropic || isGeminiNative)
-        ? '\n⚠️ 注意：连通正常，但游戏只支持 OpenAI 兼容格式。原生接口无法用于实际游戏，请改用兼容代理地址。'
-        : '';
+      // 这里以前写"游戏只支持 OpenAI 兼容格式，原生接口无法用于实际游戏"。那句话在主 API
+      // 写死 'openai' 的年代是对的，现在主 API 会按所选渠道走对应的原生适配，所以删掉；
+      // 留着只会让人以为官方接口不能用，反过来去折腾并不需要的中转。
+      const compatWarn = '';
       resultEl.style.background = 'rgba(80,160,100,0.15)';
       resultEl.style.color = '#90d8a0';
       resultEl.textContent = '✅ 连通成功 [' + fmt + '] · ' + ms + 'ms\n模型：' + m + '\n回复：' + reply.slice(0, 100) + compatWarn;
@@ -23475,11 +23604,13 @@ async function testAPI() {
   const k = ($('g-key').value||'').trim();
   const m = ($('g-model').value||'').trim();
   if (!u || !k) { Render.log('system','⚠️ 请先填写API地址和密钥'); return; }
+  // 同上：以显式选择的渠道为准，不再靠域名猜（反代域名会被猜错）。
   const urlLower = u.toLowerCase();
-  const isAnthropic = urlLower.includes('anthropic.com');
-  const isGeminiNative = urlLower.includes('generativelanguage.googleapis.com') && !urlLower.includes('/openai');
+  const _t = (($('g-apitype') && getProvider($('g-apitype').value)) ? getProvider($('g-apitype').value).type : '') || inferApiType(u);
+  const isAnthropic = _t === 'anthropic';
+  const isGeminiNative = _t === 'gemini';
   const fmt = isAnthropic ? 'Claude官方' : isGeminiNative ? 'Gemini原生' : 'OpenAI兼容';
-  Render.log('system', '🧪 测试中… 识别格式：' + fmt);
+  Render.log('system', '🧪 测试中… 渠道格式：' + fmt);
   try {
     let res, ok = false, detail = '';
     if (isAnthropic) {
@@ -23504,7 +23635,7 @@ async function testAPI() {
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
     }
     if (ok && (isAnthropic || isGeminiNative)) {
-      Render.log('system', '✅ 连通成功 ['+fmt+'] '+detail+' ⚠️ 注意：游戏本身只支持OpenAI兼容格式，官方原生接口无法用于实际游戏，请使用兼容代理地址');
+      Render.log('system', '✅ 连通成功 ['+fmt+'] '+detail);
     } else {
       Render.log('system', (ok?'✅ 连通成功':'❌ 失败')+' ['+fmt+'] '+detail);
     }
@@ -24888,7 +25019,19 @@ document.addEventListener('wolf-language-change', function(){ try{ if(typeof ren
 
 // ★ 启动
 initRoles();
+// 渠道下拉必须在 loadCfg 之前建好选项，否则 loadCfg 回填 apiType 时没有可选项可赋。
+refreshApiChannelUI(false);
 loadCfg();
+// 渠道/地址/模型任一变化都要重算预览：预览的全部价值就在于"改一个字立刻看到最终 URL"。
+{
+  const sel = $('g-apitype');
+  if (sel) sel.addEventListener('change', () => { refreshApiChannelUI(true); saveCfg(); });
+  ['g-url', 'g-model'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', () => refreshApiChannelUI(false));
+  });
+  refreshApiChannelUI(false);
+}
 // 初始化备选API列表（若loadCfg没有数据则显示空的一行）
 if (!extraFallbacks.length) extraFallbacks = [{url:'',key:'',model:'',type:'openai'}];
 renderFbList();
