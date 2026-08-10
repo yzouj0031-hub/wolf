@@ -4551,7 +4551,7 @@ reg({id:'serialkiller',name:'连环杀手',team:'third',emoji:'🔪',desc:'第�
 // ─── 信息结构扩展角色 ───
 reg({id:'gravekeeper',name:'守墓人',team:'good',emoji:'',desc:'好人神职。每晚得知上一个白天被放逐玩家的阵营；若上个白天无人真正被放逐，则没有新结果。',maxCount:1,cssClass:'rgk',guide:'你是守墓人，属于好人阵营。\n【能力】每晚自动得知上一个白天被投票放逐者属于好人、狼人或第三方阵营；只验证阵营，不知道具体身份。没有真正放逐就没有结果。\n【策略】这是延迟验证信息。公开结果能重构昨天的站边和票型，但会暴露身份；隐藏结果可以继续观察谁在为死者做身份。真假守墓人对跳时，要结合逐日结果、票型收益和信息时序判断，不要把自报当事实。'+N1});
 reg({id:'dreamwalker',name:'摄梦人',team:'good',emoji:'',desc:'好人神职。每晚令一名其他玩家梦游并免疫当夜伤害；连续两晚选择同一人，则该玩家在第二夜因噩梦死亡；摄梦人夜间死亡会带走当夜梦游者。',maxCount:1,cssClass:'rdw',guide:'你是摄梦人，属于好人阵营。\n【能力】每晚选择一名其他存活玩家。若与上夜目标不同，他免疫当夜伤害；若连续两晚选择同一人，第二夜直接因噩梦死亡，不再获得保护。你若在夜间最终死亡，当夜梦游者也会随你死亡。\n【策略】换人是保护，连选是主动处决。第二夜是否连梦必须基于具体信息权衡，不能机械追梦；也要计算自己可能被刀时会不会误带关键好人。行动和结果都是私密信息。'+N1});
-reg({id:'alchemist',name:'炼金魔女',team:'good',emoji:'',desc:'好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为三人；蛇可在看见魔术师换位后的实际刀口后决定是否救下。',maxCount:1,cssClass:'ralc',guide:'你是炼金魔女，属于好人阵营。\n【两种一次性能力】未明之雾：在狼队行动前圈定三名存活玩家，当夜狼刀只能从三人中选择（允许圈到狼人）；法老之蛇：在狼刀和魔术师换位结算后得知实际刀口，再决定是否救下。两种能力各限一次，同一夜只能选一种。\n【策略】雾改变狼队决策空间，适合保护多数高价值位置或制造狼队自刀压力；蛇是精确救援，但使用会消耗未来威慑。按当前局势判断，不要固定首夜开雾或见刀必救。'+N1});
+reg({id:'alchemist',name:'炼金魔女',team:'good',emoji:'',desc:'好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为三人；蛇可在本夜刀口最终定案（含魔术师换位结果）后得知实际目标，再决定是否救下。',maxCount:1,cssClass:'ralc',guide:'你是炼金魔女，属于好人阵营。\n【两种一次性能力】未明之雾：在狼队行动前圈定三名存活玩家，当夜狼刀只能从三人中选择（允许圈到狼人）；法老之蛇：在狼刀与各种换位全部结算、刀口最终定案后得知实际目标，再决定是否救下（女巫同样看得到这个最终刀口，这不是你独有的情报优势）。两种能力各限一次，同一夜只能选一种。\n【策略】雾改变狼队决策空间，适合保护多数高价值位置或制造狼队自刀压力；蛇是精确救援，但使用会消耗未来威慑。按当前局势判断，不要固定首夜开雾或见刀必救。'+N1});
 reg({id:'gargoyle',name:'石像鬼',team:'bad',emoji:'',desc:'狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并单独获得狼刀。',maxCount:1,cssClass:'tw rgg',guide:'你是石像鬼，属于狼人阵营，但与普通狼队互不相认：你不知道他们是谁，他们也不知道你；你不参加狼队密谈和普通狼刀。\n【窥视】每晚查验一名尚未查过的其他玩家，得知准确身份。\n【苏醒】只有除你之外的所有狼人阵营角色都出局后，你才单独获得狼刀。\n【策略】你可能在不知情时攻击普通狼，普通狼也可能把你当好人甚至刀你；这正是你的信息结构。白天只使用公开信息伪装，绝不能泄露准确身份来自夜间窥视。残局前优先存活并利用查验规划身份，苏醒后再按人数与屠边条件收割。'+N1});
 ALL_ROLES.gargoyle.desc = '狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并获得独立狼刀，可刀任意候选玩家（包括自己）或空刀，并私下得知所选刀口最终是否死亡。';
 ALL_ROLES.gargoyle.guide += '\n【独立刀口】苏醒后可刀任意候选玩家（包括自己）或空刀；天亮后会私下得知所选刀口是否死亡，记录会永久保留。自刀可能让唯一狼人立即落败，只有确有特殊收益时才考虑。';
@@ -4577,9 +4577,12 @@ ALL_ROLES.witch.guide = ALL_ROLES.witch.guide.replace(
   '没有守护承诺会降低“已经有人挡刀”的可信度，但仍要结合屠边压力、刀口价值、身份暴露和长期药效计算，不能只凭这一点自动得出必救。'
 ) + '\n\n【银水与带队价值】救人不只增加一个存活人数，还会形成一条真实的救药行动记录。尤其第一夜，你可以在警长竞选中如实报出自己救过谁、争取警徽并带队；被救者也能成为阶段性的“银水”参考。但银水不是铁好（存在自刀等可能），跳身份也会暴露女巫，所以要把带队收益、身份暴露、刀口价值、屠边压力、守卫撞药风险与保留解药的信息价值一起计算，不能据此机械得出必救或不救。';
 ALL_ROLES.witch.guide += '\n\n【与炼金魔女同场】女巫是第一救援位：你先按本夜刀口价值正常决定是否使用解药，不要为了猜测炼金魔女可能准备了法老之蛇而机械停药。只有你没有救下刀口时，系统才会让法老之蛇进行补救。';
-ALL_ROLES.alchemist.desc = '好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为2至3人；蛇可在看见魔术师换位后的实际刀口后决定是否救下。';
+ALL_ROLES.alchemist.desc = '好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为2至3人；蛇可在本夜刀口最终定案（含魔术师换位结果）后得知实际目标，再决定是否救下。';
 ALL_ROLES.alchemist.guide = ALL_ROLES.alchemist.guide.replace('圈定三名存活玩家，当夜狼刀只能从三人中选择', '圈定2至3名存活玩家，当夜狼刀只能从这份名单中选择').replace('雾改变狼队决策空间', '雾改变狼队决策空间；圈2人限制更强，圈3人则给狼队更多选择并更容易隐藏你的真实保护意图');
 ALL_ROLES.alchemist.guide += '\n\n【与女巫同场·救援顺序】女巫先决定是否使用解药；只有刀口仍未获救时，法老之蛇才进入救援决定。若女巫已经救下刀口，你会收到明确的私密通知，法老之蛇不会发动也不会消耗。不要和女巫重复交药。';
+// 「准备蛇」本身不消耗药剂，只有真的救人才消耗 —— 这条以前只写在夜间私密提示里，
+// AI 每晚读完就忘，人类玩家却一眼看穿，等于人机不对等。写进 guide 让两边同等知情。
+ALL_ROLES.alchemist.guide += '\n\n【准备蛇是免费的·可重复侦察刀口】准备法老之蛇不消耗药剂，只有真的按下救援才消耗。所以只要你还攥着蛇，就可以每一夜都选择准备蛇、每一夜都看到本夜的实际刀口，然后选择不救 —— 药剂原封不动留到下一夜。这条通道比女巫更持久：女巫用掉解药就永久失去刀口情报，而你只要不救就一直看得见。\n代价是机会成本而非药剂：准备蛇的那一夜不能开雾，两者同夜只能选一个。雾也只有一次，所以常见打法是挑一夜开雾，其余夜晚一律准备蛇来持续获取刀口情报。\n拿到刀口后要当作情报用，不要当作身份证明：你看到谁被刀，就知道狼队的优先级和下一刀方向，这些能支撑你的白天推理；但公开报刀口等于自曝，也会让狼队立刻明白场上有第二条情报线。';
 ALL_ROLES.wolfconcubine.desc = '狼人阵营。每晚锁定一名存活玩家：当夜首个直接指向该目标的单体查验、守护、毒杀、媚惑或摄梦会反弹到施术者本人；每夜仅反弹一发。群体领域、自动信息、净化、救援、白天技与死亡技不受影响。';
 ALL_ROLES.wolfconcubine.guide = '你是蚀时狼妃，属于狼人阵营，并正常参加狼队密谈与狼刀。\n【反弹锁定】每晚额外锁定一名存活玩家（可锁自己，也可空过）。当夜首个直接指向锁定目标的单体技能会反弹到施术者本人，随后本夜锁失效；天亮后重置，下一夜可重新锁定。\n【可反弹类型】单体查验（预言家、石像鬼、摹术师及同类自创技能）、单体守护、毒杀、子狐类媚惑、摄梦。反弹查验只会查到施术者自己；反弹守护只会守到施术者；反弹毒可能令施术者死亡；反弹摄梦会让摄梦人自己成为实际梦游者，连续反弹可能形成自我噩梦。\n【不反弹】未明之雾等群体领域、守墓人等自动信息、净魂师的净化、女巫解药与法老之蛇等事后救援、白天技能、死亡触发和狼刀。净魂师若先把圣域给到锁定目标，可以净除你的锁。\n【策略】锁别人可保护即将被查、守、毒、魅惑或摄梦处理的狼队关键位；锁自己可反噬直接处理你的人。仍然只有一发，优先判断本夜最可能最先命中的技能，不要把它当成全场封技。\n【保密】锁定与反弹都是夜间私密信息，白天不得泄露狼队视角。';
 ALL_ROLES.serialkiller.guide = ALL_ROLES.serialkiller.guide.replace(
@@ -9349,7 +9352,24 @@ ${userPersona}
   }
   wolfPrivateBlock = planBlock + loverPrivateBlock + wolfPrivateBlock;
 
-  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
+  // ★ 私密行动史统一重注入：memory 默认只保留最近 40 条（见 g-mem / memSlice），长局里
+  //   早期夜间行动会被挤出上下文；而 _buildPrivateInfoLines 每次从 gameRecord 重建，永不截断。
+  //   网页接力模式（buildWebPrompt）一直在用它，走 API 的常规 AI 却没有 —— 同一个角色换个
+  //   接入方式，掌握的信息量就不一样，跑多模型对局时这会变成不可比的噪声。这里补齐。
+  //   石像鬼 / 机械狼另有专属 block，会有少量重复，属于有意保留的双保险。
+  let privateActionBlock = '';
+  try {
+    const _priv = (typeof _buildPrivateInfoLines === 'function') ? _buildPrivateInfoLines(p) : null;
+    if (_priv && _priv.length) {
+      privateActionBlock = '\n\n【你的私密行动记录（完整历史，不受记忆条数限制）】\n'
+        + _priv.map(l => '• ' + l).join('\n')
+        + '\n⚠️ 以上是你实际做过的事的完整清单，只有你知道。记录里没写的事就是你没做过，不要脑补或编造。';
+    }
+  } catch (e) {
+    Render.devLog && Render.devLog('warn', '[私密行动史] 构建失败：' + (e && e.message));
+  }
+
+  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
@@ -14219,6 +14239,9 @@ const NightActions = {
     }
     if (!learned) {
       gameRecord.push({type:'night_action',role:'imitator',round:S.round,name:im.name,target:null,result:learnStatus,technical:learnStatus==='invalid'});
+      im.memory.push({role:'system',content:learnStatus==='invalid'
+        ? '【摹取结果·私密】第'+S.round+'夜你的学习没有成功执行，本夜没有学到任何人的能力，也没有消耗尝试次数。不要把它当作学过谁或编造摹取结果。'
+        : '【摹取结果·私密】第'+S.round+'夜你主动放弃学习，没有学任何人。'});
       attachNightThinking(im.id); Render.setSpeaking(im.id,false); return;
     }
     im._imitatorTried.push(learned.id);
@@ -14285,7 +14308,7 @@ const NightActions = {
     let t=null,status='pass';
     if(im.isPlayer){const opts=targets.map(x=>({label:x.id===im.id?'自己':x.name,value:x.name}));opts.push({label:'放弃本夜能力',value:'None',abs:true});const v=await waitChoice('选择【'+IMITATOR_SKILL_LABELS[skill]+'】的目标。','临时摹术',opts);if(v!=='None'){t=findPlayer(v,targets);if(t)status='execute';}}
     else{const r=await nightTwoStep(im,'【临时摹术·'+IMITATOR_SKILL_LABELS[skill]+'】能力仅本夜可用。可选：'+targets.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+'。也可放弃。','<action>P数字 或 PASS</action>');logNightThinking(im,r);const d=await resolveAIAction3(im,r,{label:'摹术师'+IMITATOR_SKILL_LABELS[skill],candidates:targets,targetCount:1,allowPass:true,formatHint:'USE|P数字 或 PASS'});if(d.status==='execute'){t=d.targets[0];status='execute';}else if(d.status==='invalid'){status='invalid';recordTechnicalActionFailure(im,'摹术师'+IMITATOR_SKILL_LABELS[skill],'无法解析施放目标，本夜未施放');}}
-    if(!t){gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:status,technical:status==='invalid'});logPrivateNightResult(im,'摹术师没有施放【'+IMITATOR_SKILL_LABELS[skill]+'】','The Imitator did not cast ['+IMITATOR_SKILL_LABELS[skill]+']');return;}
+    if(!t){gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:null,skill,result:status,technical:status==='invalid'});im.memory.push({role:'system',content:status==='invalid'?'【临时摹术·私密】第'+S.round+'夜你的【'+(IMITATOR_SKILL_LABELS[skill]||skill)+'】没有成功执行，本夜该能力没有作用到任何人。不要把它当作成功行动或编造结果。':'【临时摹术·私密】第'+S.round+'夜你主动放弃使用【'+(IMITATOR_SKILL_LABELS[skill]||skill)+'】，本夜没有对任何人发动。'});logPrivateNightResult(im,'摹术师没有施放【'+IMITATOR_SKILL_LABELS[skill]+'】','The Imitator did not cast ['+IMITATOR_SKILL_LABELS[skill]+']');return;}
     if(skill==='inspect'){
       const actual=reflectInspectSubject(im,t),rebounded=actual.id!==t.id;const wolf=seerSeesAsWolf(actual);
       im.memory.push({role:'system',content:rebounded?'【临时窥识·私密】你查验'+t.name+'时明确感到能力被反弹，只得到了自己的好人显示；'+t.name+'没有被验证。':'【临时窥识·私密】你查验'+t.name+'，结果为【'+(wolf?'狼人显示':'好人显示')+'】。这不是准确身份翻牌。'});
@@ -14327,9 +14350,16 @@ const NightActions = {
       t = findPlayer(v, ts);
     } else {
       const last = dw._dreamLastTarget != null ? S.players[dw._dreamLastTarget] : null;
+      // 连梦判定看的是"实际梦游者"。被蚀时狼妃反弹时实际梦游者是摄梦人自己，
+      // 而候选名单里从来没有自己 —— 旧文案照写"昨夜目标：<你自己>；连续选择昨夜目标会致死"，
+      // 等于叫 AI 避开一个它根本选不了的人。这里分开写清楚。
+      const lastWasSelf = !!(last && last.id === dw.id);
+      const lastLine = lastWasSelf
+        ? '\n昨夜你指向的目标被反弹，实际梦游的是你自己。你无法主动选择自己，所以这不是你能直接规避的：若今夜再次被反弹到你身上，就构成连续两夜同一梦游者，你会因噩梦死亡。'
+        : '\n昨夜目标：'+(last ? last.name : '无')+'。换人会保护今晚目标免疫夜间伤害；连续选择昨夜目标会直接令其因噩梦死亡。';
       const r = await nightTwoStep(dw,
         '【摄梦人·第'+S.round+'夜】可选：'+ts.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+
-        '\n昨夜目标：'+(last ? last.name : '无')+'。换人会保护今晚目标免疫夜间伤害；连续选择昨夜目标会直接令其因噩梦死亡。请按当前身份判断、风险和收益选择。',
+        lastLine+'请按当前身份判断、风险和收益选择。',
         '只选择一人。\n<action>玩家名</action>');
       logNightThinking(dw, r);
       const d = await resolveAIAction3(dw, r, {label:'摄梦',candidates:ts,targetCount:1,allowPass:false,formatHint:'DREAM|P数字'});
@@ -14399,6 +14429,7 @@ const NightActions = {
       logPrivateNightResult(al,'炼金魔女准备了法老之蛇，等待实际刀口','The Alchemist prepared the Pharaoh\'s Serpent and awaits the final attack target');
     } else {
       gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:null,result:'pass'});
+      al.memory.push({role:'system',content:'【炼金记录】第'+S.round+'夜你没有准备任何炼金术，本夜既没有开雾也没有准备蛇；两种药剂都原封不动。'});
       logPrivateNightResult(al,'炼金魔女本夜保留全部炼金术','The Alchemist held both formulas tonight');
     }
     Render.setSpeaking(al.id,false);
