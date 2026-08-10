@@ -17,7 +17,7 @@ for (const file of ['index.html', 'en/index.html']) {
   expect(src.includes('论证错不等于身份假，论证对也不等于身份真'), `${file}: identity and reasoning are not separated`);
   expect(!src.includes('嫌疑权重:后跳 > 先跳'), `${file}: late claimant still receives a fixed suspicion penalty`);
 
-  expect(src.includes('发言长度服从局势，不设统一的短回复目标'), `${file}: free-output prompt still anchors every speech short`);
+  expect(src.includes('公开发言不设短回复目标：普通轮次也要把立场、具体依据和票意说完整'), `${file}: free-output prompt still permits an underspecified ordinary speech`);
   expect(!src.includes('长度由你自己控制——通常 100-200 字'), `${file}: obsolete 100-200 character anchor remains`);
 }
 
@@ -37,4 +37,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('witch guidance: hidden-by-default disclosure, perspective separation and adaptive speech length passed');
+console.log('witch guidance: hidden-by-default disclosure, perspective separation and complete public speech passed');
