@@ -17954,7 +17954,12 @@ const PhaseHandlers = {
           {noMemory:true, skillConfirm:true});
         logNightThinking(sheriffP, r);
         const actionText = ((r && r.action) || '') + '，' + ((r && r.game) || '');
-        const targetName = extractTargetName(actionText, orderCandidates);
+        // action 是系统要求的结构化决定，必须优先于 game 里的叙述文字。
+        // GPT 常在 game 中用第三人称提到警长自己；若把两段拼起来找名字，
+        // 会覆盖 action 里真正选择的起点，并连带误判成“警长优先发言、放弃归票”。
+        const _actionTargetName = extractTargetName(((r && r.action) || ''), orderCandidates);
+        const _gameTargetName = _actionTargetName ? null : extractTargetName(((r && r.game) || ''), orderCandidates);
+        const targetName = _actionTargetName || _gameTargetName;
         const targetP = targetName ? orderCandidates.find(x => x.name === targetName) : null;
         if (targetP) startId = targetP.id;
         // ★ 方向优先只从 action 判定：action 里写了方向词就只看 action，没写才退回 game；
