@@ -4153,6 +4153,8 @@ D级：玩家名字、原作人设、面相、单纯“感觉像狼”。不作�
 - 无人对跳本身是强证据：一名神职完整报出身份与记录、经过足够发言机会仍无人对跳，应暂按高可信身份处理。
 - 有人对跳时再比较双方记录、时序、票型和行为，不因谁声音大、谁先跳、谁有口误直接定真假。
 - 神职报出的行动记录与他对谁是狼的个人判断要分开；可以信其记录，不必盲从其归票。
+- “尚未被系统验明”是thinking里的证据边界，不是每轮公开朗诵的免责声明。对未翻牌死者和自报神职仍要形成可行动的工作判断：根据对跳、记录、技能兑现和票型使用“暂认、偏信、待验、目前不信”，然后继续站边和投票。
+- 只在有人明确把身份声明或未翻牌死者当成系统铁证时纠正一次；没有这种误用就不要主动重复“身份不公开”“跳了不等于真神”。可以笃定地表达当前判断，但不能把概率判断伪装成系统事实。
 
 【防止集体误推】
 - 准备跟票前问：我新增了什么独立证据？如果答案只是“前面很多人都这样说”，不要把共识当验证。
@@ -9624,6 +9626,9 @@ ${userPersona}
     : '\n\n【⚠️ 你不是助手，你就是「' + p.name + '」本人，正坐在狼人杀桌上发言】\n禁止"让我写""以下是""我来帮你"等助手口吻。' + strictRoleRule + '\n\n【⚠️ action 字段必须填完整玩家名（不要简称、不要 None 除非真的不行动）】\n\n【输出格式·必须严格遵守】\n<game>你当众说出口的话，必须有实质内容，不能为空</game>\n<action>行动目标（名字或None）</action>';
 
   modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。至少说清立场、一个具体依据以及投票或下一步倾向；被点名、被质疑或身份对跳时必须逐项回应。投票、技能确认和夜间私密选择不受此要求影响，只提交系统要求的动作。';
+  modelAdapt += hdeath
+    ? '\n\n【隐死亡的自然表达·不要复读规则】未由系统公开验证的死者身份仍未知，但这是你在内心控制置信度的边界，不是每轮发言都要念出的免责声明。请根据无人对跳、记录吻合、技能兑现、票型和行为形成“暂认、偏信、待验、目前不信”的工作判断，并据此站边和投票。只有当某人明确把自报身份或未翻牌死者写成系统铁证时，才简短纠正一次；否则不要主动说“死者身份不公开”或“跳了不等于真神”。'
+    : '\n\n【身份公开】系统翻出的死亡身份可以直接作为事实，不要继续把已经翻明的身份说成待验。';
 
   // ★ v9.9.24：当前胜负规则说明（随屠边开关动态生成）
   const winRuleBlock = S.killEdgeMode
@@ -9694,7 +9699,7 @@ ${userPersona}
     Render.devLog && Render.devLog('warn', '[私密行动史] 构建失败：' + (e && e.message));
   }
 
-  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'死者身份不公开。':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
+  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
@@ -27136,7 +27141,7 @@ function buildWebPrompt(p) {
           const deathDesc = causeText(r);
           const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
           const detail = hd
-            ? `💀 ${r.name} 出局 — ${deathDesc}${voteSuffix}（死者身份不公开）`
+            ? `💀 ${r.name} 出局 — ${deathDesc}${voteSuffix}`
             : `💀 ${r.name}【${r.role || '?'}】— ${deathDesc}${voteSuffix}`;
           pushBucket(round, seg, detail);
           break;
@@ -27413,7 +27418,7 @@ ${secretBlock}
 存活（${S.players.filter(x=>x.alive).length}人）：${aliveList}
 ${deadList ? `已出局：${deadList}` : '目前无人出局'}
 ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${_publicEventReadingNote()}
-${hdeathOn ? '隐死亡模式：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。玩家自报身份属于声明，结合无人对跳、记录吻合、票型和行为评估可信度；不要因“自报不能验明”就无差别怀疑，也不要因遗言而自动相信。' : '死者身份公开：系统翻牌结果是真实身份。'}
+${hdeathOn ? '隐死亡模式（全局说明，仅需遵守、不必在回答中复述）：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。自报身份是声明而非系统翻牌，但你必须结合无人对跳、记录吻合、技能兑现、票型和行为形成可行动的工作判断，可用“暂认、偏信、待验、目前不信”表达。只有当上下文把声明误写成系统铁证时才简短纠正一次，不要反复说“死者身份不公开”或“跳了不等于真神”。' : '死者身份公开：系统翻牌结果是真实身份。'}
 
 ━━━━ 本局战报（事实与玩家观点混合记录）━━━━
 按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。
