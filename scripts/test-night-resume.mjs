@@ -44,6 +44,8 @@ for (const path of ['../index.html', '../en/index.html']) {
     '_wolfKillRun',
     'wolfRun.openingDone.includes',
     'wolfRun.echoDone.includes',
+    'wolfRun.openingOrder',
+    'wolfRun.echoOrder',
     'wolfRun.phase2Required',
     'Object.prototype.hasOwnProperty.call(wolfLastActions, w.id)',
     'wolfRun.complete = true'

@@ -15305,13 +15305,15 @@ const NightActions = {
     const wolfRunKey = `${S.gameId}:${S.round}`;
     if (S._wolfKillRun && S._wolfKillRun.key === wolfRunKey && S._wolfKillRun.complete) return;
     if (!S._wolfKillRun || S._wolfKillRun.key !== wolfRunKey) {
-      S._wolfKillRun = {key:wolfRunKey, openingRecords:{}, openingDone:[], echoDone:[], wolfLastActions:{}, phase2Required:null, complete:false};
+      S._wolfKillRun = {key:wolfRunKey, openingRecords:{}, openingDone:[], echoDone:[], openingOrder:[], echoOrder:[], wolfLastActions:{}, phase2Required:null, complete:false};
     }
     const wolfRun = S._wolfKillRun;
     const killBlocked = !!S.nightData.foxBlockKill;
     wolfRun.openingRecords ||= {};
     wolfRun.openingDone = Array.isArray(wolfRun.openingDone) ? wolfRun.openingDone : [];
     wolfRun.echoDone = Array.isArray(wolfRun.echoDone) ? wolfRun.echoDone : [];
+    wolfRun.openingOrder = Array.isArray(wolfRun.openingOrder) ? wolfRun.openingOrder : [];
+    wolfRun.echoOrder = Array.isArray(wolfRun.echoOrder) ? wolfRun.echoOrder : [];
     wolfRun.wolfLastActions ||= {};
     if (!isAnon()) Render.log('night-detail','🐺 狼人密谈…');
     await showRoleCinematic('werewolf', uiEnglish() ? 'Wolf Pack' : '狼人阵营',
@@ -15609,7 +15611,17 @@ const NightActions = {
     }
 
     // === 阶段 1:开场陈述(每狼独立,看不到队友) ===
-    const speakOrder = shuffle(ws.slice());
+    // 开场顺序只生成一次并写入断点。恢复旧存档时，openingDone 本身就是已经实际完成的顺序，
+    // 必须放在最前，再补上尚未发言的狼，不能因刷新重新洗牌。
+    const liveWolfIds = new Set(ws.map(w => w.id));
+    const validWolfOrder = ids => (Array.isArray(ids) ? ids : [])
+      .filter((id, index, arr) => liveWolfIds.has(id) && arr.indexOf(id) === index);
+    const completedOpeningIds = validWolfOrder(wolfRun.openingDone);
+    const savedOpeningIds = validWolfOrder(wolfRun.openingOrder);
+    const unorderedOpeningIds = shuffle(ws.filter(w => !completedOpeningIds.includes(w.id) && !savedOpeningIds.includes(w.id))).map(w => w.id);
+    const openingOrderIds = [...new Set([...completedOpeningIds, ...savedOpeningIds, ...unorderedOpeningIds])];
+    wolfRun.openingOrder = openingOrderIds.slice();
+    const speakOrder = openingOrderIds.map(id => ws.find(w => w.id === id)).filter(Boolean);
     const openingRecords = wolfRun.openingRecords || (wolfRun.openingRecords = {}); // {id: {game, action, targetId, interrupt, isPlayer}}
     if (speakOrder.some(p => !(wolfRun.openingDone.includes(p.id) && openingRecords[p.id]))) {
       Render.log('night-detail', '🐺 狼队·开场陈述');
@@ -15722,14 +15734,26 @@ ${magicKillDecisionHint}
 
     // === 阶段 2:回响轮(可选,有分歧才走) ===
     if (needPhase2) {
-      const phase2Order = shuffle(ws.slice());
+      // 回响不能让开场末位立刻再说一次。例：开场 1→2→3，回响固定为 2→3→1，
+      // 这样每名狼的两次发言之间至少隔着一名队友，并形成真正的回应链。
+      const rotatedOpeningIds = openingOrderIds.length === 2
+        ? openingOrderIds.slice()
+        : (openingOrderIds.length > 2
+          ? openingOrderIds.slice(1).concat(openingOrderIds.slice(0, 1))
+          : openingOrderIds.slice());
+      // 断点恢复兼容：已经完成的回响顺序优先保留；新回响按循环错位顺序补齐。
+      const completedEchoIds = validWolfOrder(wolfRun.echoDone);
+      const savedEchoIds = validWolfOrder(wolfRun.echoOrder);
+      const echoOrderIds = [...new Set([...completedEchoIds, ...savedEchoIds, ...rotatedOpeningIds])];
+      wolfRun.echoOrder = echoOrderIds.slice();
+      const phase2Order = echoOrderIds.map(id => ws.find(w => w.id === id)).filter(Boolean);
       if (phase2Order.some(p => !wolfRun.echoDone.includes(p.id))) {
         Render.log('night-detail', '🐺 狼队·回响轮(有分歧,继续讨论)');
       }
       for (const p of phase2Order) {
         if (wolfRun.echoDone.includes(p.id)) continue;
         if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
-        // 把所有队友的开场拼成上下文
+        // 使用队友当前最新表态：尚未回响的是开场，已经回响的是更新后的立场，形成连续回应链。
         const mateOpenings = ws.filter(w => w.id !== p.id)
           .map(w => {
             const rec = openingRecords[w.id];
@@ -15742,9 +15766,9 @@ ${magicKillDecisionHint}
           : '';
         const ts = validWolfTargets.map(x => x.name).join(',');
 
-        const prompt = `【狼队密谈·回响轮】队友们刚才各自开场了。${myOpeningText}
+        const prompt = `【狼队密谈·回响轮】队友们刚才各自开场了；排在你之前进入回响的队友，其内容已经更新为回响后的最新表态。${myOpeningText}
 
-【队友的开场】
+【队友当前最新表态】
 ${mateOpenings || '(无)'}
 
 【你的选择】
