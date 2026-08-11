@@ -52,6 +52,8 @@ for (const [source, label] of [[root, 'root'], [english, 'English']]) {
   assert.match(source, /migrateLegacyKimiMode\(d\.kimiThinkingMode\)/, `${label} legacy Kimi migration`);
   assert.match(source, /reasoningStage:'deep'/, `${label} deep pact routing`);
   assert.match(source, /applyCompatibleReasoningControl/, `${label} compatible provider mapping`);
+  assert.match(source, /id:'custom'.*name:'GPT \/ OpenAI (?:反代 \/ 中转|proxy).*type:'openai'/, `${label} explicit GPT reverse-proxy channel`);
+  assert.match(source, /return u \+ '\/chat\/completions'/, `${label} GPT proxy uses OpenAI-compatible chat completions`);
   assert.match(source, /body\.output_config = \{effort: anthropicEffort\}/, `${label} native Claude effort mapping`);
   assert.match(source, /Gemini endpoint rejected reasoning mode|Gemini端点不支持思考档位/, `${label} Gemini fallback`);
   assert.doesNotMatch(source, /id="kimi-thinking-mode"/, `${label} obsolete Kimi-only selector removed`);
