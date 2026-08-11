@@ -23,8 +23,14 @@ for (const file of ['index.html', 'en/index.html']) {
     `${file}: AI sheriff is missing from valid starting-player candidates`
   );
   expect(
-    src.includes('extractTargetName(actionText, orderCandidates)'),
-    `${file}: AI sheriff self-start cannot be parsed`
+    src.includes("const _actionTargetName = extractTargetName(((r && r.action) || ''), orderCandidates);")
+      && src.includes("const _gameTargetName = _actionTargetName ? null : extractTargetName(((r && r.game) || ''), orderCandidates);")
+      && src.includes('const targetName = _actionTargetName || _gameTargetName;'),
+    `${file}: structured sheriff action does not take precedence over narrative game text`
+  );
+  expect(
+    !src.includes('const targetName = extractTargetName(actionText, orderCandidates);'),
+    `${file}: merged action/game target parsing can still replace the chosen start with the sheriff name`
   );
   expect(
     src.includes('【硬约束】起点选你自己时，系统必定按“优先发言并放弃归票”执行'),
