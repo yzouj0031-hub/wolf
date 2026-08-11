@@ -4766,6 +4766,7 @@ function freshState(prev) {
     round: 0, phase: 'waiting', players: [], playerId: -1,
     auto: false, gameOver: false, history: [], nightData: {},
     killEdgeMode: prev ? prev.killEdgeMode : true,  // ★ 修复：继承上一局/开关设置，不再每次 freshState 强制归零成屠城
+    _initGodCount: 0, _initVillagerCount: 0,        // 屠边基数：开局赋真实值，读档从快照恢复
     knightChainMode: prev ? prev.knightChainMode : false,  // ★ 骑士连斩模式：决斗成功可继续决斗（每天一次），失败则骑士死
     singleRound: prev ? prev.singleRound : true,    // ★ 白天发言轮数：true=传统单轮发言(默认)，false=双轮
     sheriffDailyOrderMode: prev ? !!prev.sheriffDailyOrderMode : true, // ★ 警长每日决定发言起点与方向
@@ -6901,6 +6902,8 @@ function saveGame(options = {}) {
       _daySpeakOrderMeta: S._daySpeakOrderMeta, wolfChatHistory: S.wolfChatHistory,
       directorMode: S.directorMode, directorIds: S.directorIds,
       pureAI: S.pureAI, observerPerspective:S.observerPerspective || 'god', gameId: S.gameId, _matchUid:S._matchUid, _winType:S._winType, blindReviewMode:!!S.blindReviewMode, killEdgeMode: S.killEdgeMode, singleRound: S.singleRound, sheriffDailyOrderMode: S.sheriffDailyOrderMode,
+      // 屠边判定必须知道“开局是否存在神/民”。漏存这两个值会让回档后的屠神/屠民永远判不成立。
+      _initGodCount: S._initGodCount, _initVillagerCount: S._initVillagerCount,
       players: S.players.map(p => ({
         id: p.id, alive: p.alive, revealed: p.revealed,
         name: p.name, isPlayer: p.isPlayer, poisoned: p.poisoned,
@@ -7062,7 +7065,7 @@ function loadGame(slotArg, opts) {
       directorMode: ss.directorMode || false, directorIds: ss.directorIds || [],
       pureAI: ss.pureAI || false, observerPerspective:ss.observerPerspective || 'god', gameId: (ss.gameId || 0) + 1,
       _matchUid: ss._matchUid || ('legacy_'+(snap._time||Date.now())+'_'+(ss.gameId||0)), _winType:ss._winType || null, blindReviewMode:!!ss.blindReviewMode,
-      killEdgeMode: ss.killEdgeMode || false, // ★ 修复：读档时一并恢复屠边/屠城设置
+      killEdgeMode: ss.killEdgeMode ?? false, // ★ 修复：读档时一并恢复屠边/屠城设置
       singleRound: ss.singleRound || false,   // ★ 读档恢复发言轮数设置
       sheriffDailyOrderMode: !!ss.sheriffDailyOrderMode,
       running: false, auto: false
@@ -7090,6 +7093,15 @@ function loadGame(slotArg, opts) {
         memory: p.memory || []
       };
     });
+
+    // ★ 回档屠边修复：恢复开局神/民基数。旧存档没有这两个字段时，必须按“全体玩家”重建；
+    //   不能只数当前存活者，否则已经被屠光的一边会被误认成开局就不存在。
+    const inferredInitialGodCount = S.players.filter(p => p.role.team==='good' && p.role.id!=='villager').length;
+    const inferredInitialVillagerCount = S.players.filter(p => p.role.team==='good' && p.role.id==='villager').length;
+    S._initGodCount = Number.isInteger(ss._initGodCount) && ss._initGodCount >= 0
+      ? ss._initGodCount : inferredInitialGodCount;
+    S._initVillagerCount = Number.isInteger(ss._initVillagerCount) && ss._initVillagerCount >= 0
+      ? ss._initVillagerCount : inferredInitialVillagerCount;
 
     if (S._daySpeakOrder && S._daySpeakOrder.length) {
       // 兼容新存档的ID数组与旧存档的玩家对象数组。
@@ -7123,7 +7135,14 @@ function loadGame(slotArg, opts) {
     // 这些是运行时开关（隐死亡/审判/匿名/遗言等），续玩后保持【可调】——有时续玩需要临时改设置，不再一律灰掉。
     ['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled=false; });
     Render.log('system', `📂 存档已读取（第${S.round}回·${S.phase}，存活${S.players.filter(p=>p.alive).length}人）`);
-    Render.log('system', '▶ 点「继续」接着玩');
+    // 旧版本可能已经在漏判屠边后继续保存。读入这种存档时立刻补判，不要求玩家再推进一个阶段。
+    const restoredWinner = !S.gameOver ? evalWinNow() : null;
+    if (restoredWinner) {
+      Render.log('system', '⚖️ 回档状态已经达到胜利条件，正在补做终局结算…');
+      checkEnd().catch(e => { console.error('[回档] 补做胜负结算失败', e); Render.log('system','⚠️ 回档胜负结算失败，请重试'); });
+    } else if (!S.gameOver) {
+      Render.log('system', '▶ 点「继续」接着玩');
+    }
   } catch(e) {
     alert('读档失败：' + e.message);
     console.error(e);
