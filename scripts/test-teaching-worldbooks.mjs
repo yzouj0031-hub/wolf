@@ -71,11 +71,11 @@ for (const path of ['../index.html','../en/index.html']) {
     '━━━━ AI 教学层 ━━━━'
   ]) if (!html.includes(marker)) throw new Error(`${path} lacks teaching-worldbook integration marker: ${marker}`);
   const compactCore = html.match(/const WB_CORE_COMPACT = `([\s\S]*?)`;\s*\n\s*const WB_RULES_COMPACT/);
-  if (!compactCore || !compactCore[1].includes('【禁止以己度人和能力定罪】')) {
-    throw new Error(`${path} lacks anti-projection guidance in the active compact core`);
+  if (!compactCore || !compactCore[1].includes('【先拆发言，再做代入；行为模型不能单独定罪】')) {
+    throw new Error(`${path} lacks speech-first perspective-taking guidance in the active compact core`);
   }
-  for (const marker of ['我想不到这种操作','像提前写好的故事','流程不给答辩机会','【投票前证据校验·禁止以己度人】','<game></game>']) {
-    if (!html.includes(marker)) throw new Error(`${path} lacks anti-projection voting safeguard: ${marker}`);
+  for (const marker of ['事实主张','信息来源','前提','推导','结论','像提前写好的故事','流程不给答辩机会','【投票前证据校验·先拆发言再代入】','行为模型作为低权重辅助','<game></game>']) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks speech-first voting safeguard: ${marker}`);
   }
 }
 
@@ -94,11 +94,11 @@ for (const book of advancedPreset.worldbooks) {
   if (!source.includes(`id: '${book.id}'`)) throw new Error(`built-in preset is missing ${book.id}`);
 }
 const evidenceBook = advancedPreset.worldbooks.find(book => book.id === 'wb_advanced_evidence_endgame');
-if (!evidenceBook || !evidenceBook.content.includes('禁止以己度人和能力定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪')) {
-  throw new Error('advanced evidence worldbook lacks anti-projection and post-position silence safeguards');
+if (!evidenceBook || !evidenceBook.content.includes('先拆发言，再做代入；行为模型不能单独定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪')) {
+  throw new Error('advanced evidence worldbook lacks speech-first perspective-taking and post-position silence safeguards');
 }
-if (!source.includes('无法提出具体反驳时，应承认该论证尚未被推翻')) {
-  throw new Error('built-in official teaching still allows inability-to-rebut to become suspicion');
+if (!source.includes('行为预期，只能在完成内容核验后作为C级软先验') || !source.includes('无法提出具体反驳时，应承认该论证尚未被推翻')) {
+  throw new Error('built-in official teaching does not keep behavior models subordinate to speech analysis');
 }
 wb.load({mode:'custom',books:advancedPreset.worldbooks});
 const whitecatGuide = wb.buildOfficialKnowledge({roleId:'whitecat',team:'good',phase:'day'});
