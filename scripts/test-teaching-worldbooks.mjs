@@ -94,10 +94,10 @@ for (const book of advancedPreset.worldbooks) {
   if (!source.includes(`id: '${book.id}'`)) throw new Error(`built-in preset is missing ${book.id}`);
 }
 const evidenceBook = advancedPreset.worldbooks.find(book => book.id === 'wb_advanced_evidence_endgame');
-if (!evidenceBook || !evidenceBook.content.includes('先拆发言，再做代入；行为模型不能单独定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪')) {
+if (!evidenceBook || !evidenceBook.content.includes('先拆发言，再做代入；行为模型不能单独定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪') || !evidenceBook.content.includes('形成工作判断，不复读免责声明')) {
   throw new Error('advanced evidence worldbook lacks speech-first perspective-taking and post-position silence safeguards');
 }
-if (!source.includes('行为预期，只能在完成内容核验后作为C级软先验') || !source.includes('无法提出具体反驳时，应承认该论证尚未被推翻')) {
+if (!source.includes('行为预期，只能在完成内容核验后作为C级软先验') || !source.includes('无法提出具体反驳时，应承认该论证尚未被推翻') || !source.includes('不能因为没有100%验证就拒绝形成判断')) {
   throw new Error('built-in official teaching does not keep behavior models subordinate to speech analysis');
 }
 wb.load({mode:'custom',books:advancedPreset.worldbooks});
