@@ -19980,6 +19980,14 @@ async function nextStep() {
   } catch(e) { console.error(e); _handlerError = true; }
   S.running = false;
   $('bne').disabled = false;
+  // ★ 阶段边界直接落一个回溯检查点，不要再靠 AutoSave 那个 1.5s 轮询去"发现"阶段变了。
+  //   阶段处理期间 S.running 为真、明确禁止落盘（读档会把这一夜从头重跑），而自动推进
+  //   只在两个阶段之间留 300ms 空档（下面那句 setTimeout(nextStep, 300)）。用 1.5s 的
+  //   轮询去抢 300ms 的窗口，还要再过一道 1.5s 的存档去抖——命中率极低，实测一整局
+  //   十几次阶段变化只侥幸记到一两个检查点，「对局回溯」里几乎永远是空的。
+  //   阶段结束本来就是个确定的事件，在这里记就行；force=true 跳过去抖，
+  //   Timeline.record 自己会按「同回合同阶段同存活数」去重，不会重复堆积。
+  try { if (typeof AutoSave !== 'undefined' && AutoSave.save) AutoSave.save('阶段变化', true); } catch (_) {}
   // 如果 handler 抛异常、且 phase/round 都没推进(说明这一步没正常完成),不要自动重入同一阶段——
   // 否则会把已经做了一半的夜间行动从头再跑一遍。停下来,提示用户手动点"下一步"继续。
   if (_handlerError && S.phase === _phaseBefore && S.round === _roundBefore) {
