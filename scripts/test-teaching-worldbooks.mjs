@@ -70,6 +70,13 @@ for (const path of ['../index.html','../en/index.html']) {
     '【你的身份与技能·硬信息】',
     '━━━━ AI 教学层 ━━━━'
   ]) if (!html.includes(marker)) throw new Error(`${path} lacks teaching-worldbook integration marker: ${marker}`);
+  const compactCore = html.match(/const WB_CORE_COMPACT = `([\s\S]*?)`;\s*\n\s*const WB_RULES_COMPACT/);
+  if (!compactCore || !compactCore[1].includes('【禁止以己度人和能力定罪】')) {
+    throw new Error(`${path} lacks anti-projection guidance in the active compact core`);
+  }
+  for (const marker of ['我想不到这种操作','像提前写好的故事','流程不给答辩机会','【投票前证据校验·禁止以己度人】','<game></game>']) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks anti-projection voting safeguard: ${marker}`);
+  }
 }
 
 if (!source.includes('Import file (optional)') || !source.includes('从文件导入（可选）') || !source.includes("if (!/\\.txt$/i.test(file.name))")) {
@@ -85,6 +92,13 @@ if (!Array.isArray(advancedPreset.worldbooks) || advancedPreset.worldbooks.lengt
 }
 for (const book of advancedPreset.worldbooks) {
   if (!source.includes(`id: '${book.id}'`)) throw new Error(`built-in preset is missing ${book.id}`);
+}
+const evidenceBook = advancedPreset.worldbooks.find(book => book.id === 'wb_advanced_evidence_endgame');
+if (!evidenceBook || !evidenceBook.content.includes('禁止以己度人和能力定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪')) {
+  throw new Error('advanced evidence worldbook lacks anti-projection and post-position silence safeguards');
+}
+if (!source.includes('无法提出具体反驳时，应承认该论证尚未被推翻')) {
+  throw new Error('built-in official teaching still allows inability-to-rebut to become suspicion');
 }
 wb.load({mode:'custom',books:advancedPreset.worldbooks});
 const whitecatGuide = wb.buildOfficialKnowledge({roleId:'whitecat',team:'good',phase:'day'});
