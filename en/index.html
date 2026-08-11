@@ -3191,7 +3191,7 @@ body.has-wp::after {
         <summary>主持与调试<span class="mset-n"></span></summary>
         <div class="mtog">
         <label class="mti" data-ui-icon="gavel"><input type="checkbox" id="m-mc">主持人</label>
-        <label class="mti" data-ui-icon="gavel" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口——可以指定杀谁，也可以选「空刀」制造平安夜。无论你是否扮演狼、纯观战也能用，直接覆盖AI狼队的决定。关闭则狼队自己民主投票（默认）"><input type="checkbox" id="m-director-veto">导演刀口主控</label>
+        <label class="mti" data-ui-icon="gavel" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口。只控制一名狼或纯观战时直接覆盖AI决定；同时控制多名狼时，每名狼各投一票，空刀与具体刀口等权。关闭则全体狼队民主投票（默认）"><input type="checkbox" id="m-director-veto">导演刀口主控</label>
         <label class="mti" data-ui-icon="wrench" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>手动重试</label>
         <label class="mti" data-ui-icon="tag" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">模型标签</label>
         </div>
@@ -15350,6 +15350,8 @@ const NightActions = {
     // 解析/API 全部失败时不能“随机战术自刀”；随机兜底仍只从非狼与未知机械狼中选。
     // 刀已知队友必须来自狼队明确讨论或人工选择，不能由技术故障触发。
     const safeRandomWolfTargets = validWolfTargets.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf' || x.role.id === 'gargoyle');
+    // 空刀是一项正式战术选择，必须和具体刀口一样拥有一张完整选票。
+    const EMPTY_KILL_VOTE = '__EMPTY_KILL__';
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // resumable final votes
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
     /* 这段原来声明在下面「开场轮」的 for 块里（旧位置约 14151 行），
@@ -15713,7 +15715,10 @@ ${magicKillDecisionHint}
     }
 
     // === 代码判定:有没有分歧 ===
-    const proposedTargets = ws.map(w => openingRecords[w.id] && openingRecords[w.id].targetId).filter(id => id != null);
+    const proposedTargets = ws.map(w => {
+      const rec = openingRecords[w.id];
+      return rec && rec.emptyKill ? EMPTY_KILL_VOTE : (rec && rec.targetId);
+    }).filter(id => id != null);
     const uniqueTargets = new Set(proposedTargets);
     const computedDisagreement = uniqueTargets.size > 1;
     const anyOpeningInterrupt = ws.some(w => openingRecords[w.id] && openingRecords[w.id].interrupt);
@@ -15726,7 +15731,7 @@ ${magicKillDecisionHint}
 
     if (!wolfRun.summaryLogged) {
       Render.log('night-detail',
-      `🐺 提议汇总:${[...uniqueTargets].map(id => S.players[id].name).join('、') || '无'} ` +
+      `🐺 提议汇总:${[...uniqueTargets].map(id => id === EMPTY_KILL_VOTE ? '空刀' : S.players[id].name).join('、') || '无'} ` +
       `(${hasDisagreement ? '有分歧' : '一致'})`
       );
       wolfRun.summaryLogged = true;
@@ -15814,8 +15819,8 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       }
       // ★ 故意空刀：该狼明确表达了空刀意图，尊重决定，不投票、不随机兜底（其票记为空刀）
       if (rec && rec.emptyKill) {
-        wolfLastActions[w.id] = null;
-        Render.devLog && Render.devLog('info', `[${w.name}] 保持空刀意图，不参与刀口投票`);
+        wolfLastActions[w.id] = EMPTY_KILL_VOTE;
+        Render.devLog && Render.devLog('info', `[${w.name}] 保持空刀意图，正式投票为空刀`);
         continue;
       }
       // 兜底:开场和回响都没解出目标,独立调一次投票 API
@@ -15879,19 +15884,30 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     // === 从 wolfLastActions 生成 wolfVotes(供下方导演主控/平票/补漏路径使用) ===
     const allTargets = validWolfTargets.slice();
     const wolfVotes = {};
+    const addWolfVote = (candidate, voter) => {
+      const key = String(candidate);
+      if (!wolfVotes[key]) wolfVotes[key] = [];
+      wolfVotes[key].push(voter);
+    };
+    const wolfVoteLabel = candidate => candidate === EMPTY_KILL_VOTE
+      ? '空刀'
+      : (S.players[Number(candidate)] ? S.players[Number(candidate)].name : '未知刀口');
     ws.forEach(w => {
       if (w.isPlayer) return; // 人类玩家走下方现成的弹窗选择
-      const action = wolfLastActions[w.id] || '';
+      const action = wolfLastActions[w.id];
+      if (action === EMPTY_KILL_VOTE) {
+        addWolfVote(EMPTY_KILL_VOTE, w.name);
+        return;
+      }
       const t = parseWolfTarget(action, allTargets) || findPlayer(action, allTargets);
-      if (t) { if(!wolfVotes[t.id]) wolfVotes[t.id]=[]; wolfVotes[t.id].push(w.name); }
+      if (t) addWolfVote(t.id, w.name);
     });
 
     // ★ 导演模式bug修复:对每个 isPlayer 狼人分别弹刀口选择框
     const humanKillWolves = ws.filter(w => w.isPlayer);
-    // ★ v9 新增：导演刀口主控（开启时导演选的人直接成为最终目标，覆盖AI票）
+    // 导演刀口主控：单个真人选择直接覆盖AI；多个真人角色则各自拥有一张等权票。
     const directorVeto = $('m-director-veto') && $('m-director-veto').checked;
-    let directorOverrideTarget = null;
-    let directorEmptyKill = false; // ★ 导演选择空刀（制造平安夜）
+    const humanVoteChoices = [];
     for (let i = 0; i < humanKillWolves.length; i++) {
       const pW = humanKillWolves[i];
       const titlePrefix = humanKillWolves.length > 1 ? `🎬 ${pW.name} 选刀口 (${i+1}/${humanKillWolves.length}) ` : '';
@@ -15899,25 +15915,27 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       killOpts.push({label:'🌙 空刀（不刀任何人，制造平安夜）', value:'__EMPTY_KILL__', abs:true});
       const pWv = await waitChoice(titlePrefix+'杀谁？', pW.role.emoji+' '+pW.name+' 下手', killOpts);
       if (pWv === '__EMPTY_KILL__') {
-        if (directorVeto) { directorEmptyKill = true; }
+        addWolfVote(EMPTY_KILL_VOTE, pW.name);
+        humanVoteChoices.push({candidate:EMPTY_KILL_VOTE, voter:pW.name});
         Render.devLog && Render.devLog('info', `[导演] ${pW.name} 选择空刀`);
       } else if (pWv !== null && pWv !== undefined) {
         const t = allTargets.find(x => String(x.id) === String(pWv));
         if (t) {
-          if(!wolfVotes[t.id]) wolfVotes[t.id]=[];
-          wolfVotes[t.id].push(pW.name);
-          if (directorVeto && !directorOverrideTarget) directorOverrideTarget = t;
+          addWolfVote(t.id, pW.name);
+          humanVoteChoices.push({candidate:t.id, voter:pW.name});
         }
       }
     }
-    // ★ v9 新增：导演主控开启时，清空所有票，只保留导演的决定（目标 or 空刀）
-    if (directorVeto && directorEmptyKill && !directorOverrideTarget) {
+    // 导演主控开启时，AI票作废；若导演同时控制多名狼人，每名狼的一票仍然等权结算。
+    // 这样“一票空刀、一票刀人”会进入正常平票流程，不会因为空刀被当成弃权而自动出刀。
+    if (directorVeto && humanVoteChoices.length) {
       Object.keys(wolfVotes).forEach(k => delete wolfVotes[k]);
-      Render.log('system', `🎬 导演刀口主控：本夜狼队空刀，制造平安夜（AI队友票作废）`);
-    } else if (directorVeto && directorOverrideTarget) {
-      Object.keys(wolfVotes).forEach(k => delete wolfVotes[k]);
-      wolfVotes[directorOverrideTarget.id] = ['🎬导演主控'];
-      Render.log('system', `🎬 导演刀口主控：本夜刀口锁定 ${directorOverrideTarget.name}（AI队友票作废）`);
+      humanVoteChoices.forEach(v => addWolfVote(v.candidate, v.voter));
+      if (humanVoteChoices.length === 1) {
+        Render.log('system', `🎬 导演刀口主控：本夜${humanVoteChoices[0].candidate === EMPTY_KILL_VOTE ? '选择空刀' : '刀口锁定 '+wolfVoteLabel(humanVoteChoices[0].candidate)}（AI队友票作废）`);
+      } else {
+        Render.log('system', `🎬 导演刀口主控：按你控制的 ${humanVoteChoices.length} 名狼人分别投票结算（AI队友票作废）`);
+      }
     }
 
     // ★ 观战导演主控：开关打开、但你没有扮演任何狼（纯观战）时，也弹框让你以导演身份决定本夜刀口（含空刀）
@@ -15929,6 +15947,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const dChoice = await waitChoice('🎬 导演主控·今晚狼队刀谁？', '🎬 上帝之手', dOpts);
       if (dChoice === '__EMPTY_KILL__') {
         Object.keys(wolfVotes).forEach(k => delete wolfVotes[k]);
+        addWolfVote(EMPTY_KILL_VOTE, '🎬导演主控');
         Render.log('system', `🎬 导演主控：本夜狼队空刀，制造平安夜（AI决定作废）`);
       } else if (dChoice !== null && dChoice !== undefined && dChoice !== '__AI_DECIDE__') {
         const dt = allTargets.find(x => String(x.id) === String(dChoice));
@@ -15961,38 +15980,44 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
     let mx=0, ki=null, tieCandidates=[];
     for (const id in wolfVotes) {
       const cnt = wolfVotes[id].length;
-      if (cnt > mx) { mx = cnt; ki = parseInt(id); tieCandidates = [parseInt(id)]; }
-      else if (cnt === mx) { tieCandidates.push(parseInt(id)); ki = null; }
+      const candidate = id === EMPTY_KILL_VOTE ? EMPTY_KILL_VOTE : parseInt(id);
+      if (cnt > mx) { mx = cnt; ki = candidate; tieCandidates = [candidate]; }
+      else if (cnt === mx) { tieCandidates.push(candidate); ki = null; }
     }
     // 平票：追加一轮讨论，再随机选刀口
     if (ki === null && tieCandidates.length > 1) {
-      const tieNames = tieCandidates.map(id => S.players[id].name).join('、');
+      const tieNames = tieCandidates.map(wolfVoteLabel).join('、');
       Render.log('night-result','⚖️ 狼队平票（'+tieNames+'），追加一轮讨论…');
+      const tieVotingWolves = directorVeto && humanKillWolves.length ? humanKillWolves : ws;
       // 随机决定发言起点
-      const startIdx = Math.floor(Math.random() * ws.length);
-      const orderedWolves = [...ws.slice(startIdx), ...ws.slice(0, startIdx)];
+      const startIdx = Math.floor(Math.random() * tieVotingWolves.length);
+      const orderedWolves = [...tieVotingWolves.slice(startIdx), ...tieVotingWolves.slice(0, startIdx)];
       await procWolf(orderedWolves, p => {
         const mates = ws.filter(w=>w.id!==p.id).map(w=>w.name+'('+w.role.name+')').join(',');
         return `【狼队平票追加讨论】平票目标：${tieNames}。从中选一个最终名义刀口，快速表态！\n你的队友：${mates}${magicKillDecisionHint}\n<thinking>比较两名名义刀口在“不交换/被魔术师交换”下的实际落点与预期收益</thinking>\n<game>我最终选XXX，并说明希望刀最终落到谁</game>\n<action>None</action>`;
       },'🐺平票讨论');
       // 再投一轮
       if (!isAnon()) Render.log('night-detail','🐺 狼人平票再投…');
-      const tieTargets = tieCandidates.map(id => S.players[id]);
+      const tieTargets = tieCandidates.filter(id => id !== EMPTY_KILL_VOTE).map(id => S.players[id]);
+      const tieAllowsEmpty = tieCandidates.includes(EMPTY_KILL_VOTE);
+      const tieVoteOptions = tieCandidates.map(id => id === EMPTY_KILL_VOTE
+        ? {label:'空刀（不刀任何人）', value:EMPTY_KILL_VOTE, abs:true}
+        : {label:S.players[id].name, value:String(id)});
       const tieDecidingVotes = {};
-      const aiW2 = ws.filter(w => !w.isPlayer);
+      const aiW2 = tieVotingWolves.filter(w => !w.isPlayer);
       const wR2 = {};
       await batchCall(aiW2,'c-wvote', async w => {
         const tn2 = tieNames;
-        wR2[w.id] = await callAI(w,'【平票再投】只能从这些名义刀口中选一个：'+tn2+magicKillDecisionHint+'\n<thinking>比较魔术师不换/换位时的实际落点后再投</thinking>\n<game>发言</game>\n<action>名字</action>',{noMemory:true, skillConfirm:true});
+        wR2[w.id] = await callAI(w,'【平票再投】只能从这些选项中选一个：'+tn2+magicKillDecisionHint+'\n空刀也是正式选项；若选择空刀，在 action 中填写 PASS。\n<thinking>比较正常出刀、魔术师换位风险与战术空刀的收益后再投</thinking>\n<game>简短说明最终选择</game>\n<action>名字 或 PASS</action>',{noMemory:true, skillConfirm:true});
       });
       // ★ 导演模式bug修复:对每个 isPlayer 狼人分别弹再投票框
-      const humanWolves = ws.filter(w => w.isPlayer);
+      const humanWolves = tieVotingWolves.filter(w => w.isPlayer);
       const humanWolfVotes = {};
       for (const pW2 of humanWolves) {
         const titlePrefix = humanWolves.length > 1 ? `🎬 ${pW2.name} 狼平票再投 (${Object.keys(humanWolfVotes).length+1}/${humanWolves.length}) ` : '';
-        humanWolfVotes[pW2.id] = await waitChoice(titlePrefix+'平票！从中选一个？',pW2.role.emoji+' '+pW2.name+' 平票再投', tieTargets.map(x=>({label:x.name,value:String(x.id)})));
+        humanWolfVotes[pW2.id] = await waitChoice(titlePrefix+'平票！从中选一个？',pW2.role.emoji+' '+pW2.name+' 平票再投', tieVoteOptions);
       }
-      ws.forEach(w => {
+      tieVotingWolves.forEach(w => {
         let tn;
         if (w.isPlayer) {
           tn = humanWolfVotes[w.id];
@@ -16004,6 +16029,12 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
         } else {
           tn = '';
         }
+        const explicitEmpty = tieAllowsEmpty && (tn === EMPTY_KILL_VOTE || /^(?:none|pass|空刀|不刀|不出刀)$/i.test(String(tn).trim()));
+        if (explicitEmpty) {
+          if(!tieDecidingVotes[EMPTY_KILL_VOTE]) tieDecidingVotes[EMPTY_KILL_VOTE]=[];
+          tieDecidingVotes[EMPTY_KILL_VOTE].push(w.name);
+          return;
+        }
         const t = w.isPlayer
           ? tieTargets.find(x => String(x.id) === String(tn))
           : findPlayer(tn, tieTargets);
@@ -16013,30 +16044,34 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       const stillTied=[];
       for (const id in tieDecidingVotes) {
         const cnt = tieDecidingVotes[id].length;
-        if (cnt > mx2) { mx2=cnt; stillTied.length=0; stillTied.push(parseInt(id)); }
-        else if (cnt === mx2) { stillTied.push(parseInt(id)); }
+        const candidate = id === EMPTY_KILL_VOTE ? EMPTY_KILL_VOTE : parseInt(id);
+        if (cnt > mx2) { mx2=cnt; stillTied.length=0; stillTied.push(candidate); }
+        else if (cnt === mx2) { stillTied.push(candidate); }
       }
       if (stillTied.length === 1) {
         ki = stillTied[0];
       } else {
         // 仍然平票，随机选
         ki = tieCandidates[Math.floor(Math.random() * tieCandidates.length)];
-        Render.log('night-result','⚖️ 再投仍平票，随机选定 '+S.players[ki].name);
+        Render.log('night-result','⚖️ 再投仍平票，随机选定 '+wolfVoteLabel(ki));
       }
     }
     if (ki!==null) {
-      S.nightData.kill = ki;
-      Render.log('night-result','🐺 狼人决定击杀 '+S.players[ki].name);
+      S.nightData.kill = ki === EMPTY_KILL_VOTE ? null : ki;
+      S.nightData.killChosenByWolf = S.nightData.kill;
+      Render.log('night-result', ki === EMPTY_KILL_VOTE ? '🐺 狼人决定空刀' : '🐺 狼人决定击杀 '+S.players[ki].name);
       // ★ MC主持人确认刀口
       if (isMC()) {
         const mcPlayers = alive.filter(p => p.id !== undefined);
         const mcOpts = mcPlayers.map(x => ({label: x.name+'（'+x.role.name+'）'+(x.role.team==='bad'?' ⚠️自刀':''), value: String(x.id)}));
         mcOpts.push({label:'无人被杀', value:'None'});
-        const chosen = await mcNightConfirm('🐺 狼人行动', '狼队', `决定今晚击杀 <b style="color:#c83040">${S.players[ki].name}</b>，可修改：`, mcOpts, String(ki));
+        const decisionText = ki === EMPTY_KILL_VOTE ? '决定今晚<b>空刀</b>，可修改：' : `决定今晚击杀 <b style="color:#c83040">${S.players[ki].name}</b>，可修改：`;
+        const chosen = await mcNightConfirm('🐺 狼人行动', '狼队', decisionText, mcOpts, ki === EMPTY_KILL_VOTE ? 'None' : String(ki));
         if (chosen === 'None') S.nightData.kill = null;
         else if (chosen !== null) S.nightData.kill = parseInt(chosen);
+        S.nightData.killChosenByWolf = S.nightData.kill;
       }
-      gameRecord.push({type:'night_action', role:'wolf', round:S.round, target:S.nightData.kill!==null?S.players[S.nightData.kill].name:'无', voters: Object.fromEntries(Object.entries(wolfVotes).map(([id,names])=>[S.players[parseInt(id)].name, names]))});
+      gameRecord.push({type:'night_action', role:'wolf', round:S.round, target:S.nightData.kill!==null?S.players[S.nightData.kill].name:'空刀', voters: Object.fromEntries(Object.entries(wolfVotes).map(([id,names])=>[wolfVoteLabel(id), names]))});
     }
     wolfRun.complete = true;
   },
