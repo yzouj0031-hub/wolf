@@ -6832,6 +6832,26 @@ const TimelineUI = (() => {
 /* ================================================================
  *  § 存档 / 读档
  * ================================================================ */
+
+// 存档体积上限。三个数字不一样，因为同一份 json 会走三条路，代价各不相同：
+//  · 主存档：只有一份，IndexedDB 配额宽裕，给得最松。
+//  · 时间线：最多 40 个检查点，而 SaveStore 启动时把所有槽位读进内存缓存，
+//    也就是 40 份快照会同时常驻 RAM——这里必须卡得最紧，手机上尤其。
+//  · 云端：每次阶段变化整份上传，超大快照直接烧带宽和 Supabase 配额。
+const SNAPSHOT_MAX_BYTES = 8 * 1024 * 1024;
+const TIMELINE_MAX_BYTES = 1.5 * 1024 * 1024;
+const CLOUD_MAX_BYTES    = 4 * 1024 * 1024;
+
+// 存档降级、云端超限这类提示每次自动存档都会命中，一局能刷几十条。
+// 同一条理由整局只提醒一次，既让人看得见，又不至于把日志淹掉。
+const _saveWarnedKeys = new Set();
+function _saveWarnOnce(key, text) {
+  const k = (S && S.gameId != null ? S.gameId : '?') + ':' + key;
+  if (_saveWarnedKeys.has(k)) return;
+  _saveWarnedKeys.add(k);
+  Render.log('system', text);
+}
+
 function saveGame(options = {}) {
   if (options && typeof options.preventDefault === 'function') options = {};  // 兼容被直接绑成事件回调的情况
   const silent = !!(options && options.silent);
@@ -6862,7 +6882,10 @@ function saveGame(options = {}) {
         roleId: p.role.id, customId: p.role.customId || null, mbtiKey: p.mbtiKey,
         _plan: p._plan || null, _planRound: p._planRound || null,
         _sk: serializeSkillFlags(p),   // ★ 技能已用/状态标记，防读档后技能"复活"
-        memory: p.memory.slice(-memLimit)
+        // memLimit: null=不限(全存) / 0=放弃记忆 / N=只留最近 N 条。
+        // 注意不能写成 slice(-memLimit)——JS 里 slice(-0) 等价于 slice(0)，会返回【整个数组】，
+        // 也就是原来阶梯最后那级"0(放弃memory)"其实一条都没砍掉。
+        memory: memLimit === null ? p.memory.slice() : (memLimit > 0 ? p.memory.slice(-memLimit) : [])
       }))
     })),
     gameRecord: gameRecord,
@@ -6877,29 +6900,75 @@ function saveGame(options = {}) {
     }
   });
 
-  // 逐级降级:40 → 20 → 10 → 5 → 0(放弃memory)
-  const limits = [40, 20, 10, 5, 0];
+  // 存档保留多少条记忆，跟随设置面板的「记忆」选项（0=不限），不再写死 40。
+  //
+  // 以前这里恒为 40：把记忆调成"不限"跑长局，运行时 AI 看的是完整记忆，但任何一次
+  // 自动存档都会悄悄砍到 40，读档续玩就降级了，而且全程没有任何提示。
+  //
+  // 但"不限"不是没有代价：同一份 json 会同时进主存档、时间线检查点（最多 40 份）和
+  // 云端上传，而 SaveStore 启动时把所有槽位读进内存缓存——40 份全量快照常驻 RAM，
+  // 手机上很容易撑爆。所以下面按体积逐级降，并且把降级说出来。
+  const _memSetting = parseInt($('g-mem') && $('g-mem').value);
+  const _want = Number.isFinite(_memSetting) ? _memSetting : 40;
+  const limits = _want === 0
+    ? [null, 200, 80, 40, 20, 10, 5, 0]
+    : [_want].concat([200, 80, 40, 20, 10, 5, 0].filter(x => x < _want));
   let lastErr = null;
-  for (const limit of limits) {
+  for (let li = 0; li < limits.length; li++) {
+    const limit = limits[li];
+    const isLast = li === limits.length - 1;
     try {
       const snap = buildSnap(limit);
       const json = JSON.stringify(snap);
+
+      // ★ 降级必须自己看体积，不能等异常：SaveStore.set 里 IndexedDB 是异步写、
+      //   localStorage 那份镜像用 try/catch 静默放弃，所以它【从不抛错】——
+      //   原来那套 try/catch 降级阶梯因此是死代码，永远停在第一级。
+      if (!isLast && json.length > SNAPSHOT_MAX_BYTES) {
+        Render.devLog && Render.devLog('warn',
+          '[存档] 快照 ' + Math.round(json.length/1024) + 'KB 超过上限，记忆从 ' + (limit === null ? '不限' : limit) + ' 降一级重试');
+        continue;
+      }
+
       SaveStore.set(options.slot || 'auto', json);
+
+      // 时间线最多留 40 个检查点，而 SaveStore 启动时把所有槽位读进内存缓存。
+      // 全量快照 × 40 常驻 RAM 在手机上会撑爆，所以超过阈值就不记检查点——
+      // 宁可少一个回溯点，也好过整局卡死。
       if (options.reason === '阶段变化') {
-        Timeline.record(json, {round: S.round, phase: S.phase,
-          alive: S.players.filter(p => p.alive).length, total: S.players.length, gameId: S.gameId});
+        if (json.length <= TIMELINE_MAX_BYTES) {
+          Timeline.record(json, {round: S.round, phase: S.phase,
+            alive: S.players.filter(p => p.alive).length, total: S.players.length, gameId: S.gameId});
+        } else {
+          Render.devLog && Render.devLog('warn',
+            '[回溯] 快照 ' + Math.round(json.length/1024) + 'KB 过大，本次不记检查点');
+        }
       }
+
+      // 云端每次阶段变化都要整份上传，超大快照会把带宽和 Supabase 配额烧掉。
       if (window.CloudSave && typeof window.CloudSave.schedule === 'function') {
-        window.CloudSave.schedule(json, options.reason || (silent ? '自动保存' : '手动保存'));
+        if (json.length <= CLOUD_MAX_BYTES) {
+          window.CloudSave.schedule(json, options.reason || (silent ? '自动保存' : '手动保存'));
+        } else {
+          Render.devLog && Render.devLog('warn',
+            '[云存档] 快照 ' + Math.round(json.length/1024) + 'KB 超过上传上限，本次仅存本机');
+          _saveWarnOnce('cloud-too-big', '☁️ 存档 ' + Math.round(json.length/1024) + 'KB 超过云端上传上限，本局仅保存在本机。想换设备接着玩，请把【记忆】调小，或手动导出存档文件。');
+        }
       }
+
       const sizeKB = Math.round(json.length / 1024);
       const t = new Date(snap._time).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+      const memTxt = limit === null ? '全量' : (limit > 0 ? '最近' + limit + '条/玩家' : '未保留');
+      // 降级过就必须说出来。以前只在手动存档时提示，而降级几乎只发生在自动存档，
+      // 于是"读档后 AI 忘事"这件事从来没有任何可见线索。
+      if (li > 0) {
+        _saveWarnOnce('mem-degraded-' + limit,
+          '⚠️ 存档体积超限，记忆已压缩到' + memTxt + '（' + sizeKB + 'KB）。读档续玩时 AI 的对话记忆会变短，但夜间行动历史仍会从战报重建。');
+      }
       if (!silent) {
-        if (limit < 40) {
-          Render.log('system', `💾 进度已保存（${t}，第${S.round}回·${S.phase}）⚠️ 记忆已压缩到最近${limit}条/玩家 [${sizeKB}KB]`);
-        } else {
-          Render.log('system', `💾 进度已保存（${t}，第${S.round}回·${S.phase}）[${sizeKB}KB]`);
-        }
+        Render.log('system', li > 0
+          ? `💾 进度已保存（${t}，第${S.round}回·${S.phase}）⚠️ 记忆已压缩到${memTxt} [${sizeKB}KB]`
+          : `💾 进度已保存（${t}，第${S.round}回·${S.phase}）[${sizeKB}KB]`);
       }
       return true;
     } catch(e) {
