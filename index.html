@@ -6814,7 +6814,19 @@ const Timeline = (() => {
       idx.push({k, t: Date.now(), round: meta.round, phase: meta.phase,
                 alive: meta.alive, total: meta.total, sizeKB: Math.round(json.length / 1024),
                 gameId: meta.gameId});
-      while (idx.length > MAX) SaveStore.remove(idx.shift().k);
+      // 淘汰策略：每个回合的【第一个】检查点尽量保住，先删同回合里靠后的那些。
+      // 原来是 idx.shift() 直接删最旧的一条——恰好把第一天、第二天先删掉，
+      // 而"回到第一天/第二天看看"正是回溯最常见的用法，方向反了。
+      while (idx.length > MAX) {
+        const seenRounds = new Set();
+        let victim = -1;
+        for (let i = 0; i < idx.length; i++) {
+          if (!seenRounds.has(idx[i].round)) { seenRounds.add(idx[i].round); continue; }
+          victim = i; break;                 // 该回合已有更早的检查点 → 这条可以删
+        }
+        if (victim < 0) victim = 0;          // 每回合都只剩一条了，才退回删最旧的
+        SaveStore.remove(idx.splice(victim, 1)[0].k);
+      }
       SaveStore.set(k, json);
       SaveStore.set(IDX, JSON.stringify(idx));
     } catch (e) { console.error('[回溯] 记录检查点失败', e); }
@@ -6895,6 +6907,8 @@ const TimelineUI = (() => {
 const SNAPSHOT_MAX_BYTES = 8 * 1024 * 1024;
 const TIMELINE_MAX_BYTES = 1.5 * 1024 * 1024;
 const CLOUD_MAX_BYTES    = 4 * 1024 * 1024;
+// 回溯点保留的记忆条数上限，独立于主存档的「记忆」设置（见 saveGame 里的说明）。
+const TIMELINE_MEM_LIMIT = 40;
 
 // 存档降级、云端超限这类提示每次自动存档都会命中，一局能刷几十条。
 // 同一条理由整局只提醒一次，既让人看得见，又不至于把日志淹掉。
@@ -6990,12 +7004,23 @@ function saveGame(options = {}) {
       // 全量快照 × 40 常驻 RAM 在手机上会撑爆，所以超过阈值就不记检查点——
       // 宁可少一个回溯点，也好过整局卡死。
       if (options.reason === '阶段变化') {
-        if (json.length <= TIMELINE_MAX_BYTES) {
-          Timeline.record(json, {round: S.round, phase: S.phase,
+        // 回溯点【不跟随】主存档的记忆设置，单独按 TIMELINE_MEM_LIMIT 重建一份。
+        // 理由：最多 40 个检查点会同时常驻内存（SaveStore 启动时把所有槽位读进缓存），
+        // 主存档选"不限"时全量记忆 ×40 直接撑爆；而回溯本来就不依赖对话原文——
+        // 读档后夜间行动史会从 gameRecord 重建。让回溯点保持小而多，比大而少有用得多。
+        let tlJson = json;
+        if (limit === null || limit > TIMELINE_MEM_LIMIT) {
+          try { tlJson = JSON.stringify(buildSnap(TIMELINE_MEM_LIMIT)); } catch (_) { tlJson = json; }
+        }
+        if (tlJson.length <= TIMELINE_MAX_BYTES) {
+          Timeline.record(tlJson, {round: S.round, phase: S.phase,
             alive: S.players.filter(p => p.alive).length, total: S.players.length, gameId: S.gameId});
         } else {
           Render.devLog && Render.devLog('warn',
-            '[回溯] 快照 ' + Math.round(json.length/1024) + 'KB 过大，本次不记检查点');
+            '[回溯] 快照 ' + Math.round(tlJson.length/1024) + 'KB 过大，本次不记检查点');
+          // 这条以前只写开发日志，用户侧的表现就是"对局回溯里一直是空的"，无从判断原因。
+          _saveWarnOnce('timeline-too-big',
+            '⚠️ 单个回溯点已达 ' + Math.round(tlJson.length/1024) + 'KB，超出上限，暂停记录新的回溯点。已记录的仍可回溯。');
         }
       }
 
