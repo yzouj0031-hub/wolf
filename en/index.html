@@ -4739,7 +4739,15 @@ function englishPlayerName(name) { return EN_NAME_ALIASES[name] || name; }
  * ================================================================ */
 // ★ 存档需持久化的"技能已用/状态"玩家级标记（白猫缓死/愚者/自创积木/赐予等）。
 //   不持久化则读档/回溯后这些标记丢失→技能"复活"（如愚者免疫后读档又能用护盾）。
-const SKILL_STATE_KEYS = ['_foolUsed','_shieldUsed','_lynchImmuneUsed','_rpUsed','_rp','_rpCause','_rpResolved','_cLastGuard','_cPoisonUsed','_cSaveUsed','_cBlockUsed','_grant','_grantShield','_grantShieldExpire','_grantUsed','_grantedSeer','_grantedSeerReady','_giftPending','_youLast','_imitatorTried','_imitatorSuccesses'];
+// ★ 读档/时间线回溯要还原的"整局一次性 / 不能连续两夜"状态。
+//   漏一个的后果不是报错，是技能悄悄复活或规则限制断链——存档看起来读成功了，
+//   只是炼金魔女手里又多了一瓶药。新增角色时凡是挂在玩家对象上的持久状态一律加进来，
+//   scripts/test-skill-state-keys.mjs 会扫描赋值点、漏了就让测试失败。
+const SKILL_STATE_KEYS = ['_foolUsed','_shieldUsed','_lynchImmuneUsed','_rpUsed','_rp','_rpCause','_rpResolved','_cLastGuard','_cPoisonUsed','_cSaveUsed','_cBlockUsed','_grant','_grantShield','_grantShieldExpire','_grantUsed','_grantedSeer','_grantedSeerReady','_giftPending','_youLast','_imitatorTried','_imitatorSuccesses',
+  // 补漏（以前缺席，读档后炼金魔女的未明之雾与法老之蛇会双双复活）：
+  '_mistUsed','_serpentUsed',
+  // 净魂师"不能连续两夜同一人"、摄梦人连梦判定、石像鬼苏醒与已窥视名单、守墓人已验墓
+  '_sanctuaryLastTarget','_dreamLastTarget','_gargoyleAwake','_gargoyleSeen','_gravekeeperSeen'];
 function serializeSkillFlags(p){ const o={}; for(const k of SKILL_STATE_KEYS){ if(p[k]!==undefined && p[k]!==null) o[k]=p[k]; } return o; }
 
 function freshState(prev) {
