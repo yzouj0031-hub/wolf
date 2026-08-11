@@ -6098,7 +6098,9 @@ const API_PROVIDERS = [
     url:'http://localhost:11434/v1', webDirect:true, models:[] },
   { id:'custom-anthropic', name:'Claude 反代 / 中转（Anthropic 格式）', type:'anthropic', url:'', models:[] },
   { id:'custom-gemini',    name:'Gemini 反代 / 中转（Gemini 格式）',    type:'gemini',    url:'', models:[] },
-  { id:'custom',    name:'自定义 / 中转（OpenAI 兼容）', type:'openai', url:'', models:[] }
+  // GPT proxies normally expose an OpenAI-compatible Chat Completions endpoint.
+  // Keep the legacy id:'custom' so saved configurations continue to load unchanged.
+  { id:'custom',    name:'GPT / OpenAI proxy（OpenAI-compatible format）', type:'openai', url:'', models:[] }
 ];
 const getProvider = (id) => API_PROVIDERS.find(x => x.id === id) || null;
 

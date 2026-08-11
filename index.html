@@ -6152,7 +6152,9 @@ const API_PROVIDERS = [
     url:'http://localhost:11434/v1', webDirect:true, models:[] },
   { id:'custom-anthropic', name:'Claude 反代 / 中转（Anthropic 格式）', type:'anthropic', url:'', models:[] },
   { id:'custom-gemini',    name:'Gemini 反代 / 中转（Gemini 格式）',    type:'gemini',    url:'', models:[] },
-  { id:'custom',    name:'自定义 / 中转（OpenAI 兼容）', type:'openai', url:'', models:[] }
+  // GPT 反代通常就是 OpenAI Chat Completions 兼容格式。保留旧 id:'custom'，
+  // 这样已经保存过“自定义 / 中转”的玩家升级后无需重新配置。
+  { id:'custom',    name:'GPT / OpenAI 反代 / 中转（OpenAI 兼容格式）', type:'openai', url:'', models:[] }
 ];
 const getProvider = (id) => API_PROVIDERS.find(x => x.id === id) || null;
 
