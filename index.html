@@ -9964,6 +9964,14 @@ function resolveAIReasoning(p, prompt, opts) {
     opts
   });
 }
+// 重试降档：xhigh → high → medium → low。off/auto 不动（本来就没在烧预算）。
+const _REASONING_DOWNGRADE = Object.freeze({xhigh:'high', high:'medium', medium:'low', low:'low'});
+function _degradeReasoning(mode, att) {
+  let m = mode;
+  for (let i = 1; i < att; i++) m = _REASONING_DOWNGRADE[m] || m;
+  return m;
+}
+
 function applyCompatibleReasoningControl(body, model, reasoning, flags) {
   const mode = reasoning.effective;
   const fields = [];
@@ -9998,7 +10006,7 @@ function removeCompatibleReasoningControl(body) {
 
 async function callAI(p, prompt, opts) {
   opts = opts || {};
-  const reasoning = resolveAIReasoning(p, prompt, opts);
+  const _reasoningBase = resolveAIReasoning(p, prompt, opts);
   if (window.__DEMO__) return await demoResponder(p, prompt);   // 🎬 演示模式：本地脚本，无需 key
   const rationalCap = opts.skillConfirm ? 0.5 : Infinity;
   const myGid = S.gameId;
@@ -10129,6 +10137,19 @@ async function callAI(p, prompt, opts) {
       timeoutCtrl.signal.addEventListener('abort', () => ctrl.abort());
       return ctrl.signal;
     })();
+    // ★ 重试时逐级降低思考强度。
+    //   reasoning 是在重试循环【外面】算一次的，所以以前每次重试都还是同一档：
+    //   xhigh 下模型可能整个响应都耗在 thinking 里、一个字正式发言都没产出就被
+    //   上游截断（症状是返回一段断在词中间的思考摘要，例如
+    //   "**Assessing wolf coordination and inform"），而重试用同样的档位必然再撞一次，
+    //   于是同一个角色在同一轮里反复失败。降档后重试才有意义。
+    const reasoning = (att > 1 && _degradeReasoning(_reasoningBase.effective, att) !== _reasoningBase.effective)
+      ? Object.assign({}, _reasoningBase, {effective: _degradeReasoning(_reasoningBase.effective, att)})
+      : _reasoningBase;
+    if (reasoning !== _reasoningBase) {
+      Render.devLog && Render.devLog('warn',
+        `[P${p.id+1}] 重试${att}：思考强度 ${_reasoningBase.effective} → ${reasoning.effective}（降档以避免再次烧光输出预算）`);
+    }
     // max_tokens 优先级：玩家自定义 > 全局自定义 > 全局预设
     const globalTkEl = $('g-maxtk');
     const globalTkCustom = parseInt($('g-maxtk-custom')?.value) || 0;
@@ -14865,8 +14886,18 @@ const NightActions = {
         '只选择一人。\n<action>玩家名</action>');
       logNightThinking(dw, r);
       const d = await resolveAIAction3(dw, r, {label:'摄梦',candidates:ts,targetCount:1,allowPass:false,formatHint:'DREAM|P数字'});
-      t = d.status === 'execute' ? d.targets[0] : ts[Math.floor(Math.random()*ts.length)];
-      if (d.status !== 'execute') recordTechnicalActionFailure(dw,'摄梦','强制技能解析失败，技术兜底补选'+t.name);
+      if (d.status === 'execute') {
+        t = d.targets[0];
+      } else {
+        // ★ 兜底不能挑中昨夜的实际梦游者：那会构成"连续两夜同一人"，直接触发噩梦处决。
+        //   摄梦是强制技能（allowPass:false），解析失败时必须补一个目标，但一次 API 故障
+        //   随机处决掉一名玩家显然不该发生——这里把昨夜目标从随机池里排除。
+        //   （xhigh 思考烧光输出预算导致解析失败，是这条路径最常见的触发方式。）
+        const safe = ts.filter(x => x.id !== dw._dreamLastTarget);
+        const pool = safe.length ? safe : ts;
+        t = pool[Math.floor(Math.random()*pool.length)];
+        recordTechnicalActionFailure(dw,'摄梦','强制技能解析失败，技术兜底补选'+t.name+(safe.length < ts.length ? '（已排除昨夜目标，避免故障导致噩梦处决）' : ''));
+      }
     }
     const actualDreamId = reflectTargetedNightSkill(dw, t.id, 'dream');
     const actualDreamer = S.players[actualDreamId] || t;
