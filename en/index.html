@@ -8915,6 +8915,15 @@ function buildSystemPrompt(p) {
       p.role.id === 'fox' && S.players.some(x => x.role && x.role.id === 'mechwolf')) {
     guide += FOX_MECH_INTERACTION_GUIDE;
   }
+  const counterclaimDecoyCorrectionBlock =
+    currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && p.role.team === 'good'
+      ? `\n\n【同身份声明校正·最高优先级】
+本段覆盖角色旧说明中“记录不同就是铁狼”“出现同身份就必须立刻对跳”等绝对句。你能确定对方不是真正的唯一身份，只能证明其身份声明为假，不能直接证明其阵营是狼人。
+在 thinking 中必须同时保留并比较三种分支：①狼人悍跳，意图夺取归票、攻击真神、骗取技能或制造误投；②好人挡刀，使用低污染假身份保护真神，受到真实记录压测后愿意降级或退水；③其他好人救场、试探或误判。不要把“如果是我不会这么玩”当作排他证据。
+先追问完整逐夜记录、起跳时点与目的、未来可验证点，再比较隐藏、局部质疑和公开对跳的收益。只有假身份即将造成关键误投、骗取技能、夺取决定性警徽或形成不可逆公信力时，才优先公开真实记录救场；否则可先压测并保存夜间价值。
+公开纠正时可以说“他不是这个身份，狼与好人挡刀都要盘”，除非另有排他矛盾或明确狼队收益，不得升级成“铁狼”。尤其守卫记录不同只证明两人不能都是真守卫；记录相同也可能来自公开信息或照抄，不能自证。好人挡刀者通常避免编造污染性硬信息，并在真神交出可靠记录后退水；狼人更常需要维持身份外壳、继续推真神，但这仍是需要结合票型验证的行为证据。`
+      : '';
+  guide += counterclaimDecoyCorrectionBlock;
 
   // ★ 动态发言风格：硬核模式 vs 自然模式
   let styleBlock = isHardcore ?
