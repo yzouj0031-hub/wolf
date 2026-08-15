@@ -9639,36 +9639,6 @@ ${userPersona}
       + _capLine('敌对标记防护', _capCleanse, '狼妃反弹锁或狼美人魅惑不会被额外净除。')
       + (_maybeLater.length ? '\n· 【注意·能力可能中途出现】' + _maybeLater.join('、') + ' 能让上述能力在中途转手或产生（赐予/学习），所以"现在没有"不等于"整局都不会有"。' : '')
     : '';
-  // ★ 死因来源账本：配置公开不等于模型会主动做“来源数量守恒”。
-  //   给出本局实际可用的夜间致死通道与保守上界，防止隐死亡被误读成“任何人都可能以任何方式死”。
-  const _nightDeathsThisRound = S.players.filter(x => !x.alive && x.deathRound === S.round && x.deathPhase === 'night');
-  const _hasRole = id => _presentRoleIds.has(id);
-  const _poisonSources = [...new Set(_capPoison)];
-  const _latentLethalSources = [...new Set(_maybeLater)];
-  const _deathChainSources = _rolesHere.filter(r => ['hunter','wolfking','wolfbeauty','cupid'].includes(r.id)).map(r => r.name);
-  const _fixedExtraNightDeathMax = _poisonSources.length
-    + (_hasRole('dreamwalker') ? 1 : 0)
-    + (_hasRole('serialkiller') ? 1 : 0)
-    + _deathChainSources.length;
-  const _deathSourceLines = [
-    '· 【狼刀】狼阵营正常每夜至多形成一份共同刀口；自刀仍是狼刀。魔术师换位只改变这份刀口最终落在谁身上，不会凭空增加第二份狼刀。'
-  ];
-  if (_poisonSources.length) _deathSourceLines.push('· 【独立毒杀】本局可由这些角色产生额外毒杀：' + _poisonSources.join('、') + '。是否已经用完以及是否实际发动，必须结合公开信息或本人私密记录。');
-  else _deathSourceLines.push('· 【毒杀排除】本局没有已登记的直接毒杀角色，不得用“也许被女巫/其他人毒了”解释额外死者。');
-  if (_hasRole('dreamwalker')) _deathSourceLines.push('· 【摄梦死亡】摄梦人一夜至多额外造成一名死者：连续两夜选择同一人造成噩梦死亡，或摄梦人自己夜死时连带当夜梦游者；这两条不会在同一夜叠成两名额外死者。');
-  if (_hasRole('serialkiller')) _deathSourceLines.push('· 【独立袭击】连环杀手每夜至多另有一份独立袭击，不属于狼刀。');
-  if (_deathChainSources.length) _deathSourceLines.push('· 【条件连带】本局存在死亡触发或关系连带角色：' + _deathChainSources.join('、') + '。只有对应角色/关系实际触发时才增加死者，不能无条件占用一个死因分支。');
-  if (_hasRole('alchemist')) _deathSourceLines.push('· 炼金魔女的未明之雾只限制狼刀候选，法老之蛇只救人；两者都不能制造额外死亡。');
-  if (_hasRole('magician')) _deathSourceLines.push('· 魔术师只重定向狼刀落点，所以“被换死”仍属于狼刀结果，不是第二种独立击杀。');
-  if (_hasRole('fox')) _deathSourceLines.push('· 子狐只能封锁主动技能或令狼队禁刀，本身不能杀人；若狼刀确实被禁，本夜死亡数必须由其余已登记来源解释。');
-  if (!_latentLethalSources.length && _nightDeathsThisRound.length > _fixedExtraNightDeathMax) {
-    const forcedWolfDeaths = _nightDeathsThisRound.length - _fixedExtraNightDeathMax;
-    _deathSourceLines.push('· 【本轮数量守恒】本轮共有' + _nightDeathsThisRound.length + '名玩家夜间出局；本局已登记的非狼刀额外死亡通道一夜合计至多解释' + _fixedExtraNightDeathMax + '人，因此至少' + forcedWolfDeaths + '人必然属于狼刀结果。可以不知道具体对应谁，但禁止说“这些人都可能不是狼刀”。');
-  } else if (_nightDeathsThisRound.length) {
-    _deathSourceLines.push('· 【本轮数量守恒】本轮共有' + _nightDeathsThisRound.length + '名玩家夜间出局。只能用上列实际在场机制组合解释，不能调用本局不存在的角色补分支。');
-  }
-  if (_latentLethalSources.length) _deathSourceLines.push('· 【动态技能保留】' + _latentLethalSources.join('、') + '可能临时产生致死能力，因此无法仅凭初始身份给出严格上界；但仍必须指出具体由谁获得了什么能力，不能泛称“也可能不是狼刀”。');
-  const nightDeathAccountingBlock = '\n\n【本局夜间死亡来源账本·必须做数量守恒】\n“具体死因不公开”只表示暂时不知道死者与来源如何对应，不表示死亡机制无限。先按本局配置列来源、再按死亡人数排除不可能组合；不要为了显得谨慎而保留物理上不存在的分支。\n' + _deathSourceLines.join('\n');
   // ★ 名字层面的补充：模型最爱脑补的就是这几张经典牌，内置世界书也大量拿它们举例。
   //   这里只否定"名字"，能力有无一律以上面的能力索引为准（避免"没有预言家=没有查验"的错误暗示）。
   const _absentClassics = ['seer','witch','guard','hunter','knight']
@@ -9678,7 +9648,7 @@ ${userPersona}
       + (_capInspect.length ? '⚠️注意区分：本局虽然没有"预言家"这张牌，但能力索引里【有能验阵营的角色】，查验类信息由他们产生——请用他们的真实角色名来称呼和推理，别套预言家模板（本局没有警徽流、也不存在"对跳预言家"）。' : '')
       + '⚠️上文任何通用战术若以这些角色举例（如"悍跳预言家""守卫挡刀""女巫救人""等预言家发查验"），本局一律【不适用】，直接忽略那些例子。'
     : '';
-  const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！' + capabilityIndex + nightDeathAccountingBlock + absentRoleRule;
+  const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！' + capabilityIndex + absentRoleRule;
 
   const isPureAI = S.pureAI;
   let modelAdapt = isPureAI
