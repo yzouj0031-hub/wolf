@@ -67,6 +67,9 @@ for (const path of ['../index.html','../en/index.html']) {
     'const customTeaching = twb && typeof twb.buildInjection',
     'return officialTeaching + customTeaching + WB_RULES_COMPACT',
     "(currentTeachingMode === 'custom' || currentTeachingMode === 'clean') && !customMechanicRole",
+    'const counterclaimDecoyCorrectionBlock',
+    '本段覆盖角色旧说明中“记录不同就是铁狼”',
+    'guide += counterclaimDecoyCorrectionBlock',
     '【你的身份与技能·硬信息】',
     '━━━━ AI 教学层 ━━━━'
   ]) if (!html.includes(marker)) throw new Error(`${path} lacks teaching-worldbook integration marker: ${marker}`);
@@ -76,6 +79,9 @@ for (const path of ['../index.html','../en/index.html']) {
   }
   for (const marker of ['事实主张','信息来源','前提','推导','结论','像提前写好的故事','流程不给答辩机会','【投票前证据校验·先拆发言再代入】','行为模型作为低权重辅助','<game></game>']) {
     if (!html.includes(marker)) throw new Error(`${path} lacks speech-first voting safeguard: ${marker}`);
+  }
+  for (const marker of ['由你自己根据【本局配置】和角色公开技能推导','不表示本局不存在的死亡机制也要保留','系统不会替你算出哪名死者对应哪种机制']) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks non-spoiling setup-aware death reasoning: ${marker}`);
   }
 }
 
@@ -97,6 +103,13 @@ const evidenceBook = advancedPreset.worldbooks.find(book => book.id === 'wb_adva
 if (!evidenceBook || !evidenceBook.content.includes('先拆发言，再做代入；行为模型不能单独定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪') || !evidenceBook.content.includes('形成工作判断，不复读免责声明')) {
   throw new Error('advanced evidence worldbook lacks speech-first perspective-taking and post-position silence safeguards');
 }
+const goodCounterclaimBook = advancedPreset.worldbooks.find(book => book.id === 'wb_advanced_good_counterclaim');
+if (!goodCounterclaimBook || !goodCounterclaimBook.content.includes('假身份不等于狼人') || !goodCounterclaimBook.content.includes('狼人悍跳、好人挡刀、其他好人救场或误判') || !goodCounterclaimBook.content.includes('记录不一致只证明双方不能都是真身份')) {
+  throw new Error('good counterclaim worldbook does not distinguish wolf counterclaims from good decoys');
+}
+if (!source.includes('【假身份不等于狼人】') || !source.includes('假身份，狼与好人挡刀都要盘')) {
+  throw new Error('built-in counterclaim teaching lacks the false-claim/alignment distinction');
+}
 if (!source.includes('行为预期，只能在完成内容核验后作为C级软先验') || !source.includes('无法提出具体反驳时，应承认该论证尚未被推翻') || !source.includes('不能因为没有100%验证就拒绝形成判断')) {
   throw new Error('built-in official teaching does not keep behavior models subordinate to speech analysis');
 }
@@ -112,6 +125,10 @@ if (!wolfGuide.includes('悍跳不是报一句身份') || wolfGuide.includes('�
 const guardGuide = wb.buildOfficialKnowledge({roleId:'guard',team:'good',phase:'night'});
 if (!guardGuide.includes('保存逐夜守护账本') || guardGuide.includes('悍跳不是报一句身份')) {
   throw new Error('official guard strategy routing is wrong');
+}
+const officialVillagerGuide = wb.buildOfficialKnowledge({roleId:'villager',team:'good',phase:'day'});
+if (officialVillagerGuide.includes('【残局先算，再谈感觉】')) {
+  throw new Error('official mode duplicated the compact core evidence framework');
 }
 if (source.includes('twb-load-preset')) {
   throw new Error('official model knowledge must not require a manual preset button');
