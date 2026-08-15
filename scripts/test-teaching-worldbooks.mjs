@@ -126,6 +126,10 @@ const guardGuide = wb.buildOfficialKnowledge({roleId:'guard',team:'good',phase:'
 if (!guardGuide.includes('保存逐夜守护账本') || guardGuide.includes('悍跳不是报一句身份')) {
   throw new Error('official guard strategy routing is wrong');
 }
+const officialVillagerGuide = wb.buildOfficialKnowledge({roleId:'villager',team:'good',phase:'day'});
+if (officialVillagerGuide.includes('【残局先算，再谈感觉】')) {
+  throw new Error('official mode duplicated the compact core evidence framework');
+}
 if (source.includes('twb-load-preset')) {
   throw new Error('official model knowledge must not require a manual preset button');
 }

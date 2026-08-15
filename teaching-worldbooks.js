@@ -297,6 +297,10 @@
   function buildOfficialKnowledge(ctx) {
     const matched = DEFAULT_PRESET_BOOKS
       .map(normalizeBook)
+      // 公共证据框架已经由 WB_CORE_COMPACT 常驻注入；官方模式再次塞入整本
+      // “对跳证据与残局算术”只会重复同一组纪律，挤压模型做局与比较方案的注意力。
+      // 该书仍保留在可导出的高级预设中，供纯自定义模式按需使用。
+      .filter(book => book.id !== 'wb_advanced_evidence_endgame')
       .filter(book => bookMatches(book, ctx || {}))
       .sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
     if (!matched.length) return '';
