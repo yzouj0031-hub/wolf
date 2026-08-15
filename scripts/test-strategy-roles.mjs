@@ -37,6 +37,10 @@ for (const file of clients) {
   expect(src.includes("cause:'dreamlink'"), `${file}: missing dreamer death link`);
   expect(src.includes('alchemistBlocked = S.nightData.alchemistSave'), `${file}: missing serpent rescue settlement`);
   expect(src.includes('const mistLocked = Array.isArray(S.nightData.alchemistMist)'), `${file}: wolf flow does not detect the Nameless Mist lock`);
+  expect(src.includes('const mistDecisionHint = mistLocked'), `${file}: wolf flow lacks a Mist-specific counterplay decision layer`);
+  expect(src.includes('先反推她为什么圈这些人') && src.includes('把名单中每个人与“空刀”逐项比较团队净收益'), `${file}: wolves are not told to infer the Alchemist's trap and compare PASS`);
+  expect(src.includes('若候选全是你明确知道的狼队友，默认优先空刀'), `${file}: all-wolf Mist pools do not default to preserving wolf count`);
+  expect(src.includes('若候选中有普通好人，刀掉其中最高价值者仍可能正确'), `${file}: Mist guidance overcorrects into automatic passing`);
   expect(src.includes('wolfRun.mistNoticeShown = true'), `${file}: wolves are not shown the locked target notice`);
   expect(src.includes("ws.forEach(w => w.memory.push({role:'system',content:notice}))"), `${file}: AI wolves do not receive the locked target notice`);
   expect(src.includes('const allTargets = validWolfTargets.slice()'), `${file}: final wolf voting escapes the mist target pool`);
