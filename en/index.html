@@ -9546,6 +9546,36 @@ ${userPersona}
       + _capLine('HOSTILE MARK DEFENSE', _capCleanse, 'Eclipse Consort marks and Wolf Beauty charms cannot be additionally cleansed.')
       + (_maybeLater.length ? '\n· [NOTE — abilities may appear later] ' + _maybeLater.join(', ') + ' can transfer or create the abilities above (granting/learning), so "absent now" does not mean "absent all game".' : '')
     : '';
+  // Configuration awareness also needs source-count conservation: hidden causes do not make
+  // impossible kill combinations possible.
+  const _nightDeathsThisRound = S.players.filter(x => !x.alive && x.deathRound === S.round && x.deathPhase === 'night');
+  const _hasRole = id => _presentRoleIds.has(id);
+  const _poisonSources = [...new Set(_capPoison)];
+  const _latentLethalSources = [...new Set(_maybeLater)];
+  const _deathChainSources = _rolesHere.filter(r => ['hunter','wolfking','wolfbeauty','cupid'].includes(r.id)).map(r => r.name);
+  const _fixedExtraNightDeathMax = _poisonSources.length
+    + (_hasRole('dreamwalker') ? 1 : 0)
+    + (_hasRole('serialkiller') ? 1 : 0)
+    + _deathChainSources.length;
+  const _deathSourceLines = [
+    '· [WOLF KILL] The wolf team normally creates at most one shared kill target per night; a self-kill is still a wolf kill. A Magician swap only redirects that kill and never creates a second wolf kill.'
+  ];
+  if (_poisonSources.length) _deathSourceLines.push('· [INDEPENDENT POISON] These roles can create an extra poison death: ' + _poisonSources.join(', ') + '. Whether the resource remains and was actually used depends on public evidence or the actor\'s private record.');
+  else _deathSourceLines.push('· [POISON EXCLUDED] No registered role in this setup can directly poison. Do not explain an extra death as “maybe the Witch or someone else poisoned them.”');
+  if (_hasRole('dreamwalker')) _deathSourceLines.push('· [DREAM DEATH] The Dreamwalker can create at most one extra death in a night: either a repeated target dies from nightmare, or the current dreamer follows a Dreamwalker who dies that night. These two effects cannot stack into two extra dream deaths in the same night.');
+  if (_hasRole('serialkiller')) _deathSourceLines.push('· [INDEPENDENT ATTACK] The Serial Killer can create at most one additional attack per night, separate from the wolf kill.');
+  if (_deathChainSources.length) _deathSourceLines.push('· [CONDITIONAL CHAINS] This setup contains death-trigger or relationship-chain roles: ' + _deathChainSources.join(', ') + '. They add a death only when the relevant role or relationship actually triggers.');
+  if (_hasRole('alchemist')) _deathSourceLines.push('· Alchemist Mist only restricts wolf-kill candidates and Serpent only rescues; neither can create a death.');
+  if (_hasRole('magician')) _deathSourceLines.push('· A Magician swap changes where the wolf kill lands. A player killed through the swap is still the wolf-kill result, not an independent second attack.');
+  if (_hasRole('fox')) _deathSourceLines.push('· The Fox can block an active skill or suppress the wolf kill, but cannot kill. If the wolf kill was suppressed, all deaths must fit the other registered sources.');
+  if (!_latentLethalSources.length && _nightDeathsThisRound.length > _fixedExtraNightDeathMax) {
+    const forcedWolfDeaths = _nightDeathsThisRound.length - _fixedExtraNightDeathMax;
+    _deathSourceLines.push('· [COUNT CONSERVATION THIS ROUND] ' + _nightDeathsThisRound.length + ' players died during this night. Registered non-wolf-kill channels can explain at most ' + _fixedExtraNightDeathMax + ', so at least ' + forcedWolfDeaths + ' death(s) must be wolf-kill results. You may not know which player maps to which source, but you must not claim they could all be non-wolf kills.');
+  } else if (_nightDeathsThisRound.length) {
+    _deathSourceLines.push('· [COUNT CONSERVATION THIS ROUND] ' + _nightDeathsThisRound.length + ' players died during this night. Explain them only with the configured sources above; do not invent an absent role to preserve another branch.');
+  }
+  if (_latentLethalSources.length) _deathSourceLines.push('· [DYNAMIC ABILITY CAVEAT] ' + _latentLethalSources.join(', ') + ' may temporarily create a lethal ability, so the initial setup alone cannot provide a strict upper bound. Still identify the specific transferred ability instead of vaguely saying “maybe it was not the wolf kill.”');
+  const nightDeathAccountingBlock = '\n\n[NIGHT-DEATH SOURCE LEDGER — CONSERVE COUNTS]\nA hidden cause means the mapping between victims and configured sources is unknown; it does not make the set of possible mechanisms unlimited. List only sources that exist in this setup, then use the number of deaths to eliminate impossible combinations.\n' + _deathSourceLines.join('\n');
   // ★ Name-level note: these classics are what models hallucinate most, and the built-in
   //   worldbook keeps using them as examples. This only denies the NAMES — ability presence
   //   is governed by the capability index above (avoids implying "no Seer = no inspection").
@@ -9556,7 +9586,7 @@ ${userPersona}
       + (_capInspect.length ? ' ⚠️ Note the distinction: there is no "Seer" card this game, but the capability index DOES list a role that can inspect alignment — refer to it by its real role name and do not apply Seer templates (no badge flow, no "counter-claiming the Seer").' : '')
       + ' ⚠️ Any general tactic above that uses these roles as examples (e.g. "fake-claim the Seer", "the Guard blocked it", "the Witch healed") does NOT apply this game — ignore those examples.'
     : '';
-  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!' + capabilityIndex + absentRoleRule;
+  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!' + capabilityIndex + nightDeathAccountingBlock + absentRoleRule;
 
   const isPureAI = S.pureAI;
   let modelAdapt = isPureAI

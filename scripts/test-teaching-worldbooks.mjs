@@ -70,6 +70,9 @@ for (const path of ['../index.html','../en/index.html']) {
     'const counterclaimDecoyCorrectionBlock',
     '本段覆盖角色旧说明中“记录不同就是铁狼”',
     'guide += counterclaimDecoyCorrectionBlock',
+    'const _nightDeathsThisRound',
+    'const _fixedExtraNightDeathMax',
+    'nightDeathAccountingBlock + absentRoleRule',
     '【你的身份与技能·硬信息】',
     '━━━━ AI 教学层 ━━━━'
   ]) if (!html.includes(marker)) throw new Error(`${path} lacks teaching-worldbook integration marker: ${marker}`);
@@ -79,6 +82,12 @@ for (const path of ['../index.html','../en/index.html']) {
   }
   for (const marker of ['事实主张','信息来源','前提','推导','结论','像提前写好的故事','流程不给答辩机会','【投票前证据校验·先拆发言再代入】','行为模型作为低权重辅助','<game></game>']) {
     if (!html.includes(marker)) throw new Error(`${path} lacks speech-first voting safeguard: ${marker}`);
+  }
+  const deathLedgerMarkers = path === '../index.html'
+    ? ['【本局夜间死亡来源账本·必须做数量守恒】','摄梦人一夜至多额外造成一名死者','禁止说“这些人都可能不是狼刀”','炼金魔女的未明之雾只限制狼刀候选']
+    : ['[NIGHT-DEATH SOURCE LEDGER — CONSERVE COUNTS]','The Dreamwalker can create at most one extra death in a night','must not claim they could all be non-wolf kills','Alchemist Mist only restricts wolf-kill candidates'];
+  for (const marker of deathLedgerMarkers) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks configuration-aware night-death accounting: ${marker}`);
   }
 }
 
