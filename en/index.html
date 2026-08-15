@@ -15428,18 +15428,32 @@ const NightActions = {
       : alive.slice();
     const mistLocked = Array.isArray(S.nightData.alchemistMist);
     const mistTargetNames = mistLocked ? validWolfTargets.map(x => x.name).join('、') : '';
+    const mistDecisionHint = mistLocked ? (uiEnglish() ? `
+
+[NAMELESS MIST · read the trap before choosing]
+This instruction has priority over generic advice such as "do not waste the night kill". The Alchemist deliberately restricted the pack to this pool. Do not immediately attack merely because a legal target exists, and do not automatically pass merely because the Mist is active.
+1. Infer why these players were selected: protecting someone outside the pool, baiting an attack into protection or a death-trigger role, forcing a wolf sacrifice, or simply making an inaccurate read.
+2. Compare every candidate with PASS by net pack value: surviving wolf count, immediate elimination value, protection/death-trigger risk, tomorrow's claim and vote structure, and progress toward the actual win condition.
+3. If every candidate is a known packmate, PASS is the default unless a specific sacrifice line is demonstrably better. Never self-attack only to avoid "wasting" a kill.
+4. If the pool contains ordinary good players, attacking the best one can still be correct; their presence does not prove the Mist is a trap. But explain why that attack beats PASS instead of treating "a good player is available" as the end of the analysis.
+5. PASS is a full, equal ballot. Use it when all attacks have negative team value; otherwise attack the candidate with the highest positive net value.` : `
+
+【未明之雾·先拆设局，再决定出刀或空刀】
+本段优先级高于“狼刀不能浪费、正常情况下要出刀”等一般经验。炼金魔女故意把狼刀限制在这份名单里；不能因为名单中存在合法目标就立刻出刀，也不能因为中了雾就机械空刀。
+① 先反推她为什么圈这些人：保护圈外关键位、诱导你撞保护或死亡收益角色、逼狼自刀，还是她单纯判断错了。
+② 把名单中每个人与“空刀”逐项比较团队净收益：存活狼数、即时减员价值、保护/死亡技能风险、次日身份与票型变化、距离真实胜利条件更近还是更远。
+③ 若候选全是你明确知道的狼队友，默认优先空刀；只有能具体证明牺牲路线比保留狼人数更赚时才自刀。绝不能只为避免“浪费一刀”而杀队友。
+④ 若候选中有普通好人，刀掉其中最高价值者仍可能正确；“有好人可刀”不等于必出刀，“中了雾”也不等于必空刀。必须说明该刀为什么比空刀净收益更高，不能看到好人名字就结束分析。
+⑤ 空刀是一张完整、等权的正式选票。当所有候选刀下去的团队净收益都为负时选 PASS；否则选择净收益最高的候选。`) : '';
     if (mistLocked && !wolfRun.mistNoticeShown) {
       wolfRun.mistNoticeShown = true;
       const notice = uiEnglish()
-        ? '【Nameless Mist · targets locked】The pack may attack only: '+validWolfTargets.map(x=>x.name).join(', ')+'. All other proposals and votes are invalid.'
-        : '【未明之雾·刀口锁定】本夜只能从 '+mistTargetNames+' 中选择刀口；其他玩家的提议和投票均无效。';
+        ? '【Nameless Mist · targets locked】The pack may attack only: '+validWolfTargets.map(x=>x.name).join(', ')+', or formally vote to PASS. All other proposals and votes are invalid.'
+        : '【未明之雾·刀口锁定】本夜只能从 '+mistTargetNames+' 中选择刀口，或正式选择空刀；其他玩家的提议和投票均无效。';
       ws.forEach(w => w.memory.push({role:'system',content:notice}));
       if (ws.some(w=>w.isPlayer) || S.directorMode || S.pureAI) Render.log('system', notice);
       else if (!isAnon()) Render.log('wolfchat', notice);
     }
-    // 解析/API 全部失败时不能“随机战术自刀”；随机兜底仍只从非狼与未知机械狼中选。
-    // 刀已知队友必须来自狼队明确讨论或人工选择，不能由技术故障触发。
-    const safeRandomWolfTargets = validWolfTargets.filter(x => x.role.team !== 'bad' || x.role.id === 'mechwolf' || x.role.id === 'gargoyle');
     // 空刀是一项正式战术选择，必须和具体刀口一样拥有一张完整选票。
     const EMPTY_KILL_VOTE = '__EMPTY_KILL__';
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // resumable final votes
@@ -15759,7 +15773,7 @@ const NightActions = {
 <interrupt>no</interrupt>` : `【狼队密谈·开场陈述】这是狼队内部,直接说,不用伪装。
 你的队友:${mates}
 可刀目标:${ts}${deadNote}
-⚠️ 狼队成员(${selfNames})也属于合法刀口，但只在明确的战术牺牲收益成立时考虑。⚠️ 空刀选项(填None=今晚不刀、制造平安夜)也仅在有明确战术目的时考虑——典型用途:①嫁祸神职(空刀造平安夜,让好人误以为是守卫守中/女巫救人,甚至怀疑跳女巫的人在说谎);②残局迷惑;③保留刀口。但空刀绝不能是"纠结/拿不定主意"的借口,没有清晰战术目的就正常刀人。${tacticsHint}${singleWolfHint}${tacticalSacrificeHint}
+⚠️ 狼队成员(${selfNames})也属于合法刀口，但只在明确的战术牺牲收益成立时考虑。⚠️ 空刀选项(填None=今晚不刀、制造平安夜)也是正式方案——普通夜晚不能把“纠结/拿不定主意”伪装成战术空刀；未明之雾生效时则必须把空刀与每个受限候选等权比较，不能套用“有目标就正常刀人”。${tacticsHint}${singleWolfHint}${tacticalSacrificeHint}${mistDecisionHint}
 
 【先做刀口推演——别凭感觉报名字】
 在 thinking 里依次想清楚，再给提议：
@@ -15779,7 +15793,7 @@ ${magicKillDecisionHint}
 【格式·严格遵守】
 <thinking>按上面①~⑧推演，必须写出刀后队友的暴露/存活变化并比较至少三条路线；若魔术师存活，再明确比较直刀V与反刀D的实际落点、概率和收益</thinking>
 <game>对队友说的话(口语化,30-140字，说清名义刀口、希望的最终落点和理由)。⚠️ 不要在这里写 &lt;interrupt&gt; 等标签。</game>
-<action>提议刀的目标完整名字（从【可刀目标】里选一个）</action>
+<action>目标完整名字 或 PASS（空刀）</action>
 <interrupt>no</interrupt>`;
       let result;
       try {
@@ -15872,12 +15886,12 @@ B. 坚持自己原本的提议 → 重申理由,<action> 填你支持的目标
 C. 强烈反驳 → <interrupt>yes</interrupt> + 用台词("等等"/"Wait"/"Hold on"等)开头,说明为什么反对当前讨论的方向
 
 可刀目标:${ts}
-${magicKillDecisionHint}${tacticalSacrificeHint}
+${magicKillDecisionHint}${tacticalSacrificeHint}${mistDecisionHint}
 
 【格式】
 <thinking>队友说的有道理吗?我要不要改主意?当前名义刀口经守卫/女巫与魔术师交换后，最可能实际落到谁？是否存在更优的直刀/反刀路线？</thinking>
 <game>你的回应(口语化,可以附议/反驳/补充,30-140字；有魔术师时说清名义刀口与预期落点)</game>
-<action>你最终支持的刀口名字</action>
+<action>你最终支持的刀口名字 或 PASS（空刀）</action>
 <interrupt>yes 或 no</interrupt>`;
         let result;
         try {
@@ -15917,17 +15931,25 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
       try {
         const allTs = validWolfTargets.map(x => x.name).join(',');
         const voteR = await callAI(w,
-          `【狼队·最终投票】讨论已结束。从下列存活玩家里选一个,作为今晚刀口目标。
+          `【狼队·最终投票】讨论已结束。比较下列存活候选与空刀，提交一张最终选票。
 存活可刀:${allTs}${magicKillDecisionHint}
 
 狼队友也在合法候选中。若讨论形成了战术性牺牲方案，不得因为目标是队友而拒绝投票；按“正常刀好人的收益”与“牺牲队友后的团队净收益”比较后选择。
+${mistDecisionHint}
 
 【格式·严格】
-只输出一个名字,不要解释。
-<action>名字</action>`,
+只输出一个名字或 PASS（空刀）,不要解释。
+<action>名字 或 PASS</action>`,
           {noMemory: true, timeoutMs: 360000, maxRetries: 2, skillConfirm: true}
         );
-        const target = parseWolfTarget((voteR && voteR.action) || '', validWolfTargets);
+        const voteAction = String((voteR && voteR.action) || '').trim();
+        const finalVoteIsEmpty = /^(?:none|pass|空刀|不刀|不出刀|不刀任何人)$/i.test(voteAction);
+        if (finalVoteIsEmpty) {
+          wolfLastActions[w.id] = EMPTY_KILL_VOTE;
+          Render.devLog && Render.devLog('info', `[${w.name}] 最终投票选择空刀`);
+          continue;
+        }
+        const target = parseWolfTarget(voteAction, validWolfTargets);
         // ★ v9.9: GPT-5 等模型可能把名字写在 game 里而不是 action,加同样的兜底
         let finalTarget = target;
         if (!finalTarget && voteR && voteR.game) {
@@ -15947,15 +15969,11 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
             if (t) { finalTarget = validWolfTargets.find(x => x.name === t) || null; break; }
           }
         }
-        // ★ v9.9.1: 最终保险——单狼场景必须刀人，没目标就随机
-        if (!finalTarget && safeRandomWolfTargets.length > 0) {
-          finalTarget = safeRandomWolfTargets[Math.floor(Math.random() * safeRandomWolfTargets.length)];
-          Render.devLog && Render.devLog('warn', `[${w.name}] 所有目标提取都失败，随机刀口=${finalTarget.name}（防止AI鸽刀）`);
-        }
         if (finalTarget) wolfLastActions[w.id] = finalTarget.name;
+        else Render.devLog && Render.devLog('warn', `[${w.name}] 最终投票未能解析出明确刀口或空刀，本票记为技术无效，不随机补刀`);
       } catch (e) {
         Render.devLog && Render.devLog('warn', `[狼刀·投票兜底] ${w.name} 投票API失败:${e && e.message}`);
-        // ★ v9.9.1: API 也挂了？从 rec 里捞最后一次提取，再不行随机
+        // API 挂了时只从该狼自己的既有明确表态恢复；不能由系统随机替它杀人。
         if (rec) {
           for (const field of [rec.game, rec.action, rec.raw && rec.raw.thinking]) {
             if (!field) continue;
@@ -15963,11 +15981,7 @@ ${magicKillDecisionHint}${tacticalSacrificeHint}
             if (t) { wolfLastActions[w.id] = t; break; }
           }
         }
-        if (!wolfLastActions[w.id] && safeRandomWolfTargets.length > 0) {
-          const rand = safeRandomWolfTargets[Math.floor(Math.random() * safeRandomWolfTargets.length)];
-          wolfLastActions[w.id] = rand.name;
-          Render.devLog && Render.devLog('warn', `[${w.name}] API失败+兜底失败，随机刀口=${rand.name}`);
-        }
+        if (!wolfLastActions[w.id]) Render.devLog && Render.devLog('warn', `[${w.name}] API失败且没有明确既有表态，本票记为技术无效，不随机补刀`);
       }
     }
 
