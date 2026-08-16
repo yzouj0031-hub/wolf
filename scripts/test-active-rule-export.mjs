@@ -13,6 +13,7 @@ function sliceBetween(source, start, end) {
 }
 
 const exportSource = [
+  sliceBetween(html, 'const PUBLIC_NIGHT_ACTION_ORDER', '/* ★ 按需组装世界书'),
   sliceBetween(html, 'function buildActiveRoleExportDesc', 'function buildRulesExport()'),
   sliceBetween(html, 'function buildRulesExport()', '// 网页端 AI 接力专用'),
   sliceBetween(html, 'function buildWebRulesExport(viewerP)', 'function buildNames(n)')
@@ -65,6 +66,7 @@ assertPresent(['wolfking','knight'], '骑士');
 assertAbsent(['whitewolf'], ['普通狼人']);
 assertAbsent(['fox'], ['蚀时狼妃']);
 assertPresent(['fox','wolfconcubine'], '蚀时狼妃');
+assertPresent(['fox','mechwolf'], '机械媚惑固定先于真子狐');
 assertAbsent(['jester'], ['预言家']);
 assertAbsent(['serialkiller'], ['守卫','女巫','预言家']);
 assertAbsent(['alchemist'], ['魔术师']);
@@ -94,5 +96,6 @@ assert.ok(!englishRules(['werewolf']).includes('Known packmates'), 'single known
 assert.ok(englishRules(['werewolf','werewolf']).includes('Known packmates'), 'multi-wolf setup should include packmate sacrifice rule');
 assert.ok(englishRules(['imitator']).includes('Imitator:'), 'English export omitted active Imitator');
 assert.ok(!englishRules(['wolfking']).includes('Villager'), 'English edge rule leaked absent Villager role name');
+assert.ok(englishRules(['fox','mechwolf']).includes('Mechanical Charm always precedes the real Fox'), 'English export omitted Mechanical Wolf/Fox action order');
 
 console.log('active role export tests passed');

@@ -385,6 +385,61 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
     return ROLE_EN[id] ? ROLE_EN[id].desc : '';
   }
 
+  function buildEnglishActiveRoleTiming(players) {
+    const list = (players || []).filter(p => p && p.role), ids = new Set(list.map(p => p.role.id));
+    const steps = [], covered = new Set();
+    const add = (id, label) => { if (ids.has(id)) { steps.push(label); covered.add(id); } };
+    const addAny = (roleIds, label) => {
+      const active = roleIds.filter(id => ids.has(id));
+      if (active.length) { steps.push(label); active.forEach(id => covered.add(id)); }
+    };
+    add('cupid','Cupid links the lovers (first night only)');
+    add('gravekeeper','Gravekeeper reads the previous exile, if any');
+    add('wolfconcubine','Eclipse Consort places the reflection mark');
+    add('soulwarden','Soul Warden places Sanctuary');
+    if (ids.has('mechwolf') && ids.has('fox')) steps.push('Mechanical Charm, only after Mechanical Wolf has copied Fox');
+    add('fox','the real Fox uses charm');
+    add('imitator','Imitator studies and uses an immediate copied ability');
+    add('merchant','Miracle Merchant grants a gift');
+    add('youshang','Traveling Merchant grants a gift');
+    if (ids.has('merchant') || ids.has('youshang')) steps.push('the recipient chooses the gift');
+    add('fool','Fool places the shield');
+    add('alchemist','Alchemist Witch decides whether to open the Mist');
+    add('dreamwalker','Dreamwalker selects the dreamer');
+    add('gargoyle','Gargoyle inspects a role');
+    add('magician','Magician selects the swap');
+    add('mechwolf','Mechanical Wolf studies or uses a copied ability other than Mechanical Charm');
+    add('guard','Guard selects protection');
+    addAny(['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine'],'the mutually known wolf pack fixes its attack');
+    if (ids.has('mechwolf')) steps.push('Mechanical Wolf attacks, only after gaining attack rights');
+    if (ids.has('gargoyle')) steps.push('Gargoyle attacks, only after awakening');
+    if (ids.has('magician')) steps.push('the swap is applied and the wolf attack reaches its actual target');
+    if (ids.has('imitator')) steps.push('Imitator rescue, only if copied that night');
+    add('witch','Witch sees the final wolf-attack target and chooses potions');
+    if (ids.has('alchemist')) steps.push('Alchemist Witch may perform the Serpent rescue');
+    const customNames = [...new Set(list.filter(p => p.role.customId || (p.role.customAbilities || []).length).map(p => p.role.name))];
+    if (customNames.length) { steps.push(`custom night abilities (${customNames.join(', ')})`); list.filter(p => customNames.includes(p.role.name)).forEach(p => covered.add(p.role.id)); }
+    add('seer','Seer investigates');
+    if (ids.has('merchant') || ids.has('youshang')) steps.push('a gifted investigation, poison, or shield is used');
+    add('serialkiller','Serial Killer attacks independently');
+    add('wolfbeauty','Wolf Beauty chooses the charm target');
+    steps.push('all ordinary night deaths and survival results resolve together');
+    const triggers = [];
+    if (ids.has('knight')) triggers.push('Knight duel resolves immediately when declared during daytime, then daytime continues.');
+    if (ids.has('whitewolf')) triggers.push('White Wolf King self-destruct resolves during formal daytime speech or voting and then sends the game to night.');
+    if (ids.has('fool')) triggers.push('Fool exile survival resolves at the daytime exile event.');
+    if (ids.has('jester')) triggers.push('Jester victory is checked immediately upon daytime exile or trial conviction.');
+    const death = [ids.has('hunter')?'Hunter shot':'',ids.has('wolfking')?'Wolf King bite':'',ids.has('wolfbeauty')?'Wolf Beauty linked death':'',ids.has('cupid')?'lover suicide':'',ids.has('whitecat')?'White Cat reprieve':''].filter(Boolean);
+    if (death.length) triggers.push(`${death.join(', ')} trigger at the relevant death or lethal event rather than occupying a normal night-action slot; the system's immediate end-game check still applies.`);
+    const noNight = [...ids].filter(id => !covered.has(id) && ROLE_EN[id]).map(id => ROLE_EN[id].name);
+    const lines = ['— Public action and resolution order —', `• Fixed night order: ${steps.join(' → ')}`, '• Earlier action means its target or state can affect later actions. Ordinary deaths still resolve together at night end unless a skill explicitly says it resolves immediately.'];
+    triggers.forEach(x => lines.push('• ' + x));
+    if (noNight.length) lines.push(`• No ordinary active night turn: ${noNight.join(', ')}.`);
+    if (ids.has('mechwolf') && ids.has('fox')) lines.push('• Mechanical Charm always precedes the real Fox. If the real Fox is muted before that turn, the Fox did not act and cannot describe the result as their own charm being reflected.');
+    if (ids.has('mechwolf') && ids.has('fox') && ids.has('wolfconcubine')) lines.push('• The reflection mark triggers only once per night: if Mechanical Charm consumes it, the later Fox charm cannot be reflected; if Mechanical Charm successfully mutes the Fox, the Fox takes no later action. These outcomes are mutually exclusive.');
+    return lines;
+  }
+
   function buildEnglishRules(opts) {
     const players = opts.players || [], ids = [...new Set(players.map(p => p.role && p.role.id).filter(Boolean))];
     const activeIds = new Set(ids);
@@ -402,6 +457,7 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
       '• A night choice may only be explained with information available before that night action. A future plan is not an executed action.', '', '— Roles in this game —'];
     ids.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${buildActiveEnglishRoleDesc(id, activeIds)}`); });
     lines.push('• Only the roles listed above exist in this match. Unlisted roles and their mechanics must not be used as premises for reasoning.');
+    lines.push('', ...buildEnglishActiveRoleTiming(players));
     lines.push('', '— Terminology —','• Use standard English Werewolf/Mafia terms: town, wolf result, town result, counterclaim, bussing, miselimination, voting pattern, and night-kill target. Never translate Chinese jargon literally.','', '— Evidence discipline —','• System verification and your own explicit private action results have highest priority; claims and last words are not automatic proof.','• A single slip, wording issue, rule-summary mismatch, or speaking style is suspicion only—not a standalone conviction.','• Repetition by several players is still one argument. Use voting patterns, sustained behavior, information access, and faction benefit.');
     return lines.join('\n');
   }
