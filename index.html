@@ -27226,9 +27226,89 @@ if (_origEndingSpeeches) {
  *  § 导演增强：网页端 prompt 生成 + 粘贴智能解析 + 流程状态条
  * ================================================================ */
 
+/* ────────────────────────────────────────────────────────────────
+ *  § 网页端接力·增量续报（Web Relay Delta）
+ *
+ *  背景：buildWebPrompt() 每次都从头重建「规则 + 教学层 + 私密信息 +
+ *  开局至今全部战报」。如果玩家把它粘进【同一个】claude.ai / ChatGPT 对话里
+ *  接力，到第 4 天那个对话里就躺着 4~5 份战报和 4~5 份世界书。后果不只是烧
+ *  token，更会实打实地伤判断：同一句发言重复出现会被读成「反复强调」；早期
+ *  副本里还活着的人在后期副本里已经出局，模型要自己猜哪份是「现在」；
+ *  「现在要做什么」出现 N 次且内容各不相同，模型可能照着上一轮的任务发言。
+ *  本项目在 histTimeOrderNote 里花大力气防的时序坍缩，在这种重复堆叠下会更糟。
+ *
+ *  方案：给每个玩家记一条「水位线」——上次复制时战报走到哪了。之后再复制
+ *  时只发【水位线之后新增的内容】+ 当前局势快照 + 本轮任务，规则与教学层
+ *  直接跳过（它们已经在那个对话的上文里）。
+ *
+ *  ⚠️ 全量模式原封不动保留：没有水位线时、玩家手动切回「完整」时、或换了
+ *  新对话点「重置」后，走的都是和以前完全一致的老路径。增量只是叠加的选项。
+ * ──────────────────────────────────────────────────────────────── */
+const WebRelay = {
+  _gameId: null,
+  marks: Object.create(null),   // playerId -> mark
+
+  // gameId 每局递增（freshState），换局自动作废所有水位线
+  _sync() {
+    const gid = (typeof S !== 'undefined' && S) ? S.gameId : null;
+    if (this._gameId !== gid) { this.marks = Object.create(null); this._gameId = gid; }
+  },
+  get(p)   { this._sync(); return (p && this.marks[p.id]) || null; },
+  clear(p) { this._sync(); if (p) delete this.marks[p.id]; },
+  clearAll() { this.marks = Object.create(null); },
+
+  // 在「复制成功」的那一刻打标：这一刻之前的内容，网页端 AI 都已经看到了。
+  // 取消弹窗而没复制的话不打标，水位线不会误前进。
+  stamp(p) {
+    if (!p) return;
+    this._sync();
+    let secretSeen = [];
+    try {
+      if (typeof _buildPrivateInfoLines === 'function') secretSeen = _buildPrivateInfoLines(p) || [];
+    } catch (e) { secretSeen = []; }
+    this.marks[p.id] = {
+      recIdx:  (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord.length : 0,
+      histIdx: (S.history || []).length,
+      wolfIdx: (S.wolfChatHistory || []).length,
+      secretSeen: secretSeen.slice(),   // 按【内容】比对而不是按条数，避免私密信息重排后漏发
+      round: S.round,
+      phase: S.phase,
+      at: Date.now()
+    };
+  },
+
+  // 水位线之后确实有新东西吗？没有的话增量包会只剩一句任务，提示玩家一下。
+  hasNew(p, mark) {
+    if (!mark) return true;
+    const recLen  = (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord.length : 0;
+    const histLen = (S.history || []).length;
+    const wolfLen = (S.wolfChatHistory || []).length;
+    if (recLen > mark.recIdx || histLen > mark.histIdx || wolfLen > mark.wolfIdx) return true;
+    try {
+      const seen = new Set(mark.secretSeen || []);
+      const now = (typeof _buildPrivateInfoLines === 'function') ? (_buildPrivateInfoLines(p) || []) : [];
+      if (now.some(l => !seen.has(l))) return true;
+    } catch (e) { /* 忽略 */ }
+    return false;
+  },
+
+  // 水位线的人话描述，显示在弹窗上让玩家知道自己接的是哪一截
+  describe(mark) {
+    if (!mark) return '';
+    const ph = mark.phase === 'night' ? '夜晚' : mark.phase === 'sheriff' ? '警长竞选'
+             : mark.phase === 'vote' ? '投票' : mark.phase === 'trial' ? '审判' : '白天';
+    return `第${mark.round}轮 · ${ph}`;
+  }
+};
+if (typeof window !== 'undefined') window.WebRelay = WebRelay;
+
 // ── 生成适配网页端 Claude/ChatGPT 的对话式 prompt（按阶段动态生成）──
-function buildWebPrompt(p) {
+//    opts.mark 存在 = 增量续报（只发水位线之后的新增内容）；不传 = 全量（原行为）
+function buildWebPrompt(p, opts) {
   if (!p) return '';
+  opts = opts || {};
+  const relayMark = opts.mark || null;
+  const isDelta = !!relayMark;
   const webRole = window.WolfI18n ? WolfI18n.role(p.role.id, p.role) : p.role;
 
   // ── 基础信息（每个阶段都有）──
@@ -27264,9 +27344,19 @@ function buildWebPrompt(p) {
   // ★ 调用共用函数 _buildPrivateInfoLines（与导出聊天摘要共享逻辑，保证两边输出一致）
   const secretLines = _buildPrivateInfoLines(p);
 
-  const secretBlock = secretLines.length
-    ? `\n━━━━ 你的私密信息（含完整行动历史，切到网页AI接力时务必读全）━━━━\n${secretLines.map(l=>`• ${l}`).join('\n')}`
-    : '';
+  // 增量模式只补【上次复制之后新出现】的私密信息（按内容比对，不按条数，
+  // 避免私密信息顺序变化时漏发或重发）。没有新增就整块省略。
+  const newSecretLines = isDelta
+    ? (() => { const seen = new Set(relayMark.secretSeen || []); return secretLines.filter(l => !seen.has(l)); })()
+    : secretLines;
+
+  const secretBlock = isDelta
+    ? (newSecretLines.length
+        ? `\n━━━━ 🔒 新增私密信息（只有你知道）━━━━\n${newSecretLines.map(l=>`• ${l}`).join('\n')}`
+        : '')
+    : (secretLines.length
+        ? `\n━━━━ 你的私密信息（含完整行动历史，切到网页AI接力时务必读全）━━━━\n${secretLines.map(l=>`• ${l}`).join('\n')}`
+        : '');
 
   // ── 完整本局战报（★ 重写：按「第N天」分组重放，每个事件都标明具体发生在第几天的白天/夜晚）──
   // 数据源：gameRecord（权威事件流，每条都带 round + phase + 事件类型，含死亡/开枪/咬/决斗/自爆/投票/审判）
@@ -27278,6 +27368,10 @@ function buildWebPrompt(p) {
     const hd = hdeathOn; // 隐死亡模式：死因对非视角者保密
     const meId = p.id;
     const recs = (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord : [];
+    // 增量模式：只【输出】水位线之后的事件；但去重/回溯查找仍然扫全量 recs，
+    // 否则竞选 round 反查、遗言重复判定这些会因为看不到早期记录而误判。
+    const recsToEmit  = isDelta ? recs.slice(relayMark.recIdx)  : recs;
+    const histToEmit  = isDelta ? (S.history || []).slice(relayMark.histIdx) : (S.history || []);
 
     // 死因统一走共用语义格式器；尤其不能再把“骑士认错后骑士本人死亡”写成“被斩狼”。
     const causeText = (subject) => _formatPublicDeathCause(subject, {
@@ -27328,7 +27422,7 @@ function buildWebPrompt(p) {
       _lastSheriffRound = 1;
     }
 
-    recs.forEach(r => {
+    recsToEmit.forEach(r => {
       const round = r.round;
       const ph = r.phase;
       const seg = segOf(ph);
@@ -27423,7 +27517,7 @@ function buildWebPrompt(p) {
 
     // ── 兜底：把 gameRecord 里没收录、但 S.history 里有的公开发言补进对应桶 ──
     // （正常情况下 speech 都进了 gameRecord；此处仅防早期版本存档/边角遗漏。靠文本去重避免重复。）
-    (S.history || []).forEach(h => {
+    histToEmit.forEach(h => {
       const txt = (h.text || '').trim();
       if (!txt) return;
       if (h.round == null) return;
@@ -27489,7 +27583,9 @@ function buildWebPrompt(p) {
         || ((deathOrder.get(a.name) ?? Number.MAX_SAFE_INTEGER) - (deathOrder.get(b.name) ?? Number.MAX_SAFE_INTEGER))
         || (a.id - b.id));
     let deathTimeline = '';
-    if (deadSorted.length) {
+    // 增量模式不重发完整死亡时间线：上文已有，且「场上局势」块每次都会给出
+    // 最新的存活/出局名单，新死亡本身也会作为 💀 事件出现在下面的新增战报里。
+    if (deadSorted.length && !isDelta) {
       const rows = deadSorted.map(x => {
         const when = x.deathPhase === 'night'
           ? `第${x.deathRound}夜🌙`
@@ -27511,7 +27607,9 @@ function buildWebPrompt(p) {
       deathTimeline = `\n━━━━ 💀 死亡时间线（按发生先后）━━━━\n${rows.join('\n')}\n`;
     }
 
-    const body = out.length ? out.join('\n') : '（暂无历史记录，本局刚开始）';
+    const body = out.length
+      ? out.join('\n')
+      : (isDelta ? '（自上次同步以来没有新的公开事件或发言）' : '（暂无历史记录，本局刚开始）');
     return deathTimeline + body;
   }
 
@@ -27522,19 +27620,26 @@ function buildWebPrompt(p) {
   // ── 狼队密谈历史（仅狼人可见，全场全部，不限本回合）──
   let wolfChatBlock = '';
   if (isPackWolfRole(p.role) && S.wolfChatHistory && S.wolfChatHistory.length) {
-    const byRound = {};
-    S.wolfChatHistory.forEach(h => {
-      if (!byRound[h.round]) byRound[h.round] = [];
-      byRound[h.round].push(`  ${h.name}：${h.text}`);
-    });
-    const rounds = Object.keys(byRound).sort((a,b)=>+a-+b);
-    const wolfLines = rounds.map(r => `第${r}夜密谈：\n${byRound[r].join('\n')}`).join('\n\n');
-    wolfChatBlock = `\n\n━━━━ 🐺 狼队密谈记录（绝密，只有狼人能看到）━━━━\n${wolfLines}`;
+    // 增量模式只补上次复制之后的新密谈条目
+    const wolfSrc = isDelta ? S.wolfChatHistory.slice(relayMark.wolfIdx) : S.wolfChatHistory;
+    if (wolfSrc.length) {
+      const byRound = {};
+      wolfSrc.forEach(h => {
+        if (!byRound[h.round]) byRound[h.round] = [];
+        byRound[h.round].push(`  ${h.name}：${h.text}`);
+      });
+      const rounds = Object.keys(byRound).sort((a,b)=>+a-+b);
+      const wolfLines = rounds.map(r => `第${r}夜密谈：\n${byRound[r].join('\n')}`).join('\n\n');
+      wolfChatBlock = isDelta
+        ? `\n\n━━━━ 🐺 新增狼队密谈（绝密，只有狼人能看到）━━━━\n${wolfLines}`
+        : `\n\n━━━━ 🐺 狼队密谈记录（绝密，只有狼人能看到）━━━━\n${wolfLines}`;
+    }
   }
 
   // ── 永久记忆（跨局长期记忆，如该角色启用了）──
+  // 跨局长期记忆在一局之内不会变化，增量模式不重发。
   let memoryBlock = '';
-  if (typeof PermanentMemory !== 'undefined' && PermanentMemory.getMemoryText) {
+  if (!isDelta && typeof PermanentMemory !== 'undefined' && PermanentMemory.getMemoryText) {
     try {
       const memText = PermanentMemory.getMemoryText(p.name, p.id);
       if (memText) memoryBlock = memText;
@@ -27592,26 +27697,57 @@ function buildWebPrompt(p) {
   // ★ 本局配置 & 规则（之前网页端导出缺失，导致每次要手动告诉外部AI有几狼几神、什么板子）
   //   getRoleList() 给紧凑配置（如 4狼人+预言家+女巫+守卫+猎人+骑士+3平民）
   //   buildRulesExport() 给完整规则（胜负条件/流程/各死亡技能铁律），两者都已存在，这里接进来即可。
+  // 增量模式跳过配置/规则：这两块在同一对话的首条消息里已经给过，逐轮重发
+  // 只会让规则文本在上下文里叠好几份，反而稀释「现在要做什么」。
   let _configBlock = '';
-  try {
-    const _roleList = (typeof getRoleList === 'function') ? getRoleList() : '';
-    const _rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(p) : '';
-    _configBlock =
+  if (!isDelta) {
+    try {
+      const _roleList = (typeof getRoleList === 'function') ? getRoleList() : '';
+      const _rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(p) : '';
+      _configBlock =
 `━━━━ 📋 本局配置（这是公开信息，所有玩家一开始就知道）━━━━
 本局共 ${S.players.length} 人，身份构成：${_roleList}
 配置用于核对人数和可能技能，不代表任何具体玩家身份；不要为了“用上配置”而强行制造结论。
 
 ${_rulesText}
 `;
-  } catch (e) { _configBlock = ''; }
+    } catch (e) { _configBlock = ''; }
+  }
 
   // 网页端 AI 接力与内置 API 使用同一套教学模式，避免玩家选了自定义世界书，
   // 复制出去的角色却仍按另一套官方教学行动。
+  // 增量模式跳过：教学层是本局固定不变的长文，逐轮重发会在对话里堆好几份。
   let _teachingBlock = '';
-  try {
-    const _teachingText = (typeof buildWorldBook === 'function') ? buildWorldBook(p) : '';
-    if (_teachingText) _teachingBlock = `━━━━ AI 教学层 ━━━━\n${_teachingText}\n`;
-  } catch (e) { _teachingBlock = ''; }
+  if (!isDelta) {
+    try {
+      const _teachingText = (typeof buildWorldBook === 'function') ? buildWorldBook(p) : '';
+      if (_teachingText) _teachingBlock = `━━━━ AI 教学层 ━━━━\n${_teachingText}\n`;
+    } catch (e) { _teachingBlock = ''; }
+  }
+
+  // ── 增量续报：只发新增内容，供玩家在【同一个对话】里接着粘贴 ──
+  // 规则、教学层、身份设定、历史战报都已经在这个对话的上文里，这里不重发。
+  if (isDelta) {
+    return `━━━━ 🔁 接力续报（第${S.round}轮）━━━━
+继续这局狼人杀，你还是${p.name}（P${p.id+1}）· ${p.role.emoji}${webRole.name}。
+本条只包含【上次同步之后的新增内容】，此前的规则、身份设定和历史战报都在我们这个对话的上文里，请直接沿用，不要要求我重发。
+若下面的信息与上文冲突，一律【以本条为准】——上文是当时的旧快照，本条才是现在。
+
+━━━━ 场上局势（当前，覆盖上文旧快照）━━━━
+第${S.round}轮 · 警长：${sheriff}
+存活（${S.players.filter(x=>x.alive).length}人）：${aliveList}
+${deadList ? `已出局：${deadList}` : '目前无人出局'}
+${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${secretBlock}
+
+━━━━ 🆕 新增战报（自上次同步以来）━━━━
+${battleReport}${endingSpeechBlock}${wolfChatBlock}
+
+${phaseBlock}
+
+只回应上面这一条任务，不要重述历史、不要复盘整局。
+如需先思考再开口，可以写[草稿]你的分析[/草稿]，然后写发言内容。[草稿]内容会被自动过滤，不算发言。
+直接输出，不要加"好的""当然""以下是"等前缀。`;
+  }
 
   return `你正在扮演一个狼人杀游戏的玩家。请完全代入角色，直接用第一人称说话，不要有助手口吻。
 
@@ -27642,9 +27778,13 @@ ${phaseBlock}
 
 // 网页端AI与API端使用完全相同的盲名边界，避免复制出去的完整战报泄露角色名。
 const _origBuildWebPromptBeforeBlindNames = buildWebPrompt;
-buildWebPrompt = function(p) {
-  const base = blindForAI(_origBuildWebPromptBeforeBlindNames(p), p);
+buildWebPrompt = function(p, opts) {
+  const base = blindForAI(_origBuildWebPromptBeforeBlindNames(p, opts), p);
   if (window.WolfI18n && WolfI18n.isEnglish()) {
+    // 增量续报的英文头也要说明「接着上文、只有新增」，否则网页端 AI 会当成新开局重新自我介绍。
+    if (opts && opts.mark) {
+      return 'Continue the same Werewolf match in character, in this same conversation. This message contains ONLY what is new since the last sync — the rules, your role setup and the earlier battle log are already above; reuse them and do not ask me to resend. Where this message conflicts with anything above, this message wins. Respond entirely in natural English. Chinese player names may stay unchanged. The Chinese battle history below is source data; do not answer in Chinese. Output only the requested in-game speech or action, without an assistant-style preface.\n\n' + base;
+    }
     return 'You are playing a Werewolf game in character. Respond entirely in natural English. Chinese player names may stay unchanged. The Chinese battle history below is source data; do not answer in Chinese. Output only the requested in-game speech or action, without an assistant-style preface.\n\n' + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() + '\n\n' : '') + base;
   }
   return base;
@@ -27811,13 +27951,28 @@ directorChoose = function(p, promptFn, opts) {
 
 // ── 网页端 prompt 弹窗：复制 prompt → 粘贴回复 → 智能解析 ──
 function _openWebPromptModal(p, promptFn, resolve) {
-  const webPrompt = buildWebPrompt(p);
+  // ── 接力模式状态 ──
+  // 有水位线（这局这个角色之前复制过）→ 默认走增量，玩家可随时切回完整。
+  // 没有水位线（首次复制 / 刚点过重置）→ 只能全量，和改动前完全一致。
+  let relayMark = WebRelay.get(p);
+  let deltaMode = !!relayMark;
+  const buildNow = () => buildWebPrompt(p, deltaMode && relayMark ? {mark: relayMark} : {});
+  let webPrompt = buildNow();
+
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(4px);animation:vn-fadein 0.2s ease';
   overlay.innerHTML = `
     <div style="max-width:480px;width:100%;background:linear-gradient(180deg,rgba(32,24,50,0.97),rgba(20,16,36,0.97));border:1px solid rgba(64,192,160,0.4);border-radius:12px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.6);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
       <h3 style="margin:0;color:#60d8b8;font-family:var(--font-seal);font-size:1em">🌐 ${publicPlayerLabel(p)}【${p.role.name}】— 复制给网页端AI</h3>
       <div style="font-size:0.72em;color:#6a9090;line-height:1.5">① 复制下方 prompt → ② 粘贴到 Claude.ai 或 ChatGPT → ③ 把回复粘贴回来</div>
+
+      <!-- 发送模式：完整 / 增量续报 -->
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button id="_wpm-mode-full" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">📄 完整战报</button>
+        <button id="_wpm-mode-delta" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🔁 增量续报</button>
+        <button id="_wpm-relay-reset" title="换了新对话就点这个，下次回到完整战报" style="padding:6px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.18);border-radius:6px;color:#8a8070;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🔄 重置</button>
+      </div>
+      <div id="_wpm-mode-note" style="font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px"></div>
 
       <!-- prompt区域 -->
       <div style="position:relative">
@@ -27826,13 +27981,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
       </div>
 
       <!-- 状态指引 -->
-      <div id="_wpm-guide" style="font-size:0.72em;color:#a0c8b8;background:rgba(64,192,160,0.06);border:1px solid rgba(64,192,160,0.15);border-radius:6px;padding:8px;line-height:1.6">
-        <b>操作步骤：</b><br>
-        1. 点击「📋 复制」，prompt已自动准备好<br>
-        2. 打开 claude.ai 或 ChatGPT，新开对话，粘贴并发送<br>
-        3. 等AI回复后，全选复制回复内容<br>
-        4. 粘贴到下方文本框，点「✅ 提交」
-      </div>
+      <div id="_wpm-guide" style="font-size:0.72em;color:#a0c8b8;background:rgba(64,192,160,0.06);border:1px solid rgba(64,192,160,0.15);border-radius:6px;padding:8px;line-height:1.6"></div>
 
       <!-- 回复粘贴区域 -->
       <div>
@@ -27857,18 +28006,94 @@ function _openWebPromptModal(p, promptFn, resolve) {
   const preview   = overlay.querySelector('#_wpm-preview');
   const submitBtn = overlay.querySelector('#_wpm-submit');
   const cancelBtn = overlay.querySelector('#_wpm-cancel');
+  const fullBtn   = overlay.querySelector('#_wpm-mode-full');
+  const deltaBtn  = overlay.querySelector('#_wpm-mode-delta');
+  const resetBtn  = overlay.querySelector('#_wpm-relay-reset');
+  const modeNote  = overlay.querySelector('#_wpm-mode-note');
+  const guideEl   = overlay.querySelector('#_wpm-guide');
 
-  copyBtn.onclick = () => {
-    navigator.clipboard.writeText(webPrompt).then(() => {
-      copyBtn.textContent = '✅ 已复制！';
-      setTimeout(() => { copyBtn.textContent = '📋 复制'; }, 2000);
-    }).catch(() => {
-      promptTA.select();
-      document.execCommand('copy');
-      copyBtn.textContent = '✅ 已复制！';
-      setTimeout(() => { copyBtn.textContent = '📋 复制'; }, 2000);
-    });
+  const ON  = 'background:rgba(64,192,160,0.28);border:1px solid rgba(64,192,160,0.65);color:#7ce8c8;font-weight:600;';
+  const OFF = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:#7a8a86;';
+  const btnBase = 'flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body);';
+
+  let _fullLenCache = null;
+
+  // prompt 一旦进了剪贴板，就算网页端 AI 已经拿到了这一刻为止的内容 → 推进水位线。
+  // 注意：只动【存储的】水位线，不动本次弹窗的 relayMark ——后者代表「打开这个弹窗时
+  // AI 已看到哪儿」，必须在弹窗生命周期内保持冻结，否则切一次模式增量包就会被清空。
+  // 无论复制的是完整版还是增量版，「AI 已看到截至此刻」这个事实都一样，所以两种模式都照打。
+  function syncClipboard(label) {
+    const write = navigator.clipboard
+      ? navigator.clipboard.writeText(webPrompt)
+      : Promise.reject();
+    return write.catch(() => { promptTA.select(); document.execCommand('copy'); })
+      .then(() => {
+        WebRelay.stamp(p);
+        if (label) {
+          copyBtn.textContent = label;
+          setTimeout(() => { copyBtn.textContent = '📋 复制'; }, 2200);
+        }
+      })
+      .catch(() => { /* 复制彻底失败就不打标，玩家可手动再点📋 */ });
+  }
+
+  // 模式切换后重建 prompt、刷新文本框与说明文案
+  function renderMode() {
+    webPrompt = buildNow();
+    promptTA.value = webPrompt;
+
+    const canDelta = !!relayMark;
+    deltaBtn.disabled = !canDelta;
+    fullBtn.style.cssText  = btnBase + (deltaMode ? OFF : ON);
+    deltaBtn.style.cssText = btnBase + (deltaMode ? ON : OFF) + (canDelta ? '' : 'opacity:.45;cursor:not-allowed;');
+    resetBtn.style.display = canDelta ? '' : 'none';
+
+    const kb = (webPrompt.length / 1000).toFixed(1);
+    if (deltaMode && relayMark) {
+      // 全量长度只用于让玩家直观看到省了多少，不参与实际发送。
+      // 全量构建会跑一遍教学层/规则导出，稍贵，所以按弹窗缓存一次。
+      if (_fullLenCache == null) _fullLenCache = buildWebPrompt(p, {}).length;
+      const fullLen = _fullLenCache;
+      const saved = fullLen > 0 ? Math.max(0, Math.round((1 - webPrompt.length / fullLen) * 100)) : 0;
+      const nothingNew = !WebRelay.hasNew(p, relayMark);
+      modeNote.style.cssText = 'font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px;color:#8ad8c0;background:rgba(64,192,160,0.08);border:1px solid rgba(64,192,160,0.2)';
+      modeNote.innerHTML = `已接力自 <b>${WebRelay.describe(relayMark)}</b>，本次只发新增内容 · 约 ${kb}k 字符（比完整版省 ${saved}%）` +
+        (nothingNew ? '<br><span style="color:#e8c070">⚠️ 自上次同步以来没有新事件，本条基本只有任务说明——这是正常的（比如同一轮里连续行动）。</span>' : '');
+      guideEl.innerHTML =
+        '<b>操作步骤（接力）：</b><br>' +
+        '1. 点击「📋 复制」<br>' +
+        '2. 回到<b style="color:#7ce8c8">上次那个对话</b>（不要新开），粘贴并发送<br>' +
+        '3. 等AI回复后，全选复制回复内容<br>' +
+        '4. 粘贴到下方文本框，点「✅ 提交」<br>' +
+        '<span style="color:#8a9a96">换了新对话？先点「🔄 重置」，下次会给完整战报。</span>';
+    } else {
+      modeNote.style.cssText = 'font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px;color:#9aa8b8;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)';
+      modeNote.innerHTML = `完整战报（规则 + 教学层 + 开局至今全部记录）· 约 ${kb}k 字符` +
+        (canDelta ? '' : '<br><span style="color:#8a9a96">复制之后会记下进度，下次可切「🔁 增量续报」，在同一个对话里只发新增。</span>');
+      guideEl.innerHTML =
+        '<b>操作步骤：</b><br>' +
+        '1. 点击「📋 复制」，prompt已自动准备好<br>' +
+        '2. 打开 claude.ai 或 ChatGPT，<b>新开对话</b>，粘贴并发送<br>' +
+        '3. 等AI回复后，全选复制回复内容<br>' +
+        '4. 粘贴到下方文本框，点「✅ 提交」';
+    }
+  }
+
+  // 切模式必须同步剪贴板：弹窗打开时已经自动复制过一份，不重写的话玩家
+  // 点了「增量」却粘出完整版（或反过来），是最容易踩的坑。
+  fullBtn.onclick  = () => { deltaMode = false; renderMode(); syncClipboard('✅ 已复制完整版'); };
+  deltaBtn.onclick = () => { if (relayMark) { deltaMode = true; renderMode(); syncClipboard('✅ 已复制增量版'); } };
+  resetBtn.onclick = () => {
+    WebRelay.clear(p);
+    relayMark = null;         // 弹窗内也退回「没有接力进度」，只能全量
+    deltaMode = false;
+    renderMode();
+    syncClipboard('✅ 已复制完整版');
+    Render.devLog && Render.devLog('info', `[网页接力] ${p.name} 已重置接力进度，本次与下次都发送完整战报`);
   };
+  renderMode();
+
+  copyBtn.onclick = () => { syncClipboard('✅ 已复制！'); };
 
   // 实时预览解析结果
   replyTA.addEventListener('input', () => {
@@ -27904,10 +28129,10 @@ function _openWebPromptModal(p, promptFn, resolve) {
   };
 
   // 自动复制并聚焦回复框
+  // ★ 自动复制同样要推进接力水位线：绝大多数玩家就是直接用这份自动复制的内容，
+  //   如果只在手动点📋时打标，水位线会一直停在原地，增量包会把已发过的内容重发一遍。
   setTimeout(() => {
-    navigator.clipboard.writeText(webPrompt).catch(() => {});
-    copyBtn.textContent = '✅ 已自动复制！';
-    setTimeout(() => { copyBtn.textContent = '📋 复制'; }, 2500);
+    syncClipboard('✅ 已自动复制！');
     replyTA.focus();
   }, 100);
 }
