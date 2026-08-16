@@ -4188,6 +4188,80 @@ const WB_RULES_COMPACT = `
 - 投票放逐和普通夜间死亡本身不验证阵营；只以系统明确写出的公开验证为准。
 - 复杂角色的准确效果以该角色本人的私密说明与系统实际结算为准。其他玩家只凭公开摘要不能断言某份私密反馈“不可能存在”。`;
 
+// 公开顺序与 PhaseHandlers.night 的真实调用顺序一一对应；测试会阻止两者分叉。
+const PUBLIC_NIGHT_ACTION_ORDER = Object.freeze([
+  {key:'cupid', roles:['cupid'], label:'丘比特结成恋人（仅第一夜）'},
+  {key:'gravekeeper', roles:['gravekeeper'], label:'守墓人读取上一名放逐者阵营（有记录时）'},
+  {key:'wolfconcubine', roles:['wolfconcubine'], label:'蚀时狼妃设置反弹锁'},
+  {key:'soulwarden', roles:['soulwarden'], label:'净魂师施加圣域'},
+  {key:'mechwolf-fox', all:['mechwolf','fox'], label:'机械狼的机械媚惑（仅已学会子狐时）'},
+  {key:'fox', roles:['fox'], label:'子狐媚惑'},
+  {key:'imitator', roles:['imitator'], label:'摹术师摹取并使用即时能力'},
+  {key:'merchant', roles:['merchant'], label:'奇迹商人赐福'},
+  {key:'youshang', roles:['youshang'], label:'游商赐予'},
+  {key:'pick-gift', any:['merchant','youshang'], label:'获赐玩家选择礼物'},
+  {key:'fool', roles:['fool'], label:'愚者布置护盾'},
+  {key:'alchemist-plan', roles:['alchemist'], label:'炼金魔女决定是否开启未明之雾'},
+  {key:'dreamwalker', roles:['dreamwalker'], label:'摄梦人选择梦游者'},
+  {key:'gargoyle', roles:['gargoyle'], label:'石像鬼窥视身份'},
+  {key:'magician', roles:['magician'], label:'魔术师选择换位'},
+  {key:'mechwolf', roles:['mechwolf'], label:'机械狼学习或使用已复制能力（机械媚惑除外）'},
+  {key:'guard', roles:['guard'], label:'守卫选择守护'},
+  {key:'wolf-kill', any:['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine'], label:'已互认狼队讨论并确定狼刀'},
+  {key:'mechwolf-kill', roles:['mechwolf'], label:'机械狼独立狼刀（仅已获得刀权时）'},
+  {key:'gargoyle-kill', roles:['gargoyle'], label:'石像鬼独立狼刀（仅已苏醒时）'},
+  {key:'magic-swap', roles:['magician'], label:'应用魔术师换位并确定狼刀实际落点'},
+  {key:'imitator-rescue', roles:['imitator'], label:'摹术师临时救援（仅当夜摹到时）'},
+  {key:'witch', roles:['witch'], label:'女巫查看最终狼刀并决定用药'},
+  {key:'alchemist-rescue', roles:['alchemist'], label:'炼金魔女法老之蛇补救'},
+  {key:'custom-gods', custom:true, label:'自定义角色夜间主动技能'},
+  {key:'seer', roles:['seer'], label:'预言家查验'},
+  {key:'granted-skill', any:['merchant','youshang'], label:'获赐玩家使用查验、毒药或护盾'},
+  {key:'serial-killer', roles:['serialkiller'], label:'连环杀手独立袭击'},
+  {key:'wolf-beauty', roles:['wolfbeauty'], label:'狼美人选择魅惑目标'},
+  {key:'resolve', always:true, label:'统一结算当夜死亡与存活结果'}
+]);
+
+function buildActiveRoleTimingBlock(players) {
+  const list = Array.isArray(players) ? players.filter(x => x && x.role) : [];
+  const ids = new Set(list.map(x => x.role.id));
+  const customNames = [...new Set(list.filter(x => x.role.customId || (Array.isArray(x.role.customAbilities) && x.role.customAbilities.length)).map(x => x.role.name))];
+  const activeSteps = PUBLIC_NIGHT_ACTION_ORDER.filter(step => {
+    if (step.always) return true;
+    if (step.custom) return customNames.length > 0;
+    if (step.all) return step.all.every(id => ids.has(id));
+    const candidates = step.roles || step.any || [];
+    return candidates.some(id => ids.has(id));
+  });
+  const nightLabels = activeSteps.map(step => step.custom && customNames.length ? `${step.label}（${customNames.join('、')}）` : step.label);
+  const triggers = [];
+  if (ids.has('knight')) triggers.push('骑士决斗：白天由骑士主动发起，选择确认后立即结算，再继续当天流程');
+  if (ids.has('whitewolf')) triggers.push('白狼王自爆：正式白天发言或投票阶段发动，立即带人并转入夜晚');
+  if (ids.has('fool')) triggers.push('愚者放逐免死：白天被放逐时在该次放逐结算点消耗生存机会');
+  if (ids.has('jester')) triggers.push('小丑胜利：被白天投票放逐或审判定罪时立即检查并结算');
+  const deathRoles = [ids.has('hunter') ? '猎人开枪' : '', ids.has('wolfking') ? '狼王咬人' : '', ids.has('wolfbeauty') ? '狼美人魅惑连带' : '', ids.has('cupid') ? '恋人殉情' : '', ids.has('whitecat') ? '白猫缓死' : ''].filter(Boolean);
+  if (deathRoles.length) triggers.push(`死亡/致命伤触发：${deathRoles.join('、')}不占夜间主动顺序，在对应死亡发生点按系统终局判定继续结算`);
+  const covered = new Set(activeSteps.flatMap(step => step.roles || step.any || step.all || []));
+  const noNight = [...ids].filter(id => !covered.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name);
+  const lines = [
+    '【本局角色公开行动与结算顺序·所有玩家必须遵守】',
+    '夜间固定顺序：' + nightLabels.join(' → '),
+    '“先行动”表示先选择目标并先产生会影响后续行动的状态；最终死亡仍在夜末统一结算，除非技能明确写成立即结算。'
+  ];
+  if (triggers.length) lines.push('白天/触发型技能：\n- ' + triggers.join('\n- '));
+  if (noNight.length) lines.push('无常规夜间主动行动：' + noNight.join('、') + '。');
+  if (ids.has('mechwolf') && ids.has('fox')) {
+    lines.push('机械狼与子狐硬时序：机械媚惑固定先于真子狐；真子狐若在自己的回合前已被机械媚惑封锁，本夜没有出手，不能解释成自己的媚惑被反弹。');
+    if (ids.has('wolfconcubine')) lines.push('反弹锁硬时序：同夜只触发一次；机械媚惑若先撞锁便消耗反弹，真子狐随后不会再被弹；机械媚惑若成功封住真子狐，则真子狐随后不行动。这两种结果互斥。');
+  }
+  return '\n\n' + lines.join('\n');
+}
+
+// 每个 AI 都会收到；只根据实际配置生成，未上场角色不会进入提示。
+function buildActivePublicInteractionRules() {
+  return buildActiveRoleTimingBlock(S && S.players);
+}
+
 /* ★ 按需组装世界书：根据玩家身份和当前局势挑选模块 */
 function buildWorldBook(p) {
   // 当前角色的完整能力由 guide 单独注入；其他角色只给公开的一行摘要。
@@ -4207,7 +4281,7 @@ function buildWorldBook(p) {
   const officialTeaching = officialOn ? WB_CORE_COMPACT + officialStrategy : '';
   const customTeaching = twb && typeof twb.buildInjection === 'function' ? twb.buildInjection(teachingContext) : '';
   // 公共流程属于硬规则，在任何教学模式下都保留，并放在玩家世界书之后再次压住边界。
-  return officialTeaching + customTeaching + WB_RULES_COMPACT;
+  return officialTeaching + customTeaching + WB_RULES_COMPACT + buildActivePublicInteractionRules();
 
   /* legacy world-book assembly (inactive) */
   let wb = WB_CORE + WB_CONFIDENCE_EVIDENCE + WB_RULE_CLARIFY;
@@ -5955,6 +6029,41 @@ function buildRulesExportLegacy(includeAllRoles = false) {
 
 // 面向实际对局的规则导出：只写本局存在的角色与真正会生效的交互。
 // 旧版完整百科保留在 buildRulesExportLegacy 便于维护核对，但不再直接喂给外部 AI。
+function buildActiveRoleExportDesc(role, activeRoleIds) {
+  const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
+  const has = id => active.has(id);
+  switch (role && role.id) {
+    case 'wolfking':
+      return `每晚参与狼队刀人；死亡时可以咬死一人（被毒${has('knight') ? '或被骑士决斗' : ''}时不能发动）`;
+    case 'wolfbeauty':
+      return '每晚参与狼队刀人并可魅惑一人；自己出局时，当前魅惑目标会殉情死亡。';
+    case 'whitewolf':
+      return '每晚参与狼队刀人；白天正式发言或投票回合可自爆并带走一人，随后跳过遗言和警徽流程直接入夜。';
+    case 'merchant':
+      return '好人。整局仅赐福一次：幸运儿可在一次性被动护盾、每晚查验或一次毒药中选择一种；若幸运儿属于狼人阵营，赐福反噬令商人出局。';
+    case 'mechwolf':
+      return '狼人阵营孤狼。整局可学习一名玩家一次，得知其身份并从次夜起获得对应强化能力；与狼队互不相认、不参加普通狼刀且不能自爆。其他狼系全部出局后获得独立狼刀，可选择任意合法目标（包括自己）或空刀，并私下记录刀口是否死亡。';
+    case 'fox':
+      return `好人神职。第2夜起每晚媚惑一人：狼目标令当晚全狼禁刀，好人目标被封锁当夜主动技能；行动后私下得知目标阵营，目标只知道自己被媚惑${has('wolfconcubine') ? '；该媚惑可被蚀时狼妃反弹' : ''}。`;
+    case 'jester':
+      return `第三方独立阵营。只有被白天投票放逐或审判处决才会立即单独获胜；其他死因均告失败，且没有夜间技能${has('seer') ? '；预言家查验显示为好人' : ''}。`;
+    case 'serialkiller': {
+      const clauses = [
+        '第三方独立阵营。每晚可独立袭击一名玩家或空过，其袭击独立于狼刀',
+        has('guard') ? '守护可以挡下该袭击' : '',
+        has('witch') ? '解药不能救下被该袭击命中的玩家' : '',
+        has('seer') ? '预言家查验显示为好人' : '',
+        '只有自己成为最后的存活者才会获胜；其存活时会阻止两个主要阵营宣胜'
+      ].filter(Boolean);
+      return clauses.join('；') + '。';
+    }
+    case 'alchemist':
+      return `好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为2至3人；蛇可在本夜刀口最终定案${has('magician') ? '（包括魔术师换位结果）' : ''}后得知实际目标，再决定是否救下。`;
+    default:
+      return role && role.desc ? role.desc : '';
+  }
+}
+
 function buildRulesExport() {
   const players = (S && Array.isArray(S.players)) ? S.players : [];
   if (!players.length) return uiEnglish()
@@ -5982,7 +6091,7 @@ function buildRulesExport() {
     '',
     '━━ 胜负与流程 ━━',
     isEdge
-      ? '· 屠边局：狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
+      ? '· 屠边局：狼人杀光本局全部神职、杀光本局全部民牌（若配置中存在），或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
       : '· 屠城局：狼人仅在存活狼数≥存活好人数时获胜；杀光某一身份类别不会单独获胜；好人需清除全部狼人。',
     `· 流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。${S.extraSpeechEnabled ? '投票前可能出现经其他存活玩家表决通过的补充发言；' : '只有系统明确宣布平票时才有PK追加发言；'}退选本身没有额外发言。`,
     '· 阶段发言权限：只有系统明确标注为“发言、讨论、竞选陈词、PK自救或狼人密谈”的阶段才可对外说话。投票/警长投票、退选确认、夜间技能选择、警徽移交、死亡技能/决斗等技能确认及其他纯操作阶段，只向主持人提交选择，不追加公开发言，也不要向其他玩家提问；这些阶段无人会回应。',
@@ -5999,9 +6108,10 @@ function buildRulesExport() {
 
   ids.filter(id => ALL_ROLES[id]).forEach(id => {
     const r = ALL_ROLES[id];
-    lines.push(`· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${r.desc}`);
+    lines.push(`· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${buildActiveRoleExportDesc(r, ids)}`);
   });
   lines.push('· 只有以上配置中列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。');
+  lines.push(buildActiveRoleTimingBlock(players));
 
   const interactions = [];
   if (hasAny(['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine'])) {
@@ -6013,8 +6123,11 @@ function buildRulesExport() {
   if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
   if (has('witch') && has('alchemist')) interactions.push('女巫先决定是否使用解药；只有刀口仍未获救时，炼金魔女的法老之蛇才进行补救。女巫已救时会通知炼金魔女且不消耗法老之蛇。');
   if (has('magician')) interactions.push('魔术师在狼刀确定前行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
-  if (has('wolfconcubine')) interactions.push('蚀时狼妃每夜只反弹首个命中的单体查验、守护、毒杀、媚惑或摄梦；群体领域、自动信息、净化、救援、白天技与死亡技不反弹，净魂师可提前净除锁定。');
-  if (has('soulwarden')) interactions.push('净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记，可处理狼妃反弹锁与狼美人魅惑；不阻挡任何直接伤害，也不反馈是否成功。');
+  if (has('wolfconcubine')) interactions.push(`蚀时狼妃每夜只反弹首个命中的单体查验、守护、毒杀、媚惑或摄梦；群体领域、自动信息、净化、救援、白天技与死亡技不反弹${has('soulwarden') ? '，净魂师可提前净除锁定' : ''}。`);
+  if (has('soulwarden')) {
+    const marks = [has('wolfconcubine') ? '狼妃反弹锁' : '', has('wolfbeauty') ? '狼美人魅惑' : ''].filter(Boolean);
+    interactions.push(`净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记${marks.length ? `，本局可处理${marks.join('与')}` : ''}；不阻挡任何直接伤害，也不反馈是否成功。`);
+  }
   if (has('imitator')) interactions.push('摹术师每名玩家整局只能学习一次，最多成功摹取三次；只复制兼容的夜间主动效果，当夜限用一次并在天亮消失，不复制身份、狼刀、阵营视角、死亡触发或白天技能。');
   if (has('wolfbeauty')) interactions.push('狼美人出局时通常连带当夜魅惑目标；若该次死亡已经让某阵营即时达成胜利，则以后续系统终局判定为准。');
   if (hasAny(['hunter','wolfking','whitewolf','wolfbeauty'])) interactions.push('带死亡效果的角色是否继续发动技能，以死亡当刻的系统胜负判定为准；不要只套用“任何死因必触发”的单句规则。');
@@ -6051,14 +6164,14 @@ function buildWebRulesExport(viewerP) {
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
   const roleLines = ids.filter(id => ALL_ROLES[id]).map(id => {
     const r = ALL_ROLES[id];
-    return `· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${r.desc}`;
+    return `· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${buildActiveRoleExportDesc(r, ids)}`;
   });
 
   const lines = [
     '【网页端接力·精简规则】',
     isEdge
-      ? '胜负：屠边局。狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
-      : '胜负：屠城局。狼人仅在存活狼数≥存活好人数时获胜；杀光神职或村民不会单独提前获胜；好人需清除全部狼人。',
+      ? '胜负：屠边局。狼人杀光本局全部神职、杀光本局全部民牌（若配置中存在），或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
+      : '胜负：屠城局。狼人仅在存活狼数≥存活好人数时获胜；杀光某一身份类别不会单独提前获胜；好人需清除全部狼人。',
     `流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。${S.extraSpeechEnabled ? '投票前可能出现经其他存活玩家表决通过的补充发言；' : '只有系统明确宣布平票时才有PK追加发言；'}退选没有额外发言。`,
     '阶段发言权限：只有系统明确标注为“发言、讨论、竞选陈词、PK自救或狼人密谈”的阶段才可对外说话。投票/警长投票、退选确认、夜间技能选择、警徽移交、死亡技能/决斗等技能确认及其他纯操作阶段，只向主持人提交选择，不追加公开发言，也不要向其他玩家提问；这些阶段无人会回应。',
     '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
@@ -6079,9 +6192,10 @@ function buildWebRulesExport(viewerP) {
     ...roleLines,
     '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。'
   ];
+  lines.push(buildActiveRoleTimingBlock(S.players || []));
 
   if (viewerP && viewerP.role) {
-    lines.push('', `【你的能力】${viewerP.role.emoji}${viewerP.role.name}：${viewerP.role.desc}`);
+    lines.push('', `【你的能力】${viewerP.role.emoji}${viewerP.role.name}：${buildActiveRoleExportDesc(viewerP.role, ids)}`);
   }
   if (has('guard') && has('witch')) lines.push('· 守卫不能连续守同一人；守护与女巫解药同时作用于同一刀口会奶穿死亡。');
   if (has('witch') && has('alchemist')) lines.push('· 女巫优先处理刀口；若解药已经救下目标，法老之蛇不再重复发动且不会消耗。女巫未救时，炼金魔女才可补救。');
@@ -9269,7 +9383,7 @@ ${userPersona}
   // 这条提示独立于是否真的发动主动技能；具体的技能失败仍由 skill-muted 记录说明。
   const foxTargetHistory = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && (r.role === 'fox' || r.role === 'mechwolf_fox') && foxCharmActualTargetId(r) === p.id)
-    .map(r => r.result === 'rebounded' ? `第${r.round}夜：你明确知道一次媚惑被反弹到你自己；本夜实际验证对象只有你自己，原选择目标${r.chosenTarget || r.target || ''}未受影响且完全未验证；你不知道设置反弹的玩家是谁` : `第${r.round}夜：你被子狐类媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道施法玩家是谁）`);
+    .map(r => r.result === 'rebounded' ? `第${r.round}夜：你明确知道一次媚惑被反弹到你自己；本夜实际验证对象只有你自己，原选择目标${r.chosenTarget || r.target || ''}未受影响且完全未验证；你不知道设置反弹的玩家是谁` : `第${r.round}夜：你被子狐类媚惑了；${r.result === 'blockKill' ? '本夜狼人阵营的狼刀因此被禁止' : '若你发动主动夜间技能，该技能会被封锁'}（你不知道施法玩家是谁）${p.role.id === 'fox' && r.role === 'mechwolf_fox' ? '。时序确认：该媚惑在你的子狐回合前已经结算；你本夜没有执行自己的媚惑，因此不可能是自己的技能被反弹' : ''}`);
   if (foxTargetHistory.length) {
     keyParts.push('【你遭到子狐媚惑的完整永久记录】\n' + foxTargetHistory.join('\n'));
   }
@@ -9278,7 +9392,7 @@ ${userPersona}
   // 同样从 gameRecord 重建，防止普通 memory 被截断后把失败行动误报成成功。
   const mutedHistory = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
-    .map(r => `第${r.round}夜：${r.source === 'fox' ? '遭到子狐媚惑，' : ''}${r.ability || '夜间主动技能'}被封锁，没有生效`);
+    .map(r => `第${r.round}夜：${isFoxCharmMuteSource(r.source) ? '遭到子狐类媚惑，' : ''}${r.ability || '夜间主动技能'}被封锁，没有生效${p.role.id === 'fox' && r.source === 'mechwolf_fox' ? '；该封锁在你的行动回合前完成，你本夜没有出手，也没有触发狼妃反弹' : ''}`);
   if (mutedHistory.length) {
     keyParts.push('【你的技能封锁结果·完整永久记录】\n' + mutedHistory.join('\n') + '\n⚠️这些行动没有生效，不得声称自己成功守护、交换、查验、用药或袭击。若记录写明子狐媚惑，你只知道能力来源，不知道哪名玩家是子狐。');
   }
@@ -16812,7 +16926,7 @@ ${mistDecisionHint}
         else {
           if (!S.nightData.foxMuteIds.includes(t.id)) S.nightData.foxMuteIds.push(t.id);
           if (!S.nightData.skillMuteSources) S.nightData.skillMuteSources = {};
-          S.nightData.skillMuteSources[t.id] = 'fox';
+          S.nightData.skillMuteSources[t.id] = 'mechwolf_fox';
         }
         t.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你被媚惑了。'+(isWolf?'本夜狼人阵营的狼刀因此被禁止。':'如果你本夜发动夜间主动技能，该技能会被封锁、不会生效。')+'你知道能力类型，但不知道施法玩家是谁。'});
         mw.memory.push({role:'system', content:'【🤖媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')});
@@ -18821,6 +18935,9 @@ async function compressAllMemories() {
 function nightSkillMuted(p){
   return !!(p && S.nightData && Array.isArray(S.nightData.foxMuteIds) && S.nightData.foxMuteIds.includes(p.id));
 }
+function isFoxCharmMuteSource(source){
+  return source === 'fox' || source === 'mechwolf_fox' || source === 'imitator';
+}
 // 子狐与机械子狐共享同一套“实际受术目标”判定。反弹时原选择目标没有被媚惑，实际目标是施法者自己。
 function foxCharmActualTargetId(r){
   if (!r) return null;
@@ -18838,8 +18955,9 @@ function recordNightSkillMuted(p, ability){
   const exists = (gameRecord || []).some(r => r && r.type === 'night_action' && r.role === 'skill-muted' &&
     r.round === S.round && (r.playerId === p.id || r.name === p.name) && r.ability === label);
   if (exists) return;
-  const causeText = source === 'fox'
-    ? `你遭到【子狐媚惑】，${label}被封锁、没有生效。你知道是子狐能力造成的，但不知道哪名玩家是子狐`
+  const beforeFoxTurn = source === 'mechwolf_fox' && p.role && p.role.id === 'fox';
+  const causeText = isFoxCharmMuteSource(source)
+    ? `你遭到【子狐类媚惑】，${label}被封锁、没有生效。你知道能力类型，但不知道施法玩家是谁${beforeFoxTurn ? '。系统时序确认：这次封锁在你的子狐行动回合开始前已经结算；你本夜根本没有执行自己的媚惑，也没有触发反弹。机械媚惑固定早于真子狐行动，绝不能把本记录解释成“自己的媚惑被蚀时狼妃反弹”' : ''}`
     : `你的${label}被某种神秘力量封锁，没有生效。你不知道是谁造成的`;
   p.memory.push({role:'system', content:`【技能封锁·私密】第${S.round}夜，${causeText}；不得把本夜尝试当作成功行动或编造结果。`});
   gameRecord.push({type:'night_action', role:'skill-muted', round:S.round, playerId:p.id, name:p.name, ability:label, source});
@@ -22496,7 +22614,7 @@ function _buildPrivateInfoLines(p) {
   // 技能封锁只向被封者本人公开；子狐封技会公开能力来源，但不公开施法者身份。
   const mutedActs = (gameRecord || [])
     .filter(r => r && r.type === 'night_action' && r.role === 'skill-muted' && (r.playerId === p.id || r.name === p.name))
-    .map(r => `第${r.round}夜：${r.source === 'fox' ? '遭到子狐媚惑，' : ''}${r.ability || '夜间主动技能'}被封锁，没有生效`);
+    .map(r => `第${r.round}夜：${isFoxCharmMuteSource(r.source) ? '遭到子狐类媚惑，' : ''}${r.ability || '夜间主动技能'}被封锁，没有生效${p.role.id === 'fox' && r.source === 'mechwolf_fox' ? '；封锁发生在你的行动回合之前，本夜没有执行自己的媚惑，也没有触发反弹' : ''}`);
   if (mutedActs.length) {
     lines.push(`你的技能封锁记录：\n  ${mutedActs.join('\n  ')}\n  ⚠️这些行动不能当作成功记录；即使知道是子狐能力，也不知道哪名玩家是子狐。`);
   }
@@ -23062,7 +23180,7 @@ function _formatCustomNightAction(r) {
   const wg = res => res === 'wolf' ? '🐺狼人' : '✅好人';
   const who = r.custom || '自创角色';   // 积木自创角色用玩家自定义的角色名
   switch (r.role) {
-    case 'skill-muted':   return '🔇 ' + (r.name || t) + (r.source === 'fox' ? '遭到子狐媚惑，' : '的') + (r.ability || '夜间主动技能') + '被封锁、没有生效（不公开施法玩家）';
+    case 'skill-muted':   return '🔇 ' + (r.name || t) + (isFoxCharmMuteSource(r.source) ? '遭到子狐类媚惑，' : '的') + (r.ability || '夜间主动技能') + '被封锁、没有生效（不公开施法玩家）';
     case 'fox':            return '🦊 子狐媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到子狐本人；原选择目标未受影响且未被验证）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'mechwolf_fox':   return '🤖🦊 机械媚惑：' + t + (r.result === 'rebounded' ? '（被蚀时狼妃反弹到机械狼本人；原选择目标未受影响且未被验证）' : r.result === 'blockKill' ? '（对方是狼→今晚全狼禁刀）' : '（对方是好人→其今晚夜间技失效）');
     case 'wolfconcubine':  return '🌒 蚀时狼妃反弹锁定：' + t + '（首个单体查验/守护/毒杀/媚惑/摄梦反弹，仅一发）';
