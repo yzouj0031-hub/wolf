@@ -5901,6 +5901,41 @@ function buildRulesExportLegacy(includeAllRoles = false) {
 
 // 面向实际对局的规则导出：只写本局存在的角色与真正会生效的交互。
 // 旧版完整百科保留在 buildRulesExportLegacy 便于维护核对，但不再直接喂给外部 AI。
+function buildActiveRoleExportDesc(role, activeRoleIds) {
+  const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
+  const has = id => active.has(id);
+  switch (role && role.id) {
+    case 'wolfking':
+      return `每晚参与狼队刀人；死亡时可以咬死一人（被毒${has('knight') ? '或被骑士决斗' : ''}时不能发动）`;
+    case 'wolfbeauty':
+      return '每晚参与狼队刀人并可魅惑一人；自己出局时，当前魅惑目标会殉情死亡。';
+    case 'whitewolf':
+      return '每晚参与狼队刀人；白天正式发言或投票回合可自爆并带走一人，随后跳过遗言和警徽流程直接入夜。';
+    case 'merchant':
+      return '好人。整局仅赐福一次：幸运儿可在一次性被动护盾、每晚查验或一次毒药中选择一种；若幸运儿属于狼人阵营，赐福反噬令商人出局。';
+    case 'mechwolf':
+      return '狼人阵营孤狼。整局可学习一名玩家一次，得知其身份并从次夜起获得对应强化能力；与狼队互不相认、不参加普通狼刀且不能自爆。其他狼系全部出局后获得独立狼刀，可选择任意合法目标（包括自己）或空刀，并私下记录刀口是否死亡。';
+    case 'fox':
+      return `好人神职。第2夜起每晚媚惑一人：狼目标令当晚全狼禁刀，好人目标被封锁当夜主动技能；行动后私下得知目标阵营，目标只知道自己被媚惑${has('wolfconcubine') ? '；该媚惑可被蚀时狼妃反弹' : ''}。`;
+    case 'jester':
+      return `第三方独立阵营。只有被白天投票放逐或审判处决才会立即单独获胜；其他死因均告失败，且没有夜间技能${has('seer') ? '；预言家查验显示为好人' : ''}。`;
+    case 'serialkiller': {
+      const clauses = [
+        '第三方独立阵营。每晚可独立袭击一名玩家或空过，其袭击独立于狼刀',
+        has('guard') ? '守护可以挡下该袭击' : '',
+        has('witch') ? '解药不能救下被该袭击命中的玩家' : '',
+        has('seer') ? '预言家查验显示为好人' : '',
+        '只有自己成为最后的存活者才会获胜；其存活时会阻止两个主要阵营宣胜'
+      ].filter(Boolean);
+      return clauses.join('；') + '。';
+    }
+    case 'alchemist':
+      return `好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为2至3人；蛇可在本夜刀口最终定案${has('magician') ? '（包括魔术师换位结果）' : ''}后得知实际目标，再决定是否救下。`;
+    default:
+      return role && role.desc ? role.desc : '';
+  }
+}
+
 function buildRulesExport() {
   const players = (S && Array.isArray(S.players)) ? S.players : [];
   if (!players.length) return uiEnglish()
@@ -5928,7 +5963,7 @@ function buildRulesExport() {
     '',
     '━━ 胜负与流程 ━━',
     isEdge
-      ? '· 屠边局：狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
+      ? '· 屠边局：狼人杀光本局全部神职、杀光本局全部民牌（若配置中存在），或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
       : '· 屠城局：狼人仅在存活狼数≥存活好人数时获胜；杀光某一身份类别不会单独获胜；好人需清除全部狼人。',
     `· 流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。只有系统明确宣布平票时才有PK追加发言；退选本身没有额外发言。`,
     '· 阶段发言权限：只有系统明确标注为“发言、讨论、竞选陈词、PK自救或狼人密谈”的阶段才可对外说话。投票/警长投票、退选确认、夜间技能选择、警徽移交、死亡技能/决斗等技能确认及其他纯操作阶段，只向主持人提交选择，不追加公开发言，也不要向其他玩家提问；这些阶段无人会回应。',
@@ -5945,7 +5980,7 @@ function buildRulesExport() {
 
   ids.filter(id => ALL_ROLES[id]).forEach(id => {
     const r = ALL_ROLES[id];
-    lines.push(`· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${r.desc}`);
+    lines.push(`· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${buildActiveRoleExportDesc(r, ids)}`);
   });
   lines.push('· 只有以上配置中列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。');
 
@@ -5959,8 +5994,11 @@ function buildRulesExport() {
   if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
   if (has('witch') && has('alchemist')) interactions.push('女巫先决定是否使用解药；只有刀口仍未获救时，炼金魔女的法老之蛇才进行补救。女巫已救时会通知炼金魔女且不消耗法老之蛇。');
   if (has('magician')) interactions.push('魔术师在狼刀确定前行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
-  if (has('wolfconcubine')) interactions.push('蚀时狼妃每夜只反弹首个命中的单体查验、守护、毒杀、媚惑或摄梦；群体领域、自动信息、净化、救援、白天技与死亡技不反弹，净魂师可提前净除锁定。');
-  if (has('soulwarden')) interactions.push('净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记，可处理狼妃反弹锁与狼美人魅惑；不阻挡任何直接伤害，也不反馈是否成功。');
+  if (has('wolfconcubine')) interactions.push(`蚀时狼妃每夜只反弹首个命中的单体查验、守护、毒杀、媚惑或摄梦；群体领域、自动信息、净化、救援、白天技与死亡技不反弹${has('soulwarden') ? '，净魂师可提前净除锁定' : ''}。`);
+  if (has('soulwarden')) {
+    const marks = [has('wolfconcubine') ? '狼妃反弹锁' : '', has('wolfbeauty') ? '狼美人魅惑' : ''].filter(Boolean);
+    interactions.push(`净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记${marks.length ? `，本局可处理${marks.join('与')}` : ''}；不阻挡任何直接伤害，也不反馈是否成功。`);
+  }
   if (has('imitator')) interactions.push('摹术师每名玩家整局只能学习一次，最多成功摹取三次；只复制兼容的夜间主动效果，当夜限用一次并在天亮消失，不复制身份、狼刀、阵营视角、死亡触发或白天技能。');
   if (has('wolfbeauty')) interactions.push('狼美人出局时通常连带当夜魅惑目标；若该次死亡已经让某阵营即时达成胜利，则以后续系统终局判定为准。');
   if (hasAny(['hunter','wolfking','whitewolf','wolfbeauty'])) interactions.push('带死亡效果的角色是否继续发动技能，以死亡当刻的系统胜负判定为准；不要只套用“任何死因必触发”的单句规则。');
@@ -5997,14 +6035,14 @@ function buildWebRulesExport(viewerP) {
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
   const roleLines = ids.filter(id => ALL_ROLES[id]).map(id => {
     const r = ALL_ROLES[id];
-    return `· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${r.desc}`;
+    return `· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${buildActiveRoleExportDesc(r, ids)}`;
   });
 
   const lines = [
     '【网页端接力·精简规则】',
     isEdge
-      ? '胜负：屠边局。狼人杀光全部神职、杀光全部村民，或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
-      : '胜负：屠城局。狼人仅在存活狼数≥存活好人数时获胜；杀光神职或村民不会单独提前获胜；好人需清除全部狼人。',
+      ? '胜负：屠边局。狼人杀光本局全部神职、杀光本局全部民牌（若配置中存在），或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
+      : '胜负：屠城局。狼人仅在存活狼数≥存活好人数时获胜；杀光某一身份类别不会单独提前获胜；好人需清除全部狼人。',
     `流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。只有系统明确宣布平票时才有PK追加发言；退选没有额外发言。`,
     '阶段发言权限：只有系统明确标注为“发言、讨论、竞选陈词、PK自救或狼人密谈”的阶段才可对外说话。投票/警长投票、退选确认、夜间技能选择、警徽移交、死亡技能/决斗等技能确认及其他纯操作阶段，只向主持人提交选择，不追加公开发言，也不要向其他玩家提问；这些阶段无人会回应。',
     '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
@@ -6027,7 +6065,7 @@ function buildWebRulesExport(viewerP) {
   ];
 
   if (viewerP && viewerP.role) {
-    lines.push('', `【你的能力】${viewerP.role.emoji}${viewerP.role.name}：${viewerP.role.desc}`);
+    lines.push('', `【你的能力】${viewerP.role.emoji}${viewerP.role.name}：${buildActiveRoleExportDesc(viewerP.role, ids)}`);
   }
   if (has('guard') && has('witch')) lines.push('· 守卫不能连续守同一人；守护与女巫解药同时作用于同一刀口会奶穿死亡。');
   if (has('witch') && has('alchemist')) lines.push('· 女巫优先处理刀口；若解药已经救下目标，法老之蛇不再重复发动且不会消耗。女巫未救时，炼金魔女才可补救。');

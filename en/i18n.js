@@ -28,9 +28,10 @@
     dreamwalker:{name:'Dreamwalker',desc:'Good team. Sends one player into a protected dream each night; choosing the same player on consecutive nights turns the dream lethal.'},
     alchemist:{name:'Alchemist Witch',desc:'Good team. Once per game may restrict the wolf attack to three players, and once per game may save the actual wolf-attack victim.'},
     gargoyle:{name:'Gargoyle',desc:'Wolf team but unknown to the pack. Checks an exact role each night and gains its own attack after every other wolf is gone.'},
-    soulwarden:{name:'Soul Warden',desc:'Good team. Each night places Sanctuary on one living player, cleansing or blocking the first hostile non-damage mark. Cannot choose the same target on consecutive nights.'}
+    soulwarden:{name:'Soul Warden',desc:'Good team. Each night places Sanctuary on one living player, cleansing or blocking the first hostile non-damage mark. Cannot choose the same target on consecutive nights.'},
+    imitator:{name:'Imitator',desc:'Good team. Each night may study one living player not studied before, copy one compatible active ability for that night, and use it once. At most three studies can succeed.'}
   };
-  const ROLE_ZH = {werewolf:'狼人',wolfking:'狼王',wolfbeauty:'狼美人',seer:'预言家',witch:'女巫',hunter:'猎人',guard:'守卫',knight:'骑士',magician:'魔术师',whitecat:'白猫',fox:'子狐',fool:'愚者',merchant:'奇迹商人',youshang:'游商',wolfconcubine:'蚀时狼妃',villager:'村民',whitewolf:'白狼王',mechwolf:'机械狼',jester:'小丑',cupid:'丘比特（爱神）',serialkiller:'连环杀手',gravekeeper:'守墓人',dreamwalker:'摄梦人',alchemist:'炼金魔女',gargoyle:'石像鬼',soulwarden:'净魂师'};
+  const ROLE_ZH = {werewolf:'狼人',wolfking:'狼王',wolfbeauty:'狼美人',seer:'预言家',witch:'女巫',hunter:'猎人',guard:'守卫',knight:'骑士',magician:'魔术师',whitecat:'白猫',fox:'子狐',fool:'愚者',merchant:'奇迹商人',youshang:'游商',wolfconcubine:'蚀时狼妃',villager:'村民',whitewolf:'白狼王',mechwolf:'机械狼',jester:'小丑',cupid:'丘比特（爱神）',serialkiller:'连环杀手',gravekeeper:'守墓人',dreamwalker:'摄梦人',alchemist:'炼金魔女',gargoyle:'石像鬼',soulwarden:'净魂师',imitator:'摹术师'};
 
   const EXACT = {
     '🐺 AI狼人杀 · 多个大模型在线自动对局·可观战':'🐺 AI Werewolf · multi-model autonomous games · spectator mode',
@@ -376,19 +377,30 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
     document.dispatchEvent(new CustomEvent('wolf-language-change', {detail:{lang:'en'}}));
   }
 
+  function buildActiveEnglishRoleDesc(id, activeRoleIds) {
+    const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
+    if (id === 'wolfking') {
+      return `Wolf team. Joins the nightly attack; when eliminated by vote or a night attack, may bite one player. Poison${active.has('knight') ? ' and a Knight duel' : ''} suppresses the bite.`;
+    }
+    return ROLE_EN[id] ? ROLE_EN[id].desc : '';
+  }
+
   function buildEnglishRules(opts) {
     const players = opts.players || [], ids = [...new Set(players.map(p => p.role && p.role.id).filter(Boolean))];
+    const activeIds = new Set(ids);
+    const knownPackRoles = new Set(['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine']);
+    const knownPackCount = players.filter(p => p.role && knownPackRoles.has(p.role.id)).length;
     const counts = {};
     players.forEach(p => { if (p.role) { const n=(ROLE_EN[p.role.id]||p.role).name; counts[n]=(counts[n]||0)+1; } });
     const config = Object.entries(counts).map(([n,c]) => c > 1 ? `${c} ${n}` : n).join(' + ');
     const lines = ['[ACTIVE GAME RULES · CONCISE EXPORT]', `Setup: ${players.length} players | ${config}`, '', '— Victory and flow —',
-      opts.edge ? '• Edge victory: wolves win by eliminating every god-role, every Villager, or by reaching parity. Good wins by eliminating every wolf.' : '• City victory: wolves win only at parity. Eliminating one role category alone does not end the game. Good wins by eliminating every wolf.',
+      opts.edge ? '• Edge victory: wolves win by eliminating every god-role or every civilian role present in the setup, or by reaching parity. Good wins by eliminating every wolf.' : '• City victory: wolves win only at parity. Eliminating one role category alone does not end the game. Good wins by eliminating every wolf.',
       `• Flow: night actions → first-day sheriff election → deaths announced → ${opts.singleRound ? 'one' : 'two'} daytime speech round(s) → vote. Extra speeches occur only when the system explicitly opens a tie/PK stage.`,
       '• Speaking permission by phase: Speak only when the system explicitly labels a speech, discussion, campaign statement, PK defense, or wolf-chat stage. During voting/sheriff voting, withdrawal confirmation, night-skill selection, badge transfer, death-skill/duel confirmation, or any other choice-only stage, submit only the choice to the host. Do not add a public speech or ask players questions; no one can answer during that stage.',
-      '• Known packmates are legal wolf-attack targets, but sacrificing one is justified only by concrete net gain (for example baiting the antidote, building cover, triggering a death skill, or sacrificing a wolf almost certain to be exiled). It must be compared against attacking a good player and must not cause an immediate loss.',
+      ...(knownPackCount > 1 ? ['• Known packmates are legal wolf-attack targets, but sacrificing one is justified only by concrete net gain (for example baiting the antidote, building cover, triggering a death skill, or sacrificing a wolf almost certain to be exiled). It must be compared against attacking a good player and must not cause an immediate loss.'] : []),
       opts.hiddenDeath ? '• Hidden deaths: ordinary night deaths reveal neither identity nor private cause. Public skill events remain public.' : '• Public deaths: identities revealed by the system are factual.',
       '• A night choice may only be explained with information available before that night action. A future plan is not an executed action.', '', '— Roles in this game —'];
-    ids.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${r.desc}`); });
+    ids.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${buildActiveEnglishRoleDesc(id, activeIds)}`); });
     lines.push('• Only the roles listed above exist in this match. Unlisted roles and their mechanics must not be used as premises for reasoning.');
     lines.push('', '— Terminology —','• Use standard English Werewolf/Mafia terms: town, wolf result, town result, counterclaim, bussing, miselimination, voting pattern, and night-kill target. Never translate Chinese jargon literally.','', '— Evidence discipline —','• System verification and your own explicit private action results have highest priority; claims and last words are not automatic proof.','• A single slip, wording issue, rule-summary mismatch, or speaking style is suspicion only—not a standalone conviction.','• Repetition by several players is still one argument. Use voting patterns, sustained behavior, information access, and faction benefit.');
     return lines.join('\n');
