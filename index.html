@@ -27292,6 +27292,23 @@ const WebRelay = {
     return false;
   },
 
+  /* ── A/B 开关：教学层（buildWorldBook）发不发 ──
+   * 完整 prompt 里教学层约 4.1k 字符，规则层约 1.3k。开局那一轮，指令能占到
+   * 整份 prompt 的 84%、真实牌局内容 0%——模型手上「教它怎么说话」的文本远多于
+   * 「告诉它发生了什么」，产出容易变成扣不住这张桌子的通用狼人杀腔调。
+   * 教学层内容本身质量不差，问题是剂量，所以这里不删它，只给一个可关的开关，
+   * 让「带教学层 vs 只留规则层」能在同一牌面上直接对照。
+   * 关掉后仍保留 buildWebRulesExport：胜负流程、证据分级 S/A/B/C、本局在场角色
+   * 及其能力，以及 buildActiveRoleTimingBlock 给出的本局实际夜间行动顺序
+   * （守卫守护 → 狼队刀 → 女巫用药 → 预言家查验 → 统一结算）。
+   * 选择记在 localStorage，跨轮跨角色保持，方便连着打两局做对照。 */
+  teachingOn() {
+    try { return localStorage.getItem('wolf_web_teaching') !== 'off'; } catch (e) { return true; }
+  },
+  setTeaching(on) {
+    try { localStorage.setItem('wolf_web_teaching', on ? 'on' : 'off'); } catch (e) { /* 隐私模式下忽略 */ }
+  },
+
   // 水位线的人话描述，显示在弹窗上让玩家知道自己接的是哪一截
   describe(mark) {
     if (!mark) return '';
@@ -27717,8 +27734,9 @@ ${_rulesText}
   // 网页端 AI 接力与内置 API 使用同一套教学模式，避免玩家选了自定义世界书，
   // 复制出去的角色却仍按另一套官方教学行动。
   // 增量模式跳过：教学层是本局固定不变的长文，逐轮重发会在对话里堆好几份。
+  // opts.noTeaching：A/B 用的「只留规则层」变体，规则层与行动顺序仍然照发。
   let _teachingBlock = '';
-  if (!isDelta) {
+  if (!isDelta && !opts.noTeaching) {
     try {
       const _teachingText = (typeof buildWorldBook === 'function') ? buildWorldBook(p) : '';
       if (_teachingText) _teachingBlock = `━━━━ AI 教学层 ━━━━\n${_teachingText}\n`;
@@ -27956,7 +27974,10 @@ function _openWebPromptModal(p, promptFn, resolve) {
   // 没有水位线（首次复制 / 刚点过重置）→ 只能全量，和改动前完全一致。
   let relayMark = WebRelay.get(p);
   let deltaMode = !!relayMark;
-  const buildNow = () => buildWebPrompt(p, deltaMode && relayMark ? {mark: relayMark} : {});
+  let teachOn = WebRelay.teachingOn();
+  const buildNow = () => buildWebPrompt(p, deltaMode && relayMark
+    ? {mark: relayMark}
+    : {noTeaching: !teachOn});
   let webPrompt = buildNow();
 
   const overlay = document.createElement('div');
@@ -27971,6 +27992,11 @@ function _openWebPromptModal(p, promptFn, resolve) {
         <button id="_wpm-mode-full" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">📄 完整战报</button>
         <button id="_wpm-mode-delta" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🔁 增量续报</button>
         <button id="_wpm-relay-reset" title="换了新对话就点这个，下次回到完整战报" style="padding:6px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.18);border-radius:6px;color:#8a8070;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🔄 重置</button>
+      </div>
+      <!-- A/B：教学层发不发（只影响完整战报；增量本来就不带教学层） -->
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button id="_wpm-teach-on"  style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🧠 带教学层</button>
+        <button id="_wpm-teach-off" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">📐 只留规则层</button>
       </div>
       <div id="_wpm-mode-note" style="font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px"></div>
 
@@ -28009,6 +28035,8 @@ function _openWebPromptModal(p, promptFn, resolve) {
   const fullBtn   = overlay.querySelector('#_wpm-mode-full');
   const deltaBtn  = overlay.querySelector('#_wpm-mode-delta');
   const resetBtn  = overlay.querySelector('#_wpm-relay-reset');
+  const teachOnBtn  = overlay.querySelector('#_wpm-teach-on');
+  const teachOffBtn = overlay.querySelector('#_wpm-teach-off');
   const modeNote  = overlay.querySelector('#_wpm-mode-note');
   const guideEl   = overlay.querySelector('#_wpm-guide');
 
@@ -28029,6 +28057,10 @@ function _openWebPromptModal(p, promptFn, resolve) {
     return write.catch(() => { promptTA.select(); document.execCommand('copy'); })
       .then(() => {
         WebRelay.stamp(p);
+        // 记下这一轮实际发出去的是哪种变体，方便事后对着开发日志复盘 A/B
+        Render.devLog && Render.devLog('info', `[网页接力] ${p.name} R${S.round} 复制：` +
+          (deltaMode ? '增量续报' : (teachOn ? '完整·A带教学层' : '完整·B只留规则层')) +
+          ` ${webPrompt.length} 字符`);
         if (label) {
           copyBtn.textContent = label;
           setTimeout(() => { copyBtn.textContent = '📋 复制'; }, 2200);
@@ -28048,6 +28080,14 @@ function _openWebPromptModal(p, promptFn, resolve) {
     deltaBtn.style.cssText = btnBase + (deltaMode ? ON : OFF) + (canDelta ? '' : 'opacity:.45;cursor:not-allowed;');
     resetBtn.style.display = canDelta ? '' : 'none';
 
+    // 教学层开关只对完整战报有意义：增量包本来就不带教学层（它已在对话上文里）
+    const teachRelevant = !deltaMode;
+    teachOnBtn.disabled = !teachRelevant;
+    teachOffBtn.disabled = !teachRelevant;
+    const dim = teachRelevant ? '' : 'opacity:.4;cursor:not-allowed;';
+    teachOnBtn.style.cssText  = btnBase + (teachOn ? ON : OFF) + dim;
+    teachOffBtn.style.cssText = btnBase + (teachOn ? OFF : ON) + dim;
+
     const kb = (webPrompt.length / 1000).toFixed(1);
     if (deltaMode && relayMark) {
       // 全量长度只用于让玩家直观看到省了多少，不参与实际发送。
@@ -28058,6 +28098,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
       const nothingNew = !WebRelay.hasNew(p, relayMark);
       modeNote.style.cssText = 'font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px;color:#8ad8c0;background:rgba(64,192,160,0.08);border:1px solid rgba(64,192,160,0.2)';
       modeNote.innerHTML = `已接力自 <b>${WebRelay.describe(relayMark)}</b>，本次只发新增内容 · 约 ${kb}k 字符（比完整版省 ${saved}%）` +
+        '<br><span style="color:#8a9a96">增量包本来就不带教学层与规则（已在对话上文里），所以上面那排 A/B 开关本轮不生效。</span>' +
         (nothingNew ? '<br><span style="color:#e8c070">⚠️ 自上次同步以来没有新事件，本条基本只有任务说明——这是正常的（比如同一轮里连续行动）。</span>' : '');
       guideEl.innerHTML =
         '<b>操作步骤（接力）：</b><br>' +
@@ -28068,7 +28109,11 @@ function _openWebPromptModal(p, promptFn, resolve) {
         '<span style="color:#8a9a96">换了新对话？先点「🔄 重置」，下次会给完整战报。</span>';
     } else {
       modeNote.style.cssText = 'font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px;color:#9aa8b8;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)';
-      modeNote.innerHTML = `完整战报（规则 + 教学层 + 开局至今全部记录）· 约 ${kb}k 字符` +
+      const variant = teachOn
+        ? '完整战报（规则 + 教学层 + 开局至今全部记录）'
+        : '完整战报·<b style="color:#c8b070">只留规则层</b>（规则 + 本局角色能力 + 夜间行动顺序 + 战报，<b>不含</b>教学层）';
+      modeNote.innerHTML = `${variant} · 约 ${kb}k 字符` +
+        (teachOn ? '' : '<br><span style="color:#8a9a96">证据分级 S/A/B/C 与本局行动顺序在规则层里，仍然会发过去。</span>') +
         (canDelta ? '' : '<br><span style="color:#8a9a96">复制之后会记下进度，下次可切「🔁 增量续报」，在同一个对话里只发新增。</span>');
       guideEl.innerHTML =
         '<b>操作步骤：</b><br>' +
@@ -28092,6 +28137,20 @@ function _openWebPromptModal(p, promptFn, resolve) {
     Render.devLog && Render.devLog('info', `[网页接力] ${p.name} 已重置接力进度，本次与下次都发送完整战报`);
   };
   renderMode();
+
+  // A/B 开关：切换后重建并同步剪贴板；选择记进 localStorage 以便跨轮保持同一变体
+  const setTeach = (on) => {
+    if (deltaMode) return;                 // 增量包不含教学层，切了也没意义
+    teachOn = on;
+    WebRelay.setTeaching(on);
+    _fullLenCache = null;                  // 变体换了，省量基准也要重算
+    renderMode();
+    syncClipboard('✅ 已复制！');   // 变体由上方按钮高亮与说明文字表示，标签保持短以免溢出
+    Render.devLog && Render.devLog('info',
+      `[网页接力] ${p.name} 切换变体：${on ? 'A·带教学层' : 'B·只留规则层'}（${webPrompt.length} 字符）`);
+  };
+  teachOnBtn.onclick  = () => setTeach(true);
+  teachOffBtn.onclick = () => setTeach(false);
 
   copyBtn.onclick = () => { syncClipboard('✅ 已复制！'); };
 
