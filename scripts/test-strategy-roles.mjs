@@ -33,6 +33,21 @@ for (const file of clients) {
   expect(!src.includes('魔术师最先行动') && !src.includes('每晚最先行动') && !src.includes('每晚【最先】行动'), `${file}: stale absolute-first magician wording`);
   expect(src.includes("p.role.id!=='mechwolf' && p.role.id!=='gargoyle'"), `${file}: pack must exclude isolated wolves`);
   expect(src.includes("role.id !== 'mechwolf' && role.id !== 'gargoyle'"), `${file}: shared wolf vision must exclude isolated wolves`);
+  const packLabelStart = src.indexOf('const knownPackIds = new Set(ws.map(w => w.id))');
+  const packLabelEnd = src.indexOf('\n    };', packLabelStart);
+  expect(packLabelStart >= 0 && packLabelEnd > packLabelStart, `${file}: missing perspective-safe wolf target labels`);
+  if (packLabelStart >= 0 && packLabelEnd > packLabelStart) {
+    const packLabelSource = src.slice(packLabelStart, packLabelEnd + '\n    };'.length);
+    const targetLabel = new Function('ws', `${packLabelSource}; return knownPackTargetLabel;`)([{id:1},{id:2}]);
+    expect(/自刀/.test(targetLabel({id:1},{id:1,role:{id:'werewolf',team:'bad'}})), `${file}: a wolf cannot identify itself in its own target picker`);
+    expect(/狼队友/.test(targetLabel({id:1},{id:2,role:{id:'wolfbeauty',team:'bad'}})), `${file}: mutually known packmates are not labelled as packmates`);
+    expect(targetLabel({id:1},{id:3,role:{id:'gargoyle',team:'bad'}}) === '', `${file}: ordinary wolves learn Gargoyle identity from the target label`);
+    expect(targetLabel({id:1},{id:4,role:{id:'mechwolf',team:'bad'}}) === '', `${file}: ordinary wolves learn Mechanical Wolf identity from the target label`);
+  }
+  expect(src.includes('label: x.name + knownPackTargetLabel(p, x)'), `${file}: human wolf proposal picker bypasses perspective-safe labels`);
+  expect(src.includes('label:x.name+knownPackTargetLabel(pW,x)'), `${file}: human wolf final vote picker bypasses perspective-safe labels`);
+  expect(!src.includes("label: x.name + (x.role.team === 'bad' ? '（战术自刀）' : '')"), `${file}: proposal picker still reads hidden target alignment`);
+  expect(!src.includes("label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:String(x.id)"), `${file}: final wolf picker still reads hidden target alignment`);
   expect(src.includes("cause:'dreamkill'"), `${file}: missing lethal second-dream settlement`);
   expect(src.includes("cause:'dreamlink'"), `${file}: missing dreamer death link`);
   expect(src.includes('alchemistBlocked = S.nightData.alchemistSave'), `${file}: missing serpent rescue settlement`);

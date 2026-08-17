@@ -15593,6 +15593,13 @@ This instruction has priority over generic advice such as "do not waste the nigh
     const EMPTY_KILL_VOTE = '__EMPTY_KILL__';
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // resumable final votes
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
+    // 普通狼只能识别同一狼窝 ws 中的成员。机械狼、石像鬼虽然阵营同属狼人，
+    // 但双方互不相认，目标按钮绝不能读取后台 team 字段给它们标“自刀”。
+    const knownPackIds = new Set(ws.map(w => w.id));
+    const knownPackTargetLabel = (viewer, target) => {
+      if (!viewer || !target || !knownPackIds.has(target.id)) return '';
+      return target.id === viewer.id ? '（你自己，可自刀）' : '（已知狼队友，可战术刀）';
+    };
     /* 这段原来声明在下面「开场轮」的 for 块里（旧位置约 14151 行），
        但「回响轮」的提示词也要用它，那是同一个函数里的另一个块——
        于是只要狼队开场出现分歧、走进回响轮，就必然
@@ -15735,7 +15742,7 @@ This instruction has priority over generic advice such as "do not waste the nigh
         // 最终刀口仍由回响后的独立投票决定。
         if (!killBlocked && !target) {
           const proposalOpts = validWolfTargets.map(x => ({
-            label: x.name + (x.role.team === 'bad' ? '（战术自刀）' : ''),
+            label: x.name + knownPackTargetLabel(p, x),
             value: String(x.id)
           }));
           proposalOpts.push({label:'本轮暂不明确刀口', value:'__NO_PROPOSAL__', abs:true});
@@ -16150,7 +16157,7 @@ ${mistDecisionHint}
     for (let i = 0; i < humanKillWolves.length; i++) {
       const pW = humanKillWolves[i];
       const titlePrefix = humanKillWolves.length > 1 ? `🎬 ${pW.name} 选刀口 (${i+1}/${humanKillWolves.length}) ` : '';
-      const killOpts = allTargets.map(x=>({label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:String(x.id)}));
+      const killOpts = allTargets.map(x=>({label:x.name+knownPackTargetLabel(pW,x),value:String(x.id)}));
       killOpts.push({label:'🌙 空刀（不刀任何人，制造平安夜）', value:'__EMPTY_KILL__', abs:true});
       const pWv = await waitChoice(titlePrefix+'杀谁？', pW.role.emoji+' '+pW.name+' 下手', killOpts);
       if (pWv === '__EMPTY_KILL__') {
