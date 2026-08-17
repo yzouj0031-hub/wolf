@@ -4281,7 +4281,11 @@ function buildWorldBook(p) {
   const officialTeaching = officialOn ? WB_CORE_COMPACT + officialStrategy : '';
   const customTeaching = twb && typeof twb.buildInjection === 'function' ? twb.buildInjection(teachingContext) : '';
   // 公共流程属于硬规则，在任何教学模式下都保留，并放在玩家世界书之后再次压住边界。
-  return officialTeaching + customTeaching + WB_RULES_COMPACT + buildActivePublicInteractionRules();
+  // ★ 但「本局角色行动与结算顺序」不再从这里返回：它是规则，不是教学内容，搭教学层
+  //   的车会有两个后果——① 网页端完整战报里教学层和规则层会各带一份，同一段顺序发两遍；
+  //   ② 一旦在某条路径上精简掉教学层，顺序会跟着一起消失。改由各调用点显式接上
+  //   buildActivePublicInteractionRules()，保证每条路径不多不少正好一份。
+  return officialTeaching + customTeaching + WB_RULES_COMPACT;
 
   /* legacy world-book assembly (inactive) */
   let wb = WB_CORE + WB_CONFIDENCE_EVIDENCE + WB_RULE_CLARIFY;
@@ -4717,7 +4721,11 @@ ALL_ROLES.alchemist.guide += '\n\n【与女巫同场·救援顺序】女巫先�
 // 「准备蛇」本身不消耗药剂，只有真的救人才消耗 —— 这条以前只写在夜间私密提示里，
 // AI 每晚读完就忘，人类玩家却一眼看穿，等于人机不对等。写进 guide 让两边同等知情。
 ALL_ROLES.alchemist.guide += '\n\n【准备蛇是免费的·可重复侦察刀口】准备法老之蛇不消耗药剂，只有真的按下救援才消耗。所以只要你还攥着蛇，就可以每一夜都选择准备蛇、每一夜都看到本夜的实际刀口，然后选择不救 —— 药剂原封不动留到下一夜。这条通道比女巫更持久：女巫用掉解药就永久失去刀口情报，而你只要不救就一直看得见。\n代价是机会成本而非药剂：准备蛇的那一夜不能开雾，两者同夜只能选一个。雾也只有一次，所以常见打法是挑一夜开雾，其余夜晚一律准备蛇来持续获取刀口情报。\n拿到刀口后要当作情报用，不要当作身份证明：你看到谁被刀，就知道狼队的优先级和下一刀方向，这些能支撑你的白天推理；但公开报刀口等于自曝，也会让狼队立刻明白场上有第二条情报线。';
-ALL_ROLES.wolfconcubine.desc = '狼人阵营。每晚锁定一名存活玩家：当夜首个直接指向该目标的单体查验、守护、毒杀、媚惑或摄梦会反弹到施术者本人；每夜仅反弹一发。群体领域、自动信息、净化、救援、白天技与死亡技不受影响。';
+// ★ 刀权必须写在第一句：公开角色表里狼人/白狼王都明写「参与狼队刀人」、机械狼明写
+//   「不参加普通狼刀」，唯独狼妃原来只写锁定技能。四条并排时，这种沉默会被读成
+//   有意省略（"逐个交代了刀权、偏偏跳过她"），加上条目以"每晚锁定"开头、像是她的
+//   夜间动作已被锁定填满，模型很容易推出"狼妃不参与刀"。这里补齐并说明锁定是额外技能。
+ALL_ROLES.wolfconcubine.desc = '狼人阵营。和普通狼人一样每晚参与狼队刀人；锁定为额外技能，与狼刀同时进行，不替代狼刀。每晚锁定一名存活玩家：当夜首个直接指向该目标的单体查验、守护、毒杀、媚惑或摄梦会反弹到施术者本人；每夜仅反弹一发。群体领域、自动信息、净化、救援、白天技与死亡技不受影响。';
 ALL_ROLES.wolfconcubine.guide = '你是蚀时狼妃，属于狼人阵营，并正常参加狼队密谈与狼刀。\n【反弹锁定】每晚额外锁定一名存活玩家（可锁自己，也可空过）。当夜首个直接指向锁定目标的单体技能会反弹到施术者本人，随后本夜锁失效；天亮后重置，下一夜可重新锁定。\n【可反弹类型】单体查验（预言家、石像鬼、摹术师及同类自创技能）、单体守护、毒杀、子狐类媚惑、摄梦。反弹查验只会查到施术者自己；反弹守护只会守到施术者；反弹毒可能令施术者死亡；反弹摄梦会让摄梦人自己成为实际梦游者，连续反弹可能形成自我噩梦。\n【不反弹】未明之雾等群体领域、守墓人等自动信息、净魂师的净化、女巫解药与法老之蛇等事后救援、白天技能、死亡触发和狼刀。净魂师若先把圣域给到锁定目标，可以净除你的锁。\n【策略】锁别人可保护即将被查、守、毒、魅惑或摄梦处理的狼队关键位；锁自己可反噬直接处理你的人。仍然只有一发，优先判断本夜最可能最先命中的技能，不要把它当成全场封技。\n【保密】锁定与反弹都是夜间私密信息，白天不得泄露狼队视角。';
 ALL_ROLES.serialkiller.guide = ALL_ROLES.serialkiller.guide.replace(
   '所以中后期你的存活优先级 > 一切——白天绝不当出头鸟、绝不站上抗推位，深水到底。',
@@ -6029,6 +6037,279 @@ function buildRulesExportLegacy(includeAllRoles = false) {
 
 // 面向实际对局的规则导出：只写本局存在的角色与真正会生效的交互。
 // 旧版完整百科保留在 buildRulesExportLegacy 便于维护核对，但不再直接喂给外部 AI。
+/* ================================================================
+ *  § 角色 guide 的同场条件化（Active-Role Guide Filter）
+ *
+ *  背景：role.desc 早就做了条件化——buildActiveRoleExportDesc 里满是
+ *  `${has('knight') ? '或被骑士决斗' : ''}` 这类写法，本局没有的角色不会出现在
+ *  公开角色表里。但 role.guide 完全没做：它是静态串，被 buildSystemPrompt 原样注入。
+ *
+ *  结果是 14 个角色的 guide 里无条件提到本局不存在的角色，其中不少是成段的交互
+ *  教学。最扎眼的是女巫那段——标题就写着「与炼金魔女同场」，却在没有炼金魔女的
+ *  局里照发。而同一份 prompt 里还立着「未列出的角色及其机制不得作为推理前提」，
+ *  等于一边要求模型别脑补不在场的角色，一边又给它讲这些角色的配合打法。
+ *
+ *  这里补上同样的条件化。三类规则：
+ *    BLOCKS    —— 整段跨角色教学，缺席则整段删除（段落以【标题】开头，删到下一个【为止）
+ *    SENTENCES —— 单句机制声明，缺席则删句
+ *    LISTS     —— 句中的能力清单，按在场角色重新生成
+ *
+ *  安全性质：所有被引用角色都在场时，输出必须和原 guide 逐字节相同（有测试断言）。
+ *  规则用精确原文匹配；匹配不到会打一条 devLog 警告，避免以后改了 guide 措辞后
+ *  这里静默失效。
+ *
+ *  ⚠️ 不动的部分：屠边局讲解里「猎人/狼王这类技能」这种举例式提法保持原样。
+ *  它们是打法教学的例子、用的是类别口吻（"这类技能"），不是"本局有狼王"的断言，
+ *  删掉会把课讲残。
+ * ================================================================ */
+
+// 整段删除：{owner: 谁的 guide, requires: 缺了谁就删, header: 段落标题}
+const GUIDE_CROSSROLE_BLOCKS = [
+  {owner:'fox',         requires:'wolfconcubine', header:'【蚀时狼妃交互】'},
+  {owner:'mechwolf',    requires:'fox',           header:'【子狐交互】'},
+  {owner:'witch',       requires:'alchemist',     header:'【与炼金魔女同场】'},
+  {owner:'alchemist',   requires:'witch',         header:'【与女巫同场·救援顺序】'},
+];
+
+// 整句改写：缺了 requires 就把 text 换成 to（默认删除）
+const GUIDE_CROSSROLE_SENTENCES = [
+  {owner:'wolfconcubine', requires:'soulwarden',    text:'净魂师若先把圣域给到锁定目标，可以净除你的锁。'},
+  {owner:'mechwolf',      requires:'wolfconcubine', text:'它同样会被蚀时狼妃反弹。'},
+  {owner:'mechwolf',      requires:'magician',      text:'，但魔术师交换仍可能把刀间接转移到你身上'},
+  {owner:'wolfking',      requires:'knight',        text:'(被毒和被骑士决斗除外)', to:'(被毒除外)'},
+  {owner:'wolfking',      requires:'knight',        text:'被骑士决斗是直接死亡，不能咬人！'},
+  {owner:'knight',        requires:'wolfking',      text:'\n【重要】决斗狼王时,狼王直接死亡,不能咬人——所以不用怕决斗狼王。'},
+  {owner:'knight',        requires:'wolfking',      text:'但你对某个狼王有铁证要清', to:'但你对某个狼有铁证要清'},
+];
+
+/* 逐条列表项过滤：机械狼「学到X→获得Y」这张表。
+ * 机械狼只可能学到本局真实存在的角色，所以列出本局没有的学习结果纯属噪音——
+ * 而且这是最容易诱发幻觉的一种：模型会以为场上有骑士/魔术师，进而据此推理。 */
+const GUIDE_CROSSROLE_BULLETS = [
+  {
+    owner: 'mechwolf',
+    // 标签后面可能跟一个括号注解（如「学到狼系（狼人/狼王/狼美人/白狼王）→」），必须放行
+    test: /^\s*-\s*学到(预言家|女巫|守卫|猎人|狼系|骑士|魔术师|平民)(?:（[^）]*）)?\s*→/,
+    needs: {
+      '预言家':['seer'], '女巫':['witch'], '守卫':['guard'], '猎人':['hunter'],
+      '狼系':['werewolf','wolfking','wolfbeauty','whitewolf'],
+      '骑士':['knight'], '魔术师':['magician'], '平民':['villager'],
+    },
+    // 「学到狼系（狼人/狼王/狼美人/白狼王）」括号里的名单也按在场重建
+    rewrite: (line, has) => line.replace('（狼人/狼王/狼美人/白狼王）', () => {
+      const nm = [['werewolf','狼人'],['wolfking','狼王'],['wolfbeauty','狼美人'],['whitewolf','白狼王']]
+        .filter(([id]) => has(id)).map(([, n]) => n);
+      return nm.length ? `（${nm.join('/')}）` : '';
+    })
+  }
+];
+
+// 清单重建：把 find 这句里的能力列表按在场角色重新拼
+// items 的每项 {need: 角色id, text: 列表里的措辞}；need 为 null 表示与角色无关、恒定保留
+const GUIDE_CROSSROLE_LISTS = [
+  {
+    owner:'soulwarden',
+    find:'当前可处理蚀时狼妃的反弹锁定、狼美人的魅惑；未来同类敌对标记也遵循这套接口。',
+    build: has => {
+      const items = [
+        has('wolfconcubine') ? '蚀时狼妃的反弹锁定' : '',
+        has('wolfbeauty')    ? '狼美人的魅惑'       : '',
+      ].filter(Boolean);
+      return items.length
+        ? `当前可处理${items.join('、')}；未来同类敌对标记也遵循这套接口。`
+        : '本局暂无已知的敌对非伤害标记来源；若出现同类标记，圣域按这套接口处理。';
+    }
+  },
+  {
+    owner:'soulwarden',
+    find:'圣域不挡狼刀、毒药、石像鬼刀、摄梦人连续噩梦、骑士决斗或其他直接伤害；一夜只挡一层。',
+    build: has => {
+      const items = ['狼刀', has('witch')?'毒药':'', has('gargoyle')?'石像鬼刀':'',
+                     has('dreamwalker')?'摄梦人连续噩梦':'', has('knight')?'骑士决斗':''].filter(Boolean);
+      return `圣域不挡${items.join('、')}或其他直接伤害；一夜只挡一层。`;
+    }
+  },
+  {
+    owner:'imitator',
+    find:'当前可摹取：阵营查验、子狐媚惑、挡狼刀守护、药剂救人或毒杀、魔术换位、圣域净化。',
+    build: has => {
+      const items = [
+        (has('seer')||has('gargoyle')) ? '阵营查验' : '',
+        has('fox')        ? '子狐媚惑'       : '',
+        has('guard')      ? '挡狼刀守护'     : '',
+        (has('witch')||has('alchemist')) ? '药剂救人或毒杀' : '',
+        has('magician')   ? '魔术换位'       : '',
+        has('soulwarden') ? '圣域净化'       : '',
+      ].filter(Boolean);
+      return items.length
+        ? `当前可摹取：${items.join('、')}。`
+        : '本局在场角色中没有可摹取的兼容夜间主动技能，学习多半只会消耗目标名额。';
+    }
+  },
+  {
+    owner:'imitator',
+    find:'因此猎人、骑士、普通狼人、狼美人死亡连带，以及任何“再次学习其他玩家”的能力都不会提供可用临时技能。',
+    build: has => {
+      const items = [has('hunter')?'猎人':'', has('knight')?'骑士':'',
+                     has('werewolf')?'普通狼人':'', has('wolfbeauty')?'狼美人死亡连带':''].filter(Boolean);
+      return items.length
+        ? `因此${items.join('、')}，以及任何“再次学习其他玩家”的能力都不会提供可用临时技能。`
+        : '因此死亡触发类与“再次学习其他玩家”的能力都不会提供可用临时技能。';
+    }
+  },
+  {
+    owner:'magician',
+    find:'预言家查验、女巫用药、守卫守护、狼美人魅惑都【不受】你的交换影响，按原目标结算。',
+    build: has => {
+      const items = [has('seer')?'预言家查验':'', has('witch')?'女巫用药':'',
+                     has('guard')?'守卫守护':'', has('wolfbeauty')?'狼美人魅惑':''].filter(Boolean);
+      return items.length
+        ? `${items.join('、')}都【不受】你的交换影响，按原目标结算。`
+        : '狼刀之外的其他技能都【不受】你的交换影响，按原目标结算。';
+    }
+  },
+  {
+    owner:'wolfconcubine',
+    find:'【可反弹类型】单体查验（预言家、石像鬼、摹术师及同类自创技能）、单体守护、毒杀、子狐类媚惑、摄梦。',
+    build: has => {
+      const scry = [has('seer')?'预言家':'', has('gargoyle')?'石像鬼':'', has('imitator')?'摹术师':''].filter(Boolean);
+      const items = [
+        scry.length ? `单体查验（${scry.join('、')}及同类自创技能）` : '',
+        has('guard')      ? '单体守护' : '',
+        has('witch')      ? '毒杀'     : '',
+        has('fox')        ? '子狐类媚惑' : '',
+        has('dreamwalker')? '摄梦'     : '',
+      ].filter(Boolean);
+      return items.length
+        ? `【可反弹类型】${items.join('、')}。`
+        : '【可反弹类型】本局在场角色中没有可被反弹的单体技能；锁定仍可设置，但多半不会触发。';
+    }
+  },
+  {
+    owner:'wolfconcubine',
+    find:'反弹查验只会查到施术者自己；反弹守护只会守到施术者；反弹毒可能令施术者死亡；反弹摄梦会让摄梦人自己成为实际梦游者，连续反弹可能形成自我噩梦。',
+    build: has => {
+      const items = [
+        (has('seer')||has('gargoyle')||has('imitator')) ? '反弹查验只会查到施术者自己' : '',
+        has('guard')      ? '反弹守护只会守到施术者' : '',
+        has('witch')      ? '反弹毒可能令施术者死亡' : '',
+        has('dreamwalker')? '反弹摄梦会让摄梦人自己成为实际梦游者，连续反弹可能形成自我噩梦' : '',
+      ].filter(Boolean);
+      return items.length ? items.join('；') + '。' : '';
+    }
+  },
+  {
+    owner:'soulwarden',
+    find:'保护即将被验证、被狼美人针对或承担关键归票的人，也可以自保；',
+    build: has => has('wolfbeauty')
+      ? '保护即将被验证、被狼美人针对或承担关键归票的人，也可以自保；'
+      : '保护即将被验证或承担关键归票的人，也可以自保；'
+  },
+  {
+    owner:'mechwolf',
+    find:'查验一名玩家的【准确身份】（例如预言家、白狼王），不只是好人/狼人阵营',
+    build: has => {
+      const eg = [has('seer')?'预言家':'', has('whitewolf')?'白狼王':'',
+                  has('witch')?'女巫':'', has('guard')?'守卫':''].filter(Boolean).slice(0,2);
+      return eg.length
+        ? `查验一名玩家的【准确身份】（例如${eg.join('、')}），不只是好人/狼人阵营`
+        : '查验一名玩家的【准确身份】，不只是好人/狼人阵营';
+    }
+  },
+  {
+    owner:'wolfconcubine',
+    find:'【不反弹】未明之雾等群体领域、守墓人等自动信息、净魂师的净化、女巫解药与法老之蛇等事后救援、白天技能、死亡触发和狼刀。',
+    build: has => {
+      const items = [
+        has('alchemist')  ? '未明之雾等群体领域' : '',
+        has('gravekeeper')? '守墓人等自动信息'   : '',
+        has('soulwarden') ? '净魂师的净化'       : '',
+        // 「法老之蛇」是炼金魔女的技能名，没有炼金魔女时不能带出来——按角色名扫描
+        // 抓不到这种「技能名泄漏」，得单独拆开条件。
+        (() => {
+          const rescue = [has('witch') ? '女巫解药' : '', has('alchemist') ? '法老之蛇' : ''].filter(Boolean);
+          return rescue.length ? rescue.join('与') + '等事后救援' : '';
+        })(),
+      ].filter(Boolean);
+      const head = items.length ? items.join('、') + '、' : '';
+      return `【不反弹】${head}白天技能、死亡触发和狼刀。`;
+    }
+  },
+];
+
+function buildActiveRoleGuide(role, activeRoleIds) {
+  const raw = String((role && role.guide) || '');
+  if (!raw || !role || !role.id) return raw;
+  const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
+  const has = id => active.has(id);
+  const warn = msg => { try { Render && Render.devLog && Render.devLog('warn', '[guide条件化] ' + msg); } catch (e) {} };
+  let out = raw;
+
+  GUIDE_CROSSROLE_BLOCKS.forEach(rule => {
+    if (rule.owner !== role.id) return;
+    const at = out.indexOf(rule.header);
+    if (at < 0) { warn(`${role.name} 找不到段落 ${rule.header}（措辞可能改过，条件化已失效）`); return; }
+    if (has(rule.requires)) return;                    // 对方在场，原样保留
+    // 段落从标题起、删到下一个【为止；顺带吃掉标题前的空行
+    const rest = out.indexOf('【', at + rule.header.length);
+    const end = rest < 0 ? out.length : rest;
+    let start = at;
+    while (start > 0 && out[start - 1] === '\n') start--;
+    out = out.slice(0, start) + (rest < 0 ? '' : '\n') + out.slice(end);
+  });
+
+  // ★ 「找不到」的警告一律对照【原始 guide】判断，不看中间结果。
+  //   否则会误报：某句话本来就在一个已被整段删掉的块里，后续规则当然找不到它。
+  GUIDE_CROSSROLE_SENTENCES.forEach(rule => {
+    if (rule.owner !== role.id) return;
+    if (!raw.includes(rule.text)) { warn(`${role.name} 找不到句子「${rule.text.slice(0, 20)}…」`); return; }
+    if (has(rule.requires)) return;
+    out = out.replace(rule.text, rule.to || '');
+  });
+
+  GUIDE_CROSSROLE_LISTS.forEach(rule => {
+    if (rule.owner !== role.id) return;
+    if (!raw.includes(rule.find)) { warn(`${role.name} 找不到清单「${rule.find.slice(0, 20)}…」`); return; }
+    out = out.replace(rule.find, rule.build(has));
+  });
+
+  GUIDE_CROSSROLE_BULLETS.forEach(rule => {
+    if (rule.owner !== role.id) return;
+    // 正则带 ^ 锚点，必须逐行测；对整串测只会命中第一行，永远不匹配
+    if (!raw.split('\n').some(l => rule.test.test(l))) { warn(`${role.name} 找不到列表项（${rule.test}）`); return; }
+    out = out.split('\n').filter(line => {
+      const m = rule.test.exec(line);
+      if (!m) return true;                                  // 不是本规则管的行，保留
+      const need = rule.needs[m[1]] || [];
+      return need.some(id => has(id));                      // 相关角色一个都不在场就删掉该行
+    }).map(line => (rule.test.test(line) && rule.rewrite) ? rule.rewrite(line, has) : line)
+      .join('\n');
+  });
+
+  return out.replace(/\n{3,}/g, '\n\n');
+}
+
+/* 谁参与狼队夜刀——按本局实际在场的狼系角色逐个点名。
+ *
+ * 旧文案是「本局普通狼队成员每晚共同参与狼刀」。问题在于「普通狼队成员」这个说法
+ * 字面上盖不住特殊狼（蚀时狼妃、狼美人等），紧跟其后的「各角色的额外技能不会替代
+ * 狼刀」又反过来暗示她们的技能只是"额外"、基础刀权没交代。四狼并排时公开角色表里
+ * 只有她们不写刀权，两处一叠加就给"她不参与刀"留了推断口子。改成明确列举在场者。
+ *
+ * 这句以前只存在于 buildRulesExport()，buildWebRulesExport() 里完全没有——
+ * 网页接力路径连这句反证都拿不到。抽成共用函数，避免以后又只改一边。 */
+const PACK_WOLF_KILL_ROLE_IDS = ['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine'];
+function buildWolfKillRosterLine(activeRoleIds) {
+  const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
+  const packNames = PACK_WOLF_KILL_ROLE_IDS
+    .filter(id => active.has(id) && ALL_ROLES[id])
+    .map(id => ALL_ROLES[id].name);
+  if (!packNames.length) return '';
+  const solo = active.has('mechwolf') ? '机械狼不参加普通狼队夜刀，按其角色说明单独结算。' : '';
+  return `本局共同参与每晚狼刀的是：${packNames.join('、')}——这些角色全部参与狼刀，没有例外。${solo}`
+    + '狼美人的魅惑、蚀时狼妃的锁定等都是与狼刀同时进行的额外技能，不替代、也不免除各自的狼刀参与。';
+}
+
 function buildActiveRoleExportDesc(role, activeRoleIds) {
   const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
   const has = id => active.has(id);
@@ -6114,11 +6395,8 @@ function buildRulesExport() {
   lines.push(buildActiveRoleTimingBlock(players));
 
   const interactions = [];
-  if (hasAny(['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine'])) {
-    interactions.push(has('mechwolf')
-      ? '本局普通狼队成员每晚共同参与狼刀；机械狼不参加普通狼队夜刀。各角色的额外技能不会替代狼刀。'
-      : '本局普通狼队成员每晚共同参与狼刀；各角色的额外技能不会替代狼刀。');
-  }
+  const wolfKillLine = buildWolfKillRosterLine(ids);
+  if (wolfKillLine) interactions.push(wolfKillLine);
   if (has('mechwolf')) interactions.push('机械狼与狼队互不相认且前期不参加狼刀，但仍与狼人共享胜负；其学习与带刀按角色说明结算。');
   if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
   if (has('witch') && has('alchemist')) interactions.push('女巫先决定是否使用解药；只有刀口仍未获救时，炼金魔女的法老之蛇才进行补救。女巫已救时会通知炼金魔女且不消耗法老之蛇。');
@@ -6192,6 +6470,10 @@ function buildWebRulesExport(viewerP) {
     ...roleLines,
     '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。'
   ];
+  // 谁参与狼刀：网页接力路径以前完全没有这句，狼系角色的刀权只能靠上面各自的
+  // 描述推断，而特殊狼的描述里未必写了刀权，容易被读成"她不参与刀"。
+  const _wolfKillLine = buildWolfKillRosterLine(ids);
+  if (_wolfKillLine) lines.push('· ' + _wolfKillLine);
   lines.push(buildActiveRoleTimingBlock(S.players || []));
 
   if (viewerP && viewerP.role) {
@@ -9114,7 +9396,9 @@ function buildSystemPrompt(p) {
   const hdeath = $('m-hdeath').checked;
   const trialOn = $('m-trial').checked;
   const isHardcore = $('m-hardcore') && $('m-hardcore').checked;
-  const wb = buildWorldBook(p) + WB_STRATEGY_AUTONOMY + buildSheriffOrderRuleBlock();
+  // 行动与结算顺序属于规则、不属于教学层，所以在这里显式接上（原来它藏在 buildWorldBook
+  // 尾部，等于和教学内容绑死）。位置保持不变：仍在世界书之后，用来再次压住角色边界。
+  const wb = buildWorldBook(p) + buildActivePublicInteractionRules() + WB_STRATEGY_AUTONOMY + buildSheriffOrderRuleBlock();
   // 🌐 英文模式：让 AI 用英文思考与发言（世界书保持中文，模型照样看得懂）
   const langOutBlock = (window.WolfI18n && window.WolfI18n.isEnglish && window.WolfI18n.isEnglish())
     ? "\n\n[LANGUAGE — HIGHEST PRIORITY] This match is played in English. Write ALL of your output in natural, fluent English — your <thinking>/<draft> reasoning and especially your spoken <game> statement. Do NOT write in Chinese. Keep every tag (<draft>/<game>/<action>/<interrupt>/<plan>) exactly as specified. In <action>, copy the target player's name EXACTLY as shown in the roster (names may be non-English — reproduce them verbatim, do not translate them).\n\n" + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() : '')
@@ -9128,7 +9412,8 @@ function buildSystemPrompt(p) {
   // 自创角色的 guide 可能就是玩家定义的机制本身，必须完整保留。
   let guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean') && !customMechanicRole
     ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${p.role.team === 'bad' ? '狼人阵营' : p.role.team === 'third' ? '第三阵营' : '好人阵营'}。${roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。'}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
-    : (roleDef.guide || '');
+    // guide 里的跨角色交互按本局实际配置裁剪，和 desc 用同一套「只讲同场角色」的规矩。
+    : buildActiveRoleGuide(roleDef, new Set((S.players || []).map(x => x && x.role && x.role.id).filter(Boolean)));
   // 只把实际同场角色的专项交互教给 AI，避免不存在的角色进入它的推理范围。
   if (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' &&
       p.role.id === 'fox' && S.players.some(x => x.role && x.role.id === 'mechwolf')) {
