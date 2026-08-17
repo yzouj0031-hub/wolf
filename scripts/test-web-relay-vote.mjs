@@ -12,7 +12,9 @@ const findPlayer = (text, candidates) => {
   const value = String(text || '').trim();
   return candidates.find(p => value === p.name || value === `P${p.id + 1}`) || null;
 };
-const parseVote = new Function('parseAI', 'findPlayer', `${source}; return _parseWebVotePaste;`)(parseAI, findPlayer);
+const parsers = new Function('parseAI', 'findPlayer', `${source}; return {_parseWebVotePaste,_parseWebOperationPaste};`)(parseAI, findPlayer);
+const parseVote = parsers._parseWebVotePaste;
+const parseOperation = parsers._parseWebOperationPaste;
 const candidates = [
   {id:0,name:'Alpha'},
   {id:1,name:'Beta'},
@@ -25,12 +27,27 @@ assert.equal(parseVote('<action>PASS</action>', candidates), 'None');
 assert.equal(parseVote('<action>EXPLODE:Alpha</action>', candidates), 'EXPLODE:Alpha');
 assert.equal(parseVote('Alpha与Beta都被反复讨论，但我还没有提交明确投票目标，所以这段只是分析，不能按名字出现次数猜票。', candidates), '');
 
+const operationOptions = [
+  {label:'继续竞选',value:'stay'},
+  {label:'退选',value:'quit'},
+  {label:'查验 Beta',value:'Beta'}
+];
+assert.equal(parseOperation('<action>quit</action>', operationOptions), 'quit');
+assert.equal(parseOperation('选择：查验 Beta', operationOptions), 'Beta');
+assert.equal(parseOperation('我在分析继续竞选和退选的收益，但这不是最终选择，也没有提交action。', operationOptions), '');
+
 for (const marker of [
   '网页AI决定（自动续接新增历史）',
   "{choiceOnly:'vote', voteCandidates:alive}",
   "if (isVoteChoice) { resolve('__CANCEL_WEB_VOTE__'); return; }",
   '本次只发新增内容',
-  '<action>VOTE:玩家名</action>'
+  '<action>VOTE:玩家名</action>',
+  "{choiceOnly:'operation', operationTitle:hint, operationContext:ctx, operationOptions:opts}",
+  '交给网页AI决定（续接本局）',
+  '━━━━ 当前私密操作 ━━━━',
+  "{webActor:p});",
+  "{webActor:hp});",
+  "{webActor:sheriffP}"
 ]) assert.ok(html.includes(marker), `web relay vote flow lacks marker: ${marker}`);
 
-console.log('web relay vote: incremental history, explicit parsing, PASS and White Wolf explode passed');
+console.log('web relay choices: incremental history, voting, sheriff decisions and private skill operations passed');
