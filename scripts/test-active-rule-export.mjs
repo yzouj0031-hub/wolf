@@ -13,10 +13,11 @@ function sliceBetween(source, start, end) {
 }
 
 const exportSource = [
+  sliceBetween(html, 'const PACK_WOLF_KILL_ROLE_IDS', 'function buildActiveRoleExportDesc'),
   sliceBetween(html, 'const PUBLIC_NIGHT_ACTION_ORDER', '/* ★ 按需组装世界书'),
   sliceBetween(html, 'function buildActiveRoleExportDesc', 'function buildRulesExport()'),
   sliceBetween(html, 'function buildRulesExport()', '// 网页端 AI 接力专用'),
-  sliceBetween(html, 'function buildWebRulesExport(viewerP)', 'function buildNames(n)')
+  sliceBetween(html, 'function buildWebRulesExport(viewerP, options)', 'function buildNames(n)')
 ].join('\n');
 
 const roleDefs = {
@@ -52,6 +53,10 @@ function exportBoth(ids) {
   setGame(ids);
   return [sandbox.buildRulesExport(), sandbox.buildWebRulesExport(sandbox.S.players[0])];
 }
+function exportWebHardRules(ids) {
+  setGame(ids);
+  return sandbox.buildWebRulesExport(sandbox.S.players[0], {hardRulesOnly:true});
+}
 function assertAbsent(ids, words) {
   exportBoth(ids).forEach(text => words.forEach(word => {
     assert.ok(!text.includes(word), `${ids.join('+')} export leaked absent role ${word}`);
@@ -75,6 +80,15 @@ assertAbsent(['wolfconcubine'], ['净魂师']);
 assertAbsent(['soulwarden'], ['蚀时狼妃','狼美人']);
 assertPresent(['soulwarden','wolfbeauty'], '狼美人');
 
+const normalWebRules = exportBoth(['fox','mechwolf'])[1];
+const hardWebRules = exportWebHardRules(['fox','mechwolf']);
+assert.ok(normalWebRules.includes('【推理证据等级】'), 'default web rules should retain teaching evidence tiers');
+assert.ok(hardWebRules.includes('胜负：') && hardWebRules.includes('流程：'), 'hard-only web rules omitted victory and flow');
+assert.ok(hardWebRules.includes('【本局角色公开行动与结算顺序·所有玩家必须遵守】'), 'hard-only web rules omitted action order');
+for (const teachingMarker of ['【推理证据等级】','S：','视角漏洞','独立判断','编造“灭口”']) {
+  assert.ok(!hardWebRules.includes(teachingMarker), `hard-only web rules leaked teaching marker: ${teachingMarker}`);
+}
+
 const i18nSource = fs.readFileSync(new URL('i18n.js', root), 'utf8');
 const i18nSandbox = {
   window:{alert(){},confirm(){},prompt(){}},
@@ -86,8 +100,8 @@ const i18nSandbox = {
 };
 vm.createContext(i18nSandbox);
 vm.runInContext(i18nSource, i18nSandbox, {filename:'i18n.js'});
-const englishRules = ids => i18nSandbox.window.WolfI18n.buildEnglishRules({
-  players:ids.map(id => ({role:{id, name:id}})), edge:true, singleRound:true, hiddenDeath:false
+const englishRules = (ids, options = {}) => i18nSandbox.window.WolfI18n.buildEnglishRules({
+  players:ids.map(id => ({role:{id, name:id}})), edge:true, singleRound:true, hiddenDeath:false, ...options
 });
 
 assert.ok(!englishRules(['wolfking']).includes('Knight'), 'English Wolf King export leaked absent Knight');
@@ -97,5 +111,9 @@ assert.ok(englishRules(['werewolf','werewolf']).includes('Known packmates'), 'mu
 assert.ok(englishRules(['imitator']).includes('Imitator:'), 'English export omitted active Imitator');
 assert.ok(!englishRules(['wolfking']).includes('Villager'), 'English edge rule leaked absent Villager role name');
 assert.ok(englishRules(['fox','mechwolf']).includes('Mechanical Charm always precedes the real Fox'), 'English export omitted Mechanical Wolf/Fox action order');
+const hardEnglishRules = englishRules(['werewolf','werewolf'], {hardRulesOnly:true});
+assert.ok(hardEnglishRules.includes('— Public action and resolution order —'), 'English hard-only rules omitted action order');
+assert.ok(!hardEnglishRules.includes('— Evidence discipline —'), 'English hard-only rules leaked evidence teaching');
+assert.ok(!hardEnglishRules.includes('Known packmates are legal wolf-attack targets'), 'English hard-only rules leaked wolf strategy');
 
 console.log('active role export tests passed');

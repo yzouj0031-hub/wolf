@@ -4715,7 +4715,7 @@ ALL_ROLES.witch.guide = ALL_ROLES.witch.guide.replace(
   '没有守护承诺会降低“已经有人挡刀”的可信度，但仍要结合屠边压力、刀口价值、身份暴露和长期药效计算，不能只凭这一点自动得出必救。'
 ) + '\n\n【银水与带队价值】救人不只增加一个存活人数，还会形成一条真实的救药行动记录。尤其第一夜，你可以在警长竞选中如实报出自己救过谁、争取警徽并带队；被救者也能成为阶段性的“银水”参考。但银水不是铁好（存在自刀等可能），跳身份也会暴露女巫，所以要把带队收益、身份暴露、刀口价值、屠边压力、守卫撞药风险与保留解药的信息价值一起计算，不能据此机械得出必救或不救。';
 ALL_ROLES.witch.guide += '\n\n【与炼金魔女同场】女巫是第一救援位：你先按本夜刀口价值正常决定是否使用解药，不要为了猜测炼金魔女可能准备了法老之蛇而机械停药。只有你没有救下刀口时，系统才会让法老之蛇进行补救。';
-ALL_ROLES.alchemist.desc = '好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为2至3人；蛇可在本夜刀口最终定案（含魔术师换位结果）后得知实际目标，再决定是否救下。';
+ALL_ROLES.alchemist.desc = '好人神职。未明之雾整局限用一次，可将当夜狼刀候选限制为2至3人。法老之蛇每晚可准备并查看最终实际刀口；只有选择救人才消耗整局唯一一次救援，选择不救、狼队空刀或刀口已获救均不消耗。准备蛇与发动雾同夜互斥。';
 ALL_ROLES.alchemist.guide = ALL_ROLES.alchemist.guide.replace('圈定三名存活玩家，当夜狼刀只能从三人中选择', '圈定2至3名存活玩家，当夜狼刀只能从这份名单中选择').replace('雾改变狼队决策空间', '雾改变狼队决策空间；圈2人限制更强，圈3人则给狼队更多选择并更容易隐藏你的真实保护意图');
 ALL_ROLES.alchemist.guide += '\n\n【与女巫同场·救援顺序】女巫先决定是否使用解药；只有刀口仍未获救时，法老之蛇才进入救援决定。若女巫已经救下刀口，你会收到明确的私密通知，法老之蛇不会发动也不会消耗。不要和女巫重复交药。';
 // 「准备蛇」本身不消耗药剂，只有真的救人才消耗 —— 这条以前只写在夜间私密提示里，
@@ -6339,7 +6339,7 @@ function buildActiveRoleExportDesc(role, activeRoleIds) {
       return clauses.join('；') + '。';
     }
     case 'alchemist':
-      return `好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为2至3人；蛇可在本夜刀口最终定案${has('magician') ? '（包括魔术师换位结果）' : ''}后得知实际目标，再决定是否救下。`;
+      return `好人神职。未明之雾整局限用一次，可将当夜狼刀候选限制为2至3人。法老之蛇每晚可选择准备，并在本夜刀口最终定案${has('magician') ? '（包括魔术师换位结果）' : ''}后得知实际目标；只有选择救人才消耗整局唯一一次救援，选择不救、狼队空刀或刀口已获救均不消耗，之后仍可再次准备。准备蛇与发动雾同夜互斥。`;
     default:
       return role && role.desc ? role.desc : '';
   }
@@ -6431,11 +6431,13 @@ function buildRulesExport() {
 
 // 网页端 AI 接力专用：只给当前真正需要的规则，不再复制整本规则百科。
 // 完整规则导出按钮仍使用 buildRulesExport()，便于人工查阅。
-function buildWebRulesExport(viewerP) {
+function buildWebRulesExport(viewerP, options) {
+  options = options || {};
+  const hardRulesOnly = !!options.hardRulesOnly;
   const isEdge = !!(S && S.killEdgeMode);
   const hdeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
   if (window.WolfI18n && WolfI18n.isEnglish()) {
-    return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath});
+    return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath, hardRulesOnly});
   }
   const ids = [...new Set((S.players || []).filter(x => x.role).map(x => x.role.id))];
   const has = id => ids.includes(id);
@@ -6455,21 +6457,21 @@ function buildWebRulesExport(viewerP) {
     '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
     hdeath
       ? '隐死亡：普通夜间死亡不公开身份和具体死因；只有系统明确标注的公开技能事件/公开验证可以当事实。'
-      : '公开死亡：系统翻出的身份是真实身份。',
-    '',
-    '【推理证据等级】',
-    'S：系统公开验证、必然技能结算。可以直接当事实。',
-    'A：自己的私密行动记录；完整报记录且经过充分机会仍无人对跳的单边神职。高度可信，但不是100%验明。',
-    'B：关键票型、持续行为、前后动机、阵营收益和多条真正独立的线索。日常推理以这些为主。',
-    'C：单次口误、记错规则、措辞过满、改口、语气强弱、发言长短。只能留疑，不能单独定狼、放逐或发动致命技能。',
-    '规则冲突：公开摘要可能比角色私密说明简略。玩家声称收到系统反馈时，其他人不能只凭摘要断言“该反馈不可能存在”；没有公开结果或确定私密记录硬冲突时，最多记C级疑点。',
-    '视角漏洞：只有玩家说出了按其身份和当时时点绝不可能知道的具体私密事实，且排除公开信息、技能和系统提示后，才是强证据。把一种可能说得过满，首先要求澄清，不自动等于狼人共享视野。',
-    '独立判断：多人复读同一个理由仍只有一条证据。跟票前必须给出自己的观察；好人判断错误也可能客观帮到狼，不能只凭结果反推动机。',
-    '',
-    '【本局实际在场角色】',
-    ...roleLines,
-    '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。'
+      : '公开死亡：系统翻出的身份是真实身份。'
   ];
+  if (!hardRulesOnly) {
+    lines.push('',
+      '【推理证据等级】',
+      'S：系统公开验证、必然技能结算。可以直接当事实。',
+      'A：自己的私密行动记录；完整报记录且经过充分机会仍无人对跳的单边神职。高度可信，但不是100%验明。',
+      'B：关键票型、持续行为、前后动机、阵营收益和多条真正独立的线索。日常推理以这些为主。',
+      'C：单次口误、记错规则、措辞过满、改口、语气强弱、发言长短。只能留疑，不能单独定狼、放逐或发动致命技能。',
+      '规则冲突：公开摘要可能比角色私密说明简略。玩家声称收到系统反馈时，其他人不能只凭摘要断言“该反馈不可能存在”；没有公开结果或确定私密记录硬冲突时，最多记C级疑点。',
+      '视角漏洞：只有玩家说出了按其身份和当时时点绝不可能知道的具体私密事实，且排除公开信息、技能和系统提示后，才是强证据。把一种可能说得过满，首先要求澄清，不自动等于狼人共享视野。',
+      '独立判断：多人复读同一个理由仍只有一条证据。跟票前必须给出自己的观察；好人判断错误也可能客观帮到狼，不能只凭结果反推动机。');
+  }
+  lines.push('', '【本局实际在场角色】', ...roleLines,
+    '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。');
   // 谁参与狼刀：网页接力路径以前完全没有这句，狼系角色的刀权只能靠上面各自的
   // 描述推断，而特殊狼的描述里未必写了刀权，容易被读成"她不参与刀"。
   const _wolfKillLine = buildWolfKillRosterLine(ids);
@@ -6486,7 +6488,7 @@ function buildWebRulesExport(viewerP) {
   if (has('wolfconcubine')) lines.push('· 蚀时狼妃每晚锁一人；当夜首个直接指向该目标的单体查验、守护、毒杀、媚惑或摄梦会反弹给施术者本人。群体领域、自动信息、净化与救援不反弹。');
   if (has('soulwarden')) lines.push('· 净魂师每晚为一人展开圣域，净除或拦截第一层敌对非伤害标记；不能连续两夜选同一人，不挡直接伤害，且不会收到是否成功的反馈。');
   if (has('imitator')) lines.push('· 摹术师每晚可学习一名从未学过的存活玩家：兼容主动技能只保留当夜，整局最多成功三次；能力类型不是目标准确身份铁证。');
-  if (has('magician') || has('witch')) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
+  if (!hardRulesOnly && (has('magician') || has('witch'))) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
   return lines.join('\n');
 }
 
@@ -12288,7 +12290,7 @@ function _openInputModal(ctx, hint, resolve, currentPlayer) {
   }
   $('opi').classList.add('show');
 }
-function waitChoice(ctx, hint, opts) {
+function waitChoice(ctx, hint, opts, choiceMeta) {
   return new Promise(resolve => {
     cpResolve = resolve;
     function showPopup() {
@@ -12308,6 +12310,28 @@ function waitChoice(ctx, hint, opts) {
         };
         g.appendChild(b);
       });
+      // 夜间角色步骤可从当前私密可见范围自动识别操作者；警长等白天纯操作
+      // 可通过 choiceMeta.webActor 显式传入。单一“继续”确认不需要询问网页 AI。
+      const autoActorId = typeof _activeNightLogVisibility !== 'undefined' && _activeNightLogVisibility
+        ? _activeNightLogVisibility.actorId : null;
+      const webActor = choiceMeta && choiceMeta.webActor
+        ? choiceMeta.webActor
+        : (autoActorId != null && S.players ? S.players[autoActorId] : null);
+      if (webActor && webActor.isPlayer && opts.filter(o=>!o.disabled).length > 1 && typeof _openWebPromptModal === 'function') {
+        const webBtn = document.createElement('button');
+        webBtn.className = 'cp-btn abs';
+        webBtn.textContent = '交给网页AI决定（续接本局）';
+        webBtn.style.cssText = 'grid-column:1/-1;background:rgba(64,192,160,0.10);color:#70d8bd;border-color:rgba(64,192,160,0.35);font-size:0.78em';
+        webBtn.onclick = () => {
+          $('ocp').classList.remove('show');
+          hidePeekBtn();
+          _openWebPromptModal(webActor, () => '', value => {
+            if (value === '__CANCEL_WEB_OPERATION__') { showPopup(); return; }
+            resolve(value);
+          }, {choiceOnly:'operation', operationTitle:hint, operationContext:ctx, operationOptions:opts});
+        };
+        g.appendChild(webBtn);
+      }
       // ⬅️ 先看看 按钮
       const peekBtn = document.createElement('button');
       peekBtn.className = 'cp-btn abs';
@@ -12791,7 +12815,7 @@ async function offerMechDuelBeforeVote() {
   if (mw.isPlayer) {
     const opts = candidates.map(x => ({label:x.name+'（'+(x.revealed?x.role.name:'?')+'）', value:'DUEL:P'+(x.id+1)}));
     opts.push({label:'暂不决斗', value:'PASS', abs:true});
-    r.action = await waitChoice('所有发言已经结束，正式投票前是你的机械决斗最终确认。\n你可以指名处死一名玩家；对方必死且正常触发死亡技能，你会翻牌暴露但继续存活。\n选择“暂不决斗”不会消耗技能，之后的白天仍可使用。', '⚔️🤖 机械决斗', opts);
+    r.action = await waitChoice('所有发言已经结束，正式投票前是你的机械决斗最终确认。\n你可以指名处死一名玩家；对方必死且正常触发死亡技能，你会翻牌暴露但继续存活。\n选择“暂不决斗”不会消耗技能，之后的白天仍可使用。', '⚔️🤖 机械决斗', opts, {webActor:mw});
   } else {
     const seatList = candidates.map(x => `P${x.id+1}=${x.name}`).join('、');
     r = await callAI(mw,
@@ -12872,7 +12896,7 @@ async function requestExtraSpeech(alive) {
   });
   for (const p of voters.filter(p => p.isPlayer)) {
     try {
-      const v = await waitChoice(requester.name + ' 申请补充发言，你同意吗？', '补充发言表决', [{label:'同意',value:'y'},{label:'反对',value:'n'}]);
+      const v = await waitChoice(requester.name + ' 申请补充发言，你同意吗？', '补充发言表决', [{label:'同意',value:'y'},{label:'反对',value:'n'}], {webActor:p});
       if (v === 'y') agree++; else oppose++;
     } catch (e) {
       oppose++;
@@ -14721,7 +14745,7 @@ async function shoot(p) {
   let tn;
   let shootActionStatus = 'pass';
   if (p.isPlayer) {
-    tn = await waitChoice('要开枪吗？','🏹 开枪', alive.map(x=>({label:x.name,value:x.name})).concat({label:'不开',value:'None',abs:true}));
+    tn = await waitChoice('要开枪吗？','🏹 开枪', alive.map(x=>({label:x.name,value:x.name})).concat({label:'不开',value:'None',abs:true}), {webActor:p});
   } else {
     Render.setSpeaking(p.id,true);
     const _hdNote = ($('m-hdeath') && $('m-hdeath').checked)
@@ -14780,7 +14804,7 @@ async function wolfBite(p) {
   let tn;
   let biteActionStatus = 'pass';
   if (p.isPlayer) {
-    tn = await waitChoice('咬谁？','👹 狼王之咬', alive.map(x=>({label:x.name,value:x.name})).concat({label:'不咬',value:'None',abs:true}));
+    tn = await waitChoice('咬谁？','👹 狼王之咬', alive.map(x=>({label:x.name,value:x.name})).concat({label:'不咬',value:'None',abs:true}), {webActor:p});
   } else {
     Render.setSpeaking(p.id,true);
     const r = await callAI(p,'【狼王·咬人决策】你死了，狼王的死亡技能：咬死一人，目标立刻死亡。\n存活玩家：'+alive.map(x=>x.name).join('、')+'\n\n【默认倾向：咬】\n狼王在统计上几乎一定要咬——一换一带走强好人，是这张牌存在的意义。带枪进棺材是浪费。\n\n【唯一值得 PASS 的情况：你悍跳了好人身份且伪装还在生效】\n这一点 role guide 里讲过：如果你刚才悍跳预言家/女巫/猎人等成功，被投出来的公告是"X 死亡(被投)"。如果你咬人，公告会变成"Y 死亡(被狼王咬)"——好人立刻反推"狼王今晚死了 → 刚被投的就是狼王"，你布下的所有金水/查杀全部作废。\n如果你的悍跳现在还在带节奏、好人还在按你的(假)查验推理 → PASS 比咬一个普通好人值。\n\n如果你没悍跳，或者你悍跳已经被全场看穿不可能再起作用 → 直接咬，挑能挑到的最高价值目标。\n\n【目标选择】\n· 真神职(已亮身份的预言家/女巫/守卫/骑士/猎人) → 优先\n· 强逻辑位、警长、活跃带节奏的好人 → 次优\n· 普通村民 → 也比 PASS 强\n· 你最怀疑的好人但不确定的 → 比挑显眼神职差，但仍然好过 PASS\n\n【如果今夜其他死者列表里有你想咬的人】他已经死了，不能再咬，重新选第二目标。\n\n必须在<action>里给明确答案：\n- 咬人：<action>目标名字</action>（必须是存活玩家里的某一个）\n- 不咬：<action>None</action>（仅在悍跳还在生效、咬人会暴露伪装时选）\n\n<thinking>先判断：我之前悍跳了好人身份吗？如果有，悍跳现在还有效吗？没悍跳或悍跳已废 → 直接咬，选最高价值目标。</thinking>\n<game>发言（咬人 = 戏剧性宣告目标和理由；不咬 = 不要喊"我放弃技能"这种话，普通村民式离场即可，避免暴露狼王身份）</game>\n<action>名字或None</action>',{skillConfirm:true});
@@ -14825,7 +14849,7 @@ async function transferBadge(d) {
   let tn;
   let badgeTechnical = false;
   if (d.isPlayer) {
-    tn = await waitChoice('警徽传给谁？','👑 警徽转移', alive.map(x=>({label:x.name,value:x.name})).concat({label:'销毁警徽',value:'None',abs:true}));
+    tn = await waitChoice('警徽传给谁？','👑 警徽转移', alive.map(x=>({label:x.name,value:x.name})).concat({label:'销毁警徽',value:'None',abs:true}), {webActor:d});
   } else {
     const r = await callAI(d,'【警徽转移·死亡时点校验】你已在'+badgeDeathLabel+'死亡，现在必须立刻决定把警徽交给一名存活玩家，或销毁警徽。'+unexecutedPlanNote+'\n\n存活玩家：'+alive.map(x=>x.name).join('、')+'\n请只使用你死亡这一刻之前已经公开或已经实际获得的信息，不得用尚未开始的夜晚、未执行的警徽流或未来发言作为理由。\n<thinking>先确认哪些行动已完成、哪些只是计划，再决定警徽</thinking>\n<game>临终警徽决定与基于当时信息的理由</game>\n<action>名字或None</action>',{skillConfirm:true});
     logNightThinking(d, r);
@@ -16109,6 +16133,13 @@ This instruction has priority over generic advice such as "do not waste the nigh
     const EMPTY_KILL_VOTE = '__EMPTY_KILL__';
     const wolfLastActions = wolfRun.wolfLastActions || (wolfRun.wolfLastActions = {}); // 可恢复的最终投票
     if (!S.wolfChatHistory) S.wolfChatHistory = [];
+    // 普通狼只能识别同一狼窝 ws 中的成员。机械狼、石像鬼虽然阵营同属狼人，
+    // 但双方互不相认，目标按钮绝不能读取后台 team 字段给它们标“自刀”。
+    const knownPackIds = new Set(ws.map(w => w.id));
+    const knownPackTargetLabel = (viewer, target) => {
+      if (!viewer || !target || !knownPackIds.has(target.id)) return '';
+      return target.id === viewer.id ? '（你自己，可自刀）' : '（已知狼队友，可战术刀）';
+    };
     /* 这段原来声明在下面「开场轮」的 for 块里（旧位置约 14151 行），
        但「回响轮」的提示词也要用它，那是同一个函数里的另一个块——
        于是只要狼队开场出现分歧、走进回响轮，就必然
@@ -16251,14 +16282,15 @@ This instruction has priority over generic advice such as "do not waste the nigh
         // 最终刀口仍由回响后的独立投票决定。
         if (!killBlocked && !target) {
           const proposalOpts = validWolfTargets.map(x => ({
-            label: x.name + (x.role.team === 'bad' ? '（战术自刀）' : ''),
+            label: x.name + knownPackTargetLabel(p, x),
             value: String(x.id)
           }));
           proposalOpts.push({label:'本轮暂不明确刀口', value:'__NO_PROPOSAL__', abs:true});
           const proposal = await waitChoice(
             isOpening ? '确认你刚才提出的刀口；若与队友不同，系统会继续讨论。' : '确认你在回响后的最新刀口立场。',
             isOpening ? '狼队·本轮提议' : '狼队·回响立场',
-            proposalOpts
+            proposalOpts,
+            {webActor:p}
           );
           if (proposal !== '__NO_PROPOSAL__' && proposal !== null && proposal !== undefined) {
             target = validWolfTargets.find(x => String(x.id) === String(proposal)) || null;
@@ -16668,9 +16700,9 @@ ${mistDecisionHint}
     for (let i = 0; i < humanKillWolves.length; i++) {
       const pW = humanKillWolves[i];
       const titlePrefix = humanKillWolves.length > 1 ? `🎬 ${pW.name} 选刀口 (${i+1}/${humanKillWolves.length}) ` : '';
-      const killOpts = allTargets.map(x=>({label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:String(x.id)}));
+      const killOpts = allTargets.map(x=>({label:x.name+knownPackTargetLabel(pW,x),value:String(x.id)}));
       killOpts.push({label:'🌙 空刀（不刀任何人，制造平安夜）', value:'__EMPTY_KILL__', abs:true});
-      const pWv = await waitChoice(titlePrefix+'杀谁？', pW.role.emoji+' '+pW.name+' 下手', killOpts);
+      const pWv = await waitChoice(titlePrefix+'杀谁？', pW.role.emoji+' '+pW.name+' 下手', killOpts, {webActor:pW});
       if (pWv === '__EMPTY_KILL__') {
         addWolfVote(EMPTY_KILL_VOTE, pW.name);
         humanVoteChoices.push({candidate:EMPTY_KILL_VOTE, voter:pW.name});
@@ -16772,7 +16804,7 @@ ${mistDecisionHint}
       const humanWolfVotes = {};
       for (const pW2 of humanWolves) {
         const titlePrefix = humanWolves.length > 1 ? `🎬 ${pW2.name} 狼平票再投 (${Object.keys(humanWolfVotes).length+1}/${humanWolves.length}) ` : '';
-        humanWolfVotes[pW2.id] = await waitChoice(titlePrefix+'平票！从中选一个？',pW2.role.emoji+' '+pW2.name+' 平票再投', tieVoteOptions);
+        humanWolfVotes[pW2.id] = await waitChoice(titlePrefix+'平票！从中选一个？',pW2.role.emoji+' '+pW2.name+' 平票再投', tieVoteOptions, {webActor:pW2});
       }
       tieVotingWolves.forEach(w => {
         let tn;
@@ -17742,7 +17774,7 @@ async function runTrial(reporter, target, reason) {
   const humanTrialVotes = {};
   for (const hp2 of humanTrialPlayers) {
     const titlePrefix = humanTrialPlayers.length > 1 ? `🎬 ${hp2.name} 审判 (${Object.keys(humanTrialVotes).length+1}/${humanTrialPlayers.length}) ` : '';
-    humanTrialVotes[hp2.id] = await waitChoice(titlePrefix+reporter.name+'质疑'+target.name,'⚖️ '+hp2.name+' 审判',[{label:'👎 有罪',value:'GUILTY'},{label:'👍 无罪',value:'INNOCENT'}]);
+    humanTrialVotes[hp2.id] = await waitChoice(titlePrefix+reporter.name+'质疑'+target.name,'⚖️ '+hp2.name+' 审判',[{label:'👎 有罪',value:'GUILTY'},{label:'👍 无罪',value:'INNOCENT'}], {webActor:hp2});
   }
   let gy=0, inn=0, gList=[], iList=[], technicalList=[];
   voters.forEach(v => {
@@ -18058,7 +18090,7 @@ const PhaseHandlers = {
     const _aiCandidateWilling = {};  // pid -> bool
     for (const p of alive) {
       if (p.isPlayer) {
-        const choice = await waitChoice('警长竞选开始\n你是：' + p.name + '【' + p.role.name + '】\n要参选吗？（准备好了再点）', '👑 竞选报名', [{label:'✋ 参选',value:'yes'},{label:'👋 不参选',value:'no'}]);
+        const choice = await waitChoice('警长竞选开始\n你是：' + p.name + '【' + p.role.name + '】\n要参选吗？（准备好了再点）', '👑 竞选报名', [{label:'✋ 参选',value:'yes'},{label:'👋 不参选',value:'no'}], {webActor:p});
         if (choice === 'yes') _aiCandidateWilling[p.id] = true;
       }
     }
@@ -18120,7 +18152,7 @@ const PhaseHandlers = {
       const remaining = [];
       for (const p of candidates) {
         if (p.isPlayer) {
-          const choice = await waitChoice('你是：' + p.name + '【' + p.role.name + '】\n听完演讲，要退选吗？', '👑 退选', [{label:'✋ 继续竞选',value:'stay'},{label:'👋 退选',value:'quit'}]);
+          const choice = await waitChoice('你是：' + p.name + '【' + p.role.name + '】\n听完演讲，要退选吗？', '👑 退选', [{label:'✋ 继续竞选',value:'stay'},{label:'👋 退选',value:'quit'}], {webActor:p});
           if (choice === 'stay') remaining.push(p);
           else { Render.log('sheriff', '👋 ' + p.name + ' 退出竞选'); gameRecord.push({type:'system', text:p.name+' 退出警长竞选'}); }
         } else {
@@ -18216,7 +18248,7 @@ const PhaseHandlers = {
           const opts = candidates.map(x=>({label:x.name,value:x.name}));
           opts.push({label:'弃权',value:'None',abs:true});
           const titlePrefix = humanSheriffPlayers.length > 1 ? `🎬 ${hp.name} 选警长 (${Object.keys(humanSheriffVotes).length+1}/${humanSheriffPlayers.length}) ` : '';
-          humanSheriffVotes[hp.id] = await waitChoice(titlePrefix+'投谁当警长？','👑 '+hp.name+' 投票',opts);
+          humanSheriffVotes[hp.id] = await waitChoice(titlePrefix+'投谁当警长？','👑 '+hp.name+' 投票',opts,{webActor:hp});
         }
         const voteMap = {}, abstains = [], technicalAbstains = [];
         voters.forEach(p => {
@@ -18309,7 +18341,7 @@ const PhaseHandlers = {
             const opts2 = sheriffPkCandidates.map(x=>({label:x.name,value:x.name}));
             opts2.push({label:'弃权',value:'None',abs:true});
             const titlePrefix2 = humanShReVoters.length > 1 ? `🎬 ${hp2.name} 再投 (${Object.keys(humanShReVotes).length+1}/${humanShReVoters.length}) ` : '';
-            humanShReVotes[hp2.id] = await waitChoice(titlePrefix2+'警长平票！再投一次：','👑 '+hp2.name+' 再投',opts2);
+            humanShReVotes[hp2.id] = await waitChoice(titlePrefix2+'警长平票！再投一次：','👑 '+hp2.name+' 再投',opts2,{webActor:hp2});
           }
           const voteMap2 = {}, abstains2 = [], technicalAbstains2 = [];
           voters.filter(p => p.alive).forEach(p => {
@@ -18401,13 +18433,13 @@ const PhaseHandlers = {
         // ★ 警长可以把自己设为起点（优先发言流），所以候选里带上自己
         const opts = candidates.map(x => ({label: `P${x.id + 1} ${x.name}`, value: String(x.id)}));
         opts.unshift({label: `P${sheriffP.id + 1} ${sheriffP.name}（我自己·优先发言并放弃归票）`, value: String(sheriffP.id)});
-        const chosen = await waitChoice(nightContext + '\n从谁开始今天的发言？', '👑 警长定序', opts);
+        const chosen = await waitChoice(nightContext + '\n从谁开始今天的发言？', '👑 警长定序', opts, {webActor:sheriffP});
         const parsed = parseInt(chosen);
         if (Number.isInteger(parsed)) startId = parsed;
         const dirChoice = await waitChoice('选择今天的发言方向', '👑 警长定序', [
           {label:'顺时针 →', value:'cw'},
           {label:'逆时针 ←', value:'ccw'}
-        ]);
+        ], {webActor:sheriffP});
         direction = dirChoice === 'ccw' ? -1 : 1;
         // 起点就是警长本人时，“优先发言”已经确定，不能再自相矛盾地选择末位归票。
         if (startId === sheriffP.id) {
@@ -18418,7 +18450,7 @@ const PhaseHandlers = {
             '👑 警长发言位', [
               {label:'🗳️ 最后归票（传统）', value:'last'},
               {label:'⚡ 按座位顺序发言（放弃归票）', value:'inline'}
-            ]);
+            ], {webActor:sheriffP});
           sheriffSpeaksLast = seatChoice !== 'inline';
         }
       } else if (candidates.length) {
@@ -18666,7 +18698,7 @@ const PhaseHandlers = {
     if (!action && knight.isPlayer) {
       const opts = alive.filter(x=>x.id!==knight.id).map(x=>({label:x.name,value:'DUEL:'+x.name}));
       opts.push({label:'放弃',value:'PASS',abs:true});
-      action = await waitChoice('要跟谁拼命？','⚔️ 决斗',opts);
+      action = await waitChoice('要跟谁拼命？','⚔️ 决斗',opts,{webActor:knight});
     } else if (!action) {
       const alive2 = S.players.filter(x=>x.alive);
       duelAIResult = await callAI(knight,
@@ -18848,8 +18880,29 @@ const PhaseHandlers = {
       if (isHumanWhitewolfReady) {
         opts.push({label:'💥 自爆带走一人（替代投票）', value:'__EXPLODE__', abs:true, danger:true});
       }
+      opts.push({label:'网页AI决定（自动续接新增历史）', value:'__WEB_AI_VOTE__', abs:true});
       const titlePrefix = humanPlayers.length > 1 ? `🎬 ${hp.name} 投票 (${Object.keys(humanVotes).length+1}/${humanPlayers.length}) ` : '';
-      const choice = await waitChoice(titlePrefix+'投谁出局？',hp.role.emoji+' '+hp.name+' 投票',opts);
+      let choice;
+      while (true) {
+        choice = await waitChoice(titlePrefix+'投谁出局？',hp.role.emoji+' '+hp.name+' 投票',opts);
+        if (choice !== '__WEB_AI_VOTE__') break;
+        const webVote = await new Promise(resolve => _openWebPromptModal(hp, () => '', resolve, {choiceOnly:'vote', voteCandidates:alive}));
+        if (webVote === '__CANCEL_WEB_VOTE__') continue;
+        if (/^EXPLODE:/i.test(webVote)) {
+          const explodeTargetName = webVote.replace(/^EXPLODE:/i,'').trim();
+          if (isHumanWhitewolfReady && explodeTargetName !== hp.name) {
+            humanWhitewolfExplode = {wwId:hp.id,targetName:explodeTargetName};
+            humanVotes[hp.id] = 'None';
+            choice = '__WEB_EXPLODE_CONFIRMED__';
+            break;
+          }
+          Render.log('system',explodeTargetName===hp.name?'白狼王不能把自己选作自爆带走目标；请重新选择。':'只有仍可自爆的白狼王才能用网页AI提交自爆；请重新选择投票。');
+          continue;
+        }
+        choice = webVote;
+        break;
+      }
+      if (choice === '__WEB_EXPLODE_CONFIRMED__') break;
       if (choice === '__EXPLODE__') {
         // 弹第二个选择窗：选自爆目标
         const explodeTargets = S.players.filter(x => x.alive && x.id !== hp.id)
@@ -18993,7 +19046,7 @@ const PhaseHandlers = {
         const optsP = pkCands.map(x => ({label:x.name,value:x.name,disabled:x.id===hpPK.id}));
         optsP.push({label:'弃权',value:'None',abs:true});
         const titlePrefixPK = humanPKPlayers.length > 1 ? `🎬 ${hpPK.name} PK投票 (${Object.keys(humanPKVotes).length+1}/${humanPKPlayers.length}) ` : '';
-        humanPKVotes[hpPK.id] = await waitChoice(titlePrefixPK+'PK投票，选谁出局？','🗳️ '+hpPK.name+' PK',optsP);
+        humanPKVotes[hpPK.id] = await waitChoice(titlePrefixPK+'PK投票，选谁出局？','🗳️ '+hpPK.name+' PK',optsP,{webActor:hpPK});
       }
       const pkVoteMap = {}, pkAbstains = [];
       pkAlive.forEach(p => {
@@ -23012,6 +23065,12 @@ function _buildPrivateInfoLines(p) {
   if (p.role.id === 'gargoyle') {
     const seen=(p._gargoyleSeen||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
     lines.push('石瞳已查目标：'+seen+'；苏醒夜刀：'+(p._gargoyleAwake?'已获得':'尚未获得（其他狼系全部出局后获得）')+'。你与普通狼队互不相认。');
+    const scries=gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle').map(r=>{
+      if(r.reflected||r.result==='rebounded') return '第'+r.round+'夜：窥视'+r.target+' → 被反弹，实际只看见自己【'+(r.roleName||p.role.name)+'】；'+r.target+'未被验证，之后仍可重新选择';
+      const targetPlayer=S.players.find(x=>x.name===r.target);
+      return '第'+r.round+'夜：窥视'+r.target+' → 准确身份【'+(r.roleName||(targetPlayer&&targetPlayer.role&&targetPlayer.role.name)||'记录缺失')+'】';
+    });
+    if(scries.length) lines.push('石像鬼窥视记录（绝密，仅你可见）：\n  '+scries.join('\n  '));
     const attacks=gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle_kill').map(r=>'第'+r.round+'夜：'+(r.blocked?'受到禁刀':r.empty?'空刀':('刀'+r.target+(r.selfKill?'（自刀）':'')+'，'+(r.result==='success'?'目标已死亡':r.result==='failed'?'目标未死亡':'等待结算'))));
     if(attacks.length) lines.push('石像鬼刀口记录（绝密）：\n  '+attacks.join('\n  '));
   }
@@ -27577,15 +27636,13 @@ const WebRelay = {
     return false;
   },
 
-  /* ── A/B 开关：教学层（buildWorldBook）发不发 ──
+  /* ── A/B 开关：完整教学版 vs 真正无教学的纯规则版 ──
    * 完整 prompt 里教学层约 4.1k 字符，规则层约 1.3k。开局那一轮，指令能占到
    * 整份 prompt 的 84%、真实牌局内容 0%——模型手上「教它怎么说话」的文本远多于
    * 「告诉它发生了什么」，产出容易变成扣不住这张桌子的通用狼人杀腔调。
-   * 教学层内容本身质量不差，问题是剂量，所以这里不删它，只给一个可关的开关，
-   * 让「带教学层 vs 只留规则层」能在同一牌面上直接对照。
-   * 关掉后仍保留 buildWebRulesExport：胜负流程、证据分级 S/A/B/C、本局在场角色
-   * 及其能力，以及 buildActiveRoleTimingBlock 给出的本局实际夜间行动顺序
-   * （守卫守护 → 狼队刀 → 女巫用药 → 预言家查验 → 统一结算）。
+   * A 档保留完整教学；B 档只保留身份技能、胜负流程、信息权限、合法操作、
+   * 行动顺序、私密记录和战报。证据分级、推理方法、打法建议、发言模板和
+   * 跨局永久学习记忆一律不进入 B 档，才能作为真正的无教学对照组。
    * 选择记在 localStorage，跨轮跨角色保持，方便连着打两局做对照。 */
   teachingOn() {
     try { return localStorage.getItem('wolf_web_teaching') !== 'off'; } catch (e) { return true; }
@@ -27941,7 +27998,7 @@ function buildWebPrompt(p, opts) {
   // ── 永久记忆（跨局长期记忆，如该角色启用了）──
   // 跨局长期记忆在一局之内不会变化，增量模式不重发。
   let memoryBlock = '';
-  if (!isDelta && typeof PermanentMemory !== 'undefined' && PermanentMemory.getMemoryText) {
+  if (!isDelta && !opts.noTeaching && typeof PermanentMemory !== 'undefined' && PermanentMemory.getMemoryText) {
     try {
       const memText = PermanentMemory.getMemoryText(p.name, p.id);
       if (memText) memoryBlock = memText;
@@ -27989,10 +28046,36 @@ function buildWebPrompt(p, opts) {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}\n\n轮到你公开发言。这是影响别人判断与票型的正式机会，不要只给一两句结论。请完整说清：你的当前立场或票意；至少一个具体言行、票型、公开事实或合法行动记录作为依据；以及你对前置位最关键观点的回应。若被点名质疑、处在身份对跳或主要出局位，必须逐项反驳并给出替代判断。有身份信息就报清记录；不要把单次口误包装成唯一答案，也不要机械复读前置位的整套逻辑。`;
 
   } else if (S.phase === 'vote') {
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n\n只向主持人提交一个投票目标，输出“投票：玩家名”。不要追加公开发言、解释理由或向其他玩家提问；本阶段无人会回应。`;
+    const whitewolfVoteAction = p.role.id === 'whitewolf' && !S._whitewolfUsed ? '\n你仍可用“<action>EXPLODE:玩家名</action>”替代投票并立即自爆带人。' : '';
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n\n只向主持人提交一个投票目标，输出“<action>VOTE:玩家名</action>”；弃权输出“<action>PASS</action>”。${whitewolfVoteAction}\n不要追加公开发言、解释理由或向其他玩家提问；本阶段无人会回应。`;
 
   } else if (S.phase === 'duel') {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n系统正在进行投票前的私密技能确认。尚未公开发动任何技能，不得据此推断场上身份，也不需要公开发言。`;
+  }
+
+  // B 档是严格的无教学对照组：阶段块只说明“现在允许做什么”和提交格式，
+  // 不规定推理路线、发言长度、证据类型、反驳方式或推荐策略。
+  if (opts.noTeaching) {
+    if (S.phase === 'night') {
+      const minimalNightTask = isPackWolfRole(p.role)
+        ? '现在是狼人密谈阶段。请自行讨论并提交本轮提议；具体内容和打法由你决定。'
+        : '现在是夜间私密操作阶段，不是公开发言。按主持人提供的合法选项提交目标或空过；没有动作则等待天亮。';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n${minimalNightTask}`;
+    } else if (S.phase === 'sheriff') {
+      const candidates = (S._sheriffCandidates||[]).map(c=>c.name).join('、') || '待定';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是警长竞选阶段。当前候选人：${candidates}\n轮到你时，自行决定竞选陈词或表态内容。`;
+    } else if (S.phase === 'day') {
+      const order = S._daySpeakOrder && S._daySpeakOrder.length
+        ? `\n当前有效发言顺序：${S._daySpeakOrder.filter(pl=>pl && pl.alive).map((pl,i)=>`${i+1}.${pl.name}`).join('→')}` : '';
+      const deaths = S._lastNightDeaths && S._lastNightDeaths.length
+        ? `\n昨晚死亡：${S._lastNightDeaths.map(id => S.players[id] ? S.players[id].name : '未知').join('、')}` : '\n昨晚：平安夜';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deaths}${order}\n轮到你公开发言，内容和判断由你自行决定。`;
+    } else if (S.phase === 'vote') {
+      const whitewolfVoteAction = p.role.id === 'whitewolf' && !S._whitewolfUsed ? '\n你仍可用“<action>EXPLODE:玩家名</action>”替代投票并立即自爆带人。' : '';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n只向主持人提交“<action>VOTE:玩家名</action>”；弃权提交“<action>PASS</action>”。${whitewolfVoteAction}\n不要追加公开发言。`;
+    } else if (S.phase === 'duel') {
+      phaseBlock = '━━━━ 当前阶段与操作要求 ━━━━\n现在是投票前的私密技能确认，只向主持人提交选择，不公开发言。';
+    }
   }
 
   // ── 组装最终prompt ──
@@ -28005,11 +28088,11 @@ function buildWebPrompt(p, opts) {
   if (!isDelta) {
     try {
       const _roleList = (typeof getRoleList === 'function') ? getRoleList() : '';
-      const _rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(p) : '';
+      const _rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(p, {hardRulesOnly:!!opts.noTeaching}) : '';
       _configBlock =
 `━━━━ 📋 本局配置（这是公开信息，所有玩家一开始就知道）━━━━
 本局共 ${S.players.length} 人，身份构成：${_roleList}
-配置用于核对人数和可能技能，不代表任何具体玩家身份；不要为了“用上配置”而强行制造结论。
+${opts.noTeaching ? '配置不代表任何具体玩家身份。以下只提供游戏硬规则，不提供证据分级、推理方法或推荐打法。' : '配置用于核对人数和可能技能，不代表任何具体玩家身份；不要为了“用上配置”而强行制造结论。'}
 
 ${_rulesText}
 `;
@@ -28019,7 +28102,7 @@ ${_rulesText}
   // 网页端 AI 接力与内置 API 使用同一套教学模式，避免玩家选了自定义世界书，
   // 复制出去的角色却仍按另一套官方教学行动。
   // 增量模式跳过：教学层是本局固定不变的长文，逐轮重发会在对话里堆好几份。
-  // opts.noTeaching：A/B 用的「只留规则层」变体，规则层与行动顺序仍然照发。
+  // opts.noTeaching：A/B 用的「纯规则、零教学」变体，硬规则与行动顺序仍然照发。
   let _teachingBlock = '';
   if (!isDelta && !opts.noTeaching) {
     try {
@@ -28067,10 +28150,10 @@ ${secretBlock}
 存活（${S.players.filter(x=>x.alive).length}人）：${aliveList}
 ${deadList ? `已出局：${deadList}` : '目前无人出局'}
 ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${_publicEventReadingNote()}
-${hdeathOn ? '隐死亡模式（全局说明，仅需遵守、不必在回答中复述）：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。自报身份是声明而非系统翻牌，但你必须结合无人对跳、记录吻合、技能兑现、票型和行为形成可行动的工作判断，可用“暂认、偏信、待验、目前不信”表达。只有当上下文把声明误写成系统铁证时才简短纠正一次，不要反复说“死者身份不公开”或“跳了不等于真神”。' : '死者身份公开：系统翻牌结果是真实身份。'}
+${hdeathOn ? (opts.noTeaching ? '隐死亡模式：普通夜间死亡不翻身份，也不公开狼刀、毒药等私密死因；公开技能事件仍按系统公告显示。玩家自报身份只是声明，不是系统翻牌。' : '隐死亡模式（全局说明，仅需遵守、不必在回答中复述）：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。自报身份是声明而非系统翻牌，但你必须结合无人对跳、记录吻合、技能兑现、票型和行为形成可行动的工作判断，可用“暂认、偏信、待验、目前不信”表达。只有当上下文把声明误写成系统铁证时才简短纠正一次，不要反复说“死者身份不公开”或“跳了不等于真神”。') : '死者身份公开：系统翻牌结果是真实身份。'}
 
 ━━━━ 本局战报（事实与玩家观点混合记录）━━━━
-按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。
+${opts.noTeaching ? '以下按时间记录系统事件与玩家发言；系统事件按其公开范围生效，玩家发言只是玩家当时说过的话。' : '按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。'}
 ${battleReport}${endingSpeechBlock}${wolfChatBlock}${memoryBlock}
 
 ${phaseBlock}
@@ -28252,25 +28335,84 @@ directorChoose = function(p, promptFn, opts) {
   });
 };
 
+// 投票接力只接受明确的 action/“投票：X”/单一目标，不从长篇理由里按名字出现次数猜票。
+// 这样网页 AI 可以保留自己的分析，但系统不会把它反驳最多的人误当成最终票型。
+function _parseWebVotePaste(rawText, candidates) {
+  const raw = String(rawText || '').trim();
+  if (!raw) return '';
+  const parsed = parseAI(raw);
+  const tagged = String((parsed && parsed.action) || '').trim();
+  const explicit = raw.match(/(?:投票|票给|vote)\s*[：:|]?\s*(P?\d+|[^\s，,。；;！!？?<>]{1,30})/i);
+  if (!tagged && !explicit && raw.length > 40) return '';
+  let action = tagged || (explicit ? explicit[1] : raw);
+  action = action.replace(/^\s*(?:VOTE|投票)\s*[|：:]?\s*/i, '').trim();
+  if (/^(?:PASS|NONE|弃权|不投|不投票)$/i.test(action)) return 'None';
+  const explode = action.match(/^\s*(?:EXPLODE|自爆)\s*[|：:]?\s*(.+)$/i);
+  const targetText = explode ? explode[1] : action;
+  let target = findPlayer(targetText, candidates);
+  if (!target) {
+    const seat = targetText.match(/(?:^|\b)P(\d+)(?:\b|$)/i);
+    if (seat) target = candidates.find(x => x.id + 1 === Number(seat[1])) || null;
+  }
+  if (!target) {
+    const hits = candidates.filter(x => raw.includes(x.name));
+    if (hits.length === 1) target = hits[0];
+  }
+  return target ? (explode ? 'EXPLODE:' : '') + target.name : '';
+}
+
+function _parseWebOperationPaste(rawText, options) {
+  const raw = String(rawText || '').trim();
+  if (!raw) return '';
+  const parsed = parseAI(raw);
+  const tagged = String((parsed && parsed.action) || '').trim();
+  const explicit = raw.match(/(?:选择|决定|操作|action)\s*[：:|]?\s*([^\n<>]{1,60})/i);
+  if (!tagged && !explicit && raw.length > 60) return '';
+  let action = tagged || (explicit ? explicit[1] : raw);
+  action = action.replace(/^\s*(?:ACTION|选择|决定|操作)\s*[|：:]?\s*/i, '').trim();
+  const enabled = (options || []).filter(o => !o.disabled);
+  const normalize = value => String(value == null ? '' : value).replace(/<[^>]*>/g,'').replace(/[“”"'`]/g,'').trim().toLowerCase();
+  const needle = normalize(action);
+  let match = enabled.find(o => normalize(o.value) === needle || normalize(o.label) === needle);
+  if (!match) {
+    const exactHits = enabled.filter(o => {
+      const value = normalize(o.value), label = normalize(o.label);
+      return (value && needle.includes(value)) || (label && needle.includes(label));
+    });
+    if (exactHits.length === 1) match = exactHits[0];
+  }
+  return match ? match.value : '';
+}
+
 // ── 网页端 prompt 弹窗：复制 prompt → 粘贴回复 → 智能解析 ──
-function _openWebPromptModal(p, promptFn, resolve) {
+function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
+  modalOpts = modalOpts || {};
+  const isVoteChoice = modalOpts.choiceOnly === 'vote';
+  const isOperationChoice = modalOpts.choiceOnly === 'operation';
+  const isChoiceOnly = isVoteChoice || isOperationChoice;
   // ── 接力模式状态 ──
   // 有水位线（这局这个角色之前复制过）→ 默认走增量，玩家可随时切回完整。
   // 没有水位线（首次复制 / 刚点过重置）→ 只能全量，和改动前完全一致。
   let relayMark = WebRelay.get(p);
   let deltaMode = !!relayMark;
   let teachOn = WebRelay.teachingOn();
-  const buildNow = () => buildWebPrompt(p, deltaMode && relayMark
-    ? {mark: relayMark}
-    : {noTeaching: !teachOn});
+  const buildNow = () => {
+    const base = buildWebPrompt(p, deltaMode && relayMark
+      ? {mark: relayMark}
+      : {noTeaching: !teachOn});
+    if (!isOperationChoice) return base;
+    const legalOptions = (modalOpts.operationOptions || []).filter(o=>!o.disabled)
+      .map(o=>`- ${o.label} → <action>${o.value}</action>`).join('\n');
+    return base + `\n\n━━━━ 当前私密操作 ━━━━\n${modalOpts.operationTitle || '请选择操作'}\n${modalOpts.operationContext || ''}\n\n合法选项：\n${legalOptions}\n只返回其中一个明确的 <action>值</action>。这是纯操作阶段，不追加公开发言，也不要向其他玩家提问。`;
+  };
   let webPrompt = buildNow();
 
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(4px);animation:vn-fadein 0.2s ease';
   overlay.innerHTML = `
     <div style="max-width:480px;width:100%;background:linear-gradient(180deg,rgba(32,24,50,0.97),rgba(20,16,36,0.97));border:1px solid rgba(64,192,160,0.4);border-radius:12px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.6);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
-      <h3 style="margin:0;color:#60d8b8;font-family:var(--font-seal);font-size:1em">🌐 ${publicPlayerLabel(p)}【${p.role.name}】— 复制给网页端AI</h3>
-      <div style="font-size:0.72em;color:#6a9090;line-height:1.5">① 复制下方 prompt → ② 粘贴到 Claude.ai 或 ChatGPT → ③ 把回复粘贴回来</div>
+      <h3 style="margin:0;color:#60d8b8;font-family:var(--font-seal);font-size:1em">${publicPlayerLabel(p)}【${p.role.name}】— ${isVoteChoice?'网页AI投票':isOperationChoice?'网页AI操作':'复制给网页端AI'}</h3>
+      <div style="font-size:0.72em;color:#6a9090;line-height:1.5">① 复制下方 prompt → ② 粘贴到同一个 Claude.ai 或 ChatGPT 对话 → ③ 把${isChoiceOnly?'选择结果':'回复'}粘贴回来</div>
 
       <!-- 发送模式：完整 / 增量续报 -->
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -28281,7 +28423,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
       <!-- A/B：教学层发不发（只影响完整战报；增量本来就不带教学层） -->
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <button id="_wpm-teach-on"  style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🧠 带教学层</button>
-        <button id="_wpm-teach-off" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">📐 只留规则层</button>
+        <button id="_wpm-teach-off" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🧾 纯规则（无教学）</button>
       </div>
       <div id="_wpm-mode-note" style="font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px"></div>
 
@@ -28296,14 +28438,14 @@ function _openWebPromptModal(p, promptFn, resolve) {
 
       <!-- 回复粘贴区域 -->
       <div>
-        <div style="font-size:0.72em;color:#a0b8c8;margin-bottom:4px">将AI的回复粘贴到这里：</div>
+        <div style="font-size:0.72em;color:#a0b8c8;margin-bottom:4px">将AI的${isChoiceOnly?'选择结果':'回复'}粘贴到这里：</div>
         <textarea id="_wpm-reply" placeholder="把网页端AI的回复粘贴到这里…&#10;&#10;可以是任何格式——带前缀、带[思考]、带markdown加粗都没关系，系统会自动提取发言内容。" style="width:100%;height:100px;background:rgba(0,0,0,0.3);border:1px solid rgba(64,192,160,0.3);color:#d8e8d0;border-radius:8px;padding:8px;font-size:0.82em;font-family:var(--font-body);resize:vertical;line-height:1.5;box-sizing:border-box"></textarea>
         <div id="_wpm-preview" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(64,192,160,0.06);border:1px solid rgba(64,192,160,0.2);border-radius:6px;font-size:0.75em;color:#80d8b0"></div>
       </div>
 
       <div style="display:flex;gap:8px">
         <button id="_wpm-cancel" style="flex:1;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.15);color:#6a6060;border-radius:8px;font-size:0.82em;cursor:pointer;font-family:var(--font-body)">取消</button>
-        <button id="_wpm-submit" style="flex:2;padding:9px;background:rgba(64,192,160,0.2);border:1px solid rgba(64,192,160,0.5);color:#60d8b8;border-radius:8px;font-size:0.88em;cursor:pointer;font-family:var(--font-body)">✅ 提交发言</button>
+        <button id="_wpm-submit" style="flex:2;padding:9px;background:rgba(64,192,160,0.2);border:1px solid rgba(64,192,160,0.5);color:#60d8b8;border-radius:8px;font-size:0.88em;cursor:pointer;font-family:var(--font-body)">${isVoteChoice?'提交投票':isOperationChoice?'提交选择':'提交发言'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -28344,7 +28486,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
         WebRelay.stamp(p);
         // 记下这一轮实际发出去的是哪种变体，方便事后对着开发日志复盘 A/B
         Render.devLog && Render.devLog('info', `[网页接力] ${p.name} R${S.round} 复制：` +
-          (deltaMode ? '增量续报' : (teachOn ? '完整·A带教学层' : '完整·B只留规则层')) +
+          (deltaMode ? '增量续报' : (teachOn ? '完整·A带教学层' : '完整·B纯规则无教学')) +
           ` ${webPrompt.length} 字符`);
         if (label) {
           copyBtn.textContent = label;
@@ -28396,9 +28538,9 @@ function _openWebPromptModal(p, promptFn, resolve) {
       modeNote.style.cssText = 'font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px;color:#9aa8b8;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)';
       const variant = teachOn
         ? '完整战报（规则 + 教学层 + 开局至今全部记录）'
-        : '完整战报·<b style="color:#c8b070">只留规则层</b>（规则 + 本局角色能力 + 夜间行动顺序 + 战报，<b>不含</b>教学层）';
+        : '完整战报·<b style="color:#c8b070">纯规则（无教学）</b>（身份技能 + 硬规则 + 夜间行动顺序 + 私密记录 + 战报）';
       modeNote.innerHTML = `${variant} · 约 ${kb}k 字符` +
-        (teachOn ? '' : '<br><span style="color:#8a9a96">证据分级 S/A/B/C 与本局行动顺序在规则层里，仍然会发过去。</span>') +
+        (teachOn ? '' : '<br><span style="color:#8a9a96">不会发送证据分级、推理方法、推荐打法、发言模板或跨局学习记忆；只保留让游戏能够正确运行的规则与事实。</span>') +
         (canDelta ? '' : '<br><span style="color:#8a9a96">复制之后会记下进度，下次可切「🔁 增量续报」，在同一个对话里只发新增。</span>');
       guideEl.innerHTML =
         '<b>操作步骤：</b><br>' +
@@ -28432,7 +28574,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
     renderMode();
     syncClipboard('✅ 已复制！');   // 变体由上方按钮高亮与说明文字表示，标签保持短以免溢出
     Render.devLog && Render.devLog('info',
-      `[网页接力] ${p.name} 切换变体：${on ? 'A·带教学层' : 'B·只留规则层'}（${webPrompt.length} 字符）`);
+      `[网页接力] ${p.name} 切换变体：${on ? 'A·带教学层' : 'B·纯规则无教学'}（${webPrompt.length} 字符）`);
   };
   teachOnBtn.onclick  = () => setTeach(true);
   teachOffBtn.onclick = () => setTeach(false);
@@ -28443,6 +28585,18 @@ function _openWebPromptModal(p, promptFn, resolve) {
   replyTA.addEventListener('input', () => {
     const raw = replyTA.value.trim();
     if (!raw) { preview.style.display = 'none'; return; }
+    if (isVoteChoice) {
+      const voteChoice = _parseWebVotePaste(raw, modalOpts.voteCandidates || []);
+      preview.style.display = voteChoice ? 'block' : 'none';
+      if (voteChoice) preview.innerHTML = `<b style="color:#60d8b8">识别到的投票：</b> ${voteChoice.replace(/^EXPLODE:/,'自爆带走 ')}`;
+      return;
+    }
+    if (isOperationChoice) {
+      const operationChoice = _parseWebOperationPaste(raw, modalOpts.operationOptions || []);
+      preview.style.display = operationChoice !== '' ? 'block' : 'none';
+      if (operationChoice !== '') preview.innerHTML = `<b style="color:#60d8b8">识别到的操作：</b> ${String(operationChoice)}`;
+      return;
+    }
     const parsed = parseWebPaste(raw);
     if (parsed && parsed !== raw) {
       preview.style.display = 'block';
@@ -28458,6 +28612,24 @@ function _openWebPromptModal(p, promptFn, resolve) {
   submitBtn.onclick = () => {
     const raw = replyTA.value.trim();
     if (!raw) { replyTA.style.borderColor = '#e87060'; setTimeout(() => { replyTA.style.borderColor = ''; }, 800); return; }
+    if (isVoteChoice) {
+      const voteChoice = _parseWebVotePaste(raw, modalOpts.voteCandidates || []);
+      if (!voteChoice) { replyTA.style.borderColor = '#e87060'; setTimeout(() => { replyTA.style.borderColor = ''; }, 1000); return; }
+      document.body.removeChild(overlay);
+      dirClearStatus();
+      Render.log('system', `网页端AI已为${p.name}提交投票`);
+      resolve(voteChoice);
+      return;
+    }
+    if (isOperationChoice) {
+      const operationChoice = _parseWebOperationPaste(raw, modalOpts.operationOptions || []);
+      if (operationChoice === '') { replyTA.style.borderColor = '#e87060'; setTimeout(() => { replyTA.style.borderColor = ''; }, 1000); return; }
+      document.body.removeChild(overlay);
+      dirClearStatus();
+      Render.log('system', `网页端AI已为${p.name}提交私密操作`);
+      resolve(operationChoice);
+      return;
+    }
     const parsed = parseWebPaste(raw);
     if (!parsed) { replyTA.style.borderColor = '#e87060'; return; }
     document.body.removeChild(overlay);
@@ -28468,6 +28640,8 @@ function _openWebPromptModal(p, promptFn, resolve) {
 
   cancelBtn.onclick = () => {
     document.body.removeChild(overlay);
+    if (isVoteChoice) { resolve('__CANCEL_WEB_VOTE__'); return; }
+    if (isOperationChoice) { resolve('__CANCEL_WEB_OPERATION__'); return; }
     // 重新打开导演选择
     directorChoose(p, promptFn, {}).then(resolve);
   };

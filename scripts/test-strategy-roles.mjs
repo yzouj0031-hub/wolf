@@ -24,6 +24,9 @@ for (const file of clients) {
   expect(src.includes('if (S.nightData.witchSave)'), `${file}: duplicate Alchemist rescue is not blocked`);
   expect(src.includes("target:victim.name,result:'hold'"), `${file}: declined Serpent rescue forgets the observed attack target`);
   expect(src.includes('你看见实际狼刀落在\'+victim.name+\'，选择保留法老之蛇'), `${file}: declined Serpent rescue is not stored in private memory`);
+  expect(src.includes('只有选择救人才消耗整局唯一一次救援'), `${file}: Serpent rules do not distinguish preparation from consumption`);
+  expect(src.includes('选择不救、狼队空刀或刀口已获救均不消耗'), `${file}: Serpent non-consumption cases are missing from the rules`);
+  expect(src.includes('准备蛇与发动雾同夜互斥'), `${file}: Serpent and Mist mutual exclusion is missing from the rules`);
   expect(src.includes("gameRecord.filter(r=>r.role==='alchemist_rescue'&&r.target)"), `${file}: Serpent observations cannot be reconstructed after memory compression`);
   const magicianSteps = [...src.matchAll(/nightStep\('magician'/g)].map(match => match.index);
   const wolfKillSteps = [...src.matchAll(/nightStep\('wolf-kill'/g)].map(match => match.index);
@@ -33,6 +36,21 @@ for (const file of clients) {
   expect(!src.includes('魔术师最先行动') && !src.includes('每晚最先行动') && !src.includes('每晚【最先】行动'), `${file}: stale absolute-first magician wording`);
   expect(src.includes("p.role.id!=='mechwolf' && p.role.id!=='gargoyle'"), `${file}: pack must exclude isolated wolves`);
   expect(src.includes("role.id !== 'mechwolf' && role.id !== 'gargoyle'"), `${file}: shared wolf vision must exclude isolated wolves`);
+  const packLabelStart = src.indexOf('const knownPackIds = new Set(ws.map(w => w.id))');
+  const packLabelEnd = src.indexOf('\n    };', packLabelStart);
+  expect(packLabelStart >= 0 && packLabelEnd > packLabelStart, `${file}: missing perspective-safe wolf target labels`);
+  if (packLabelStart >= 0 && packLabelEnd > packLabelStart) {
+    const packLabelSource = src.slice(packLabelStart, packLabelEnd + '\n    };'.length);
+    const targetLabel = new Function('ws', `${packLabelSource}; return knownPackTargetLabel;`)([{id:1},{id:2}]);
+    expect(/自刀/.test(targetLabel({id:1},{id:1,role:{id:'werewolf',team:'bad'}})), `${file}: a wolf cannot identify itself in its own target picker`);
+    expect(/狼队友/.test(targetLabel({id:1},{id:2,role:{id:'wolfbeauty',team:'bad'}})), `${file}: mutually known packmates are not labelled as packmates`);
+    expect(targetLabel({id:1},{id:3,role:{id:'gargoyle',team:'bad'}}) === '', `${file}: ordinary wolves learn Gargoyle identity from the target label`);
+    expect(targetLabel({id:1},{id:4,role:{id:'mechwolf',team:'bad'}}) === '', `${file}: ordinary wolves learn Mechanical Wolf identity from the target label`);
+  }
+  expect(src.includes('label: x.name + knownPackTargetLabel(p, x)'), `${file}: human wolf proposal picker bypasses perspective-safe labels`);
+  expect(src.includes('label:x.name+knownPackTargetLabel(pW,x)'), `${file}: human wolf final vote picker bypasses perspective-safe labels`);
+  expect(!src.includes("label: x.name + (x.role.team === 'bad' ? '（战术自刀）' : '')"), `${file}: proposal picker still reads hidden target alignment`);
+  expect(!src.includes("label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:String(x.id)"), `${file}: final wolf picker still reads hidden target alignment`);
   expect(src.includes("cause:'dreamkill'"), `${file}: missing lethal second-dream settlement`);
   expect(src.includes("cause:'dreamlink'"), `${file}: missing dreamer death link`);
   expect(src.includes('alchemistBlocked = S.nightData.alchemistSave'), `${file}: missing serpent rescue settlement`);
@@ -65,6 +83,9 @@ for (const file of clients) {
   expect(src.includes("logPrivateNightResult(al,'炼金魔女发动未明之雾"), `${file}: Alchemist mist is absent from the live observer feed`);
   expect(src.includes("logPrivateNightResult(al,'法老之蛇救下了实际刀口"), `${file}: Alchemist rescue is absent from the live observer feed`);
   expect(src.includes('logPrivateNightResult(gg,scryReflected?'), `${file}: Gargoyle scry is absent from the live observer feed`);
+  expect(src.includes("gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle').map"), `${file}: web relay cannot reconstruct the Gargoyle's private scry history`);
+  expect(src.includes('石像鬼窥视记录（绝密，仅你可见）'), `${file}: Gargoyle web relay omits exact private identities`);
+  expect(src.includes('未被验证，之后仍可重新选择'), `${file}: reflected Gargoyle scries are exported as successful target checks`);
   expect(src.includes("if (!(actor.isPlayer || !isAnon() || observerView)) return"), `${file}: private action feed can leak into anonymous public view`);
   expect(src.includes("S.nightData.killActorRole='gargoyle'"), `${file}: Gargoyle attack source is not persisted for settlement`);
   expect(src.includes("S.nightData.killActorRole = 'mechwolf'"), `${file}: Mech Wolf attack source is not persisted for settlement`);

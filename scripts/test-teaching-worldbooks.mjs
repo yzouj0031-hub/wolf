@@ -85,6 +85,19 @@ for (const path of ['../index.html','../en/index.html']) {
   }
 }
 
+const zhHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+for (const marker of [
+  '纯规则（无教学）',
+  'buildWebRulesExport(p, {hardRulesOnly:!!opts.noTeaching})',
+  "!opts.noTeaching && typeof PermanentMemory !== 'undefined'",
+  '不会发送证据分级、推理方法、推荐打法、发言模板或跨局学习记忆'
+]) {
+  if (!zhHtml.includes(marker)) throw new Error(`Chinese web relay lacks true no-teaching isolation: ${marker}`);
+}
+if (zhHtml.includes('证据分级 S/A/B/C 与本局行动顺序仍会发送')) {
+  throw new Error('Chinese web relay still advertises the old partially taught B mode');
+}
+
 if (!source.includes('Import file (optional)') || !source.includes('从文件导入（可选）') || !source.includes("if (!/\\.txt$/i.test(file.name))")) {
   throw new Error('plain-text worldbook upload support is missing');
 }
