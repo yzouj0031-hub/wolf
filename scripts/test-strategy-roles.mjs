@@ -80,6 +80,9 @@ for (const file of clients) {
   expect(src.includes("logPrivateNightResult(al,'炼金魔女发动未明之雾"), `${file}: Alchemist mist is absent from the live observer feed`);
   expect(src.includes("logPrivateNightResult(al,'法老之蛇救下了实际刀口"), `${file}: Alchemist rescue is absent from the live observer feed`);
   expect(src.includes('logPrivateNightResult(gg,scryReflected?'), `${file}: Gargoyle scry is absent from the live observer feed`);
+  expect(src.includes("gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle').map"), `${file}: web relay cannot reconstruct the Gargoyle's private scry history`);
+  expect(src.includes('石像鬼窥视记录（绝密，仅你可见）'), `${file}: Gargoyle web relay omits exact private identities`);
+  expect(src.includes('未被验证，之后仍可重新选择'), `${file}: reflected Gargoyle scries are exported as successful target checks`);
   expect(src.includes("if (!(actor.isPlayer || !isAnon() || observerView)) return"), `${file}: private action feed can leak into anonymous public view`);
   expect(src.includes("S.nightData.killActorRole='gargoyle'"), `${file}: Gargoyle attack source is not persisted for settlement`);
   expect(src.includes("S.nightData.killActorRole = 'mechwolf'"), `${file}: Mech Wolf attack source is not persisted for settlement`);

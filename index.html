@@ -23021,6 +23021,12 @@ function _buildPrivateInfoLines(p) {
   if (p.role.id === 'gargoyle') {
     const seen=(p._gargoyleSeen||[]).map(id=>S.players[id]).filter(Boolean).map(x=>x.name).join('、')||'无';
     lines.push('石瞳已查目标：'+seen+'；苏醒夜刀：'+(p._gargoyleAwake?'已获得':'尚未获得（其他狼系全部出局后获得）')+'。你与普通狼队互不相认。');
+    const scries=gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle').map(r=>{
+      if(r.reflected||r.result==='rebounded') return '第'+r.round+'夜：窥视'+r.target+' → 被反弹，实际只看见自己【'+(r.roleName||p.role.name)+'】；'+r.target+'未被验证，之后仍可重新选择';
+      const targetPlayer=S.players.find(x=>x.name===r.target);
+      return '第'+r.round+'夜：窥视'+r.target+' → 准确身份【'+(r.roleName||(targetPlayer&&targetPlayer.role&&targetPlayer.role.name)||'记录缺失')+'】';
+    });
+    if(scries.length) lines.push('石像鬼窥视记录（绝密，仅你可见）：\n  '+scries.join('\n  '));
     const attacks=gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle_kill').map(r=>'第'+r.round+'夜：'+(r.blocked?'受到禁刀':r.empty?'空刀':('刀'+r.target+(r.selfKill?'（自刀）':'')+'，'+(r.result==='success'?'目标已死亡':r.result==='failed'?'目标未死亡':'等待结算'))));
     if(attacks.length) lines.push('石像鬼刀口记录（绝密）：\n  '+attacks.join('\n  '));
   }
