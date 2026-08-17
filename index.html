@@ -18857,8 +18857,29 @@ const PhaseHandlers = {
       if (isHumanWhitewolfReady) {
         opts.push({label:'💥 自爆带走一人（替代投票）', value:'__EXPLODE__', abs:true, danger:true});
       }
+      opts.push({label:'网页AI决定（自动续接新增历史）', value:'__WEB_AI_VOTE__', abs:true});
       const titlePrefix = humanPlayers.length > 1 ? `🎬 ${hp.name} 投票 (${Object.keys(humanVotes).length+1}/${humanPlayers.length}) ` : '';
-      const choice = await waitChoice(titlePrefix+'投谁出局？',hp.role.emoji+' '+hp.name+' 投票',opts);
+      let choice;
+      while (true) {
+        choice = await waitChoice(titlePrefix+'投谁出局？',hp.role.emoji+' '+hp.name+' 投票',opts);
+        if (choice !== '__WEB_AI_VOTE__') break;
+        const webVote = await new Promise(resolve => _openWebPromptModal(hp, () => '', resolve, {choiceOnly:'vote', voteCandidates:alive}));
+        if (webVote === '__CANCEL_WEB_VOTE__') continue;
+        if (/^EXPLODE:/i.test(webVote)) {
+          const explodeTargetName = webVote.replace(/^EXPLODE:/i,'').trim();
+          if (isHumanWhitewolfReady && explodeTargetName !== hp.name) {
+            humanWhitewolfExplode = {wwId:hp.id,targetName:explodeTargetName};
+            humanVotes[hp.id] = 'None';
+            choice = '__WEB_EXPLODE_CONFIRMED__';
+            break;
+          }
+          Render.log('system',explodeTargetName===hp.name?'白狼王不能把自己选作自爆带走目标；请重新选择。':'只有仍可自爆的白狼王才能用网页AI提交自爆；请重新选择投票。');
+          continue;
+        }
+        choice = webVote;
+        break;
+      }
+      if (choice === '__WEB_EXPLODE_CONFIRMED__') break;
       if (choice === '__EXPLODE__') {
         // 弹第二个选择窗：选自爆目标
         const explodeTargets = S.players.filter(x => x.alive && x.id !== hp.id)
@@ -28002,7 +28023,8 @@ function buildWebPrompt(p, opts) {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}\n\n轮到你公开发言。这是影响别人判断与票型的正式机会，不要只给一两句结论。请完整说清：你的当前立场或票意；至少一个具体言行、票型、公开事实或合法行动记录作为依据；以及你对前置位最关键观点的回应。若被点名质疑、处在身份对跳或主要出局位，必须逐项反驳并给出替代判断。有身份信息就报清记录；不要把单次口误包装成唯一答案，也不要机械复读前置位的整套逻辑。`;
 
   } else if (S.phase === 'vote') {
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n\n只向主持人提交一个投票目标，输出“投票：玩家名”。不要追加公开发言、解释理由或向其他玩家提问；本阶段无人会回应。`;
+    const whitewolfVoteAction = p.role.id === 'whitewolf' && !S._whitewolfUsed ? '\n你仍可用“<action>EXPLODE:玩家名</action>”替代投票并立即自爆带人。' : '';
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n\n只向主持人提交一个投票目标，输出“<action>VOTE:玩家名</action>”；弃权输出“<action>PASS</action>”。${whitewolfVoteAction}\n不要追加公开发言、解释理由或向其他玩家提问；本阶段无人会回应。`;
 
   } else if (S.phase === 'duel') {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n系统正在进行投票前的私密技能确认。尚未公开发动任何技能，不得据此推断场上身份，也不需要公开发言。`;
@@ -28026,7 +28048,8 @@ function buildWebPrompt(p, opts) {
         ? `\n昨晚死亡：${S._lastNightDeaths.map(id => S.players[id] ? S.players[id].name : '未知').join('、')}` : '\n昨晚：平安夜';
       phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deaths}${order}\n轮到你公开发言，内容和判断由你自行决定。`;
     } else if (S.phase === 'vote') {
-      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n只向主持人提交“投票：玩家名”，不要追加公开发言。`;
+      const whitewolfVoteAction = p.role.id === 'whitewolf' && !S._whitewolfUsed ? '\n你仍可用“<action>EXPLODE:玩家名</action>”替代投票并立即自爆带人。' : '';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n只向主持人提交“<action>VOTE:玩家名</action>”；弃权提交“<action>PASS</action>”。${whitewolfVoteAction}\n不要追加公开发言。`;
     } else if (S.phase === 'duel') {
       phaseBlock = '━━━━ 当前阶段与操作要求 ━━━━\n现在是投票前的私密技能确认，只向主持人提交选择，不公开发言。';
     }
@@ -28289,8 +28312,36 @@ directorChoose = function(p, promptFn, opts) {
   });
 };
 
+// 投票接力只接受明确的 action/“投票：X”/单一目标，不从长篇理由里按名字出现次数猜票。
+// 这样网页 AI 可以保留自己的分析，但系统不会把它反驳最多的人误当成最终票型。
+function _parseWebVotePaste(rawText, candidates) {
+  const raw = String(rawText || '').trim();
+  if (!raw) return '';
+  const parsed = parseAI(raw);
+  const tagged = String((parsed && parsed.action) || '').trim();
+  const explicit = raw.match(/(?:投票|票给|vote)\s*[：:|]?\s*(P?\d+|[^\s，,。；;！!？?<>]{1,30})/i);
+  if (!tagged && !explicit && raw.length > 40) return '';
+  let action = tagged || (explicit ? explicit[1] : raw);
+  action = action.replace(/^\s*(?:VOTE|投票)\s*[|：:]?\s*/i, '').trim();
+  if (/^(?:PASS|NONE|弃权|不投|不投票)$/i.test(action)) return 'None';
+  const explode = action.match(/^\s*(?:EXPLODE|自爆)\s*[|：:]?\s*(.+)$/i);
+  const targetText = explode ? explode[1] : action;
+  let target = findPlayer(targetText, candidates);
+  if (!target) {
+    const seat = targetText.match(/(?:^|\b)P(\d+)(?:\b|$)/i);
+    if (seat) target = candidates.find(x => x.id + 1 === Number(seat[1])) || null;
+  }
+  if (!target) {
+    const hits = candidates.filter(x => raw.includes(x.name));
+    if (hits.length === 1) target = hits[0];
+  }
+  return target ? (explode ? 'EXPLODE:' : '') + target.name : '';
+}
+
 // ── 网页端 prompt 弹窗：复制 prompt → 粘贴回复 → 智能解析 ──
-function _openWebPromptModal(p, promptFn, resolve) {
+function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
+  modalOpts = modalOpts || {};
+  const isVoteChoice = modalOpts.choiceOnly === 'vote';
   // ── 接力模式状态 ──
   // 有水位线（这局这个角色之前复制过）→ 默认走增量，玩家可随时切回完整。
   // 没有水位线（首次复制 / 刚点过重置）→ 只能全量，和改动前完全一致。
@@ -28306,8 +28357,8 @@ function _openWebPromptModal(p, promptFn, resolve) {
   overlay.style.cssText = 'position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(4px);animation:vn-fadein 0.2s ease';
   overlay.innerHTML = `
     <div style="max-width:480px;width:100%;background:linear-gradient(180deg,rgba(32,24,50,0.97),rgba(20,16,36,0.97));border:1px solid rgba(64,192,160,0.4);border-radius:12px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.6);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
-      <h3 style="margin:0;color:#60d8b8;font-family:var(--font-seal);font-size:1em">🌐 ${publicPlayerLabel(p)}【${p.role.name}】— 复制给网页端AI</h3>
-      <div style="font-size:0.72em;color:#6a9090;line-height:1.5">① 复制下方 prompt → ② 粘贴到 Claude.ai 或 ChatGPT → ③ 把回复粘贴回来</div>
+      <h3 style="margin:0;color:#60d8b8;font-family:var(--font-seal);font-size:1em">${publicPlayerLabel(p)}【${p.role.name}】— ${isVoteChoice?'网页AI投票':'复制给网页端AI'}</h3>
+      <div style="font-size:0.72em;color:#6a9090;line-height:1.5">① 复制下方 prompt → ② 粘贴到同一个 Claude.ai 或 ChatGPT 对话 → ③ 把${isVoteChoice?'投票结果':'回复'}粘贴回来</div>
 
       <!-- 发送模式：完整 / 增量续报 -->
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -28333,14 +28384,14 @@ function _openWebPromptModal(p, promptFn, resolve) {
 
       <!-- 回复粘贴区域 -->
       <div>
-        <div style="font-size:0.72em;color:#a0b8c8;margin-bottom:4px">将AI的回复粘贴到这里：</div>
+        <div style="font-size:0.72em;color:#a0b8c8;margin-bottom:4px">将AI的${isVoteChoice?'投票结果':'回复'}粘贴到这里：</div>
         <textarea id="_wpm-reply" placeholder="把网页端AI的回复粘贴到这里…&#10;&#10;可以是任何格式——带前缀、带[思考]、带markdown加粗都没关系，系统会自动提取发言内容。" style="width:100%;height:100px;background:rgba(0,0,0,0.3);border:1px solid rgba(64,192,160,0.3);color:#d8e8d0;border-radius:8px;padding:8px;font-size:0.82em;font-family:var(--font-body);resize:vertical;line-height:1.5;box-sizing:border-box"></textarea>
         <div id="_wpm-preview" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(64,192,160,0.06);border:1px solid rgba(64,192,160,0.2);border-radius:6px;font-size:0.75em;color:#80d8b0"></div>
       </div>
 
       <div style="display:flex;gap:8px">
         <button id="_wpm-cancel" style="flex:1;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.15);color:#6a6060;border-radius:8px;font-size:0.82em;cursor:pointer;font-family:var(--font-body)">取消</button>
-        <button id="_wpm-submit" style="flex:2;padding:9px;background:rgba(64,192,160,0.2);border:1px solid rgba(64,192,160,0.5);color:#60d8b8;border-radius:8px;font-size:0.88em;cursor:pointer;font-family:var(--font-body)">✅ 提交发言</button>
+        <button id="_wpm-submit" style="flex:2;padding:9px;background:rgba(64,192,160,0.2);border:1px solid rgba(64,192,160,0.5);color:#60d8b8;border-radius:8px;font-size:0.88em;cursor:pointer;font-family:var(--font-body)">${isVoteChoice?'提交投票':'提交发言'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -28480,6 +28531,12 @@ function _openWebPromptModal(p, promptFn, resolve) {
   replyTA.addEventListener('input', () => {
     const raw = replyTA.value.trim();
     if (!raw) { preview.style.display = 'none'; return; }
+    if (isVoteChoice) {
+      const voteChoice = _parseWebVotePaste(raw, modalOpts.voteCandidates || []);
+      preview.style.display = voteChoice ? 'block' : 'none';
+      if (voteChoice) preview.innerHTML = `<b style="color:#60d8b8">识别到的投票：</b> ${voteChoice.replace(/^EXPLODE:/,'自爆带走 ')}`;
+      return;
+    }
     const parsed = parseWebPaste(raw);
     if (parsed && parsed !== raw) {
       preview.style.display = 'block';
@@ -28495,6 +28552,15 @@ function _openWebPromptModal(p, promptFn, resolve) {
   submitBtn.onclick = () => {
     const raw = replyTA.value.trim();
     if (!raw) { replyTA.style.borderColor = '#e87060'; setTimeout(() => { replyTA.style.borderColor = ''; }, 800); return; }
+    if (isVoteChoice) {
+      const voteChoice = _parseWebVotePaste(raw, modalOpts.voteCandidates || []);
+      if (!voteChoice) { replyTA.style.borderColor = '#e87060'; setTimeout(() => { replyTA.style.borderColor = ''; }, 1000); return; }
+      document.body.removeChild(overlay);
+      dirClearStatus();
+      Render.log('system', `网页端AI已为${p.name}提交投票`);
+      resolve(voteChoice);
+      return;
+    }
     const parsed = parseWebPaste(raw);
     if (!parsed) { replyTA.style.borderColor = '#e87060'; return; }
     document.body.removeChild(overlay);
@@ -28505,6 +28571,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
 
   cancelBtn.onclick = () => {
     document.body.removeChild(overlay);
+    if (isVoteChoice) { resolve('__CANCEL_WEB_VOTE__'); return; }
     // 重新打开导演选择
     directorChoose(p, promptFn, {}).then(resolve);
   };
