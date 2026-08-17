@@ -6431,11 +6431,13 @@ function buildRulesExport() {
 
 // 网页端 AI 接力专用：只给当前真正需要的规则，不再复制整本规则百科。
 // 完整规则导出按钮仍使用 buildRulesExport()，便于人工查阅。
-function buildWebRulesExport(viewerP) {
+function buildWebRulesExport(viewerP, options) {
+  options = options || {};
+  const hardRulesOnly = !!options.hardRulesOnly;
   const isEdge = !!(S && S.killEdgeMode);
   const hdeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
   if (window.WolfI18n && WolfI18n.isEnglish()) {
-    return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath});
+    return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath, hardRulesOnly});
   }
   const ids = [...new Set((S.players || []).filter(x => x.role).map(x => x.role.id))];
   const has = id => ids.includes(id);
@@ -6455,21 +6457,21 @@ function buildWebRulesExport(viewerP) {
     '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
     hdeath
       ? '隐死亡：普通夜间死亡不公开身份和具体死因；只有系统明确标注的公开技能事件/公开验证可以当事实。'
-      : '公开死亡：系统翻出的身份是真实身份。',
-    '',
-    '【推理证据等级】',
-    'S：系统公开验证、必然技能结算。可以直接当事实。',
-    'A：自己的私密行动记录；完整报记录且经过充分机会仍无人对跳的单边神职。高度可信，但不是100%验明。',
-    'B：关键票型、持续行为、前后动机、阵营收益和多条真正独立的线索。日常推理以这些为主。',
-    'C：单次口误、记错规则、措辞过满、改口、语气强弱、发言长短。只能留疑，不能单独定狼、放逐或发动致命技能。',
-    '规则冲突：公开摘要可能比角色私密说明简略。玩家声称收到系统反馈时，其他人不能只凭摘要断言“该反馈不可能存在”；没有公开结果或确定私密记录硬冲突时，最多记C级疑点。',
-    '视角漏洞：只有玩家说出了按其身份和当时时点绝不可能知道的具体私密事实，且排除公开信息、技能和系统提示后，才是强证据。把一种可能说得过满，首先要求澄清，不自动等于狼人共享视野。',
-    '独立判断：多人复读同一个理由仍只有一条证据。跟票前必须给出自己的观察；好人判断错误也可能客观帮到狼，不能只凭结果反推动机。',
-    '',
-    '【本局实际在场角色】',
-    ...roleLines,
-    '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。'
+      : '公开死亡：系统翻出的身份是真实身份。'
   ];
+  if (!hardRulesOnly) {
+    lines.push('',
+      '【推理证据等级】',
+      'S：系统公开验证、必然技能结算。可以直接当事实。',
+      'A：自己的私密行动记录；完整报记录且经过充分机会仍无人对跳的单边神职。高度可信，但不是100%验明。',
+      'B：关键票型、持续行为、前后动机、阵营收益和多条真正独立的线索。日常推理以这些为主。',
+      'C：单次口误、记错规则、措辞过满、改口、语气强弱、发言长短。只能留疑，不能单独定狼、放逐或发动致命技能。',
+      '规则冲突：公开摘要可能比角色私密说明简略。玩家声称收到系统反馈时，其他人不能只凭摘要断言“该反馈不可能存在”；没有公开结果或确定私密记录硬冲突时，最多记C级疑点。',
+      '视角漏洞：只有玩家说出了按其身份和当时时点绝不可能知道的具体私密事实，且排除公开信息、技能和系统提示后，才是强证据。把一种可能说得过满，首先要求澄清，不自动等于狼人共享视野。',
+      '独立判断：多人复读同一个理由仍只有一条证据。跟票前必须给出自己的观察；好人判断错误也可能客观帮到狼，不能只凭结果反推动机。');
+  }
+  lines.push('', '【本局实际在场角色】', ...roleLines,
+    '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。');
   // 谁参与狼刀：网页接力路径以前完全没有这句，狼系角色的刀权只能靠上面各自的
   // 描述推断，而特殊狼的描述里未必写了刀权，容易被读成"她不参与刀"。
   const _wolfKillLine = buildWolfKillRosterLine(ids);
@@ -6486,7 +6488,7 @@ function buildWebRulesExport(viewerP) {
   if (has('wolfconcubine')) lines.push('· 蚀时狼妃每晚锁一人；当夜首个直接指向该目标的单体查验、守护、毒杀、媚惑或摄梦会反弹给施术者本人。群体领域、自动信息、净化与救援不反弹。');
   if (has('soulwarden')) lines.push('· 净魂师每晚为一人展开圣域，净除或拦截第一层敌对非伤害标记；不能连续两夜选同一人，不挡直接伤害，且不会收到是否成功的反馈。');
   if (has('imitator')) lines.push('· 摹术师每晚可学习一名从未学过的存活玩家：兼容主动技能只保留当夜，整局最多成功三次；能力类型不是目标准确身份铁证。');
-  if (has('magician') || has('witch')) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
+  if (!hardRulesOnly && (has('magician') || has('witch'))) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
   return lines.join('\n');
 }
 
@@ -27584,15 +27586,13 @@ const WebRelay = {
     return false;
   },
 
-  /* ── A/B 开关：教学层（buildWorldBook）发不发 ──
+  /* ── A/B 开关：完整教学版 vs 真正无教学的纯规则版 ──
    * 完整 prompt 里教学层约 4.1k 字符，规则层约 1.3k。开局那一轮，指令能占到
    * 整份 prompt 的 84%、真实牌局内容 0%——模型手上「教它怎么说话」的文本远多于
    * 「告诉它发生了什么」，产出容易变成扣不住这张桌子的通用狼人杀腔调。
-   * 教学层内容本身质量不差，问题是剂量，所以这里不删它，只给一个可关的开关，
-   * 让「带教学层 vs 只留规则层」能在同一牌面上直接对照。
-   * 关掉后仍保留 buildWebRulesExport：胜负流程、证据分级 S/A/B/C、本局在场角色
-   * 及其能力，以及 buildActiveRoleTimingBlock 给出的本局实际夜间行动顺序
-   * （守卫守护 → 狼队刀 → 女巫用药 → 预言家查验 → 统一结算）。
+   * A 档保留完整教学；B 档只保留身份技能、胜负流程、信息权限、合法操作、
+   * 行动顺序、私密记录和战报。证据分级、推理方法、打法建议、发言模板和
+   * 跨局永久学习记忆一律不进入 B 档，才能作为真正的无教学对照组。
    * 选择记在 localStorage，跨轮跨角色保持，方便连着打两局做对照。 */
   teachingOn() {
     try { return localStorage.getItem('wolf_web_teaching') !== 'off'; } catch (e) { return true; }
@@ -27948,7 +27948,7 @@ function buildWebPrompt(p, opts) {
   // ── 永久记忆（跨局长期记忆，如该角色启用了）──
   // 跨局长期记忆在一局之内不会变化，增量模式不重发。
   let memoryBlock = '';
-  if (!isDelta && typeof PermanentMemory !== 'undefined' && PermanentMemory.getMemoryText) {
+  if (!isDelta && !opts.noTeaching && typeof PermanentMemory !== 'undefined' && PermanentMemory.getMemoryText) {
     try {
       const memText = PermanentMemory.getMemoryText(p.name, p.id);
       if (memText) memoryBlock = memText;
@@ -28002,6 +28002,30 @@ function buildWebPrompt(p, opts) {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n系统正在进行投票前的私密技能确认。尚未公开发动任何技能，不得据此推断场上身份，也不需要公开发言。`;
   }
 
+  // B 档是严格的无教学对照组：阶段块只说明“现在允许做什么”和提交格式，
+  // 不规定推理路线、发言长度、证据类型、反驳方式或推荐策略。
+  if (opts.noTeaching) {
+    if (S.phase === 'night') {
+      const minimalNightTask = isPackWolfRole(p.role)
+        ? '现在是狼人密谈阶段。请自行讨论并提交本轮提议；具体内容和打法由你决定。'
+        : '现在是夜间私密操作阶段，不是公开发言。按主持人提供的合法选项提交目标或空过；没有动作则等待天亮。';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n${minimalNightTask}`;
+    } else if (S.phase === 'sheriff') {
+      const candidates = (S._sheriffCandidates||[]).map(c=>c.name).join('、') || '待定';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是警长竞选阶段。当前候选人：${candidates}\n轮到你时，自行决定竞选陈词或表态内容。`;
+    } else if (S.phase === 'day') {
+      const order = S._daySpeakOrder && S._daySpeakOrder.length
+        ? `\n当前有效发言顺序：${S._daySpeakOrder.filter(pl=>pl && pl.alive).map((pl,i)=>`${i+1}.${pl.name}`).join('→')}` : '';
+      const deaths = S._lastNightDeaths && S._lastNightDeaths.length
+        ? `\n昨晚死亡：${S._lastNightDeaths.map(id => S.players[id] ? S.players[id].name : '未知').join('、')}` : '\n昨晚：平安夜';
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deaths}${order}\n轮到你公开发言，内容和判断由你自行决定。`;
+    } else if (S.phase === 'vote') {
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n只向主持人提交“投票：玩家名”，不要追加公开发言。`;
+    } else if (S.phase === 'duel') {
+      phaseBlock = '━━━━ 当前阶段与操作要求 ━━━━\n现在是投票前的私密技能确认，只向主持人提交选择，不公开发言。';
+    }
+  }
+
   // ── 组装最终prompt ──
   // ★ 本局配置 & 规则（之前网页端导出缺失，导致每次要手动告诉外部AI有几狼几神、什么板子）
   //   getRoleList() 给紧凑配置（如 4狼人+预言家+女巫+守卫+猎人+骑士+3平民）
@@ -28012,11 +28036,11 @@ function buildWebPrompt(p, opts) {
   if (!isDelta) {
     try {
       const _roleList = (typeof getRoleList === 'function') ? getRoleList() : '';
-      const _rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(p) : '';
+      const _rulesText = (typeof buildWebRulesExport === 'function') ? buildWebRulesExport(p, {hardRulesOnly:!!opts.noTeaching}) : '';
       _configBlock =
 `━━━━ 📋 本局配置（这是公开信息，所有玩家一开始就知道）━━━━
 本局共 ${S.players.length} 人，身份构成：${_roleList}
-配置用于核对人数和可能技能，不代表任何具体玩家身份；不要为了“用上配置”而强行制造结论。
+${opts.noTeaching ? '配置不代表任何具体玩家身份。以下只提供游戏硬规则，不提供证据分级、推理方法或推荐打法。' : '配置用于核对人数和可能技能，不代表任何具体玩家身份；不要为了“用上配置”而强行制造结论。'}
 
 ${_rulesText}
 `;
@@ -28026,7 +28050,7 @@ ${_rulesText}
   // 网页端 AI 接力与内置 API 使用同一套教学模式，避免玩家选了自定义世界书，
   // 复制出去的角色却仍按另一套官方教学行动。
   // 增量模式跳过：教学层是本局固定不变的长文，逐轮重发会在对话里堆好几份。
-  // opts.noTeaching：A/B 用的「只留规则层」变体，规则层与行动顺序仍然照发。
+  // opts.noTeaching：A/B 用的「纯规则、零教学」变体，硬规则与行动顺序仍然照发。
   let _teachingBlock = '';
   if (!isDelta && !opts.noTeaching) {
     try {
@@ -28074,10 +28098,10 @@ ${secretBlock}
 存活（${S.players.filter(x=>x.alive).length}人）：${aliveList}
 ${deadList ? `已出局：${deadList}` : '目前无人出局'}
 ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${_publicEventReadingNote()}
-${hdeathOn ? '隐死亡模式（全局说明，仅需遵守、不必在回答中复述）：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。自报身份是声明而非系统翻牌，但你必须结合无人对跳、记录吻合、技能兑现、票型和行为形成可行动的工作判断，可用“暂认、偏信、待验、目前不信”表达。只有当上下文把声明误写成系统铁证时才简短纠正一次，不要反复说“死者身份不公开”或“跳了不等于真神”。' : '死者身份公开：系统翻牌结果是真实身份。'}
+${hdeathOn ? (opts.noTeaching ? '隐死亡模式：普通夜间死亡不翻身份，也不公开狼刀、毒药等私密死因；公开技能事件仍按系统公告显示。玩家自报身份只是声明，不是系统翻牌。' : '隐死亡模式（全局说明，仅需遵守、不必在回答中复述）：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。自报身份是声明而非系统翻牌，但你必须结合无人对跳、记录吻合、技能兑现、票型和行为形成可行动的工作判断，可用“暂认、偏信、待验、目前不信”表达。只有当上下文把声明误写成系统铁证时才简短纠正一次，不要反复说“死者身份不公开”或“跳了不等于真神”。') : '死者身份公开：系统翻牌结果是真实身份。'}
 
 ━━━━ 本局战报（事实与玩家观点混合记录）━━━━
-按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。
+${opts.noTeaching ? '以下按时间记录系统事件与玩家发言；系统事件按其公开范围生效，玩家发言只是玩家当时说过的话。' : '按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。'}
 ${battleReport}${endingSpeechBlock}${wolfChatBlock}${memoryBlock}
 
 ${phaseBlock}
@@ -28288,7 +28312,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
       <!-- A/B：教学层发不发（只影响完整战报；增量本来就不带教学层） -->
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <button id="_wpm-teach-on"  style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🧠 带教学层</button>
-        <button id="_wpm-teach-off" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">📐 只留规则层</button>
+        <button id="_wpm-teach-off" style="flex:1;min-width:110px;padding:6px 8px;border-radius:6px;font-size:0.75em;cursor:pointer;font-family:var(--font-body)">🧾 纯规则（无教学）</button>
       </div>
       <div id="_wpm-mode-note" style="font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px"></div>
 
@@ -28351,7 +28375,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
         WebRelay.stamp(p);
         // 记下这一轮实际发出去的是哪种变体，方便事后对着开发日志复盘 A/B
         Render.devLog && Render.devLog('info', `[网页接力] ${p.name} R${S.round} 复制：` +
-          (deltaMode ? '增量续报' : (teachOn ? '完整·A带教学层' : '完整·B只留规则层')) +
+          (deltaMode ? '增量续报' : (teachOn ? '完整·A带教学层' : '完整·B纯规则无教学')) +
           ` ${webPrompt.length} 字符`);
         if (label) {
           copyBtn.textContent = label;
@@ -28403,9 +28427,9 @@ function _openWebPromptModal(p, promptFn, resolve) {
       modeNote.style.cssText = 'font-size:0.7em;line-height:1.55;border-radius:6px;padding:6px 8px;color:#9aa8b8;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08)';
       const variant = teachOn
         ? '完整战报（规则 + 教学层 + 开局至今全部记录）'
-        : '完整战报·<b style="color:#c8b070">只留规则层</b>（规则 + 本局角色能力 + 夜间行动顺序 + 战报，<b>不含</b>教学层）';
+        : '完整战报·<b style="color:#c8b070">纯规则（无教学）</b>（身份技能 + 硬规则 + 夜间行动顺序 + 私密记录 + 战报）';
       modeNote.innerHTML = `${variant} · 约 ${kb}k 字符` +
-        (teachOn ? '' : '<br><span style="color:#8a9a96">证据分级 S/A/B/C 与本局行动顺序在规则层里，仍然会发过去。</span>') +
+        (teachOn ? '' : '<br><span style="color:#8a9a96">不会发送证据分级、推理方法、推荐打法、发言模板或跨局学习记忆；只保留让游戏能够正确运行的规则与事实。</span>') +
         (canDelta ? '' : '<br><span style="color:#8a9a96">复制之后会记下进度，下次可切「🔁 增量续报」，在同一个对话里只发新增。</span>');
       guideEl.innerHTML =
         '<b>操作步骤：</b><br>' +
@@ -28439,7 +28463,7 @@ function _openWebPromptModal(p, promptFn, resolve) {
     renderMode();
     syncClipboard('✅ 已复制！');   // 变体由上方按钮高亮与说明文字表示，标签保持短以免溢出
     Render.devLog && Render.devLog('info',
-      `[网页接力] ${p.name} 切换变体：${on ? 'A·带教学层' : 'B·只留规则层'}（${webPrompt.length} 字符）`);
+      `[网页接力] ${p.name} 切换变体：${on ? 'A·带教学层' : 'B·纯规则无教学'}（${webPrompt.length} 字符）`);
   };
   teachOnBtn.onclick  = () => setTeach(true);
   teachOffBtn.onclick = () => setTeach(false);

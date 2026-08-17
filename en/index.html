@@ -6099,11 +6099,13 @@ function buildRulesExport() {
 
 // 网页端 AI 接力专用：只给当前真正需要的规则，不再复制整本规则百科。
 // 完整规则导出按钮仍使用 buildRulesExport()，便于人工查阅。
-function buildWebRulesExport(viewerP) {
+function buildWebRulesExport(viewerP, options) {
+  options = options || {};
+  const hardRulesOnly = !!options.hardRulesOnly;
   const isEdge = !!(S && S.killEdgeMode);
   const hdeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
   if (window.WolfI18n && WolfI18n.isEnglish()) {
-    return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath});
+    return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath, hardRulesOnly});
   }
   const ids = [...new Set((S.players || []).filter(x => x.role).map(x => x.role.id))];
   const has = id => ids.includes(id);
@@ -6123,21 +6125,21 @@ function buildWebRulesExport(viewerP) {
     '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
     hdeath
       ? '隐死亡：普通夜间死亡不公开身份和具体死因；只有系统明确标注的公开技能事件/公开验证可以当事实。'
-      : '公开死亡：系统翻出的身份是真实身份。',
-    '',
-    '【推理证据等级】',
-    'S：系统公开验证、必然技能结算。可以直接当事实。',
-    'A：自己的私密行动记录；完整报记录且经过充分机会仍无人对跳的单边神职。高度可信，但不是100%验明。',
-    'B：关键票型、持续行为、前后动机、阵营收益和多条真正独立的线索。日常推理以这些为主。',
-    'C：单次口误、记错规则、措辞过满、改口、语气强弱、发言长短。只能留疑，不能单独定狼、放逐或发动致命技能。',
-    '规则冲突：公开摘要可能比角色私密说明简略。玩家声称收到系统反馈时，其他人不能只凭摘要断言“该反馈不可能存在”；没有公开结果或确定私密记录硬冲突时，最多记C级疑点。',
-    '视角漏洞：只有玩家说出了按其身份和当时时点绝不可能知道的具体私密事实，且排除公开信息、技能和系统提示后，才是强证据。把一种可能说得过满，首先要求澄清，不自动等于狼人共享视野。',
-    '独立判断：多人复读同一个理由仍只有一条证据。跟票前必须给出自己的观察；好人判断错误也可能客观帮到狼，不能只凭结果反推动机。',
-    '',
-    '【本局实际在场角色】',
-    ...roleLines,
-    '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。'
+      : '公开死亡：系统翻出的身份是真实身份。'
   ];
+  if (!hardRulesOnly) {
+    lines.push('',
+      '【推理证据等级】',
+      'S：系统公开验证、必然技能结算。可以直接当事实。',
+      'A：自己的私密行动记录；完整报记录且经过充分机会仍无人对跳的单边神职。高度可信，但不是100%验明。',
+      'B：关键票型、持续行为、前后动机、阵营收益和多条真正独立的线索。日常推理以这些为主。',
+      'C：单次口误、记错规则、措辞过满、改口、语气强弱、发言长短。只能留疑，不能单独定狼、放逐或发动致命技能。',
+      '规则冲突：公开摘要可能比角色私密说明简略。玩家声称收到系统反馈时，其他人不能只凭摘要断言“该反馈不可能存在”；没有公开结果或确定私密记录硬冲突时，最多记C级疑点。',
+      '视角漏洞：只有玩家说出了按其身份和当时时点绝不可能知道的具体私密事实，且排除公开信息、技能和系统提示后，才是强证据。把一种可能说得过满，首先要求澄清，不自动等于狼人共享视野。',
+      '独立判断：多人复读同一个理由仍只有一条证据。跟票前必须给出自己的观察；好人判断错误也可能客观帮到狼，不能只凭结果反推动机。');
+  }
+  lines.push('', '【本局实际在场角色】', ...roleLines,
+    '· 只有以上列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。');
   lines.push(buildActiveRoleTimingBlock(S.players || []));
 
   if (viewerP && viewerP.role) {
@@ -6150,7 +6152,7 @@ function buildWebRulesExport(viewerP) {
   if (has('wolfconcubine')) lines.push('· 蚀时狼妃每晚锁一人；当夜首个直接指向该目标的单体查验、守护、毒杀、媚惑或摄梦会反弹给施术者本人。群体领域、自动信息、净化与救援不反弹。');
   if (has('soulwarden')) lines.push('· 净魂师每晚为一人展开圣域，净除或拦截第一层敌对非伤害标记；不能连续两夜选同一人，不挡直接伤害，且不会收到是否成功的反馈。');
   if (has('imitator')) lines.push('· 摹术师每晚可学习一名从未学过的存活玩家：兼容主动技能只保留当夜，整局最多成功三次；能力类型不是目标准确身份铁证。');
-  if (has('magician') || has('witch')) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
+  if (!hardRulesOnly && (has('magician') || has('witch'))) lines.push('· 死因未公开时只能保留多种可能，不能在未确认死因上继续编造“灭口”等动机故事。');
   return lines.join('\n');
 }
 
