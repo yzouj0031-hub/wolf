@@ -24,6 +24,9 @@ for (const file of clients) {
   expect(src.includes('if (S.nightData.witchSave)'), `${file}: duplicate Alchemist rescue is not blocked`);
   expect(src.includes("target:victim.name,result:'hold'"), `${file}: declined Serpent rescue forgets the observed attack target`);
   expect(src.includes('你看见实际狼刀落在\'+victim.name+\'，选择保留法老之蛇'), `${file}: declined Serpent rescue is not stored in private memory`);
+  expect(src.includes('只有选择救人才消耗整局唯一一次救援'), `${file}: Serpent rules do not distinguish preparation from consumption`);
+  expect(src.includes('选择不救、狼队空刀或刀口已获救均不消耗'), `${file}: Serpent non-consumption cases are missing from the rules`);
+  expect(src.includes('准备蛇与发动雾同夜互斥'), `${file}: Serpent and Mist mutual exclusion is missing from the rules`);
   expect(src.includes("gameRecord.filter(r=>r.role==='alchemist_rescue'&&r.target)"), `${file}: Serpent observations cannot be reconstructed after memory compression`);
   const magicianSteps = [...src.matchAll(/nightStep\('magician'/g)].map(match => match.index);
   const wolfKillSteps = [...src.matchAll(/nightStep\('wolf-kill'/g)].map(match => match.index);
