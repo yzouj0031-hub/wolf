@@ -3545,6 +3545,28 @@ body.has-wp::after {
       <div style="font-size:.62em;color:#6a8068;margin-top:2px">💡 发起者选「👤 我」时由你手打开场白；也可以先让AI说，之后用下方「我来插话」随时加入</div>
     </div>
 
+    <details id="pg-feedback" style="margin:0 0 10px;border:1px solid rgba(200,168,96,.28);border-radius:8px;background:rgba(200,168,96,.055);padding:8px 10px">
+      <summary style="cursor:pointer;color:#d8bd78;font-family:var(--font-title);font-size:.82em">本局评价与改进建议</summary>
+      <div style="margin-top:9px">
+        <div style="font-size:.7em;color:#9a907c;margin-bottom:5px">整体体验（必选）</div>
+        <div id="pg-feedback-rating" style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px">
+          <button type="button" data-rating="1" aria-label="1分">1</button><button type="button" data-rating="2" aria-label="2分">2</button><button type="button" data-rating="3" aria-label="3分">3</button><button type="button" data-rating="4" aria-label="4分">4</button><button type="button" data-rating="5" aria-label="5分">5</button>
+        </div>
+        <div style="font-size:.7em;color:#9a907c;margin:9px 0 5px">这局主要有什么问题？（可多选）</div>
+        <div id="pg-feedback-tags" style="display:flex;flex-wrap:wrap;gap:5px;font-size:.72em">
+          <label><input type="checkbox" value="ai_reasoning"> AI推理</label><label><input type="checkbox" value="rules"> 规则/结算</label><label><input type="checkbox" value="ui"> 界面体验</label><label><input type="checkbox" value="performance"> 卡顿/兼容</label><label><input type="checkbox" value="art"> 立绘/演出</label><label><input type="checkbox" value="other"> 其他</label>
+        </div>
+        <textarea id="pg-feedback-text" maxlength="2000" placeholder="哪里不好、发生在什么阶段、你希望怎么改……" style="width:100%;height:86px;margin-top:8px;background:rgba(0,0,0,.28);border:1px solid rgba(200,168,96,.22);color:#ddd4c4;border-radius:6px;padding:8px;font-size:.8em;line-height:1.5;resize:vertical"></textarea>
+        <input id="pg-feedback-contact" maxlength="120" placeholder="联系方式（可选，例如 GitHub 用户名）" style="width:100%;margin-top:6px;background:rgba(0,0,0,.28);border:1px solid rgba(200,168,96,.22);color:#ddd4c4;border-radius:6px;padding:7px 8px;font-size:.76em">
+        <div style="font-size:.62em;color:#746d62;line-height:1.45;margin:6px 0">会附带游戏版本、设备类型、本局角色配置、轮数和胜负，方便定位问题；不会上传 API 密钥、提示词、聊天正文或私密行动记录。</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button type="button" id="pg-feedback-submit" style="flex:1;border-color:#b99a55;color:#e0c780">提交评价</button>
+          <button type="button" id="pg-feedback-copy" style="width:auto;color:#9aa0ad">复制备用</button>
+        </div>
+        <div id="pg-feedback-status" role="status" style="font-size:.68em;color:#8f897d;margin-top:6px;min-height:1.3em"></div>
+      </div>
+    </details>
+
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="pg-replay" style="flex:2;padding:8px;background:rgba(112,96,176,.18);border:1px solid #7060b0;color:#b8a8e8;border-radius:var(--r);font-size:.82em;cursor:pointer">🎬 对局回放</button>
       <button id="pg-start" style="flex:2;padding:8px;background:rgba(80,160,80,.2);border:1px solid #50a060;color:#80d090;border-radius:var(--r);font-size:.82em;cursor:pointer">💬 开始互动</button>
@@ -8095,6 +8117,138 @@ const CloudSave = (() => {
 })();
 window.CloudSave = CloudSave;
 CloudSave.init();
+
+/* ================================================================
+ *  局后评价：只上传最小化诊断信息，不上传对局正文或任何 API 配置。
+ *  Supabase 暂不可用时进入本机待发送队列；不能把“已缓存”显示成“已提交”。
+ * ================================================================ */
+const MatchFeedback = (() => {
+  const QUEUE_KEY = 'wolf_match_feedback_queue_v1';
+  const TAGS = new Set(['ai_reasoning','rules','ui','performance','art','other']);
+  let rating = 0;
+
+  const node = id => document.getElementById(id);
+  const setStatus = (text, tone) => {
+    const el = node('pg-feedback-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = tone === 'ok' ? '#80c896' : tone === 'bad' ? '#e08a8a' : '#a99b7d';
+  };
+  function readQueue() {
+    try { const value = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); return Array.isArray(value) ? value : []; }
+    catch (_) { return []; }
+  }
+  function writeQueue(queue) {
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-20))); return true; }
+    catch (_) { return false; }
+  }
+  function coarseDevice() {
+    const ua = String(navigator.userAgent || '');
+    if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? 'android-phone' : 'android-tablet';
+    if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return 'ipad';
+    if (/iPhone/i.test(ua)) return 'iphone';
+    if (/Windows/i.test(ua)) return 'windows';
+    if (/Macintosh/i.test(ua)) return 'mac';
+    return 'other';
+  }
+  function matchMeta() {
+    const players = Array.isArray(S?.players) ? S.players : [];
+    return {
+      match_id: String(S?._matchUid || S?.gameId || ''),
+      rounds: Number(S?.round || 0),
+      winner: String(S?._winType || ''),
+      player_count: players.length,
+      roles: players.map(p => p?.role?.id).filter(Boolean),
+      device: coarseDevice(),
+      language: String(document.documentElement.lang || navigator.language || '').slice(0,16),
+      viewport: `${Math.round(innerWidth || 0)}x${Math.round(innerHeight || 0)}`,
+      app_mode: /Capacitor/i.test(String(navigator.userAgent || '')) || location.hostname === 'localhost' ? 'app' : 'web'
+    };
+  }
+  function selectedTags() {
+    return [...document.querySelectorAll('#pg-feedback-tags input:checked')]
+      .map(el => el.value).filter(value => TAGS.has(value));
+  }
+  function makePayload() {
+    return {
+      rating,
+      categories:selectedTags(),
+      comment:String(node('pg-feedback-text')?.value || '').trim().slice(0,2000),
+      contact:String(node('pg-feedback-contact')?.value || '').trim().slice(0,120),
+      match_meta:matchMeta(),
+      client_created_at:new Date().toISOString()
+    };
+  }
+  function validate(payload) {
+    if (!Number.isInteger(payload.rating) || payload.rating < 1 || payload.rating > 5) return '请先选择 1 至 5 分。';
+    if (!payload.comment && !payload.categories.length) return '请至少勾选一个问题类型，或写下一条意见。';
+    return '';
+  }
+  async function send(payload) {
+    const client = window.CloudSave?.getClient?.();
+    if (!client || !window.CloudSave?.isAllowed?.()) throw new Error('feedback_service_unavailable');
+    const {error} = await client.from('match_feedback').insert(payload);
+    if (error) throw error;
+  }
+  async function flushQueue(silent = true) {
+    const queue = readQueue();
+    if (!queue.length) return 0;
+    let sent = 0;
+    while (queue.length) {
+      try { await send(queue[0]); queue.shift(); sent++; writeQueue(queue); }
+      catch (_) { break; }
+    }
+    if (!silent && sent) setStatus(`已补交 ${sent} 条本机评价。`, 'ok');
+    return sent;
+  }
+  async function submit() {
+    const payload = makePayload();
+    const problem = validate(payload);
+    if (problem) { setStatus(problem, 'bad'); return; }
+    const button = node('pg-feedback-submit');
+    if (button) button.disabled = true;
+    setStatus('正在提交…');
+    try {
+      await flushQueue(true);
+      await send(payload);
+      setStatus('评价已上传，感谢你帮助改进游戏。', 'ok');
+      if (button) button.textContent = '已提交';
+    } catch (error) {
+      const queued = writeQueue([...readQueue(), payload]);
+      setStatus(queued ? '当前无法连接反馈服务，评价已保存在本机但尚未上传；下次打开终局评价会自动重试。' : '提交失败，本机也无法保存。请使用“复制备用”。', 'bad');
+      console.warn('[局后评价] 上传失败', error);
+    } finally { if (button) button.disabled = false; }
+  }
+  async function copyBackup() {
+    const payload = makePayload();
+    const text = '【AI狼人杀·局后评价】\n' + JSON.stringify(payload, null, 2);
+    try { await navigator.clipboard.writeText(text); setStatus('评价内容已复制。', 'ok'); }
+    catch (_) { setStatus('浏览器禁止复制，请手动复制意见文本。', 'bad'); }
+  }
+  function chooseRating(value) {
+    rating = Number(value) || 0;
+    document.querySelectorAll('#pg-feedback-rating button').forEach(button => {
+      const active = Number(button.dataset.rating) === rating;
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      button.style.background = active ? 'rgba(200,168,96,.28)' : '';
+      button.style.borderColor = active ? '#c8a860' : '';
+      button.style.color = active ? '#f0d88c' : '';
+    });
+  }
+  function open() {
+    const queued = readQueue().length;
+    setStatus(queued ? `本机有 ${queued} 条评价等待上传，正在重试…` : '');
+    flushQueue(false);
+  }
+  function init() {
+    document.querySelectorAll('#pg-feedback-rating button').forEach(button => button.addEventListener('click', () => chooseRating(button.dataset.rating)));
+    node('pg-feedback-submit')?.addEventListener('click', submit);
+    node('pg-feedback-copy')?.addEventListener('click', copyBackup);
+  }
+  return {init,open,flushQueue};
+})();
+window.MatchFeedback = MatchFeedback;
+MatchFeedback.init();
 
 // ⚡ 精简特效开关：给 body 挂/摘 fx-lite 类（CSS 据此关掉毛玻璃+常驻动画）。只动视觉，不碰逻辑。
 function applyLiteFx() {
@@ -20166,6 +20320,7 @@ function toggleBlindReviewMode() {
 
 function openPostGame() {
   updateBlindReviewUI();
+  window.MatchFeedback?.open?.();
   const blind = blindReviewOn();
   const spk = $('pg-speaker');
   const tgt = $('pg-target');
