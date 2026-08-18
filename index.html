@@ -2545,6 +2545,8 @@ body.has-wp::after {
     <div><strong>云端档案</strong><div id="cloud-status">未登录 · 当前仅保存到本机</div></div>
     <div class="cloud-actions">
       <button class="cloud-btn" id="cloud-account-open">登录 / 注册</button>
+      <button class="cloud-btn" id="feedback-my-open">我的反馈</button>
+      <button class="cloud-btn" id="feedback-admin-open" style="display:none">反馈收件箱</button>
       <button class="cloud-btn" id="cloud-save-now" style="display:none">上传</button>
       <button class="cloud-btn" id="cloud-load" style="display:none">恢复</button>
       <button class="cloud-btn" id="cloud-cfg-up" style="display:none" title="把 API 配置(含所有 key/模型/各玩家设置)上传到你的云端账号">上传配置</button>
@@ -2626,6 +2628,22 @@ body.has-wp::after {
       <button class="cloud-btn danger" id="cloud-close" style="padding:9px">关闭</button>
     </div>
     <div class="cloud-note">注册后可能需要在邮箱中点击确认链接。密码只发送给 Supabase，不会写入游戏存档或 GitHub。</div>
+  </div>
+</div>
+
+<!-- ══════ 手机端反馈记录 / 开发者收件箱 ══════ -->
+<div class="overlay" id="o-feedback-inbox">
+  <div class="pbox" style="max-width:620px;border-color:rgba(200,168,96,.5)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <h3 id="feedback-inbox-title" style="color:#d8bd78;margin:0">我的反馈</h3>
+      <button id="feedback-inbox-close" style="width:auto;padding:5px 12px;color:#9a9184">关闭</button>
+    </div>
+    <div id="feedback-inbox-tools" style="display:none;gap:6px;margin:10px 0">
+      <select id="feedback-inbox-filter" style="flex:1"><option value="all">全部状态</option><option value="new">未处理</option><option value="reviewing">处理中</option><option value="resolved">已解决</option></select>
+      <button id="feedback-inbox-refresh" style="width:auto">刷新</button>
+    </div>
+    <div id="feedback-inbox-status" role="status" style="font-size:.72em;color:#8f897d;margin:9px 0"></div>
+    <div id="feedback-inbox-list" style="max-height:min(68vh,620px);overflow:auto;display:flex;flex-direction:column;gap:8px"></div>
   </div>
 </div>
 
@@ -7766,6 +7784,7 @@ const CloudSave = (() => {
       if (el(id)) el(id).style.display = loggedIn ? '' : 'none';
     });
     setStatus(loggedIn ? `已登录：${user.email || '用户'} · 自动同步已开启` : '未登录 · 当前仅保存到本机');
+    window.MatchFeedback?.authChanged?.(user || null);
   }
 
   async function upload(raw = pendingRaw, reason = '同步') {
@@ -8124,8 +8143,11 @@ CloudSave.init();
  * ================================================================ */
 const MatchFeedback = (() => {
   const QUEUE_KEY = 'wolf_match_feedback_queue_v1';
+  const HISTORY_KEY = 'wolf_match_feedback_history_v1';
   const TAGS = new Set(['ai_reasoning','rules','ui','performance','art','other']);
   let rating = 0;
+  let isAdmin = false;
+  let adminRows = [];
 
   const node = id => document.getElementById(id);
   const setStatus = (text, tone) => {
@@ -8141,6 +8163,22 @@ const MatchFeedback = (() => {
   function writeQueue(queue) {
     try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-20))); return true; }
     catch (_) { return false; }
+  }
+  function readHistory() {
+    try { const value = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); return Array.isArray(value) ? value : []; }
+    catch (_) { return []; }
+  }
+  function writeHistory(rows) {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(-50))); return true; }
+    catch (_) { return false; }
+  }
+  function remember(payload, uploadState) {
+    const id = payload?.match_meta?.submission_id || payload.client_created_at;
+    const rows = readHistory();
+    const row = {id,payload,uploadState,updatedAt:new Date().toISOString()};
+    const index = rows.findIndex(item => item.id === id);
+    if (index >= 0) rows[index] = row; else rows.push(row);
+    writeHistory(rows);
   }
   function coarseDevice() {
     const ua = String(navigator.userAgent || '');
@@ -8170,12 +8208,14 @@ const MatchFeedback = (() => {
       .map(el => el.value).filter(value => TAGS.has(value));
   }
   function makePayload() {
+    const meta = matchMeta();
+    meta.submission_id = globalThis.crypto?.randomUUID?.() || ('fb_'+Date.now()+'_'+Math.random().toString(36).slice(2));
     return {
       rating,
       categories:selectedTags(),
       comment:String(node('pg-feedback-text')?.value || '').trim().slice(0,2000),
       contact:String(node('pg-feedback-contact')?.value || '').trim().slice(0,120),
-      match_meta:matchMeta(),
+      match_meta:meta,
       client_created_at:new Date().toISOString()
     };
   }
@@ -8195,7 +8235,7 @@ const MatchFeedback = (() => {
     if (!queue.length) return 0;
     let sent = 0;
     while (queue.length) {
-      try { await send(queue[0]); queue.shift(); sent++; writeQueue(queue); }
+      try { const payload = queue[0]; await send(payload); remember(payload,'uploaded'); queue.shift(); sent++; writeQueue(queue); }
       catch (_) { break; }
     }
     if (!silent && sent) setStatus(`已补交 ${sent} 条本机评价。`, 'ok');
@@ -8211,10 +8251,12 @@ const MatchFeedback = (() => {
     try {
       await flushQueue(true);
       await send(payload);
+      remember(payload,'uploaded');
       setStatus('评价已上传，感谢你帮助改进游戏。', 'ok');
       if (button) button.textContent = '已提交';
     } catch (error) {
       const queued = writeQueue([...readQueue(), payload]);
+      if (queued) remember(payload,'pending');
       setStatus(queued ? '当前无法连接反馈服务，评价已保存在本机但尚未上传；下次打开终局评价会自动重试。' : '提交失败，本机也无法保存。请使用“复制备用”。', 'bad');
       console.warn('[局后评价] 上传失败', error);
     } finally { if (button) button.disabled = false; }
@@ -8235,6 +8277,86 @@ const MatchFeedback = (() => {
       button.style.color = active ? '#f0d88c' : '';
     });
   }
+  const TAG_LABEL = {ai_reasoning:'AI推理',rules:'规则/结算',ui:'界面体验',performance:'卡顿/兼容',art:'立绘/演出',other:'其他'};
+  const STATUS_LABEL = {new:'未处理',reviewing:'处理中',resolved:'已解决'};
+  function inboxStatus(text, tone) {
+    const el = node('feedback-inbox-status'); if (!el) return;
+    el.textContent = text || '';
+    el.style.color = tone === 'bad' ? '#df8d8d' : tone === 'ok' ? '#80c896' : '#8f897d';
+  }
+  function feedbackCard(title, bodyLines, extraNode) {
+    const card = document.createElement('article');
+    card.style.cssText = 'border:1px solid rgba(200,168,96,.2);border-radius:7px;padding:9px 10px;background:rgba(0,0,0,.2)';
+    const head = document.createElement('div'); head.textContent = title;
+    head.style.cssText = 'color:#d8bd78;font-size:.78em;font-weight:700;margin-bottom:5px'; card.appendChild(head);
+    bodyLines.filter(Boolean).forEach(text => { const line=document.createElement('div'); line.textContent=text; line.style.cssText='font-size:.7em;color:#aaa198;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere'; card.appendChild(line); });
+    if (extraNode) card.appendChild(extraNode);
+    return card;
+  }
+  function renderMine() {
+    const list=node('feedback-inbox-list'); if (!list) return; list.innerHTML='';
+    const rows=readHistory().slice().reverse();
+    if (!rows.length) { inboxStatus('这台设备还没有提交过评价。'); return; }
+    inboxStatus(`本机保存了 ${rows.length} 条评价。云端上传状态也会保留在这里。`);
+    rows.forEach(item => {
+      const p=item.payload||{}, meta=p.match_meta||{};
+      const state=item.uploadState==='uploaded'?'已上传':'等待上传';
+      list.appendChild(feedbackCard(`${p.rating||'-'} 分 · ${state}`, [
+        (p.categories||[]).map(x=>TAG_LABEL[x]||x).join('、'), p.comment||'（未填写文字意见）',
+        `第${meta.rounds||0}轮 · ${meta.player_count||0}人 · ${meta.winner||'未知结果'} · ${new Date(p.client_created_at||item.updatedAt).toLocaleString()}`
+      ]));
+    });
+  }
+  function adminStatusSelect(row) {
+    const wrap=document.createElement('div'); wrap.style.cssText='display:flex;align-items:center;gap:6px;margin-top:7px';
+    const label=document.createElement('span'); label.textContent='处理状态'; label.style.cssText='font-size:.68em;color:#8f897d';
+    const select=document.createElement('select'); select.style.cssText='flex:1;font-size:.72em';
+    ['new','reviewing','resolved'].forEach(value=>{const option=document.createElement('option');option.value=value;option.textContent=STATUS_LABEL[value];option.selected=(row.status||'new')===value;select.appendChild(option);});
+    select.addEventListener('change', async()=>{
+      select.disabled=true; inboxStatus('正在更新状态…');
+      const client=window.CloudSave?.getClient?.();
+      const {error}=await client.from('match_feedback').update({status:select.value,reviewed_at:select.value==='new'?null:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',row.id);
+      select.disabled=false;
+      if(error){inboxStatus('状态更新失败：'+error.message,'bad');return;}
+      row.status=select.value; inboxStatus('处理状态已更新。','ok');
+    });
+    wrap.append(label,select); return wrap;
+  }
+  function renderAdmin() {
+    const list=node('feedback-inbox-list'); if (!list) return; list.innerHTML='';
+    const filter=node('feedback-inbox-filter')?.value||'all';
+    const rows=adminRows.filter(row=>filter==='all'||(row.status||'new')===filter);
+    if(!rows.length){inboxStatus(adminRows.length?'当前筛选条件下没有反馈。':'还没有收到玩家反馈。');return;}
+    inboxStatus(`显示 ${rows.length} / ${adminRows.length} 条反馈。`);
+    rows.forEach(row=>{const meta=row.match_meta||{};list.appendChild(feedbackCard(`${row.rating} 分 · ${STATUS_LABEL[row.status||'new']||row.status}`,[
+      (row.categories||[]).map(x=>TAG_LABEL[x]||x).join('、'), row.comment||'（未填写文字意见）',
+      row.contact?`联系方式：${row.contact}`:'', `板子：${(meta.roles||[]).join('、')||'未知'}；第${meta.rounds||0}轮；${meta.player_count||0}人；胜方 ${meta.winner||'未知'}`,
+      `设备：${meta.device||'未知'} · ${meta.viewport||''} · ${new Date(row.created_at).toLocaleString()}`
+    ],adminStatusSelect(row)));});
+  }
+  async function loadAdmin() {
+    if(!isAdmin)return;
+    inboxStatus('正在读取云端反馈…');
+    const client=window.CloudSave?.getClient?.();
+    const {data,error}=await client.from('match_feedback').select('id,rating,categories,comment,contact,match_meta,status,reviewed_at,created_at').order('created_at',{ascending:false}).limit(100);
+    if(error){inboxStatus('读取失败：'+error.message,'bad');return;}
+    adminRows=Array.isArray(data)?data:[];renderAdmin();
+  }
+  function openInbox(mode) {
+    const adminMode=mode==='admin'&&isAdmin;
+    node('feedback-inbox-title').textContent=adminMode?'开发者反馈收件箱':'我的反馈';
+    node('feedback-inbox-tools').style.display=adminMode?'flex':'none';
+    node('o-feedback-inbox').classList.add('show');
+    if(adminMode)loadAdmin();else renderMine();
+  }
+  async function authChanged(user) {
+    isAdmin=false; const button=node('feedback-admin-open'); if(button)button.style.display='none';
+    if(!user)return;
+    const client=window.CloudSave?.getClient?.(); if(!client)return;
+    const {data,error}=await client.rpc('is_feedback_admin');
+    isAdmin=!error&&data===true;
+    if(button)button.style.display=isAdmin?'':'none';
+  }
   function open() {
     const queued = readQueue().length;
     setStatus(queued ? `本机有 ${queued} 条评价等待上传，正在重试…` : '');
@@ -8244,8 +8366,14 @@ const MatchFeedback = (() => {
     document.querySelectorAll('#pg-feedback-rating button').forEach(button => button.addEventListener('click', () => chooseRating(button.dataset.rating)));
     node('pg-feedback-submit')?.addEventListener('click', submit);
     node('pg-feedback-copy')?.addEventListener('click', copyBackup);
+    node('feedback-my-open')?.addEventListener('click',()=>openInbox('mine'));
+    node('feedback-admin-open')?.addEventListener('click',()=>openInbox('admin'));
+    node('feedback-inbox-close')?.addEventListener('click',()=>node('o-feedback-inbox')?.classList.remove('show'));
+    node('feedback-inbox-refresh')?.addEventListener('click',loadAdmin);
+    node('feedback-inbox-filter')?.addEventListener('change',renderAdmin);
+    authChanged(window.CloudSave?.getUser?.() || null);
   }
-  return {init,open,flushQueue};
+  return {init,open,flushQueue,authChanged,openInbox};
 })();
 window.MatchFeedback = MatchFeedback;
 MatchFeedback.init();
