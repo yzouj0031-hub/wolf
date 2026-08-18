@@ -20144,6 +20144,128 @@ function didPlayerWin(p, winType) {
   return false;
 }
 
+/* ================================================================
+ *  § 局末行为指标（被动统计，不改任何游戏逻辑）
+ *
+ *  目的：让作者不必专门跑测试局——随便打完哪一局，自动吐一组数，用来判断
+ *  提示词改动到底有没有让 AI 的推理变好。一局 1~2 小时，靠人眼盯发言不现实，
+ *  所以把"推理质量"落成几个可累计的数字。
+ *
+ *  两类指标，严格区分可信度：
+ *   【精确】完全从 gameRecord + 真实身份表算出，无歧义
+ *     · 好人票命中率：白天放逐票里，好人投给真狼的票数占比 —— 推理质量的硬指标，
+ *       "画靶子射箭"最终会体现为把票投错人
+ *     · 好人改票率：同一投票人跨轮改变放逐目标的比例 —— 会不会随信息更新判断
+ *   【估算】靠文本关键词，仅供看趋势，会有噪音，已如实标注
+ *     · 空标签率：发言含"悍跳/冲锋/跟风/铁狼"等定性词、却没有任何具体锚点
+ *       （第N夜/某人某句话/票型）的比例 —— 对应"含金量"
+ *     · 诈跳次数：好人报了一个非自身身份 —— 挡刀/牺牲教学有没有真的被用起来
+ *       （长期为 0 = 那套教学是死条文）
+ *
+ *  结果打到 console + devLog，并按局累计进 localStorage('wg_metrics')，
+ *  每局附带最近若干局的均值，方便"改动前 vs 改动后"对照。
+ * ================================================================ */
+function computeGameMetrics() {
+  const recs = (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord : [];
+  const nameToPlayer = {};
+  (S.players || []).forEach(p => { if (p && p.name) nameToPlayer[p.name] = p; });
+  const cleanVoter = s => String(s || '').replace(/\s*[（(].*$/, '').trim(); // 去掉"(警长票×1.5)"等后缀
+  const teamOf = name => { const p = nameToPlayer[cleanVoter(name)]; return p && p.role ? p.role.team : null; };
+
+  // ── 【精确】好人票命中率 ──
+  let goodVotes = 0, goodVotesOnWolf = 0;
+  // ── 【精确】好人改票率：先把 目标→投票人 转成 投票人→[各轮目标] ──
+  const voterTimeline = {}; // voterName -> [{round, target}]
+  recs.filter(r => r.type === 'vote' && r.subtype === 'day' && r.votes).forEach(r => {
+    Object.entries(r.votes).forEach(([target, voters]) => {
+      (voters || []).forEach(vRaw => {
+        const v = cleanVoter(vRaw);
+        if (teamOf(v) === 'good') {
+          goodVotes++;
+          if (teamOf(target) === 'bad') goodVotesOnWolf++;
+        }
+        (voterTimeline[v] = voterTimeline[v] || []).push({ round: r.round || 0, target });
+      });
+    });
+  });
+  let switchPairs = 0, switches = 0;
+  Object.values(voterTimeline).forEach(seq => {
+    seq.sort((a, b) => a.round - b.round);
+    for (let i = 1; i < seq.length; i++) {
+      if (seq[i].round === seq[i - 1].round) continue; // 同轮多目标不算改票
+      switchPairs++;
+      if (seq[i].target !== seq[i - 1].target) switches++;
+    }
+  });
+
+  // ── 【估算】空标签率 & 诈跳 ──
+  const LABEL_WORDS = ['悍跳', '冲锋', '跟风', '潜水', '铁狼', '就是狼', '一定是狼', '必是狼', '实锤'];
+  const ANCHOR = /第[一二三四五六七八九十0-9]|票|投了|投给|上一轮|昨天|昨晚|这一句|他说|你说过/;
+  const ROLE_CLAIM = [['预言家','seer'],['女巫','witch'],['守卫','guard'],['猎人','hunter'],
+                      ['骑士','knight'],['狼美人','wolfbeauty']];
+  let labeledSpeech = 0, emptyLabelSpeech = 0;
+  const decoyPlayers = new Set();
+  recs.filter(r => r.type === 'speech' && !r.wolfChat && r.game).forEach(r => {
+    const txt = String(r.game);
+    if (LABEL_WORDS.some(w => txt.includes(w))) {
+      labeledSpeech++;
+      if (!ANCHOR.test(txt)) emptyLabelSpeech++;
+    }
+    // 诈跳：好人报了一个非自身身份
+    const speaker = nameToPlayer[r.name];
+    if (speaker && speaker.role && speaker.role.team === 'good') {
+      ROLE_CLAIM.forEach(([word, rid]) => {
+        if ((txt.includes('我是' + word) || txt.includes('我跳' + word) || txt.includes('我，' + word)) && speaker.role.id !== rid) {
+          decoyPlayers.add(r.name);
+        }
+      });
+    }
+  });
+
+  const pct = (a, b) => b > 0 ? Math.round((a / b) * 100) : null;
+  return {
+    好人票命中率: pct(goodVotesOnWolf, goodVotes),
+    _好人票: `${goodVotesOnWolf}/${goodVotes}`,
+    好人改票率: pct(switches, switchPairs),
+    _改票: `${switches}/${switchPairs}`,
+    空标签率估算: pct(emptyLabelSpeech, labeledSpeech),
+    _空标签: `${emptyLabelSpeech}/${labeledSpeech}`,
+    诈跳好人数估算: decoyPlayers.size,
+  };
+}
+
+function logGameMetrics(winType) {
+  try {
+    const m = computeGameMetrics();
+    const na = v => v == null ? '—' : v + '%';
+    const lines = [
+      '📊 本局行为指标（诊断用，不影响游戏）',
+      `  【精确】好人票命中率 ${na(m.好人票命中率)}  (${m._好人票} 张好人票投给了真狼)`,
+      `  【精确】好人改票率   ${na(m.好人改票率)}  (${m._改票} 次跨轮改了放逐目标)`,
+      `  【估算】空标签率     ${na(m.空标签率估算)}  (${m._空标签} 段定性指控没有具体锚点)`,
+      `  【估算】诈跳好人数   ${m.诈跳好人数估算} 人报过非自身身份（挡刀/牺牲是否被用）`,
+    ];
+    // 累计存储 + 近局均值
+    let store = [];
+    try { store = JSON.parse(localStorage.getItem('wg_metrics') || '[]'); } catch (e) { store = []; }
+    store.push({ t: Date.now(), win: winType, ...m });
+    if (store.length > 100) store = store.slice(-100);
+    try { localStorage.setItem('wg_metrics', JSON.stringify(store)); } catch (e) {}
+    const recent = store.slice(-10);
+    const avg = key => {
+      const vals = recent.map(r => r[key]).filter(v => typeof v === 'number');
+      return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+    };
+    lines.push(`  近${recent.length}局均值：好人票命中 ${na(avg('好人票命中率'))} · 空标签 ${na(avg('空标签率估算'))}`);
+    const text = lines.join('\n');
+    console.log('%c' + text, 'color:#6cc;font-family:monospace');
+    if (typeof Render !== 'undefined' && Render.devLog) lines.forEach(l => Render.devLog('info', l));
+    if (typeof Render !== 'undefined' && Render.log) Render.log('system', '📊 本局行为指标已输出到控制台（好人票命中率 ' + na(m.好人票命中率) + '，空标签率 ' + na(m.空标签率估算) + '）');
+  } catch (e) {
+    console.error('[行为指标] 计算失败（不影响游戏）:', e);
+  }
+}
+
 function recordLeaderboard(winType) {
   try {
     const lb = JSON.parse(localStorage.getItem('wg_leaderboard') || '{}');
@@ -20165,6 +20287,8 @@ function recordLeaderboard(winType) {
     localStorage.setItem('wg_leaderboard', JSON.stringify(lb));
     Render.log('system', `🏆 排行榜已更新（累计${lb._totalGames}局）`);
   } catch(e) { console.error('排行榜保存失败', e); }
+  // 局末行为指标：独立 try，绝不影响排行榜与结算流程
+  logGameMetrics(winType);
 }
 
 function showLeaderboard() {
