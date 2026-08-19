@@ -50,4 +50,10 @@ for (const marker of [
   "{webActor:sheriffP}"
 ]) assert.ok(html.includes(marker), `web relay vote flow lacks marker: ${marker}`);
 
+assert.ok(html.includes('const requireGame = opts.requireGame === true || (!isSkillConfirm && opts.requireGame !== false);'), 'skill confirmations do not default to pure-operation mode');
+assert.ok(html.includes('if (requireGame && !game && thinking && thinking.length >= 80)'), 'thinking rescue still runs during pure operations');
+assert.match(html, /【投票】投谁出局[\s\S]*?requireGame:false/, 'day vote still requires or rescues public speech');
+assert.match(html, /【选警长投票】[\s\S]*?requireGame:false/, 'sheriff vote still requires or rescues public speech');
+assert.match(html, /【PK投票 - 关键决战】[\s\S]*?requireGame:false/, 'runoff vote still requires or rescues public speech');
+
 console.log('web relay choices: incremental history, voting, sheriff decisions and private skill operations passed');
