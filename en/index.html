@@ -9223,6 +9223,10 @@ ${userPersona}
       _pushTimeline(_timelinePhase({...r, round:r.deathRound || r.round, phase:r.deathPhase || r.atPhase}), '已发生·系统事实', _formatPublicSheriffTransfer(r));
       continue;
     }
+    if (r.type === 'sheriff_roster') {
+      _pushTimeline(`第${r.round || 1}天·警长竞选`, '已发生·系统事实', r.text || '警长候选名单已更新');
+      continue;
+    }
     if (r.type === 'vote') { _pushTimeline(_timelinePhase(r), '已发生·系统事实', _formatPublicVoteEvent(r)); continue; }
     if (r.type === 'duel') { _pushTimeline(`第${r.round}天·白天`, '已发生·系统事实', _formatPublicDuelEvent(r)); continue; }
     if (r.type === 'shoot') { _pushTimeline(_timelinePhase(r), '已发生·系统事实', _formatPublicShootEvent(r)); continue; }
@@ -17553,7 +17557,11 @@ const PhaseHandlers = {
       Render.log('sheriff','😅 无人参选，随机指定 ' + rp.name);
     }
     Render.log('sheriff','🎤 竞选者：' + candidates.map(p => p.name).join('、'));
-    gameRecord.push({type:'system', text:'警长候选人：' + candidates.map(p=>p.name).join('、')});
+    gameRecord.push({
+      type:'sheriff_roster', stage:'signup', round:S.round,
+      candidates:candidates.map(p=>p.name),
+      text:'警长报名：' + candidates.map(p=>p.name).join('、')
+    });
     S._sheriffCandidates = candidates;
     // ★ 把"谁参选/谁没参选"作为系统事实写进所有存活AI的记忆，
     //   否则 AI 会把"没上警的人这阶段没发言"误读成"故意沉默/装死"而无端怀疑。
@@ -17591,11 +17599,12 @@ const PhaseHandlers = {
       }
       Render.log('sheriff','🔄 候选人可以选择退选');
       const remaining = [];
+      const withdrawn = [];
       for (const p of candidates) {
         if (p.isPlayer) {
           const choice = await waitChoice('你是：' + p.name + '【' + p.role.name + '】\n听完演讲，要退选吗？', '👑 退选', [{label:'✋ 继续竞选',value:'stay'},{label:'👋 退选',value:'quit'}]);
           if (choice === 'stay') remaining.push(p);
-          else { Render.log('sheriff', '👋 ' + p.name + ' 退出竞选'); gameRecord.push({type:'system', text:p.name+' 退出警长竞选'}); }
+          else { withdrawn.push(p); Render.log('sheriff', '👋 ' + p.name + ' 退出竞选'); gameRecord.push({type:'system', round:S.round, phase:'sheriff', text:p.name+' 退出警长竞选'}); }
         } else {
           const candList = candidates.filter(c => c.id !== p.id).map(c => c.name).join('、');
           const r = await callAI(p, '【退选决定】其他候选人有：'+candList+'。听完所有演讲后，你要继续竞选还是退出？退出可以避免成为焦点，把机会让给别人。\n<thinking>思考</thinking>\n<game>（此阶段无需公开发言）</game>\n<action>只写STAY或QUIT，STAY=继续竞选，QUIT=退出</action>', {noMemory:true, skillConfirm:true});
@@ -17604,7 +17613,8 @@ const PhaseHandlers = {
           if (decision.status === 'execute' && decision.value === 'QUIT') {
             // AI 选择退选：打印日志、加入 gameRecord，不进入 remaining
             Render.log('sheriff', '👋 ' + p.name + ' 退出竞选');
-            gameRecord.push({type:'system', text:p.name+' 退出警长竞选'});
+            withdrawn.push(p);
+            gameRecord.push({type:'system', round:S.round, phase:'sheriff', text:p.name+' 退出警长竞选'});
           } else {
             // 技术失败时保留候选资格，但明确记录，不冒充AI主动选择STAY。
             if (decision.status === 'invalid') recordTechnicalActionFailure(p, '警长竞选退选', '两次格式纠正后仍无法判断STAY或QUIT；为避免误退选，暂时保留候选资格');
@@ -17613,7 +17623,24 @@ const PhaseHandlers = {
         }
       }
       if (remaining.length > 0) candidates = remaining;
+      gameRecord.push({
+        type:'sheriff_roster', stage:'withdrawal', round:S.round,
+        withdrawn:withdrawn.map(p=>p.name),
+        candidates:candidates.map(p=>p.name),
+        text:'警长退选：' + (withdrawn.length ? withdrawn.map(p=>p.name).join('、') : '无')
+          + '；最终候选：' + candidates.map(p=>p.name).join('、') + `（共${candidates.length}人）`
+      });
+      Render.log('sheriff', '📋 最终候选：' + candidates.map(p=>p.name).join('、') + `（共${candidates.length}人）`);
     }
+    if (candidates.length === 1) {
+      gameRecord.push({
+        type:'sheriff_roster', stage:'withdrawal', round:S.round,
+        withdrawn:[], candidates:candidates.map(p=>p.name),
+        text:'警长退选：无；最终候选：' + candidates[0].name + '（共1人）'
+      });
+      Render.log('sheriff', '📋 最终候选：' + candidates[0].name + '（共1人）');
+    }
+    S._sheriffCandidates = candidates;
 
     if (candidates.length === 1) {
       // 只剩一人，自动当选
@@ -23209,6 +23236,9 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
     } else if (r.type === 'sheriff_transfer') {
       txt += '\n' + _formatPublicSheriffTransfer(r) + '\n';
 
+    } else if (r.type === 'sheriff_roster') {
+      txt += '\n' + (r.text || '警长候选名单已更新') + '\n';
+
     } else if (r.type === 'night_action') {
       const isMechOwn = roleId === 'mechwolf' && /^mechwolf/.test(r.role);
       const appendNightAction = () => {
@@ -23247,9 +23277,8 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         // 上帝视角：全部夜间行动可见
         appendNightAction();
       } else {
-        if ((r.role === 'wolf' || r.role === 'wolfbeauty') && isWolf) {
-          appendNightAction();
-        } else if (r.role === roleId || isMechOwn || _isOwnNightAction(r, viewerP)) {
+        // 狼队刀口已在摘要顶部的“你的私密信息”完整列出，此处不再重复。
+        if (r.role !== 'wolf' && (r.role === roleId || isMechOwn || _isOwnNightAction(r, viewerP))) {
           if (r.role === 'witch') {
             // ★ 只有当夜仍持有救药时，女巫才能看到刀口。
             // 救药使用当夜仍可见；从下一夜起必须隐藏，避免导出记录泄露上帝视角。
@@ -23409,6 +23438,7 @@ function openExport() {
     else if (r.type==='trial') txt += localizeExport(_formatPublicTrialEvent(r))+'\n\n';
     else if (r.type==='vote') txt += localizeExport(_formatPublicVoteEvent(r))+'\n\n';
     else if (r.type==='sheriff_transfer') txt += localizeExport(_formatPublicSheriffTransfer(r))+'\n\n';
+    else if (r.type==='sheriff_roster') txt += localizeExport(r.text || '警长候选名单已更新')+'\n\n';
   });
   $('etxt').value = blindNamesOn() ? blindMaskPublic(txt) : txt;
   $('epop').classList.add('show');
@@ -27141,6 +27171,12 @@ function buildWebPrompt(p) {
           pushBucket(round, seg, _formatPublicSheriffTransfer(r));
           break;
         }
+        case 'sheriff_roster': {
+          pushBucket(round, 'S', r.text || (r.stage === 'signup'
+            ? `警长报名：${(r.candidates || []).join('、')}`
+            : `警长退选：${(r.withdrawn || []).join('、') || '无'}；最终候选：${(r.candidates || []).join('、')}（共${(r.candidates || []).length}人）`));
+          break;
+        }
         case 'vote': {
           // 竞选类投票(首轮/PK)归竞选段；白天放逐归白天段
           const voteSeg = (r.subtype === 'sheriff' || r.subtype === 'sheriff_runoff') ? 'S' : seg;
@@ -27153,10 +27189,8 @@ function buildWebPrompt(p) {
         }
         case 'night_action': {
           // 夜间私密行动：只有"和自己相关"的才显示给本人（避免泄露他人身份）。
-          // 狼队夜刀：狼可见。其它（预言家查验/女巫/守卫/狼美人魅惑）仅当事人，但这些已在"私密信息块"完整给出，此处不重复。
-          if (r.role === 'wolf' && isWolf) {
-            pushBucket(round, 'N', `🐺 狼队夜刀目标：${r.target || '无'}`);
-          }
+          // 所有本人可见的夜间行动（包括狼队刀口）都已在顶部“私密信息”完整展示，
+          // 战报时间线不再重复插入，避免同一条私密事实前后出现两次。
           break;
         }
         case 'system': {
