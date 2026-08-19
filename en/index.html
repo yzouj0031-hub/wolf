@@ -8179,9 +8179,14 @@ function hasFirstPersonNightChronologyError(g) {
 
 function parseAI(c, opts) {
   opts = opts || {};
+  // 投票、退选、技能确认等纯操作阶段允许 game 为空；此时只解析 thinking/action，
+  // 绝不能把 thinking 末尾“抢救”为一段并不存在的公开发言。
   // ★ 技能确认场景（白狼王自爆/猎人开枪/狼王咬/审判投票/警长竞选/退选/警徽传递等）
   //   AI 回复天然就短（"不咬"/"INNOCENT"/"STAY"），不应被过短判定误伤
   const isSkillConfirm = !!opts.skillConfirm;
+  // 普通调用默认需要公开/对话文本；skillConfirm 默认是纯操作，只认 action。
+  // 少数确实属于协商发言的技能节点，可显式传 requireGame:true（如狼人密谈）。
+  const requireGame = opts.requireGame === true || (!isSkillConfirm && opts.requireGame !== false);
   // ── 预处理：统一各模型的标签格式 ──
   c = c.replace(/__LT__/g, '<').replace(/__GT__/g, '>');   // Grok转义
   c = c.replace(/&lt;/g, '<').replace(/&gt;/g, '>');        // HTML实体
@@ -8423,7 +8428,7 @@ function parseAI(c, opts) {
   // 4.5 ★ 兜底：game 仍为空，但原始输出里 <action> 标签之前有一大段正文（中文为主）
   //     → AI 写了完整发言但漏了/写歪了 <game> 标签（典型：正文…<action>名字</action>）。
   //     把 <action> 之前、<thinking> 之后的正文救回来当发言，避免明明说了一大段却判沉默。
-  if (!game) {
+  if (requireGame && !game) {
     let body = c;
     // 去掉 thinking 段（避免把内心戏当发言）
     body = body.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
@@ -8449,7 +8454,7 @@ function parseAI(c, opts) {
   //     这是你遇到的高频沉默主因：thinking 模型(尤其Claude)在<thinking>里分析完就交卷，
   //     </thinking>之后什么都没写，前面的标签容错救不到（没有正文可救）。
   //     安全策略：只取结尾结论段；若结论段含明显身份泄漏词(自报阵营/策略元语言)则宁可沉默也不救，避免泄底。
-  if (!game && thinking && thinking.length >= 80) {
+  if (requireGame && !game && thinking && thinking.length >= 80) {
     // 取 thinking 末尾一段作为"结论"。优先找显式的发言引导句之后的内容。
     let concl = '';
     // a) 找"所以我说/我的发言/我要说/对外说/综上/那我就说"等引导词之后的内容
@@ -17692,7 +17697,7 @@ const PhaseHandlers = {
                 + '核心原则：你投票的目的不是"帮队友赢警徽"，而是"让自己在好人眼里不像狼队"。一只被怀疑的狼比没警徽损失大得多。';
             }
           }
-          aiR[p.id] = await callAI(p,'【选警长投票】候选人：'+candNames+'。投谁当警长？'+wolfHint+'\n<thinking>思考</thinking>\n<game>发言</game>\n<action>名字</action>',{noMemory:true, skillConfirm:true});
+          aiR[p.id] = await callAI(p,'【选警长投票】候选人：'+candNames+'。投谁当警长？'+wolfHint+'\n<thinking>思考</thinking>\n<game></game>\n<action>名字</action>',{noMemory:true, skillConfirm:true, requireGame:false});
           logNightThinking(p, aiR[p.id]);
         });
         for (const p of aiVoters) {
@@ -17785,7 +17790,7 @@ const PhaseHandlers = {
                 wolfHint2 = '\n\n【⚠️ 狼队视角·再投策略】候选人里有你的队友：'+myWolfCands.join('、')+'。第一轮已经平票，说明局势胶着。如果队友此时看起来明显处于下风（好人集中火力质疑队友、队友发言被压制），果断投好人方洗白自己比陪葬更划算。狼队四个人全压一个队友=明牌送人头。';
               }
             }
-            aiR2[p.id] = await callAI(p,'【警长PK再投票】只能从并列最高票者中选择：'+sheriffPkNames+'。再投一次，投谁当警长？'+wolfHint2+'\n<thinking>思考</thinking>\n<game>发言</game>\n<action>名字</action>',{noMemory:true, skillConfirm:true});
+            aiR2[p.id] = await callAI(p,'【警长PK再投票】只能从并列最高票者中选择：'+sheriffPkNames+'。再投一次，投谁当警长？'+wolfHint2+'\n<thinking>思考</thinking>\n<game></game>\n<action>名字</action>',{noMemory:true, skillConfirm:true, requireGame:false});
             logNightThinking(p, aiR2[p.id]);
           });
           for (const p of aiVoters2) {
@@ -18252,7 +18257,7 @@ const PhaseHandlers = {
       const whitewolfHint = isWhitewolfReady
         ? '\n\n【💥 你是白狼王·投票阶段自爆机会】\n你可以放弃这次投票,改为自爆带走一人。判断:你已经看到本轮发言和票意表态,如果票型已经锁死你、或你看到能换掉关键好人的机会,自爆替代投票是更高价值的动作。\n要自爆:<action>EXPLODE:目标名</action> (替代正常投票,自爆瞬间结束本轮投票直接入夜)\n要投票:<action>玩家名</action> (正常投票)\n要弃权:<action>None</action>'
         : '';
-      aiR[p.id] = await callAI(p,'【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true});
+      aiR[p.id] = await callAI(p,'【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true, requireGame:false});
       logNightThinking(p, aiR[p.id]);
     });
     // ★ 白狼王投票阶段自爆检测:在统计票数前优先处理
@@ -18462,8 +18467,8 @@ const PhaseHandlers = {
       await batchCall(aiPK,'c-vote', async p => {
         const isPKCand = pkCandIds.includes(p.id);
         const otherPKNames = isPKCand ? pkCands.filter(x=>x.id!==p.id).map(x=>x.name).join('、') : pkNames;
-        const pkPrompt = '【PK投票 - 关键决战】\n刚才投票出现平票（'+pkNames+' 票数相同），现在 PK 候选人已经做完了最后的自救发言（请回看刚才的发言记录）。\n\n你现在要做的是：从 '+otherPKNames+' 中选一个放逐。\n'+(isPKCand?'⚠️ 你是 PK 候选人之一，不能投自己。\n':'')+'\n【⚠️ 重要：不要弃权】\n· 弃权 = 让平票再次发生 = 本轮无人出局 = 狼队白嫖一天\n· 即使你心里两个都怀疑/都不确定，也要凭刚才的 PK 发言、之前的票型、获利链选一个最像狼的\n· 不要因为"我刚才已经投过他了"就重投相同目标——也要重新评估对方的 PK 发言\n· 不要因为"两个都像好人"就弃权——平票就意味着至少有一个是狼，二选一也是抓狼\n\n【判断重点】\n① 谁的 PK 自救发言更有逻辑漏洞？\n② 谁如果是好人，狼队会因此更安全？（反向推狼）\n③ 之前的发言里谁的票型更可疑？\n\n<thinking>分析两个 PK 候选人的自救发言，决定投谁，给出明确依据</thinking>\n<game>简短表态（一句话说清你投谁、为什么）</game>\n<action>玩家完整名字（必须从 '+otherPKNames+' 中选一个，不要写 None）</action>';
-        aiRPK[p.id] = await callAI(p, pkPrompt, {skillConfirm:true});
+        const pkPrompt = '【PK投票 - 关键决战】\n刚才投票出现平票（'+pkNames+' 票数相同），现在 PK 候选人已经做完了最后的自救发言（请回看刚才的发言记录）。\n\n你现在要做的是：从 '+otherPKNames+' 中选一个放逐。\n'+(isPKCand?'⚠️ 你是 PK 候选人之一，不能投自己。\n':'')+'\n【⚠️ 重要：不要弃权】\n· 弃权 = 让平票再次发生 = 本轮无人出局 = 狼队白嫖一天\n· 即使你心里两个都怀疑/都不确定，也要凭刚才的 PK 发言、之前的票型、获利链选一个最像狼的\n· 不要因为"我刚才已经投过他了"就重投相同目标——也要重新评估对方的 PK 发言\n· 不要因为"两个都像好人"就弃权——平票就意味着至少有一个是狼，二选一也是抓狼\n\n【判断重点】\n① 谁的 PK 自救发言更有逻辑漏洞？\n② 谁如果是好人，狼队会因此更安全？（反向推狼）\n③ 之前的发言里谁的票型更可疑？\n\n<thinking>分析两个 PK 候选人的自救发言，决定投谁，给出明确依据</thinking>\n<game></game>\n<action>玩家完整名字（必须从 '+otherPKNames+' 中选一个，不要写 None）</action>';
+        aiRPK[p.id] = await callAI(p, pkPrompt, {skillConfirm:true, requireGame:false});
         logNightThinking(p, aiRPK[p.id]);
       });
       for (const p of aiPK) {
@@ -22133,7 +22138,7 @@ ${godReport}
 
 只打分名单里的人，不要给自己打分，name 必须精确匹配。`;
 
-        const r = await callAI(p, mvpPrompt, { noMemory: true, skillConfirm: true });
+        const r = await callAI(p, mvpPrompt, { noMemory: true, skillConfirm: true, requireGame:true });
         if (!r) return;
 
         // 解析 action 里的 JSON 评分数组
