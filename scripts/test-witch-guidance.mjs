@@ -10,6 +10,11 @@ for (const file of ['index.html', 'en/index.html']) {
   expect(src.includes('使用解药不等于必须跳身份'), `${file}: antidote use still implies disclosure`);
   expect(src.includes('行动事实不等于公开自证'), `${file}: private action and public proof are not separated`);
   expect(src.includes('摄梦等其他保护可以和解药同时作用而只是重复保护'), `${file}: dream protection overlap is unclear`);
+  expect(src.includes('【刀口权限·以解药库存为准】'), `${file}: witch guide does not explicitly scope knife knowledge to antidote availability`);
+  expect(src.includes('只有解药仍在的夜晚才能获知狼刀目标，使用解药的当夜仍可见，从下一夜起不再获得刀口信息'), `${file}: exported witch rules do not define the knife-knowledge boundary`);
+  expect(src.includes('你的解药已经用完，因此本夜不会获知刀口'), `${file}: web relay does not hide the knife target after antidote use`);
+  expect(src.includes('你仍持有解药，因此主持人会告诉你今晚的刀口'), `${file}: web relay does not condition knife knowledge on antidote availability`);
+  expect(!src.includes('女巫私密行动阶段，不是公开发言。主持人会告诉你今晚的刀口'), `${file}: unconditional web-relay knife disclosure remains`);
   expect(!src.includes('【女巫的跳身份资本】'), `${file}: old pro-disclosure witch section remains`);
   expect(!src.includes('能洗清他、同时自证'), `${file}: witch claim still promises automatic self-proof`);
 

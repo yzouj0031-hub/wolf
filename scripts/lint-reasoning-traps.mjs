@@ -16,8 +16,9 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const file = process.argv[2] || path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'index.html');
+const file = process.argv[2] || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html');
 const src = fs.readFileSync(file, 'utf8');
 
 const CAUSE = /(挡刀|假跳|悍跳|跳神|跳了神|穿.{0,6}衣服|穿神衣|冒充|身份.{0,3}假|声明.{0,3}假|记录不一致|对跳|抢.{0,4}身份|假身份|证伪.{0,3}身份)/;

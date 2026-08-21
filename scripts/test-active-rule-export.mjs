@@ -13,6 +13,7 @@ function sliceBetween(source, start, end) {
 }
 
 const exportSource = [
+  sliceBetween(html, 'const WIN_OBJECTIVE_RULE', '// 公开顺序与 PhaseHandlers.night'),
   sliceBetween(html, 'const PACK_WOLF_KILL_ROLE_IDS', 'function buildActiveRoleExportDesc'),
   sliceBetween(html, 'const PUBLIC_NIGHT_ACTION_ORDER', '/* ★ 按需组装世界书'),
   sliceBetween(html, 'function buildActiveRoleExportDesc', 'function buildRulesExport()'),

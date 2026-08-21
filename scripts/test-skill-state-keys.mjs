@@ -23,6 +23,7 @@ const NON_PLAYER_RECEIVERS = new Set([
   'opts',        // 函数入参（_nativeThinking）
   'folded',      // DOM 元素（_hidden）
   'MatchReplay', // 回放 UI 状态（_demo）
+  'WebRelay',    // 网页端接力复制水位线（_gameId），不是玩家技能状态
   'lb',          // 排行榜，跨局累计，与单局存档无关（_mvpMatches / _totalGames）
   'buildSystemPrompt', // 函数自身的一次性告警标记（_capWarned）
 ]);

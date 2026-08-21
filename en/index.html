@@ -4165,7 +4165,7 @@ const PUBLIC_NIGHT_ACTION_ORDER = Object.freeze([
   {key:'youshang', roles:['youshang'], label:'游商赐予'},
   {key:'pick-gift', any:['merchant','youshang'], label:'获赐玩家选择礼物'},
   {key:'fool', roles:['fool'], label:'愚者布置护盾'},
-  {key:'alchemist-plan', roles:['alchemist'], label:'炼金魔女决定是否开启未明之雾'},
+  {key:'alchemist-plan', roles:['alchemist'], label:'炼金魔女选择发动未明之雾、准备法老之蛇或空过'},
   {key:'dreamwalker', roles:['dreamwalker'], label:'摄梦人选择梦游者'},
   {key:'gargoyle', roles:['gargoyle'], label:'石像鬼窥视身份'},
   {key:'magician', roles:['magician'], label:'魔术师选择换位'},
@@ -4176,7 +4176,7 @@ const PUBLIC_NIGHT_ACTION_ORDER = Object.freeze([
   {key:'gargoyle-kill', roles:['gargoyle'], label:'石像鬼独立狼刀（仅已苏醒时）'},
   {key:'magic-swap', roles:['magician'], label:'应用魔术师换位并确定狼刀实际落点'},
   {key:'imitator-rescue', roles:['imitator'], label:'摹术师临时救援（仅当夜摹到时）'},
-  {key:'witch', roles:['witch'], label:'女巫查看最终狼刀并决定用药'},
+  {key:'witch', roles:['witch'], label:'女巫在解药仍在时查看最终狼刀，并决定可用药物'},
   {key:'alchemist-rescue', roles:['alchemist'], label:'炼金魔女法老之蛇补救'},
   {key:'custom-gods', custom:true, label:'自定义角色夜间主动技能'},
   {key:'seer', roles:['seer'], label:'预言家查验'},
@@ -4605,7 +4605,13 @@ ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
   .replace('预言家查验你【永远显示为狼人】——学谁都不会把你洗成金水。别指望学个神职就骗到验人金水。', '通常预言家查验你显示为狼人；唯一例外是你学到平民且技能已经生效，此后预言家验你显示为好人。')
   .replace('【你的隐患：验你必出狼】一旦被预言家首验，你直接暴露。', '【你的隐患：默认验你出狼】在学到平民并生效前，预言家验你仍会直接暴露。')
   .replace('学早了信息少、容易学到平民（白学）', '学早了信息少、可能拿到不适合当前局势的补偿技能')
-  + '\n\n【带刀补充规则】其他狼系全部出局后，你每晚可以正常刀一名其他玩家，也可以选择【空刀】制造平安夜；系统必须尊重空刀，不能随机补目标。你不能主动把自己选作刀口，但魔术师交换仍可能把刀间接转移到你身上。';
+  + '\n\n【带刀补充规则】其他狼系全部出局后，你每晚可以正常刀任意合法候选玩家（包括自己），也可以选择【空刀】制造平安夜；系统必须尊重空刀，不能随机补目标。自刀通常会让场上唯一狼人死亡并直接落败，只有在你明确算过结算收益时才考虑。魔术师交换仍可能把刀从名义目标转移到另一人身上。';
+ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide.replace('学到猎人 → 你出局时（被毒杀除外）可以开枪带走一人。', '学到猎人 → 你出局时可以开枪带走一人；被毒、被明确禁止死亡技能的带走方式处决，或死亡瞬间游戏已经结束时不能开枪。');
+ALL_ROLES.hunter.desc = '死亡时可以开枪带走一人；被毒、被明确禁止死亡技能的带走方式处决，或死亡瞬间游戏已经结束时不能开枪。';
+ALL_ROLES.hunter.guide = ALL_ROLES.hunter.guide.replace('死的时候可以开枪带走一人(被毒死不行)。', '死亡时可以开枪带走一人；被毒、被明确禁止死亡技能的带走方式处决，或死亡瞬间游戏已经结束时不能开枪。');
+ALL_ROLES.wolfking.desc = '每晚参与狼队刀人；死亡时可以咬死一人；被毒、被规则明确为不触发死亡技能的方式处决，或死亡瞬间游戏已经结束时不能咬人。';
+ALL_ROLES.wolfking.guide = ALL_ROLES.wolfking.guide.replace('和狼人一样+死的时候可以咬死一人(被毒和被骑士决斗除外)。', '和普通狼人一样参与夜刀；死亡时可以咬死一人。被毒、被规则明确为不触发死亡技能的方式处决，或死亡瞬间游戏已经结束时不能咬人。');
+ALL_ROLES.whitewolf.guide += '\n\n【自爆带走结算】被你自爆带走的目标没有遗言、不能传递警徽，也不能发动任何死亡技能；这是白狼王带走方式本身的规则，不等同于普通死亡。';
 
 // 子狐与机械狼的交互：机械狼始终属于狼阵营；平民伪装只欺骗真正的预言家，不欺骗子狐。
 ALL_ROLES.fox.desc = '好人神职。第2夜起每晚媚惑一人：若他是狼→当晚全狼禁刀；若他是好人→封他今晚的夜间主动技能。行动后私下得知目标阵营；目标知道自己被媚惑，但不知道子狐是谁。媚惑可被蚀时狼妃反弹。';
@@ -4673,6 +4679,7 @@ ALL_ROLES.witch.guide = ALL_ROLES.witch.guide.replace(
   '那就【果断救】,别犹豫!没有守护承诺时,你不救=预言家直接死,这种"留药"是真送。',
   '没有守护承诺会降低“已经有人挡刀”的可信度，但仍要结合屠边压力、刀口价值、身份暴露和长期药效计算，不能只凭这一点自动得出必救。'
 ) + '\n\n【银水与带队价值】救人不只增加一个存活人数，还会形成一条真实的救药行动记录。尤其第一夜，你可以在警长竞选中如实报出自己救过谁、争取警徽并带队；被救者也能成为阶段性的“银水”参考。但银水不是铁好（存在自刀等可能），跳身份也会暴露女巫，所以要把带队收益、身份暴露、刀口价值、屠边压力、守卫撞药风险与保留解药的信息价值一起计算，不能据此机械得出必救或不救。';
+ALL_ROLES.witch.guide += '\n\n【刀口权限·以解药库存为准】前文提到“你知道刀口”只适用于解药仍在的夜晚。使用解药的当夜仍能看到本夜刀口；从下一夜起，哪怕毒药还在，主持人也不会再提供刀口，你不能把未知目标说成自己看见的记录。';
 ALL_ROLES.witch.guide += '\n\n【与炼金魔女同场】女巫是第一救援位：你先按本夜刀口价值正常决定是否使用解药，不要为了猜测炼金魔女可能准备了法老之蛇而机械停药。只有你没有救下刀口时，系统才会让法老之蛇进行补救。';
 ALL_ROLES.alchemist.desc = '好人神职。未明之雾整局限用一次，可将当夜狼刀候选限制为2至3人。法老之蛇每晚可准备并查看最终实际刀口；只有选择救人才消耗整局唯一一次救援，选择不救、狼队空刀或刀口已获救均不消耗。准备蛇与发动雾同夜互斥。';
 ALL_ROLES.alchemist.guide = ALL_ROLES.alchemist.guide.replace('圈定三名存活玩家，当夜狼刀只能从三人中选择', '圈定2至3名存活玩家，当夜狼刀只能从这份名单中选择').replace('雾改变狼队决策空间', '雾改变狼队决策空间；圈2人限制更强，圈3人则给狼队更多选择并更容易隐藏你的真实保护意图');
@@ -4680,8 +4687,10 @@ ALL_ROLES.alchemist.guide += '\n\n【与女巫同场·救援顺序】女巫先�
 // 「准备蛇」本身不消耗药剂，只有真的救人才消耗 —— 这条以前只写在夜间私密提示里，
 // AI 每晚读完就忘，人类玩家却一眼看穿，等于人机不对等。写进 guide 让两边同等知情。
 ALL_ROLES.alchemist.guide += '\n\n【准备蛇是免费的·可重复侦察刀口】准备法老之蛇不消耗药剂，只有真的按下救援才消耗。所以只要你还攥着蛇，就可以每一夜都选择准备蛇、每一夜都看到本夜的实际刀口，然后选择不救 —— 药剂原封不动留到下一夜。这条通道比女巫更持久：女巫用掉解药就永久失去刀口情报，而你只要不救就一直看得见。\n代价是机会成本而非药剂：准备蛇的那一夜不能开雾，两者同夜只能选一个。雾也只有一次，所以常见打法是挑一夜开雾，其余夜晚一律准备蛇来持续获取刀口情报。\n拿到刀口后要当作情报用，不要当作身份证明：你看到谁被刀，就知道狼队的优先级和下一刀方向，这些能支撑你的白天推理；但公开报刀口等于自曝，也会让狼队立刻明白场上有第二条情报线。';
+// 最终指南只保留一套消耗口径，避免旧注册文案把“准备蛇”误写成已经使用。
+ALL_ROLES.alchemist.guide = '你是炼金魔女，属于好人阵营。\n\n【未明之雾】整局限用一次。夜间可圈定2至3名存活玩家，当夜狼刀只能从名单中选择或空刀；圈2人限制更强，圈3人更容易隐藏你的真实意图。只要确认发动雾，这次机会就立即消耗。\n\n【法老之蛇】只要唯一一次救援尚未真正使用，你每晚都可以选择“准备蛇”。准备后会在狼刀与换位等效果确定后看见本夜最终实际刀口，再决定救或不救。准备蛇、看见刀口、选择不救、狼队空刀、刀口已经被女巫救下，全部都【不消耗】法老之蛇；只有你最终确认救下一个仍会被狼刀杀死的目标时，才消耗唯一一次救援。救援一旦真正生效，以后不能再准备蛇。\n\n【同夜互斥】未明之雾和法老之蛇同一夜只能选择一个：开雾后不能再准备蛇，准备蛇后不能再开雾；也可以两者都不用。这里的“准备”不等于“使用”或“消耗”。\n\n【与女巫同场】女巫先决定是否使用解药；只有刀口仍未获救时，你才决定是否用蛇补救。女巫已经救下刀口时，系统会明确通知你，蛇不发动也不消耗。\n\n【信息纪律】即使你选择不救，已经看见的最终刀口仍会保留在私密记录中；它是狼队行动情报，不是目标身份的铁证明。公开报刀口会暴露你，应结合局势自行决定。';
 ALL_ROLES.wolfconcubine.desc = '狼人阵营。每晚锁定一名存活玩家：当夜首个直接指向该目标的单体查验、守护、毒杀、媚惑或摄梦会反弹到施术者本人；每夜仅反弹一发。群体领域、自动信息、净化、救援、白天技与死亡技不受影响。';
-ALL_ROLES.wolfconcubine.guide = '你是蚀时狼妃，属于狼人阵营，并正常参加狼队密谈与狼刀。\n【反弹锁定】每晚额外锁定一名存活玩家（可锁自己，也可空过）。当夜首个直接指向锁定目标的单体技能会反弹到施术者本人，随后本夜锁失效；天亮后重置，下一夜可重新锁定。\n【可反弹类型】单体查验（预言家、石像鬼、摹术师及同类自创技能）、单体守护、毒杀、子狐类媚惑、摄梦。反弹查验只会查到施术者自己；反弹守护只会守到施术者；反弹毒可能令施术者死亡；反弹摄梦会让摄梦人自己成为实际梦游者，连续反弹可能形成自我噩梦。\n【不反弹】未明之雾等群体领域、守墓人等自动信息、净魂师的净化、女巫解药与法老之蛇等事后救援、白天技能、死亡触发和狼刀。净魂师若先把圣域给到锁定目标，可以净除你的锁。\n【策略】锁别人可保护即将被查、守、毒、魅惑或摄梦处理的狼队关键位；锁自己可反噬直接处理你的人。仍然只有一发，优先判断本夜最可能最先命中的技能，不要把它当成全场封技。\n【保密】锁定与反弹都是夜间私密信息，白天不得泄露狼队视角。';
+ALL_ROLES.wolfconcubine.guide = '你是蚀时狼妃，属于狼人阵营，并正常参加狼队密谈与狼刀。\n【反弹锁定】每晚额外锁定一名存活玩家（可锁自己，也可空过）。当夜首个直接指向锁定目标的单体技能会反弹到施术者本人，随后本夜锁失效；天亮后重置，下一夜可重新锁定。\n【可反弹类型】单体查验（预言家、石像鬼、摹术师及同类自创技能）、单体守护、毒杀、子狐类媚惑、摄梦。反弹查验只会查到施术者自己；反弹守护只会守到施术者；反弹毒可能令施术者死亡；反弹摄梦会让摄梦人自己成为实际梦游者，连续反弹可能形成自我噩梦。\n【不反弹】未明之雾等群体领域、守墓人等自动信息、净魂师的净化、女巫解药与法老之蛇等事后救援、白天技能、死亡触发和狼刀。净魂师在你之后行动；若随后把圣域给到已被锁定的目标，可以净除你的锁。\n【策略】锁别人可保护即将被查、守、毒、魅惑或摄梦处理的狼队关键位；锁自己可反噬直接处理你的人。仍然只有一发，优先判断本夜最可能最先命中的技能，不要把它当成全场封技。\n【保密】锁定与反弹都是夜间私密信息，白天不得泄露狼队视角。';
 ALL_ROLES.serialkiller.guide = ALL_ROLES.serialkiller.guide.replace(
   '所以中后期你的存活优先级 > 一切——白天绝不当出头鸟、绝不站上抗推位，深水到底。',
   '所以中后期要把存活价值和主动控场价值一起计算；低调、带票或制造冲突都只是可选路线，按当前威胁决定。'
@@ -5979,12 +5988,24 @@ function buildActiveRoleExportDesc(role, activeRoleIds) {
   const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
   const has = id => active.has(id);
   switch (role && role.id) {
+    case 'hunter':
+      return `死亡时可以开枪带走一人（被毒${has('whitewolf') ? '或被白狼王自爆带走' : ''}时不能发动；若死亡瞬间游戏已经结束也不再结算）。`;
     case 'wolfking':
-      return `每晚参与狼队刀人；死亡时可以咬死一人（被毒${has('knight') ? '或被骑士决斗' : ''}时不能发动）`;
+      return `每晚参与狼队刀人；死亡时可以咬死一人（被毒${has('knight') ? '、被骑士决斗' : ''}${has('whitewolf') ? '或被白狼王自爆带走' : ''}时不能发动；若死亡瞬间游戏已经结束也不再结算）。`;
     case 'wolfbeauty':
       return '每晚参与狼队刀人并可魅惑一人；自己出局时，当前魅惑目标会殉情死亡。';
     case 'whitewolf':
-      return '每晚参与狼队刀人；白天正式发言或投票回合可自爆并带走一人，随后跳过遗言和警徽流程直接入夜。';
+      return '每晚参与狼队刀人；白天正式发言或投票回合可自爆并带走一人，被带走者无遗言、无警徽传递且不能发动死亡技能，随后直接入夜。';
+    case 'guard':
+      return `好人神职。每晚可守护一名存活玩家、自己或空守，不能连续两夜守同一人；守护可挡狼刀${has('serialkiller')?'和连环杀手袭击':''}，不能挡毒药${has('witch')?'，且与女巫解药同落一个狼刀目标会触发同守同救、目标仍死亡':''}。`;
+    case 'knight':
+      return S && S.knightChainMode
+        ? '好人神职。每天最多决斗一次：点中狼人则狼人死亡、骑士存活，下一天仍可继续决斗；点中好人则只有骑士牺牲。'
+        : '好人神职。整局只能决斗一次：点中狼人则狼人死亡、骑士存活；点中好人则只有骑士牺牲。';
+    case 'seer':
+      return `好人神职。每晚查验一名其他玩家，只得到“狼人显示/好人显示”，不是精确角色翻牌${has('wolfconcubine')?'；查验若被蚀时狼妃反弹，会明确得知只查到自己、原目标未验证':''}。`;
+    case 'witch':
+      return '好人神职。解药与毒药各一瓶，同一夜只能使用其中一种；只有解药仍在的夜晚才能获知狼刀目标，使用解药的当夜仍可见，从下一夜起不再获得刀口信息；毒药是否还在不改变这项限制。';
     case 'merchant':
       return '好人。整局仅赐福一次：幸运儿可在一次性被动护盾、每晚查验或一次毒药中选择一种；若幸运儿属于狼人阵营，赐福反噬令商人出局。';
     case 'mechwolf':
@@ -5996,7 +6017,7 @@ function buildActiveRoleExportDesc(role, activeRoleIds) {
     case 'serialkiller': {
       const clauses = [
         '第三方独立阵营。每晚可独立袭击一名玩家或空过，其袭击独立于狼刀',
-        has('guard') ? '守护可以挡下该袭击' : '',
+        has('guard') || has('mechwolf') ? `${has('guard')?'守卫守护':''}${has('guard')&&has('mechwolf')?'与':''}${has('mechwolf')?'机械狼学到守护后的机械盾':''}可以挡下该袭击` : '',
         has('witch') ? '解药不能救下被该袭击命中的玩家' : '',
         has('seer') ? '预言家查验显示为好人' : '',
         '只有自己成为最后的存活者才会获胜；其存活时会阻止两个主要阵营宣胜'
@@ -6069,7 +6090,7 @@ function buildRulesExport() {
   if (has('guard') && has('witch')) interactions.push('守卫不能连续两夜守同一人；守护与女巫解药同时落在同一刀口会造成同守同救死亡。');
   if (has('witch') && has('alchemist')) interactions.push('女巫先决定是否使用解药；只有刀口仍未获救时，炼金魔女的法老之蛇才进行补救。女巫已救时会通知炼金魔女且不消耗法老之蛇。');
   if (has('magician')) interactions.push('魔术师在狼刀确定前行动，交换只重定向当夜狼刀，不改变身份，也不影响查验、用药、守护或魅惑。');
-  if (has('wolfconcubine')) interactions.push(`蚀时狼妃每夜只反弹首个命中的单体查验、守护、毒杀、媚惑或摄梦；群体领域、自动信息、净化、救援、白天技与死亡技不反弹${has('soulwarden') ? '，净魂师可提前净除锁定' : ''}。`);
+  if (has('wolfconcubine')) interactions.push(`蚀时狼妃每夜只反弹首个命中的单体查验、守护、毒杀、媚惑或摄梦；群体领域、自动信息、净化、救援、白天技与死亡技不反弹${has('soulwarden') ? '；净魂师随后行动，可把圣域给到已锁定目标并净除锁定' : ''}。`);
   if (has('soulwarden')) {
     const marks = [has('wolfconcubine') ? '狼妃反弹锁' : '', has('wolfbeauty') ? '狼美人魅惑' : ''].filter(Boolean);
     interactions.push(`净魂师的圣域每夜只净除或拦截第一层敌对非伤害标记${marks.length ? `，本局可处理${marks.join('与')}` : ''}；不阻挡任何直接伤害，也不反馈是否成功。`);
@@ -9185,7 +9206,7 @@ ${userPersona}
       return acts.length ? `[已执行] ${title}：${acts.join('，')}` : `[已执行·空过] ${title}：本夜未用药`;
     }
     if (r.role === 'seer' || r.role === 'mechwolf_seer') {
-      const resultText = r.result === 'wolf' ? '狼人显示' : (r.result === 'good' ? '好人显示' : (r.roleName || r.result || '结果已记录'));
+      const resultText = r.result === 'rebounded' ? '被反弹，原目标未验证' : (r.result === 'wolf' ? '狼人显示' : (r.result === 'good' ? '好人显示' : (r.roleName || r.result || '结果已记录')));
       return `[已执行] ${title}：${r.target} → ${resultText}`;
     }
     if (r.role === 'wolfbeauty' && r.attemptedTarget) return `[已执行] ${title}：目标=${r.attemptedTarget}`;
@@ -14911,7 +14932,7 @@ const NightActions = {
     Render.setSpeaking(dw.id,false);
   },
 
-  // 炼金魔女先选择当夜路线：雾与蛇各限一次，同夜只可发动一种。
+  // 炼金魔女先选择当夜路线：雾整局一次；蛇可反复准备，只有真正救人才消耗；同夜二选一。
   async alchemistPlan(alive) {
     const al = alive.find(p => p.role.id === 'alchemist');
     if (!al) return;
@@ -15232,12 +15253,16 @@ const NightActions = {
       }
     }
     if (t) {
-      const resultText = '🎯准确身份：【'+t.role.name+'】（'+(t.role.team==='bad'?'狼人阵营':t.role.team==='good'?'好人阵营':'第三阵营')+'）';
+      const actual = reflectInspectSubject(mw, t);
+      const reflected = actual.id !== t.id;
+      const resultText = reflected
+        ? '查验被蚀时狼妃反弹到你自己；你只确认自己的准确身份【'+actual.role.name+'】，原目标'+t.name+'未被验证'
+        : '🎯准确身份：【'+actual.role.name+'】（'+(actual.role.team==='bad'?'狼人阵营':actual.role.team==='good'?'好人阵营':'第三阵营')+'）';
       if (!S.mechSeerLog) S.mechSeerLog = {};
-      S.mechSeerLog[S.round] = {target:t.name, result:resultText, roleId:t.role.id, roleName:t.role.name, team:t.role.team};
-      mw.memory.push({role:'system',content:'【🤖🔮 机械狼查验结果】第'+S.round+'夜你查验了'+t.name+'→'+resultText+'。这是私有信息，没跳身份前不能公开。'});
-      if (mw.isPlayer || !isAnon()) Render.log('night-result','🤖🔮 机械狼查验'+t.name+'→【'+t.role.name+'】');
-      gameRecord.push({type:'night_action', role:'mechwolf_seer', round:S.round, target:t.name, result:'exact', roleId:t.role.id, roleName:t.role.name, team:t.role.team});
+      S.mechSeerLog[S.round] = {target:t.name, actualTarget:actual.name, reflected, result:resultText, roleId:actual.role.id, roleName:actual.role.name, team:actual.role.team};
+      mw.memory.push({role:'system',content:'【🤖🔮 机械狼查验结果】第'+S.round+'夜你尝试查验'+t.name+'→'+resultText+'。这是私有信息，没跳身份前不能公开。'});
+      if (mw.isPlayer || !isAnon()) Render.log('night-result',reflected?'🤖🔮 机械狼查验'+t.name+'被反弹，原目标未验证':'🤖🔮 机械狼查验'+t.name+'→【'+actual.role.name+'】');
+      gameRecord.push({type:'night_action', role:'mechwolf_seer', round:S.round, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':'exact', roleId:actual.role.id, roleName:actual.role.name, team:actual.role.team});
     }
   },
 
@@ -15335,7 +15360,7 @@ const NightActions = {
       S.nightData.mechPoison = t.id;
       if (!isAnon()) Render.log('night-result','🤖☠️ 机械狼毒了'+t.name);
       gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, target:t.name});
-      mw.memory.push({role:'system', content:'【🤖机械狼·毒药记录·私密】第'+S.round+'夜你用学来的毒药毒了'+t.name+'，毒药已消耗完毕，之后不再拥有毒。这是只有你知道的信息，白天不得泄露。'});
+      mw.memory.push({role:'system', content:'【🤖机械狼·毒药记录·私密】第'+S.round+'夜你用学来的毒药毒了'+t.name+'。学来的毒杀能力不会因此永久消失，下一夜仍可再次使用。这是只有你知道的信息，白天不得泄露。'});
     } else {
       if (!isAnon()) Render.log('night-result', actionStatus==='invalid' ? '🤖☠️ 机械狼毒药技术解析失败（未使用，不是主动保留）' : '🤖☠️ 机械狼主动保留毒药');
       gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, target:null, technical:actionStatus==='invalid'});
@@ -16502,7 +16527,7 @@ ${mistDecisionHint}
           ctx = '今晚平安夜，没人被杀。有救人药，但今晚没有刀口可救。';
         }
       } else {
-        ctx = '救人药已用完，你不知道今晚刀口是谁。';
+        ctx = '救人药已用完；从用掉后的下一夜起，主持人不会再向你提供刀口。你今晚不知道狼刀目标，不能根据本阶段猜测或声称自己看见了刀口。';
       }
       ctx += S.witchPotions.poison ? ' 有毒药。' : ' 没有毒药了。';
       const poisonAliveList = alive.filter(x => x.id !== wi.id);
@@ -16542,11 +16567,6 @@ ${mistDecisionHint}
         recordTechnicalActionFailure(wi, '女巫用药', '两次格式纠正后仍无法判断救、毒或明确不用药；药水保留');
       }
     }
-    if (!isAnon()) {
-      if (S.nightData.witchSave && v) Render.log('night-result','🧙‍♀️ 女巫救了'+v.name);
-      if (S.nightData.witchPoison!==null) Render.log('night-result','🧙‍♀️ 女巫毒了'+S.players[S.nightData.witchPoison].name);
-      if (!S.nightData.witchSave && S.nightData.witchPoison===null) Render.log('night-result', witchActionStatus==='invalid' ? '🧙‍♀️ 女巫行动技术解析失败（药水保留，不是主动跳过）' : '🧙‍♀️ 女巫主动选择跳过');
-    }
     // ★ MC主持人确认女巫行动
     if (isMC() && !wi.isPlayer) {
       // 救药确认
@@ -16556,31 +16576,41 @@ ${mistDecisionHint}
         const chosen = await mcNightConfirm('🧙‍♀️ 女巫·救药', wi.name, `决定 <b style="color:#68b8e8">救 ${v.name}</b>，是否执行？`, saveOpts, 'SAVE');
         if (chosen === 'NO') { S.nightData.witchSave = false; S.witchPotions.save = true; } // 主持人撤销
       }
-      // 毒药确认
-      const poisonAlive = alive.filter(x => x.id !== wi.id);
-      const poisonOpts = poisonAlive.map(x => ({label:'☠️ '+x.name+'（'+x.role.name+'）', value: String(x.id)}));
-      poisonOpts.push({label:'不毒', value:'None'});
-      const poisonDefault = S.nightData.witchPoison !== null ? String(S.nightData.witchPoison) : 'None';
-      const poisonAiName = S.nightData.witchPoison !== null ? S.players[S.nightData.witchPoison].name : '不毒';
-      const chosenPoison = await mcNightConfirm('🧙‍♀️ 女巫·毒药', wi.name,
-        S.witchPotions.poison === false && S.nightData.witchPoison !== null
-          ? `决定 <b style="color:#c83040">毒 ${poisonAiName}</b>，可修改：`
-          : `选择不用毒药，可修改：`,
-        S.witchPotions.poison || S.nightData.witchPoison !== null ? poisonOpts : null,
-        poisonDefault);
-      if (chosenPoison !== null && chosenPoison !== poisonDefault) {
-        // 主持人修改了毒药目标
-        if (S.nightData.witchPoison !== null) S.witchPotions.poison = true; // 先撤销原来的消耗
-        if (chosenPoison === 'None') { S.nightData.witchPoison = null; }
-        else if (S.witchPotions.poison) {
-          const newPt = S.players[parseInt(chosenPoison)];
-          if (newPt && newPt.id !== wi.id) { S.nightData.witchPoison = newPt.id; S.witchPotions.poison = false; }
+      // 毒药确认；若最终确认救人，本夜不能再追加第二瓶药。
+      if (!S.nightData.witchSave) {
+        const poisonAlive = alive.filter(x => x.id !== wi.id);
+        const poisonOpts = poisonAlive.map(x => ({label:'☠️ '+x.name+'（'+x.role.name+'）', value: String(x.id)}));
+        poisonOpts.push({label:'不毒', value:'None'});
+        const poisonDefault = S.nightData.witchPoison !== null ? String(S.nightData.witchPoison) : 'None';
+        const poisonAiName = S.nightData.witchPoison !== null ? S.players[S.nightData.witchPoison].name : '不毒';
+        const chosenPoison = await mcNightConfirm('🧙‍♀️ 女巫·毒药', wi.name,
+          S.witchPotions.poison === false && S.nightData.witchPoison !== null
+            ? `决定 <b style="color:#c83040">毒 ${poisonAiName}</b>，可修改：`
+            : `选择不用毒药，可修改：`,
+          S.witchPotions.poison || S.nightData.witchPoison !== null ? poisonOpts : null,
+          poisonDefault);
+        if (chosenPoison !== null && chosenPoison !== poisonDefault) {
+          // 主持人修改了毒药目标
+          if (S.nightData.witchPoison !== null) S.witchPotions.poison = true; // 先撤销原来的消耗
+          if (chosenPoison === 'None') { S.nightData.witchPoison = null; }
+          else if (S.witchPotions.poison) {
+            const newPt = S.players[parseInt(chosenPoison)];
+            if (newPt && newPt.id !== wi.id) { S.nightData.witchPoison = newPt.id; S.witchPotions.poison = false; }
+          }
         }
       }
     }
     const submittedWitchPoison = S.nightData.witchPoison;
     if (submittedWitchPoison !== null) S.nightData.witchPoison = reflectTargetedNightSkill(wi, submittedWitchPoison, 'poison');
-    gameRecord.push({type:'night_action', role:'witch', round:S.round, saved: S.nightData.witchSave ? (v?v.name:null) : null, poisoned: submittedWitchPoison!==null ? S.players[submittedWitchPoison].name : null, actualPoisoned:S.nightData.witchPoison!==null ? S.players[S.nightData.witchPoison].name : null, reflected:submittedWitchPoison!==S.nightData.witchPoison, technical:witchActionStatus==='invalid'});
+    const witchPoisonReflected = submittedWitchPoison !== null && submittedWitchPoison !== S.nightData.witchPoison;
+    if (!isAnon()) {
+      if (S.nightData.witchSave && v) Render.log('night-result','🧙‍♀️ 女巫救了'+v.name);
+      if (submittedWitchPoison !== null) Render.log('night-result',witchPoisonReflected
+        ? '🧙‍♀️ 女巫原本毒'+S.players[submittedWitchPoison].name+'，但毒药被反弹到女巫本人'
+        : '🧙‍♀️ 女巫毒了'+S.players[submittedWitchPoison].name);
+      if (!S.nightData.witchSave && submittedWitchPoison===null) Render.log('night-result', witchActionStatus==='invalid' ? '🧙‍♀️ 女巫行动技术解析失败（药水保留，不是主动跳过）' : '🧙‍♀️ 女巫主动选择跳过');
+    }
+    gameRecord.push({type:'night_action', role:'witch', round:S.round, saved: S.nightData.witchSave ? (v?v.name:null) : null, poisoned: submittedWitchPoison!==null ? S.players[submittedWitchPoison].name : null, actualPoisoned:S.nightData.witchPoison!==null ? S.players[S.nightData.witchPoison].name : null, reflected:witchPoisonReflected, technical:witchActionStatus==='invalid'});
     attachNightThinking(wi.id);
     // ★ 女巫完整决策日志——无论用没用药都记录，防止AI事后脑补
     const witchRecord = [];
@@ -16603,7 +16633,9 @@ ${mistDecisionHint}
     }
     // 毒药部分
     if (submittedWitchPoison !== null) {
-      witchRecord.push(`第${S.round}夜：使用毒药毒了${S.players[submittedWitchPoison].name}，毒药已用完。`);
+      witchRecord.push(witchPoisonReflected
+        ? `第${S.round}夜：本想用毒药毒${S.players[submittedWitchPoison].name}，但明确得知毒药被蚀时狼妃反弹到我自己；原目标没有被这瓶毒命中，毒药已用完。`
+        : `第${S.round}夜：使用毒药毒了${S.players[submittedWitchPoison].name}，毒药已用完。`);
     } else if (S.witchPotions.poison && witchActionStatus === 'invalid') {
       witchRecord.push(`第${S.round}夜：本夜用药指令发生技术解析失败，毒药未消耗；这不代表我主动选择不用毒。`);
     } else if (S.witchPotions.poison) {
@@ -16686,17 +16718,19 @@ ${mistDecisionHint}
       const v = await waitChoice('看谁？','🔮 查验', ts.map(x=>({label:x.name,value:x.name})));
       const t = findPlayer(v, ts);
       if (t) {
-        const iw = seerSeesAsWolf(reflectInspectSubject(se, t));  // 🌒 蚀时狼妃反弹：命中被锁X则静默查到自己
-        Render.log('night','🔮 '+t.name+'显示为'+(iw?'🐺 狼人':'✅ 好人'));
+        const actual = reflectInspectSubject(se, t);
+        const reflected = actual.id !== t.id;
+        const iw = seerSeesAsWolf(actual);
+        Render.log('night',reflected?'🔮 查验被反弹到你自己，'+t.name+'未被验证':'🔮 '+t.name+'显示为'+(iw?'🐺 狼人':'✅ 好人'));
         // ★ v9.9.24 修复：此前玩家/导演操控的预言家查验后，结果没有写入
         //   S.seerLog / memory / gameRecord（只有 AI 分支写了），导致：
         //   ① 导出聊天摘要看不到查验记录 ② 该预言家下一轮发言时 prompt 里
         //   拿不到查验信息，AI 只能现编。这里补齐，与 AI 分支保持一致。
-        const resultText = iw ? '🐺狼人显示' : '✅好人显示（不等于精确身份或阵营翻牌）';
-        se.memory.push({role:'system',content:'【查验结果·重要】你查验了'+t.name+'→'+resultText+'。这是你的核心信息，跳身份时必须如实报告。'});
+        const resultText = reflected ? '被反弹到你自己，原目标未验证' : (iw ? '🐺狼人显示' : '✅好人显示（不等于精确身份或阵营翻牌）');
+        se.memory.push({role:'system',content:'【查验结果·重要】你尝试查验'+t.name+'→'+resultText+'。'+(reflected?'不得把'+t.name+'当作已经验过的好人或狼人。':'这是你的核心信息，跳身份时必须如实报告。')});
         if (!S.seerLog) S.seerLog = {};
-        S.seerLog[S.round] = {target: t.name, result: iw ? '🐺狼人显示' : '✅好人显示'};
-        gameRecord.push({type:'night_action', role:'seer', round:S.round, target:t.name, result:iw?'wolf':'good'});
+        S.seerLog[S.round] = {target:t.name, actualTarget:actual.name, reflected, result:reflected?'被反弹，原目标未验证':(iw?'🐺狼人显示':'✅好人显示')};
+        gameRecord.push({type:'night_action', role:'seer', round:S.round, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
       }
     } else {
       // ★ v9.9.6: 同时显示 P编号 + 玩家名,避免 AI 在 thinking 和 action 之间混用编号导致查错人
@@ -16719,17 +16753,19 @@ ${mistDecisionHint}
         if (t) Render.devLog('warn', `[预言家兜底] 随机查验 ${t.name}`);
       }
       if (t) {
-        const iw = seerSeesAsWolf(reflectInspectSubject(se, t));  // 🌒 蚀时狼妃反弹：命中被锁X则静默查到自己
-        const resultText = iw ? '🐺狼人显示' : '✅好人显示（不等于精确身份或阵营翻牌）';
-        se.memory.push({role:'system',content:'【查验结果·重要】你查验了'+t.name+'→'+resultText+'。这是你的核心信息，跳身份时必须如实报告。'});
+        const actual = reflectInspectSubject(se, t);
+        const reflected = actual.id !== t.id;
+        const iw = seerSeesAsWolf(actual);
+        const resultText = reflected ? '被反弹到你自己，原目标未验证' : (iw ? '🐺狼人显示' : '✅好人显示（不等于精确身份或阵营翻牌）');
+        se.memory.push({role:'system',content:'【查验结果·重要】你尝试查验'+t.name+'→'+resultText+'。'+(reflected?'不得把'+t.name+'当作已经验过的好人或狼人。':'这是你的核心信息，跳身份时必须如实报告。')});
         if (!S.seerLog) S.seerLog = {};
-        S.seerLog[S.round] = {target: t.name, result: iw ? '🐺狼人显示' : '✅好人显示'};
-        if (!isAnon()) Render.log('night-result','🔮 预言家查验'+t.name+'→'+(iw?'🐺狼人':'✅好人'));
-        gameRecord.push({type:'night_action', role:'seer', round:S.round, target:t.name, result:iw?'wolf':'good'});
+        S.seerLog[S.round] = {target:t.name, actualTarget:actual.name, reflected, result:reflected?'被反弹，原目标未验证':(iw?'🐺狼人显示':'✅好人显示')};
+        if (!isAnon()) Render.log('night-result',reflected?'🔮 预言家查验'+t.name+'被反弹，原目标未验证':'🔮 预言家查验'+t.name+'→'+(iw?'🐺狼人':'✅好人'));
+        gameRecord.push({type:'night_action', role:'seer', round:S.round, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
         attachNightThinking(se.id);
         if (isMC()) {
           await mcNightConfirm('🔮 预言家查验结果', se.name,
-            `查验了 <b style="color:#f5c060">${t.name}</b>，结果是：<b style="color:${iw?'#c83040':'#68b8e8'}">${resultText}</b>`, null, null);
+            `尝试查验 <b style="color:#f5c060">${t.name}</b>，结果是：<b style="color:${reflected?'#d8a0ff':iw?'#c83040':'#68b8e8'}">${resultText}</b>`, null, null);
         }
       }
     }
@@ -16839,7 +16875,7 @@ ${mistDecisionHint}
       t = v==='None' ? null : findPlayer(v, ts);
     } else {
       const targetList = ts.map(x => `P${x.id + 1} ${x.name}${x.id===wc.id?'(你自己)':''}`).join('、');
-      const contextPrompt = '【蚀时狼妃·第'+S.round+'夜·反弹锁定】\n可选目标：'+targetList+'\n今晚锁定一人X：当夜首个直接指向X的单体查验、守护、毒杀、媚惑或摄梦会反弹到施术者本人，随后本夜锁失效。查验/守护反弹通常不致死；毒杀与连续摄梦反弹可能令施术者死亡。\n【不反弹】未明之雾等群体领域、守墓人等自动信息、净魂师净化、女巫解药/法老之蛇等事后救援、白天技、死亡技和狼刀。净魂师若先把圣域给到X，可净除这道锁。\n⚠️这是每晚循环技：本夜只有一发，但天亮后重置，下一夜可重新锁定。\n用法：①锁最可能被查、守、毒、媚惑或摄梦处理的狼队关键位；②锁自己反噬首个直接处理你的人；③也可以空过。';
+      const contextPrompt = '【蚀时狼妃·第'+S.round+'夜·反弹锁定】\n可选目标：'+targetList+'\n今晚锁定一人X：当夜首个直接指向X的单体查验、守护、毒杀、媚惑或摄梦会反弹到施术者本人，随后本夜锁失效。查验/守护反弹通常不致死；毒杀与连续摄梦反弹可能令施术者死亡。\n【不反弹】未明之雾等群体领域、守墓人等自动信息、净魂师净化、女巫解药/法老之蛇等事后救援、白天技、死亡技和狼刀。净魂师在你之后行动；若随后把圣域给到X，可净除这道锁。\n⚠️这是每晚循环技：本夜只有一发，但天亮后重置，下一夜可重新锁定。\n用法：①锁最可能被查、守、毒、媚惑或摄梦处理的狼队关键位；②锁自己反噬首个直接处理你的人；③也可以空过。';
       const actionPrompt = '你锁定谁？可锁别人、可锁自己，也可空过。\n<action>玩家名、"自己" 或 None（空过）</action>';
       const r = await nightTwoStep(wc, contextPrompt, actionPrompt);
       logNightThinking(wc, r);
@@ -17055,10 +17091,14 @@ ${mistDecisionHint}
             if (!/^\s*none\s*$/i.test((r2.action||'').trim())) t2 = findPlayer(r2.action, ts2) || (r2.thinking && findPlayer(extractSkillTarget(r2.thinking, ts2, 'granted'), ts2));
           }
           if (t2) {
-            const iw2 = seerSeesAsWolf(reflectInspectSubject(p, t2));  // 🌒 蚀时狼妃反弹：命中被锁X则静默查到自己
-            p.memory.push({role:'system',content:'【永久查验·结果】你看了'+t2.name+'→'+(iw2?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
-            if (!isAnon()) Render.log('night-result','🔮 '+p.name+'（获赐永久查验）看了'+t2.name);
-            gameRecord.push({type:'night_action', role:'granted-seer', round:S.round, name:p.name, target:t2.name, result:iw2?'wolf':'good'});
+            const actual2 = reflectInspectSubject(p, t2);
+            const reflected2 = actual2.id !== t2.id;
+            const iw2 = seerSeesAsWolf(actual2);
+            p.memory.push({role:'system',content:reflected2
+              ? '【永久查验·结果】你尝试查验'+t2.name+'时被反弹到自己；原目标未被验证，不得把他当作已验好人或狼人。⚠️只有你知道。'
+              : '【永久查验·结果】你看了'+t2.name+'→'+(iw2?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
+            if (!isAnon()) Render.log('night-result',reflected2?'🔮 '+p.name+'的永久查验被反弹，原目标未验证':'🔮 '+p.name+'（获赐永久查验）看了'+t2.name);
+            gameRecord.push({type:'night_action', role:'granted-seer', round:S.round, name:p.name, target:t2.name, actualTarget:actual2.name, reflected:reflected2, result:reflected2?'rebounded':(iw2?'wolf':'good')});
           }
         }
       }
@@ -17088,15 +17128,24 @@ ${mistDecisionHint}
       if (t) {
         p._grant = null;   // 一次性，用掉即消
         if (g.type==='inspect') {
-          const iw = seerSeesAsWolf(reflectInspectSubject(p, t));  // 🌒 蚀时狼妃反弹：命中被锁X则静默查到自己
-          p.memory.push({role:'system',content:'【赐予查验·结果】你用一次性查验看了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
-          if (!isAnon()) Render.log('night-result','🎁 '+p.name+'用赐予的查验看了'+t.name);
-          gameRecord.push({type:'night_action', role:'granted-inspect', round:S.round, name:p.name, target:t.name, result:iw?'wolf':'good'});
+          const actual = reflectInspectSubject(p, t);
+          const reflected = actual.id !== t.id;
+          const iw = seerSeesAsWolf(actual);
+          p.memory.push({role:'system',content:reflected
+            ? '【赐予查验·结果】你的一次性查验在尝试查看'+t.name+'时被反弹到自己；原目标未被验证。⚠️只有你知道。'
+            : '【赐予查验·结果】你用一次性查验看了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道。'});
+          if (!isAnon()) Render.log('night-result',reflected?'🎁 '+p.name+'的赐予查验被反弹，原目标未验证':'🎁 '+p.name+'用赐予的查验看了'+t.name);
+          gameRecord.push({type:'night_action', role:'granted-inspect', round:S.round, name:p.name, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
         } else if (g.type==='poison') {
-          if (S.nightData.grantPoison==null) S.nightData.grantPoison = reflectEffectTarget(p, t.id, 'poison');  // 🌒 命中被锁X则反噬赐毒者自己
-          p.memory.push({role:'system',content:'【赐予毒药·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'});
-          if (!isAnon()) Render.log('night-result','🎁 '+p.name+'用赐予的毒药毒了'+t.name);
-          gameRecord.push({type:'night_action', role:'granted-poison', round:S.round, name:p.name, target:t.name});
+          const actualId = reflectEffectTarget(p, t.id, 'poison');
+          const actual = S.players[actualId];
+          const reflected = actualId !== t.id;
+          if (S.nightData.grantPoison==null) S.nightData.grantPoison = actualId;
+          p.memory.push({role:'system',content:reflected
+            ? '【赐予毒药·私密】你本想毒'+t.name+'，但明确得知毒药被反弹到你自己；'+t.name+'没有被这瓶毒命中。⚠️只有你知道。'
+            : '【赐予毒药·私密】你毒了'+t.name+'，他今晚会受到毒杀结算。⚠️只有你知道。'});
+          if (!isAnon()) Render.log('night-result',reflected?'🎁 '+p.name+'的赐予毒药被反弹到自己':'🎁 '+p.name+'用赐予的毒药毒了'+t.name);
+          gameRecord.push({type:'night_action', role:'granted-poison', round:S.round, name:p.name, target:t.name, actualTarget:actual?actual.name:null, reflected});
         }
       }
     }
@@ -17139,10 +17188,14 @@ ${mistDecisionHint}
           t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'seer'), others)) || others[Math.floor(Math.random()*others.length)];
         }
         if (t) {
-          const iw = seerSeesAsWolf(reflectInspectSubject(p, t));  // 🌒 复用蚀时狼妃反弹
-          p.memory.push({role:'system', content:'【查验结果·私密】你查验了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道，跳身份时如实报。'});
-          if (!isAnon()) Render.log('night-result','🔮 '+p.name+'查验'+t.name+'→'+(iw?'🐺狼人':'✅好人'));
-          gameRecord.push({type:'night_action', role:'custom-inspect', round:S.round, name:p.name, custom:p.role.name, target:t.name, result:iw?'wolf':'good'});
+          const actual = reflectInspectSubject(p, t);
+          const reflected = actual.id !== t.id;
+          const iw = seerSeesAsWolf(actual);
+          p.memory.push({role:'system', content:reflected
+            ? '【查验结果·私密】你尝试查验'+t.name+'时被反弹到自己；原目标未被验证，不得当作已验好人或狼人。⚠️只有你知道。'
+            : '【查验结果·私密】你查验了'+t.name+'→'+(iw?'🐺狼人显示':'✅好人显示')+'。⚠️只有你知道，跳身份时如实报。'});
+          if (!isAnon()) Render.log('night-result',reflected?'🔮 '+p.name+'的查验被反弹，原目标未验证':'🔮 '+p.name+'查验'+t.name+'→'+(iw?'🐺狼人':'✅好人'));
+          gameRecord.push({type:'night_action', role:'custom-inspect', round:S.round, name:p.name, custom:p.role.name, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
         }
       }
       // 🧪 毒（一次性）
@@ -17156,7 +17209,7 @@ ${mistDecisionHint}
           logNightThinking(p, r);
           if (!/^\s*none\s*$/i.test((r.action||'').trim())) t = findPlayer(r.action, others) || (r.thinking && findPlayer(extractSkillTarget(r.thinking, others, 'poison'), others));
         }
-        if (t) { S.nightData.customPoison.push(reflectEffectTarget(p, t.id, 'poison')); p._cPoisonUsed = true; p.memory.push({role:'system', content:'【毒·私密】你毒了'+t.name+'，他今晚死亡。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result','🧪 '+p.name+'毒了'+t.name); gameRecord.push({type:'night_action', role:'custom-poison', round:S.round, name:p.name, custom:p.role.name, target:t.name}); }
+        if (t) { const actualId=reflectEffectTarget(p,t.id,'poison'), actual=S.players[actualId], reflected=actualId!==t.id; S.nightData.customPoison.push(actualId); p._cPoisonUsed = true; p.memory.push({role:'system', content:reflected?'【毒·私密】你本想毒'+t.name+'，但明确得知毒药被反弹到你自己；'+t.name+'没有被这瓶毒命中。⚠️只有你知道。':'【毒·私密】你毒了'+t.name+'，他今晚会受到毒杀结算。⚠️只有你知道。'}); if (!isAnon()) Render.log('night-result',reflected?'🧪 '+p.name+'的毒药被反弹到自己':'🧪 '+p.name+'毒了'+t.name); gameRecord.push({type:'night_action', role:'custom-poison', round:S.round, name:p.name, custom:p.role.name, target:t.name, actualTarget:actual?actual.name:null, reflected}); }
       }
       // 💉 解药（一次性，需看到当晚刀口）
       if (ab.includes('save') && !p._cSaveUsed && S.nightData.kill !== null) {
@@ -22039,7 +22092,7 @@ function _buildGodViewReport() {
     byRound[rd].forEach(r => {
       if (r.type === 'night_action') {
         const who = S.players.find(x => x.role && (r.role===x.role.id || r.role.startsWith(x.role.id)))?.name;
-        if (r.role === 'seer') lines.push(`  🔮 预言家查验 ${r.target}→${r.result==='wolf'?'狼':'好人'}`);
+        if (r.role === 'seer') lines.push(`  🔮 预言家查验 ${r.target}→${r.result==='rebounded'?'被反弹，原目标未验证':r.result==='wolf'?'狼':'好人'}`);
         else if (r.role === 'cupid') lines.push(`  💘 丘比特连恋人：${r.target}${r.crossTeam?'（跨阵营）':''}`);
         else if (r.role === 'magician' && r.target) lines.push(`  🎩 魔术师交换 ${r.target}`);
         else if (r.role === 'guard' && r.target) lines.push(`  🛡️ 守卫守护 ${r.target}`);
@@ -22492,7 +22545,7 @@ function _buildPrivateInfoLines(p) {
 
   // 🔮 预言家：每夜查验目标 + 结果
   if (p.role.id === 'seer' && S.seerLog && Object.keys(S.seerLog).length) {
-    const checks = Object.entries(S.seerLog).map(([r,i]) => `第${r}夜：查验${i.target} → ${i.result.includes('坏')||i.result.includes('狼')||i.result==='wolf' ? '🐺狼人显示' : '✅好人显示'}`).join('\n  ');
+    const checks = Object.entries(S.seerLog).map(([r,i]) => `第${r}夜：尝试查验${i.target} → ${i.reflected||String(i.result).includes('反弹') ? '被反弹，原目标未验证' : (i.result.includes('坏')||i.result.includes('狼')||i.result==='wolf' ? '🐺狼人显示' : '✅好人显示')}`).join('\n  ');
     lines.push(`你的查验记录：\n  ${checks}`);
   }
 
@@ -22678,7 +22731,7 @@ function _buildPrivateInfoLines(p) {
     const recs = (gameRecord || []).filter(r => r && r.type === 'night_action');
     const byRole = tag => recs.filter(r => r.role === tag);              // 唯一样板角色：按 role 取
     const mine   = tag => recs.filter(r => r.role === tag && r.name === p.name); // 赐予/积木：按本人名字取
-    const wg = res => res === 'wolf' ? '🐺狼人显示' : '✅好人显示';
+    const wg = res => res === 'rebounded' ? '被反弹，原目标未验证' : (res === 'wolf' ? '🐺狼人显示' : '✅好人显示');
 
     // 🦊 子狐·媚惑（blockKill=对方是狼、mute=对方是好人；均私下确认阵营）
     if (rid === 'fox') {
@@ -23041,7 +23094,7 @@ function _backfillGiftChoiceRecords() {
 //   ⚠️ 这些行动均为夜间私密信息：只应在上帝视角/复盘导出或行动者本人自视角中显示，不得进入他人视角摘要。
 function _formatCustomNightAction(r) {
   const t = r.target || '无';
-  const wg = res => res === 'wolf' ? '🐺狼人' : '✅好人';
+  const wg = res => res === 'rebounded' ? '被反弹，原目标未验证' : (res === 'wolf' ? '🐺狼人' : '✅好人');
   const who = r.custom || '自创角色';   // 积木自创角色用玩家自定义的角色名
   switch (r.role) {
     case 'skill-muted':   return '🔇 ' + (r.name || t) + (isFoxCharmMuteSource(r.source) ? '遭到子狐类媚惑，' : '的') + (r.ability || '夜间主动技能') + '被封锁、没有生效（不公开施法玩家）';
@@ -23059,7 +23112,7 @@ function _formatCustomNightAction(r) {
                                   (r.result === 'backfire' ? '（对方竟是🐺狼→赐福反噬、赐予者自己出局）' : '（对方是好人→待其自选盾/查验/毒）');
     case 'granted-seer':   return '🎁🔮 获赐永久查验：' + t + ' → ' + wg(r.result);
     case 'granted-inspect':return '🎁🔮 获赐一次性查验：' + t + ' → ' + wg(r.result);
-    case 'granted-poison': return '🎁🧪 获赐毒药：毒杀 ' + t;
+    case 'granted-poison': return r.reflected ? '🎁🧪 获赐毒药：原本毒杀 ' + t + '，被反弹到施术者本人' + (r.actualTarget ? ' ' + r.actualTarget : '') + '；原目标未中毒' : '🎁🧪 获赐毒药：毒杀 ' + t;
     case 'gift-choice':    return '🎁 ' + (r.name || '幸运儿') + '自选礼物：' +
                                   (r.gift === 'shield' ? '🛡️被动护盾（待遭受夜间致命伤时自动触发，无需主动行动）' :
                                    r.gift === 'inspect' ? (r.permanent ? '🔮永久查验（次夜起每晚行动）' : '🔮一次性查验') :
@@ -23084,7 +23137,7 @@ function _formatCustomNightAction(r) {
     case 'gargoyle_kill': return t === '无' ? '石像鬼空刀' : '石像鬼夜刀：' + t;
     case 'custom-inspect': return '🔮 ' + who + '·查验：' + t + ' → ' + wg(r.result);
     case 'custom-protect': return '🛡️ ' + who + '·守护：' + t;
-    case 'custom-poison':  return '🧪 ' + who + '·毒药：毒杀 ' + t;
+    case 'custom-poison':  return r.reflected ? '🧪 ' + who + '·毒药：原本毒杀 ' + t + '，被反弹到施术者本人' + (r.actualTarget ? ' ' + r.actualTarget : '') + '；原目标未中毒' : '🧪 ' + who + '·毒药：毒杀 ' + t;
     case 'custom-save':    return '💉 ' + who + '·解药：救 ' + t;
     case 'custom-mute':    return '🔇 ' + who + '·封技能：' + t + '（其今晚夜间技失效）';
     case 'custom-reflect': return '🌒 ' + who + '·反弹锁定：' + t;
@@ -23325,12 +23378,11 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         }
         if (r.role === 'wolf' || r.role === 'wolfbeauty') {
           txt += r.role === 'wolf' ? '\n🐺 狼队刀：' + r.target + '\n' : '\n🌹 魅惑：' + (r.target||'无') + '\n';
-        } else if (r.role === 'seer') txt += '\n🔮 查验：' + r.target + ' → ' + (r.result==='wolf'?'🐺狼人':'✅好人') + '\n';
-        // ★ 女巫与守卫【不会】被告知自己中了蚀时狼妃的反弹（摄梦人/石像鬼/子狐会）。
-        //   所以实际落点只在上帝视角补注，玩家自己的导出仍然只看到他提交的目标，
-        //   否则这份导出会替狼妃把身份泄露出去。
+        } else if (r.role === 'seer') txt += '\n🔮 查验：' + r.target + ' → ' + (r.result==='rebounded'?'被反弹，原目标未验证':r.result==='wolf'?'🐺狼人':'✅好人') + '\n';
+        // ★ 守护反弹保持静默；查验、毒药、媚惑与摄梦的施术者会收到明确的反弹结果。
+        //   个人视角必须按角色实际收到的反馈展示，不能把被反弹的原目标伪装成已成功命中。
         else if (r.role === 'witch') txt += '\n🧪 女巫：救=' + (r.saved||'无') + ' 毒=' + (r.poisoned||'无')
-          + ((isGod && !blindReview && r.reflected)
+          + ((r.reflected && ((isGod && !blindReview) || roleId === 'witch'))
               ? '（毒被蚀时狼妃反弹 → 实际中毒的是女巫本人' + (r.actualPoisoned ? ' ' + r.actualPoisoned : '') + '；原目标未中毒）' : '') + '\n';
         else if (r.role === 'guard') txt += '\n🛡️ 守卫：守护=' + (r.target||'无')
           + ((isGod && !blindReview && r.reflected)
@@ -23342,7 +23394,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         else if (r.role === 'cupid') txt += '\n💘 丘比特：恋人=' + (r.target||'未记录') + '\n';
         else if (r.role === 'serialkiller') txt += '\n🔪 连环杀手：' + (r.target ? '袭击=' + r.target : '空刀') + '\n';
         else if (r.role === 'mechwolf') txt += '\n🤖 机械狼学习：' + (r.target ? mechLearnSummaryText() : '今晚未学习') + '\n';
-        else if (r.role === 'mechwolf_seer') txt += '\n🤖🔮 机械狼精准查验：' + r.target + ' → 【' + (r.roleName || (r.result==='wolf'?'狼人':'好人')) + '】\n';
+        else if (r.role === 'mechwolf_seer') txt += '\n🤖🔮 机械狼精准查验：' + r.target + ' → ' + (r.result==='rebounded'?'被反弹，原目标未验证':'【'+(r.roleName || (r.result==='wolf'?'狼人':'好人'))+'】') + '\n';
         else if (r.role === 'mechwolf_guard') txt += '\n🤖🛡️ 机械狼守护=' + (r.target||'空守') + '\n';
         else if (r.role === 'mechwolf_poison') txt += '\n🤖☠️ 机械狼毒=' + (r.target||'未毒') + '\n';
         else if (r.role === 'mechwolf_magician') txt += '\n🤖🎩 机械狼魔术情报=' + (r.target||'魔术师空过') + '\n';
@@ -23471,15 +23523,15 @@ function openExport() {
       if (exportEnglish) {
         if (r.technical) actionDesc = '⚠️ The action instruction could not be parsed and was not executed (not a voluntary pass)';
         else if (r.role === 'guard') actionDesc = r.target ? `protected ${r.target}` : 'passed';
-        else if (r.role === 'witch') actionDesc = `${r.saved ? 'saved '+r.saved : 'did not save'}${r.poisoned ? ', poisoned '+r.poisoned : ''}`;
-        else if (r.role === 'seer') actionDesc = `inspected ${r.target} → ${r.result === 'wolf' ? '🐺 Wolf' : '✅ Town'}`;
+        else if (r.role === 'witch') actionDesc = `${r.saved ? 'saved '+r.saved : 'did not save'}${r.poisoned ? (r.reflected ? ', tried to poison '+r.poisoned+' but it was reflected onto the Witch; original target was not poisoned' : ', poisoned '+r.poisoned) : ''}`;
+        else if (r.role === 'seer') actionDesc = `inspected ${r.target} → ${r.result === 'rebounded' ? 'reflected; original target unverified' : r.result === 'wolf' ? '🐺 Wolf' : '✅ Town'}`;
         else if (r.role === 'wolfbeauty') actionDesc = r.target ? `charmed ${r.target}` : 'did not charm';
         else if (r.role === 'wolf') actionDesc = `attacked ${r.target}`;
         else if (r.role === 'cupid') actionDesc = `linked ${r.target || 'unrecorded'} as lovers`;
         else if (r.role === 'serialkiller') actionDesc = r.target ? `attacked ${r.target}` : 'passed';
         else if (r.role === 'magician') actionDesc = r.target ? `swapped ${r.target} (redirects only the wolf attack; roles and other abilities do not move)` : 'passed (no swap)';
         else if (r.role === 'mechwolf') actionDesc = r.target ? localizeExport(mechLearnSummaryText()) : 'did not learn tonight';
-        else if (r.role === 'mechwolf_seer') actionDesc = `precisely inspected ${r.target} → [${localizeExport(r.roleName || (r.result === 'wolf' ? 'Werewolf' : 'Town'))}]`;
+        else if (r.role === 'mechwolf_seer') actionDesc = r.result === 'rebounded' ? `precise inspection of ${r.target} was reflected; original target unverified` : `precisely inspected ${r.target} → [${localizeExport(r.roleName || (r.result === 'wolf' ? 'Werewolf' : 'Town'))}]`;
         else if (r.role === 'mechwolf_guard') actionDesc = r.target ? `protected ${r.target}` : 'passed';
         else if (r.role === 'mechwolf_poison') actionDesc = r.target ? `poisoned ${r.target}` : 'did not poison';
         else if (r.role === 'mechwolf_magician') actionDesc = r.target ? `learned the real swap ${r.target}` : 'learned that the Magician passed';
@@ -23488,15 +23540,15 @@ function openExport() {
       }
       else if (r.technical) actionDesc = '⚠️ 行动指令技术解析失败，未执行（非主动空过）';
       else if (r.role === 'guard') actionDesc = `守护了${r.target || '空守'}`;
-      else if (r.role === 'witch') actionDesc = `${r.saved ? '救了'+r.saved : '未救'}${r.poisoned ? '，毒了'+r.poisoned : ''}`;
-      else if (r.role === 'seer') actionDesc = `查验${r.target}→${r.result === 'wolf' ? '🐺坏人' : '✅好人'}`;
+      else if (r.role === 'witch') actionDesc = `${r.saved ? '救了'+r.saved : '未救'}${r.poisoned ? (r.reflected ? '，原本毒'+r.poisoned+'但被反弹到女巫本人；原目标未中毒' : '，毒了'+r.poisoned) : ''}`;
+      else if (r.role === 'seer') actionDesc = `查验${r.target}→${r.result === 'rebounded' ? '被反弹，原目标未验证' : r.result === 'wolf' ? '🐺坏人' : '✅好人'}`;
       else if (r.role === 'wolfbeauty') actionDesc = r.target ? `魅惑了${r.target}` : '未魅惑';
       else if (r.role === 'wolf') actionDesc = `刀${r.target}`;
       else if (r.role === 'cupid') actionDesc = `将${r.target || '未记录'}连为恋人`;
       else if (r.role === 'serialkiller') actionDesc = r.target ? `袭击了${r.target}` : '选择空刀';
       else if (r.role === 'magician') actionDesc = r.target ? `交换了${r.target}的号码（只重定向当夜狼刀，不交换身份或其它技能目标）` : '空过（未交换）';
       else if (r.role === 'mechwolf') actionDesc = r.target ? mechLearnSummaryText() : '今晚未学习';
-      else if (r.role === 'mechwolf_seer') actionDesc = `精准查验${r.target}→【${r.roleName || (r.result === 'wolf' ? '狼人' : '好人')}】`;
+      else if (r.role === 'mechwolf_seer') actionDesc = r.result === 'rebounded' ? `精准查验${r.target}被反弹，原目标未验证` : `精准查验${r.target}→【${r.roleName || (r.result === 'wolf' ? '狼人' : '好人')}】`;
       else if (r.role === 'mechwolf_guard') actionDesc = `守护了${r.target || '空守'}`;
       else if (r.role === 'mechwolf_poison') actionDesc = r.target ? `毒了${r.target}` : '未毒';
       else if (r.role === 'mechwolf_magician') actionDesc = r.target ? `得知真实换位${r.target}` : '得知魔术师空过';
@@ -25741,11 +25793,13 @@ WP.init();
           return;
         }
         if (gcActor(r) !== name) return;
-        if (r.role === 'seer' || r.role === 'granted-seer' || r.role === 'custom-inspect') {
-          acted.push('第' + r.round + '夜 你验了 ' + r.target + '，结果是' + (r.result === 'wolf' ? '狼' : '好人'));
+        if (r.role === 'seer' || r.role === 'granted-seer' || r.role === 'granted-inspect' || r.role === 'custom-inspect') {
+          acted.push('第' + r.round + '夜 你尝试查验 ' + r.target + '，结果是' + (r.result === 'rebounded' ? '被反弹，原目标未验证' : r.result === 'wolf' ? '狼' : '好人'));
+        } else if (r.role === 'mechwolf_seer') {
+          acted.push('第' + r.round + '夜 你尝试精准查验 ' + r.target + '，结果是' + (r.result === 'rebounded' ? '被反弹，原目标未验证' : '准确身份【' + (r.roleName || '未知') + '】'));
         } else if (r.role === 'witch') {
           if (r.saved) acted.push('第' + r.round + '夜 你用解药救了 ' + r.saved);
-          if (r.poisoned) acted.push('第' + r.round + '夜 你用毒药毒了 ' + r.poisoned);
+          if (r.poisoned) acted.push('第' + r.round + '夜 ' + (r.reflected ? '你本想用毒药毒 ' + r.poisoned + '，但毒药被反弹到你自己，原目标未中毒' : '你用毒药毒了 ' + r.poisoned));
         } else if (r.role === 'guard' && r.target) {
           acted.push('第' + r.round + '夜 你守了 ' + r.target);
         } else if (r.target) {
@@ -27422,7 +27476,9 @@ function buildWebPrompt(p) {
       wolfbeauty: `现在是狼人密谈阶段。直接提出今晚刀口、魅惑目标及最关键理由；魅惑不代替狼刀。${webMagicWolfHint}\n不超过140字。`,
       whitewolf: `现在是狼人密谈阶段。结合当前发言、身份威胁和保护风险，直接提出今晚刀口及最关键理由。${webMagicWolfHint}\n不超过140字。`,
       seer: `现在是预言家私密查验阶段，不是公开发言。只向主持人提交“查验：目标”，不要解释、不要向其他玩家提问。`,
-      witch: `现在是女巫私密行动阶段，不是公开发言。主持人会告诉你今晚的刀口；只提交救/不救以及是否用毒和毒谁，不要追加发言或向其他玩家提问。`,
+      witch: (S.witchPotions && S.witchPotions.save)
+        ? `现在是女巫私密行动阶段，不是公开发言。你仍持有解药，因此主持人会告诉你今晚的刀口；只提交救/不救以及是否用毒和毒谁，不要追加发言或向其他玩家提问。`
+        : `现在是女巫私密行动阶段，不是公开发言。你的解药已经用完，因此本夜不会获知刀口；只提交是否用毒和毒谁（或不使用毒药），不要猜测刀口、追加发言或向其他玩家提问。`,
       guard: `现在是守卫私密行动阶段，不是公开发言。只向主持人提交“守护：目标”（不能和上次一样），不要解释或提问。`,
       magician: `现在是魔术师私密行动阶段，不是公开发言。只向主持人提交一对交换对象或空过，不要解释或向其他玩家提问。`,
     }[p.role.id]
