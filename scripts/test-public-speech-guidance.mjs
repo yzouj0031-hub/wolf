@@ -19,6 +19,11 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.doesNotMatch(source, /\$\{hdeath\?'死者身份不公开。'/, `${file}: blunt hidden-death reminder is still injected beside every prompt`);
   assert.doesNotMatch(source, /\? `💀 \$\{r\.name\} 出局 — \$\{deathDesc\}\$\{voteSuffix\}（死者身份不公开）`/, `${file}: exported battle report repeats hidden identity on every death`);
   assert.match(source, /const minSpeechChars = Math\.max\(30, Number\(opts\.minSpeechChars\) \|\| 80\)/, `${file}: public speech minimum missing`);
+  assert.match(source, /流程已暂停，不会自动跳过/, `${file}: unrecoverable public speech does not pause the game`);
+  assert.match(source, /切换模型 \/ API 后重试/, `${file}: speech failure dialog cannot switch player model`);
+  assert.match(source, /使用当前模型重试/, `${file}: speech failure dialog cannot retry the current model`);
+  assert.match(source, /确认跳过本次发言/, `${file}: technical skip is not an explicit user decision`);
+  assert.match(source, /r = results\[j\] = await recoverTechnicalSpeech\(p, r\)/, `${file}: technical failures still bypass the recovery dialog`);
   assert.match(source, /系统重写·公开发言过短/, `${file}: short public speech is not automatically expanded`);
   assert.match(source, /重新写成120至300字的正式发言/, `${file}: expansion request lacks a useful target`);
   assert.match(source, /不得少于80字。投票前最后发言要把核心论据说透/, `${file}: second-round speech still has a weaker floor`);
