@@ -6376,6 +6376,119 @@ function buildWolfKillRosterLine(activeRoleIds) {
  *
  *  只发好人阵营、非纯净/自定义教学模式，与 counterclaimDecoyCorrectionBlock 同门槛。
  * ================================================================ */
+/* ================================================================
+ *  § 公开声明图谱 + 决策铁律（好人专用，每轮动态生成）
+ *
+ *  解决的具体事故："有人挡刀(假跳一个身份吸引狼刀)，却被另一个好人 AI 当狼打"，
+ *  哪怕他底牌已被双预言家金水认证。根因是好人 AI 没有持久的"信任状态"：它每轮
+ *  从零重扫全场，埋在几十条发言里的硬约束(P11 双金水)敌不过这一轮最新最显眼的
+ *  冲突(P11 抢了我的身份)。注意力优先级被"新鲜"劫持。
+ *
+ *  对策：把散在发言历史里的认证关系，由引擎客观提取、结构化、拍到 prompt 顶部，
+ *  并配一条"举证责任倒置"的决策铁律。引擎只陈述【公开发生了什么】，绝不替 AI
+ *  下"他是好人/狼"的结论——真假判断仍是 AI 的推理。
+ *
+ *  三段可靠度严格分层：
+ *    【系统铁证】翻牌/决斗验阵营 —— 引擎 100% 确定，复用已有函数
+ *    【公开声称】自曝身份、金水/查杀指认、对跳 —— 文本保守提取，宁漏不误，标注待判
+ *    【残局骨架】存活数、配置狼数、已现身狼数 —— 纯客观公开信息，不泄底
+ * ================================================================ */
+function buildPublicClaimsBlock(p) {
+  if (!p || !p.role || p.role.team !== 'good') return ''; // 狼有自己的盘点工具，且这套是好人逻辑
+  const recs = (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord : [];
+  const alive = (S.players || []).filter(x => x.alive);
+  const aliveNames = new Set(alive.map(x => x.name));
+
+  // ── 【残局骨架】纯客观：配置狼数(开局公开) − 已公开现身的狼 = 理论未现身狼位 ──
+  const totalWolves = (S.players || []).filter(x => x.role && x.role.team === 'bad').length; // 全集，含死者，是公开配置
+  const revealedWolfNames = new Set();
+  (S.players || []).forEach(x => {
+    const pr = _publiclyRevealedRoleName(x.name);
+    const pa = _publiclyVerifiedAlignment(x.name);
+    if ((pr && /狼/.test(pr)) || pa === '狼人') revealedWolfNames.add(x.name);
+  });
+  const hiddenWolves = Math.max(0, totalWolves - revealedWolfNames.size);
+  const skeleton = `存活 ${alive.length} 人；本局共 ${totalWolves} 狼，已公开现身 ${revealedWolfNames.size} 狼，理论还有约 ${hiddenWolves} 个狼位藏在未认证的人里。`;
+
+  // ── 【系统铁证】复用已有的系统级认证 ──
+  const ironLines = [];
+  alive.forEach(x => {
+    if (x.id === p.id) return;
+    const pr = _publiclyRevealedRoleName(x.name);
+    const pa = _publiclyVerifiedAlignment(x.name);
+    if (pr) ironLines.push(`${x.name} 已被系统坐实为【${pr}】`);
+    else if (pa) ironLines.push(`${x.name} 已被系统验证为【${pa}】`);
+  });
+
+  // ── 【公开声称】文本保守提取：自曝身份 / 金水查杀指认 / 对跳 ──
+  const ROLE_WORDS = ['预言家','女巫','守卫','猎人','骑士','摄梦人','狼美人','守墓人','石像鬼','净魂师','炼金魔女','魔术师','子狐','白猫','摹术师'];
+  const history = (S.history || []).filter(h => h && h.text && h.name && aliveNames.has(h.name));
+  const selfClaims = {};   // speaker -> Set(role)
+  const peekClaims = [];   // {by, target, verdict}
+  history.forEach(h => {
+    const speaker = h.name, txt = String(h.text);
+    // 自曝身份："我是X" / "我跳X"（保守：紧跟"我是/我就是/我跳"）
+    ROLE_WORDS.forEach(rw => {
+      // 覆盖常见自曝/对跳措辞："我是X""我就是X""我才是X""我跳X""我是真X"
+      if (new RegExp('我(?:就|才)?是(?:真)?' + rw + '|我跳' + rw).test(txt)) {
+        (selfClaims[speaker] = selfClaims[speaker] || new Set()).add(rw);
+      }
+    });
+    // 金水/查杀：按句切，若某句同时含另一存活玩家名 + 定性词，记一条声称
+    txt.split(/[。！!；;\n]/).forEach(clause => {
+      const gold = /金水|是好人|验.{0,4}好|背书/.test(clause);
+      const kill = /查杀|是狼|验.{0,4}狼|坏人/.test(clause);
+      if (!gold && !kill) return;
+      alive.forEach(t => {
+        if (t.name === speaker) return;
+        if (clause.includes(t.name)) {
+          if (gold) peekClaims.push({ by: speaker, target: t.name, verdict: '金水' });
+          else if (kill) peekClaims.push({ by: speaker, target: t.name, verdict: '查杀' });
+        }
+      });
+    });
+  });
+  // 汇总每个目标收到的金水来源（用于突出"多人共同金水"）
+  const goldByTarget = {};
+  peekClaims.filter(c => c.verdict === '金水').forEach(c => {
+    (goldByTarget[c.target] = goldByTarget[c.target] || new Set()).add(c.by);
+  });
+
+  const claimLines = [];
+  Object.entries(selfClaims).forEach(([who, roles]) => {
+    claimLines.push(`${who} 自称【${[...roles].join('/')}】`);
+  });
+  // 对跳：同一身份被两人及以上自称
+  const roleClaimers = {};
+  Object.entries(selfClaims).forEach(([who, roles]) => roles.forEach(r => (roleClaimers[r] = roleClaimers[r] || []).push(who)));
+  Object.entries(roleClaimers).forEach(([r, whos]) => {
+    if (whos.length >= 2) claimLines.push(`⚔️ ${whos.join(' 与 ')} 对跳【${r}】——至少一份声明为假，但假声明不等于是狼`);
+  });
+  Object.entries(goldByTarget).forEach(([target, sources]) => {
+    if (sources.size >= 2) claimLines.push(`⭐ ${target} 同时被 ${[...sources].join('、')} 发金水（${sources.size} 个来源）——只要这些人里有一个真预言家，${target} 就是好人`);
+    else claimLines.push(`${[...sources][0]} 称 ${target} 金水`);
+  });
+  peekClaims.filter(c => c.verdict === '查杀').forEach(c => claimLines.push(`${c.by} 称 ${c.target} 查杀`));
+
+  // ── 组装 ──
+  let out = `\n\n【📌 公开声明图谱·先读这一段再下判断】\n残局骨架（客观）：${skeleton}`;
+  if (ironLines.length) out += `\n系统铁证（100%确定）：\n· ` + ironLines.join('\n· ');
+  if (claimLines.length) out += `\n公开声称（下面是场上真实说过的话，真假要你自己判断，但"谁声称过什么"是客观事实，不要当没发生）：\n· ` + claimLines.join('\n· ');
+  else out += `\n公开声称：暂无明确的自曝/金水/查杀。`;
+
+  // ── 决策铁律（举证责任 + 三命题拆分 + 好人可战略撒谎 + 不处罚认证好人）──
+  out += `
+
+【⚠️ 下判断前必须过的铁律·最高优先级】
+1. 三个命题严格分开，禁止连锁升级：「他的身份声明是假的」≠「他是狼人」≠「他其他推理没价值」。假跳一个身份，只证明他不是那个身份，不能推出阵营，更不能否定他别的判断。**"false claim ⇒ wolf" 是非法推导，直接驳回。**
+2. 好人可以战略性撒谎。双金水/被认证的好人主动假跳一个"活着的神职"身份，最常见的原因是**替真神挡刀、操纵狼刀落点**——挡刀本来就常常必须穿活人衣服，狼才会信。发现一个大概率好人假跳身份，第一反应是"他在为谁挡刀"，不是"抓到狼了"。
+3. 举证责任倒置：要把票、决斗或任何致命技能指向一个【上面被多人金水/系统认证保护】的人，你**必须先在 thinking 里明确写出**：是哪一条金水/认证被你推翻了、依据是什么(具体到哪个预言家你判为假、为什么)。写不出这一条，这个方案就是非法的，换目标。
+4. 认证好人玩得再烂也不放逐。一个已被认证的好人即使发言乱、节奏差，白天票也不该用来"处罚"他——放逐不是纪律处分。该问的是"他这么玩之后我怎么利用/补救这个局面"，不是"我要让他付出代价"。
+5. 最终动作前自检：我要投/杀的人，是不是上面认证保护的好人？这个动作会不会帮狼定位最后一个神？有没有更低风险的选择(包括"这轮什么都不做")？`;
+
+  return out;
+}
+
 function buildDecoySacrificeBlock(viewerRole, activeRoleIds) {
   const active = activeRoleIds instanceof Set ? activeRoleIds : new Set(activeRoleIds || []);
   const has = id => active.has(id);
@@ -10501,7 +10614,12 @@ ${userPersona}
     Render.devLog && Render.devLog('warn', '[私密行动史] 构建失败：' + (e && e.message));
   }
 
-  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
+  // 公开声明图谱 + 决策铁律（只对好人、非纯净/自定义教学）。放【当前局势】之后，
+  // 把埋在发言历史里的认证关系拍到显著位置，对抗"新鲜冲突压过旧硬约束"。
+  const publicClaimsBlock =
+    (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && p.role.team === 'good')
+      ? buildPublicClaimsBlock(p) : '';
+  return `${wb}${trialBlock}\n\n${SOCIAL_GAME_COGNITION_RULES}\n\n${guide}${mbtiBlock}${styleBlock}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'':'死者身份公开（出局后翻牌）'}${winRuleBlock}${knightChainBlock}${speakRoundBlock}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${publicClaimsBlock}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${fmt}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${langOutBlock}`;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
