@@ -4647,7 +4647,7 @@ reg({id:'serialkiller',name:'连环杀手',team:'third',emoji:'🔪',desc:'第�
 
 // ─── 信息结构扩展角色 ───
 reg({id:'gravekeeper',name:'守墓人',team:'good',emoji:'',desc:'好人神职。每晚得知上一个白天被放逐玩家的阵营；若上个白天无人真正被放逐，则没有新结果。',maxCount:1,cssClass:'rgk',guide:'你是守墓人，属于好人阵营。\n【能力】每晚自动得知上一个白天被投票放逐者属于好人、狼人或第三方阵营；只验证阵营，不知道具体身份。没有真正放逐就没有结果。\n【策略】这是延迟验证信息。公开结果能重构昨天的站边和票型，但会暴露身份；隐藏结果可以继续观察谁在为死者做身份。真假守墓人对跳时，要结合逐日结果、票型收益和信息时序判断，不要把自报当事实。'+N1});
-reg({id:'dreamwalker',name:'摄梦人',team:'good',emoji:'',desc:'好人神职。每晚令一名其他玩家梦游并免疫当夜伤害；连续两晚选择同一人，则该玩家在第二夜因噩梦死亡；摄梦人夜间死亡会带走当夜梦游者。',maxCount:1,cssClass:'rdw',guide:'你是摄梦人，属于好人阵营。\n【能力】每晚选择一名其他存活玩家。若与上夜目标不同，他免疫当夜伤害；若连续两晚选择同一人，第二夜直接因噩梦死亡，不再获得保护。你若在夜间最终死亡，当夜梦游者也会随你死亡。\n【策略】换人是保护，连选是主动处决。第二夜是否连梦必须基于具体信息权衡，不能机械追梦；也要计算自己可能被刀时会不会误带关键好人。行动和结果都是私密信息。'+N1});
+reg({id:'dreamwalker',name:'摄梦人',team:'good',emoji:'',desc:'好人神职。每晚令一名其他玩家梦游并免疫当夜伤害；连续两晚选择同一人，则该玩家在第二夜因噩梦死亡；摄梦人夜间死亡会带走当夜梦游者。',maxCount:1,cssClass:'rdw',guide:'你是摄梦人，属于好人阵营。\n【能力】每晚选择一名其他存活玩家。若与上夜目标不同，他免疫当夜伤害；若连续两晚选择同一人，第二夜直接因噩梦死亡，不再获得保护。你若在夜间最终死亡，当夜梦游者也会随你死亡。\n【策略】换人是保护，连选是主动处决。第二夜是否连梦必须基于具体信息权衡，不能机械追梦；也要计算自己可能被刀时会不会误带关键好人。若上夜目标今晚几乎必然再次吃刀、即使不续梦也大概率死亡，可以考虑续梦该目标：这不会救他，而是把噩梦代价留给这名近乎必死者，从而不提前占用其他玩家的首次梦游保护窗口。例如首夜梦A，次夜A近乎必死；续梦A后，B仍可在以后第一次被梦并获得保护。只有在重复刀口判断置信度很高，且守护、救药、换刀等变量不足以让A存活时才采用；若狼队可能换刀，应优先保护真正可能成为新刀口的人。行动和结果都是私密信息。'+N1});
 reg({id:'alchemist',name:'炼金魔女',team:'good',emoji:'',desc:'好人神职。未明之雾与法老之蛇各限一次：雾可将当夜狼刀候选限制为三人；蛇可在本夜刀口最终定案（含魔术师换位结果）后得知实际目标，再决定是否救下。',maxCount:1,cssClass:'ralc',guide:'你是炼金魔女，属于好人阵营。\n【两种一次性能力】未明之雾：在狼队行动前圈定三名存活玩家，当夜狼刀只能从三人中选择（允许圈到狼人）；法老之蛇：在狼刀与各种换位全部结算、刀口最终定案后得知实际目标，再决定是否救下（女巫同样看得到这个最终刀口，这不是你独有的情报优势）。两种能力各限一次，同一夜只能选一种。\n【策略】雾改变狼队决策空间，适合保护多数高价值位置或制造狼队自刀压力；蛇是精确救援，但使用会消耗未来威慑。按当前局势判断，不要固定首夜开雾或见刀必救。'+N1});
 reg({id:'gargoyle',name:'石像鬼',team:'bad',emoji:'',desc:'狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并单独获得狼刀。',maxCount:1,cssClass:'tw rgg',guide:'你是石像鬼，属于狼人阵营，但与普通狼队互不相认：你不知道他们是谁，他们也不知道你；你不参加狼队密谈和普通狼刀。\n【窥视】每晚查验一名尚未查过的其他玩家，得知准确身份。\n【苏醒】只有除你之外的所有狼人阵营角色都出局后，你才单独获得狼刀。\n【策略】你可能在不知情时攻击普通狼，普通狼也可能把你当好人甚至刀你；这正是你的信息结构。白天只使用公开信息伪装，绝不能泄露准确身份来自夜间窥视。残局前优先存活并利用查验规划身份，苏醒后再按人数与屠边条件收割。'+N1});
 ALL_ROLES.gargoyle.desc = '狼人阵营孤狼。与普通狼队互不相认、不参加狼刀；每晚查验一人的准确身份且不能重复；其他所有狼系出局后苏醒并获得独立狼刀，可刀任意候选玩家（包括自己）或空刀，并私下得知所选刀口最终是否死亡。';
@@ -12468,6 +12468,53 @@ async function proc(players, promptFn, label, opts) {
   // 默认要求至少 80 字；调用方可以按特殊公开环节调低，但不能低于 30 字。
   const minSpeechChars = Math.max(30, Number(opts.minSpeechChars) || 80);
   const trialOn = $('m-trial').checked && !opts.wolfOnly && !opts.noTrial;
+  const waitForPlayerConfig = p => new Promise(resolve => {
+    const saveBtn = $('pcsave'), cancelBtn = $('pccancel');
+    const done = saved => {
+      saveBtn && saveBtn.removeEventListener('click', onSave);
+      cancelBtn && cancelBtn.removeEventListener('click', onCancel);
+      resolve(saved);
+    };
+    const onSave = () => done(true);
+    const onCancel = () => done(false);
+    saveBtn && saveBtn.addEventListener('click', onSave);
+    cancelBtn && cancelBtn.addEventListener('click', onCancel);
+    openPCfg(p.id);
+  });
+  const recoverTechnicalSpeech = async (p, failed) => {
+    let last = failed;
+    while (last && last._technicalFailure) {
+      const api = getAPI(p.id);
+      const choice = await waitChoice(
+        `${p.name}（P${p.id+1}）在“${label}”阶段没有生成可提取的正式发言。\n当前模型：${api.model || '未填写'}\n\n流程已暂停，不会自动跳过。你可以切换该玩家的模型/API 后重试，或用当前模型再试一次。`,
+        '发言生成故障',
+        [
+          {label:'切换模型 / API 后重试', value:'switch'},
+          {label:'使用当前模型重试', value:'retry'},
+          {label:'确认跳过本次发言', value:'skip', danger:true}
+        ]
+      );
+      if (choice === 'skip') return last;
+      if (choice === 'switch') {
+        const saved = await waitForPlayerConfig(p);
+        if (!saved) continue;
+      }
+      Render.devLog('info', `[P${p.id+1} ${p.name}] 用户选择${choice === 'switch' ? '切换配置后' : '使用当前模型'}重试公开发言`);
+      try {
+        const retried = factCheck(p, await callAI(p, promptFn(p), {
+          ...opts, noMemory:true, forceFallback:false, maxRetries:1
+        }));
+        if (retried && !isAISilentFailure(retried.game)) {
+          return {...retried, _technicalFailure:false, _technicalReason:''};
+        }
+        last = {...(retried || {}), _technicalFailure:true, _technicalReason:'用户重试后仍无有效正式发言'};
+      } catch (e) {
+        last = {...(last || {}), _technicalFailure:true, _technicalReason:'用户重试时API调用失败：' + (e && e.message || e)};
+        Render.devLog('err', `[P${p.id+1} ${p.name}] 用户重试发言失败：${e && e.message || e}`);
+      }
+    }
+    return last;
+  };
   const conc = getC('c-speak');
   let idx = 0;
   while (idx < players.length) {
@@ -12633,8 +12680,11 @@ async function proc(players, promptFn, label, opts) {
             : {thinking:'',game:sp,action:sp};
         }
       }
-      const r = results[j];
+      let r = results[j];
       if (!r) continue;
+      if (!opts.silent && r._technicalFailure) {
+        r = results[j] = await recoverTechnicalSpeech(p, r);
+      }
       // ★ 公平性兜底：技术性失败不冒充玩家发言、不显示“(沉默)”、不进入发言历史。
       // 记录一条所有后置位都能读到的中立系统事实，明确禁止把故障当身份依据。
       if (!opts.silent && r._technicalFailure) {
@@ -14110,6 +14160,10 @@ async function resolveDueReprieves(phaseType) {
 
 async function killPlayer(p, cause, opts) {
   opts = opts || {};
+  // 夜间主死亡采用“两阶段结算”：第一遍只登记全部主死者，第二遍才处理死亡触发。
+  const _aftermathOnly = !!opts._aftermathOnly;
+  const hd = $('m-hdeath').checked;
+  if (!_aftermathOnly) {
   // 🐈‍⬛ 白猫·缓死进行中：再受任何致命结算一律忽略，仍按原定的下一个同类阶段死亡。
   if (p && p._rpUsed && !p._rpResolved && !opts._rpResolve) {
     Render.log('system', '🐈‍⬛ ' + p.name + '（白猫·缓死中）本次伤害无效，仍将按原定阶段死亡。');
@@ -14166,10 +14220,9 @@ async function killPlayer(p, cause, opts) {
   if (cause==='kill' || cause==='bite' || cause==='serialkill') wolfKillEffect(p);
   else if (cause==='poison') playRoleEffect(p, 'poison');
   else if (cause==='shoot') playRoleEffect(p, 'hunter');
-  const hd = $('m-hdeath').checked;
   const causeText = {kill:'昨晚死亡',serialkill:'昨晚死亡',dreamkill:'在连续梦境中沉沦',dreamlink:'随夜亡的摄梦人一同沉睡',vote:'被投票放逐',poison:'昨晚死亡',merchant:'赐福时误将礼物赐给了狼、遭反噬身亡',duel:'因骑士决斗结算而亡',mechduel:'被机械狼的强制决斗处死（该技能不验证阵营）',shoot:'作为中枪者被公开开枪技能带走',bite:'作为被咬者被狼王咬死',charm:'作为被魅惑者随狼美人殉情（本人不因此被认定为狼美人）',loversick:'作为恋人随另一方殉情（该死因不验证原身份或阵营）',explode:'作为目标被白狼王自爆带走（本人不是白狼王）',selfexplode:'发动自爆技能身亡（他本人就是白狼王）',trial:'作为被审判者被定罪处决',trialfail:'发起审判失败、反坐身亡（他是发起质疑的一方，不是被审判者）'}[cause]||'死亡';
-  Render.log('death', '💀 '+p.name+(hd?'':' '+p.role.name)+' 死亡' + (opts.suffix||''));
-  Audio.playDeath();
+  if (!opts.suppressDeathLog) Render.log('death', '💀 '+p.name+(hd?'':' '+p.role.name)+' 死亡' + (opts.suffix||''));
+  if (!opts.suppressDeathAudio) Audio.playDeath();
   gameRecord.push({type:'death', name:p.name, role:p.role.name, team:p.role.team, cause, round:S.round, phase:p.deathPhase || S.phase, suffix:opts.suffix||''});
   // Notify alive players about the death
   if (opts.customNotify) {
@@ -14179,6 +14232,11 @@ async function killPlayer(p, cause, opts) {
     // 默认通知（白天死亡等场景）
     const deathInfo = '【公告】'+p.name+causeText+'。'+(hd?'（身份未公开）':'（身份：'+p.role.name+'）');
     S.players.filter(x=>x.alive && x.id!==p.id).forEach(x=>x.memory.push({role:'system',content:deathInfo}));
+  }
+  }
+  if (!_aftermathOnly && Array.isArray(opts.deferNightAftermath)) {
+    opts.deferNightAftermath.push({player:p, cause, opts:{...opts, deferNightAftermath:null, _aftermathOnly:true}});
+    return;
   }
   // 💘 恋人殉情是原死亡的立即连带结算，必须在普通胜负判定前完成。
   // 递归死亡用 deferWin 暂缓结算，防止只死一半时被中途判胜。
@@ -19085,25 +19143,37 @@ async function resolveNight() {
     const dnamesForEmcee = _realDeaths.map(d => d.player.name).join('、');
     if (_realDeaths.length) await callHost('death_announce', dnamesForEmcee + '昨晚殒命');
     const hd = $('m-hdeath').checked;
+    const deferredNightAftermath = [];
     for (const d of deaths) {
-      // ★ 夜间死亡公告按身份分发：闭眼玩家不知道是刀还是毒，只知道有人死了
-      // 狼队知道自己刀了谁（已通过wolfPrivateBlock单独注入），女巫知道自己用没用毒（夜间行动时已注入）
-      const roleReveal = hd ? '（身份未公开）' : '（身份：'+d.player.role.name+'）';
-      const causeStrKnown = d.cause==='kill' ? '昨晚被狼人杀害' : '被女巫毒死';
-      const deathInfoPublic = '【公告】'+d.player.name+'昨晚死亡。'+roleReveal;
-      const deathInfoKnown  = '【公告】'+d.player.name+causeStrKnown+'。'+roleReveal;
-      // 使用 killPlayer 统一处理死亡，传入 nightResolve 选项来自定义通知
+      // 先统一登记死亡，但压住逐人公告和死亡技能；整批登记完后一次播报。
       await killPlayer(d.player, d.cause, {
         nightResolve: true,
-        customNotify: (p, deadPlayer) => {
+        suppressDeathLog: true,
+        suppressDeathAudio: true,
+        deferNightAftermath: deferredNightAftermath,
+        customNotify: () => {
           // ★ fix：死因信息精确控制
           // 狼队只知道自己刀的目标，已通过wolfPrivateBlock注入，公告只发公开信息
           // 女巫只知道自己毒的目标，已在夜间行动时注入，公告也只发公开信息
           // 两者都不应从公告里额外得知对方的操作
-          p.memory.push({role:'system', content: deathInfoPublic});
+          // 整批主死亡登记完成后统一通知，避免把同时死亡误读成先后结算。
         }
       });
       // ★ 魅惑连带死者已在 killPlayer 里直接登记到 _lastNightDeaths，此处无需重复处理
+    }
+    if (_realDeaths.length) {
+      const batchNames = _realDeaths.map(d => d.player.name).join('、');
+      Render.log('death', '昨夜死亡：' + batchNames);
+      Audio.playDeath();
+      const batchRoles = hd
+        ? batchNames
+        : _realDeaths.map(d => d.player.name+'（身份：'+d.player.role.name+'）').join('、');
+      const batchNotice = '【公告】昨夜死亡：'+batchRoles+'。以上属于同一批夜间主结算，不代表名单中的先后死亡顺序。';
+      S.players.filter(p=>p.alive).forEach(p=>p.memory.push({role:'system',content:batchNotice}));
+    }
+    // 主死亡全部落地后，再依次处理猎人枪、狼王咬、狼美人/恋人连带和警徽。
+    for (const item of deferredNightAftermath) {
+      await killPlayer(item.player, item.cause, item.opts);
     }
   }
 
@@ -22858,7 +22928,7 @@ function _formatPublicDeathCause(subject, opts) {
   const round = subject ? (subject.deathRound != null ? subject.deathRound : subject.round) : null;
   const hidePrivateNight = !!opts.hiddenNight && !opts.canSeePrivateNight;
   const compact = !!opts.compact;
-  if ((cause === 'kill' || cause === 'poison' || cause === 'serialkill') && hidePrivateNight) return '夜晚出局（具体死因不公开）';
+  if ((cause === 'kill' || cause === 'poison' || cause === 'serialkill' || cause === 'dreamkill' || cause === 'dreamlink') && hidePrivateNight) return '夜晚出局（具体死因不公开）';
   if (cause === 'kill') return compact ? '被狼人夜刀' : '被狼人夜里刀杀';
   if (cause === 'serialkill') return compact ? '被连环杀手袭击' : '被连环杀手在夜里独立袭击杀死';
   if (cause === 'poison') {
@@ -22871,6 +22941,8 @@ function _formatPublicDeathCause(subject, opts) {
     }
     return compact ? '中毒死亡（毒源未公开）' : '夜间中毒死亡；公开信息不能据此断定毒源是真女巫还是机械狼技能';
   }
+  if (cause === 'dreamkill') return compact ? '因连续梦境死亡' : '连续两夜成为同一名摄梦人的实际梦游者，因致命噩梦死亡';
+  if (cause === 'dreamlink') return compact ? '随夜亡摄梦人连带死亡' : '作为当夜梦游者，随夜间死亡的摄梦人一同连带死亡';
   if (cause === 'vote') return compact ? '被投票放逐（不验阵营）' : '被白天投票放逐；投票结果不会验证其真实阵营';
   if (cause === 'trial') return compact ? '被审判处决（被审判者，不验阵营）' : '作为被审判者，被多数判定有罪后处决；审判结果不会验证其真实阵营';
   if (cause === 'trialfail') return compact ? '审判失败反坐（审判发起者）' : '作为审判发起者，质疑失败后反坐身亡；他不是本次审判的被审判目标';
@@ -23131,7 +23203,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
     // ★ 视角隔离：只有狼刀/女巫毒药（kill/poison）属于私密夜间死因，对普通玩家统一显示「夜晚死亡」。
     // 狼美人魅惑连带（charm）是全场公开触发的技能死因，必须明确显示；其余白天/公开技能死因也保留。
     // ★ bite(狼王所咬)是公开死因——开枪即公开"场上狼王已行动"这条信息,但狼王本人身份仍隐藏(由隐死亡控制)
-    const NIGHT_CAUSES = new Set(['kill','poison','serialkill']);
+    const NIGHT_CAUSES = new Set(['kill','poison','serialkill','dreamkill','dreamlink']);
     txt += '已出局：' + deadPlayers.map(p => {
       const cause = _formatPublicDeathCause(p, {
         compact:true,
@@ -23218,7 +23290,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       // ★ 视角隔离：只有狼刀/女巫毒药（kill/poison）的 suffix 对普通玩家隐藏。
       // 魅惑连带（charm）属于全场公开技能事件，所有视角都必须显示。
       // ★ bite(狼王所咬)是公开死因——开枪即公开"场上狼王已行动"这条信息,所有玩家可见
-      const NIGHT_CAUSES = new Set(['kill','poison','serialkill']);
+      const NIGHT_CAUSES = new Set(['kill','poison','serialkill','dreamkill','dreamlink']);
       const detail = _formatPublicDeathCause(r, {
         hiddenNight:blindReview || (hiddenDeathMode && NIGHT_CAUSES.has(r.cause)),
         canSeePrivateNight:isGod && !blindReview

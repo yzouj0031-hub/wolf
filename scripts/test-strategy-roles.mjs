@@ -53,6 +53,13 @@ for (const file of clients) {
   expect(!src.includes("label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:String(x.id)"), `${file}: final wolf picker still reads hidden target alignment`);
   expect(src.includes("cause:'dreamkill'"), `${file}: missing lethal second-dream settlement`);
   expect(src.includes("cause:'dreamlink'"), `${file}: missing dreamer death link`);
+  expect(src.includes("'dreamkill','dreamlink'"), `${file}: dream deaths must join private night-death formatting`);
+  expect(src.includes("if (cause === 'dreamkill')"), `${file}: missing dreamkill cause formatter`);
+  expect(src.includes("if (cause === 'dreamlink')"), `${file}: missing dreamlink cause formatter`);
+  expect(src.includes('const deferredNightAftermath = []'), `${file}: night deaths do not have a deferred aftermath queue`);
+  expect(src.includes('deferNightAftermath: deferredNightAftermath'), `${file}: primary night deaths still trigger skills immediately`);
+  expect(src.indexOf("Render.log('death', '昨夜死亡：' + batchNames)") < src.indexOf('for (const item of deferredNightAftermath)'), `${file}: triggered death skills run before the batched night-death announcement`);
+  expect(src.includes('以上属于同一批夜间主结算，不代表名单中的先后死亡顺序'), `${file}: players are not told that primary night deaths are simultaneous`);
   expect(src.includes('alchemistBlocked = S.nightData.alchemistSave'), `${file}: missing serpent rescue settlement`);
   expect(src.includes('const mistLocked = Array.isArray(S.nightData.alchemistMist)'), `${file}: wolf flow does not detect the Nameless Mist lock`);
   expect(src.includes('const mistDecisionHint = mistLocked'), `${file}: wolf flow lacks a Mist-specific counterplay decision layer`);
