@@ -20,7 +20,6 @@ for (const path of ['../index.html', '../en/index.html']) {
     'function buildActivePublicInteractionRules()',
     'const PUBLIC_NIGHT_ACTION_ORDER',
     '【本局角色公开行动与结算顺序·所有玩家必须遵守】',
-    'WB_RULES_COMPACT + buildActivePublicInteractionRules()',
     '机械狼学平民后的伪装只影响真正的预言家查验，不会欺骗你的媚惑判定',
     '被子狐媚惑时会触发当晚全体狼人禁刀',
     '任何实际受到媚惑的目标都会私下知道本夜遭到子狐类媚惑',

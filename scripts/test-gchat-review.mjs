@@ -112,7 +112,7 @@ for (const file of FILES) {
   check('战报带上了逐轮经过', facts.includes('第1天/夜'));
 
   const view = gc.gcMyView('P1');
-  check('个人视角含自己的查验记录', view.includes('你验了 P3'));
+  check('个人视角含自己的查验记录', view.includes('你尝试查验 P3'));
   check('个人视角含自己投过谁', view.includes('你投了 P4'));
   check('个人视角含自己的死法', view.includes('被女巫毒杀'));
   check('个人视角提醒"当时不知道"', view.includes('当时'));
@@ -130,7 +130,7 @@ for (const file of FILES) {
   gc.gcLoad();
   const sys = gc.gcSysFor({ name:'P1', persona:'你是P1。' });
   check('复盘提示词注入了战报', sys.includes('这局到底发生了什么'));
-  check('复盘提示词注入了个人视角', sys.includes('你验了 P3'));
+  check('复盘提示词注入了个人视角', sys.includes('你尝试查验 P3'));
   check('复盘提示词注入了当前议题', sys.includes('正在吵的'));
 
   // ② 盲复盘：身份和夜间行动一个字都不能漏
