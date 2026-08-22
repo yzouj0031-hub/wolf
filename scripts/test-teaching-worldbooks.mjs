@@ -77,6 +77,9 @@ for (const path of ['../index.html','../en/index.html']) {
   if (!compactCore || !compactCore[1].includes('【先拆发言，再做代入；行为模型不能单独定罪】')) {
     throw new Error(`${path} lacks speech-first perspective-taking guidance in the active compact core`);
   }
+  if (!html.includes('【受击者无刀口通知】') || !html.includes('你也不能说自己能验证昨晚刀口是你')) {
+    throw new Error(`${path} lacks the hard attack-target knowledge boundary`);
+  }
   for (const marker of ['【时点知识账本·防止事后信息倒灌】','K(玩家,T)','T之后才公开的结果','事前判断质量','事后结果对错','这条信息最早何时公开、公开给谁']) {
     if (!compactCore[1].includes(marker)) throw new Error(`${path} lacks temporal knowledge-ledger guidance: ${marker}`);
   }
