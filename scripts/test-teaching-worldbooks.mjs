@@ -80,6 +80,15 @@ for (const path of ['../index.html','../en/index.html']) {
   for (const marker of ['事实主张','信息来源','前提','推导','结论','像提前写好的故事','流程不给答辩机会','【投票前证据校验·先拆发言再代入】','行为模型作为低权重辅助','<game></game>']) {
     if (!html.includes(marker)) throw new Error(`${path} lacks speech-first voting safeguard: ${marker}`);
   }
+  for (const marker of [
+    '狼队对跳核验（本局无魔术师）',
+    "activeRoleIds.has('witch') && !activeRoleIds.has('magician')",
+    '报出的刀口或救人对象不同，是“该玩家不可能是真女巫”的身份级硬矛盾',
+    '证伪女巫身份不等于证实狼人阵营',
+    '刀口属于狼队绝密'
+  ]) {
+    if (!html.includes(marker)) throw new Error(`${path} lacks pack-wolf Witch-claim ledger audit: ${marker}`);
+  }
   for (const marker of ['由你自己根据【本局配置】和角色公开技能推导','不表示本局不存在的死亡机制也要保留','系统不会替你算出哪名死者对应哪种机制']) {
     if (!html.includes(marker)) throw new Error(`${path} lacks non-spoiling setup-aware death reasoning: ${marker}`);
   }

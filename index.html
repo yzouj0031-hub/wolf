@@ -23893,6 +23893,10 @@ function _buildPrivateInfoLines(p) {
     if (S.wolfKillLog && Object.keys(S.wolfKillLog).length) {
       const kills = Object.entries(S.wolfKillLog).map(([r,i]) => `第${r}夜：刀${i.target}（${i.success?'成功':'被救/被守'}）`).join('\n  ');
       lines.push(`狼队刀口记录（绝密）：\n  ${kills}`);
+      const activeRoleIds = new Set((S.players || []).filter(x => x && x.role).map(x => x.role.id));
+      if (activeRoleIds.has('witch') && !activeRoleIds.has('magician')) {
+        lines.push('狼队对跳核验（本局无魔术师）：判断任何女巫的刀口或救人声明前，必须按夜次把“她声称当夜看见或救了谁”与上方狼队刀口逐项对照。真女巫在解药尚在时看到的刀口、以及当夜若用解药所救的对象，都必须就是同夜刀口；报出的刀口或救人对象不同，是“该玩家不可能是真女巫”的身份级硬矛盾，“敢对跳、先跳后跳、语气坚定”都不能覆盖。反过来，报中刀口也不能单独自证真女巫。证伪女巫身份不等于证实狼人阵营，仍要区分狼人悍跳、好人挡刀或其他救场；刀口属于狼队绝密，公开发言不得无来源泄露。');
+      }
     }
     if (S.wolfStrategy) lines.push(`狼队密约：「${S.wolfStrategyName}」— ${S.wolfStrategy}`);
   }
