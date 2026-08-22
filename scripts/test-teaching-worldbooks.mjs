@@ -77,6 +77,12 @@ for (const path of ['../index.html','../en/index.html']) {
   if (!compactCore || !compactCore[1].includes('【先拆发言，再做代入；行为模型不能单独定罪】')) {
     throw new Error(`${path} lacks speech-first perspective-taking guidance in the active compact core`);
   }
+  for (const marker of ['【时点知识账本·防止事后信息倒灌】','K(玩家,T)','T之后才公开的结果','事前判断质量','事后结果对错','这条信息最早何时公开、公开给谁']) {
+    if (!compactCore[1].includes(marker)) throw new Error(`${path} lacks temporal knowledge-ledger guidance: ${marker}`);
+  }
+  if (!html.includes('审查过去行为时必须先锁定当时时点T') || !html.includes('今天才公开的信息只能更新今天的判断')) {
+    throw new Error(`${path} lacks the pre-vote temporal knowledge check`);
+  }
   for (const marker of ['事实主张','信息来源','前提','推导','结论','像提前写好的故事','流程不给答辩机会','【投票前证据校验·先拆发言再代入】','行为模型作为低权重辅助','<game></game>']) {
     if (!html.includes(marker)) throw new Error(`${path} lacks speech-first voting safeguard: ${marker}`);
   }
@@ -122,7 +128,7 @@ for (const book of advancedPreset.worldbooks) {
   if (!source.includes(`id: '${book.id}'`)) throw new Error(`built-in preset is missing ${book.id}`);
 }
 const evidenceBook = advancedPreset.worldbooks.find(book => book.id === 'wb_advanced_evidence_endgame');
-if (!evidenceBook || !evidenceBook.content.includes('先拆发言，再做代入；行为模型不能单独定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪') || !evidenceBook.content.includes('形成工作判断，不复读免责声明')) {
+if (!evidenceBook || !evidenceBook.content.includes('先拆发言，再做代入；行为模型不能单独定罪') || !evidenceBook.content.includes('流程造成的沉默不是默认认罪') || !evidenceBook.content.includes('形成工作判断，不复读免责声明') || !evidenceBook.content.includes('时点知识账本·防止事后信息倒灌') || !evidenceBook.content.includes('K(玩家,T)')) {
   throw new Error('advanced evidence worldbook lacks speech-first perspective-taking and post-position silence safeguards');
 }
 const goodCounterclaimBook = advancedPreset.worldbooks.find(book => book.id === 'wb_advanced_good_counterclaim');
