@@ -4228,6 +4228,7 @@ const WB_RULES_COMPACT = `
 
 【本局公共流程要点】
 - 夜间行动先发生，天亮后才公布死讯；不能拿今天白天发生的事解释昨夜为何查、守、毒或刀某人。
+- 【受击者无刀口通知】成为狼刀、守护、解药或摄梦的目标，本身不会让该玩家收到“你被刀/被救/被守”的系统反馈。只有系统在你的私密行动记录里明确写出的刀口或救援结果，才是你亲自知道的事实；若记录没写，即使你仍存活、昨夜是平安夜、或有人声称“我救了你”，你也不能说自己能验证昨晚刀口是你，只能把对方的话当作待判断的声明。
 - 死人不能继续行动；守卫不能连续两夜守同一人；毒死者不发动猎人/狼王类死亡技能。
 - 骑士决斗狼人：狼人死；决斗好人：仅骑士牺牲且目标公开验证为好人，白天随后继续。
 - 白狼王可在白天自爆并带走一人后直接入夜；被带走者不是白狼王，也不会因此验证身份。
@@ -6698,6 +6699,7 @@ function buildWebRulesExport(viewerP, options) {
     `流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。${S.extraSpeechEnabled ? '投票前可能出现经其他存活玩家表决通过的补充发言；' : '只有系统明确宣布平票时才有PK追加发言；'}退选没有额外发言。`,
     '阶段发言权限：只有系统明确标注为“发言、讨论、竞选陈词、PK自救或狼人密谈”的阶段才可对外说话。投票/警长投票、退选确认、夜间技能选择、警徽移交、死亡技能/决斗等技能确认及其他纯操作阶段，只向主持人提交选择，不追加公开发言，也不要向其他玩家提问；这些阶段无人会回应。',
     '时序：只能用行动发生前已经存在的信息解释夜间选择；未来计划不是已执行记录。',
+    '刀口知情边界：成为狼刀、守护、解药或摄梦目标，不会自动收到“被刀/被救/被守”的通知。只有本人私密系统记录明确写出的刀口或救援结果才能当作亲知事实；没有该记录时，即使本人存活、出现平安夜或有人声称救了他，也不能自证自己是昨晚刀口。',
     hdeath
       ? '隐死亡：普通夜间死亡不公开身份和具体死因；只有系统明确标注的公开技能事件/公开验证可以当事实。'
       : '公开死亡：系统翻出的身份是真实身份。'
@@ -9978,7 +9980,7 @@ ${userPersona}
     const publicRole = _publiclyRevealedRoleName(x.name);
     const publicAlignment = _publiclyVerifiedAlignment(x.name);
     let r = (!hdeath && x.revealed) ? x.role.name : (isPackWolfRole(p.role) && isPackWolfRole(x.role) ? x.role.name : (publicRole ? '公开身份·'+publicRole : (publicAlignment ? '公开验证·'+publicAlignment : '?')));
-    const causeText = _formatPublicDeathCause(x, {compact:true, hiddenNight:hdeath, canSeePrivateNight:false});
+    const causeText = _formatPlayerVisibleDeathCause(x, {compact:true});
     return `${x.name}(P${x.id+1})${r!=='?'?'('+r+')':''}[第${x.deathRound}回${x.deathPhase==='night'?'夜':'日'}·${causeText}]`;
   }).join(', ');
   const alive = `✅存活(${S.players.filter(x=>x.alive).length}人)：${alivePlayers || '无'}` +
@@ -10084,7 +10086,7 @@ ${userPersona}
     }
     if (r.type === 'death') {
       const phase = _timelinePhase(r);
-      const cause = _formatPublicDeathCause(r, {compact:true, hiddenNight:hdeath, canSeePrivateNight:false});
+      const cause = _formatPlayerVisibleDeathCause(r, {compact:true});
       _pushTimeline(phase, '已发生·系统事实', `${r.name}出局：${cause}`);
       if ((r.phase || r.deathPhase) === 'day' && Number.isFinite(r.round)) {
         _pushTimeline(phase, '系统自动取消', `${r.name}已在第${r.round}天白天死亡，不能进入第${r.round+1}夜；其生前声明的第${r.round+1}夜及以后查验、守护、用药、交换、袭击等计划全部作废。`);
@@ -24226,6 +24228,16 @@ function _formatPublicDeathCause(subject, opts) {
   return '出局（具体原因未记录）';
 }
 
+// 玩家有限视角只接收公开死亡事实。死者是否翻牌由外层单独决定；狼刀、毒药、
+// 独立袭击与摄梦夜间结算的精确死因不能因为“身份公开”开关关闭而一并泄露。
+// 真正有权限的角色会从各自私密行动记录获得刀口/用药信息，不走这个公共格式器。
+function _formatPlayerVisibleDeathCause(subject, opts) {
+  return _formatPublicDeathCause(subject, Object.assign({}, opts || {}, {
+    hiddenNight: true,
+    canSeePrivateNight: false
+  }));
+}
+
 function _formatCharmPublicNote(victims, hiddenRoles) {
   if (!victims || !victims.length) return '';
   const victimNames = victims.map(x => x.name).join('、');
@@ -24437,17 +24449,12 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   }
   if (isPeacefulNight) txt += '⭐ 本回合为平安夜（昨晚无人死亡）\n';
   if (deadPlayers.length > 0) {
-    // ★ 视角隔离：只有狼刀/女巫毒药（kill/poison）属于私密夜间死因，对普通玩家统一显示「夜晚死亡」。
-    // 狼美人魅惑连带（charm）是全场公开触发的技能死因，必须明确显示；其余白天/公开技能死因也保留。
-    // ★ bite(狼王所咬)是公开死因——开枪即公开"场上狼王已行动"这条信息,但狼王本人身份仍隐藏(由隐死亡控制)
-    const NIGHT_CAUSES = new Set(['kill','poison','serialkill','dreamkill','dreamlink']);
+    // ★ 视角隔离：普通玩家只看到公开死因；狼刀、毒药、独立袭击与摄梦夜间结算统一显示为「夜晚出局」。
+    // 狼美人魅惑连带、猎人开枪、狼王咬人等公开技能死因仍明确显示。
     txt += '已出局：' + deadPlayers.map(p => {
-      const cause = _formatPublicDeathCause(p, {
-        compact:true,
-        hiddenNight:blindReview || (hiddenDeathMode && NIGHT_CAUSES.has(p.deathCause)),
-        // 精确夜间毒源只给上帝视角；玩家本人的女巫/机械狼行动已在“你的私密信息”单独列明。
-        canSeePrivateNight:isGod && !blindReview
-      });
+      const cause = isGod && !blindReview
+        ? _formatPublicDeathCause(p, {compact:true, hiddenNight:false, canSeePrivateNight:true})
+        : _formatPlayerVisibleDeathCause(p, {compact:true});
       const round = p.deathRound ? '第'+p.deathRound+'回合' : '';
       return p.name + '（' + round + cause + '）';
     }).join('、') + '\n';
@@ -24524,14 +24531,10 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       }
 
     } else if (r.type === 'death') {
-      // ★ 视角隔离：只有狼刀/女巫毒药（kill/poison）的 suffix 对普通玩家隐藏。
-      // 魅惑连带（charm）属于全场公开技能事件，所有视角都必须显示。
-      // ★ bite(狼王所咬)是公开死因——开枪即公开"场上狼王已行动"这条信息,所有玩家可见
-      const NIGHT_CAUSES = new Set(['kill','poison','serialkill','dreamkill','dreamlink']);
-      const detail = _formatPublicDeathCause(r, {
-        hiddenNight:blindReview || (hiddenDeathMode && NIGHT_CAUSES.has(r.cause)),
-        canSeePrivateNight:isGod && !blindReview
-      });
+      // ★ 视角隔离：普通玩家隐藏私密夜间死因；魅惑连带、开枪、咬人等公开技能事件仍显示。
+      const detail = isGod && !blindReview
+        ? _formatPublicDeathCause(r, {hiddenNight:false, canSeePrivateNight:true})
+        : _formatPlayerVisibleDeathCause(r);
       // 仅保留投票数字后缀；其它技能后缀已由统一语义描述完整表达，避免重复或互相矛盾。
       const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
       txt += '\n💀 ' + r.name + ' 出局 — ' + detail + voteSuffix + '\n';
@@ -28446,7 +28449,7 @@ function buildWebPrompt(p, opts) {
   // 狼美人魅惑连带、猎人开枪、狼王咬人、决斗、自爆、投票等都是公开事件，仍需明确显示。
   const hdeathOn = (() => { try { return !!($('m-hdeath') && $('m-hdeath').checked); } catch(e) { return false; } })();
   const deadList = S.players.filter(x => !x.alive).map(x => {
-    const cause = _formatPublicDeathCause(x, {compact:true, hiddenNight:hdeathOn, canSeePrivateNight:false});
+    const cause = _formatPlayerVisibleDeathCause(x, {compact:true});
     return `${x.name}(${cause})`;
   }).join(' ');
   const charmVictimsForPrompt = S.players.filter(x => !x.alive && x.deathCause === 'charm');
@@ -28494,10 +28497,7 @@ function buildWebPrompt(p, opts) {
     const histToEmit  = isDelta ? (S.history || []).slice(relayMark.histIdx) : (S.history || []);
 
     // 死因统一走共用语义格式器；尤其不能再把“骑士认错后骑士本人死亡”写成“被斩狼”。
-    const causeText = (subject) => _formatPublicDeathCause(subject, {
-      hiddenNight:hd,
-      canSeePrivateNight:false
-    });
+    const causeText = (subject) => _formatPlayerVisibleDeathCause(subject);
 
     // ── 判断某个 round 对应的"第几天"显示标签 ──
     // 本游戏 round 从 1 开始：round=1 的夜晚是开局首夜，round=1 的白天是第一个白天。

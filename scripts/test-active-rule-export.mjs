@@ -86,6 +86,7 @@ const hardWebRules = exportWebHardRules(['fox','mechwolf']);
 assert.ok(normalWebRules.includes('【推理证据等级】'), 'default web rules should retain teaching evidence tiers');
 assert.ok(hardWebRules.includes('胜负：') && hardWebRules.includes('流程：'), 'hard-only web rules omitted victory and flow');
 assert.ok(hardWebRules.includes('【本局角色公开行动与结算顺序·所有玩家必须遵守】'), 'hard-only web rules omitted action order');
+assert.ok(hardWebRules.includes('成为狼刀、守护、解药或摄梦目标，不会自动收到') && hardWebRules.includes('不能自证自己是昨晚刀口'), 'hard-only web rules omitted the attack-target knowledge boundary');
 for (const teachingMarker of ['【推理证据等级】','S：','视角漏洞','独立判断','编造“灭口”']) {
   assert.ok(!hardWebRules.includes(teachingMarker), `hard-only web rules leaked teaching marker: ${teachingMarker}`);
 }
@@ -114,6 +115,7 @@ assert.ok(!englishRules(['wolfking']).includes('Villager'), 'English edge rule l
 assert.ok(englishRules(['fox','mechwolf']).includes('Mechanical Charm always precedes the real Fox'), 'English export omitted Mechanical Wolf/Fox action order');
 const hardEnglishRules = englishRules(['werewolf','werewolf'], {hardRulesOnly:true});
 assert.ok(hardEnglishRules.includes('— Public action and resolution order —'), 'English hard-only rules omitted action order');
+assert.ok(hardEnglishRules.includes('being targeted by the wolf attack') && hardEnglishRules.includes('cannot verify that you were the attack target'), 'English hard-only rules omitted the attack-target knowledge boundary');
 assert.ok(!hardEnglishRules.includes('— Evidence discipline —'), 'English hard-only rules leaked evidence teaching');
 assert.ok(!hardEnglishRules.includes('Known packmates are legal wolf-attack targets'), 'English hard-only rules leaked wolf strategy');
 

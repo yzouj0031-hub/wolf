@@ -53,9 +53,14 @@ for (const file of clients) {
   expect(!src.includes("label:x.name+(x.role.team==='bad'?' ⚠️自刀':''),value:String(x.id)"), `${file}: final wolf picker still reads hidden target alignment`);
   expect(src.includes("cause:'dreamkill'"), `${file}: missing lethal second-dream settlement`);
   expect(src.includes("cause:'dreamlink'"), `${file}: missing dreamer death link`);
-  expect(src.includes("'dreamkill','dreamlink'"), `${file}: dream deaths must join private night-death formatting`);
+  expect(src.includes("cause === 'dreamkill' || cause === 'dreamlink'"), `${file}: dream deaths must join private night-death formatting`);
   expect(src.includes("if (cause === 'dreamkill')"), `${file}: missing dreamkill cause formatter`);
   expect(src.includes("if (cause === 'dreamlink')"), `${file}: missing dreamlink cause formatter`);
+  expect(src.includes('function _formatPlayerVisibleDeathCause(subject, opts)'), `${file}: missing player-safe death-cause formatter`);
+  expect((src.match(/_formatPlayerVisibleDeathCause\(/g) || []).length >= 7, `${file}: some player prompt/export paths still bypass the player-safe death-cause formatter`);
+  expect(!src.includes('_formatPublicDeathCause(x, {compact:true, hiddenNight:hdeath, canSeePrivateNight:false})'), `${file}: API player prompt still reveals private night cause when roles are public`);
+  expect(!src.includes('_formatPublicDeathCause(x, {compact:true, hiddenNight:hdeathOn, canSeePrivateNight:false})'), `${file}: web relay still reveals private night cause when roles are public`);
+  expect(src.includes("hiddenNight: true") && src.includes("canSeePrivateNight: false"), `${file}: player-safe formatter does not force private night causes closed`);
   expect(src.includes('const deferredNightAftermath = []'), `${file}: night deaths do not have a deferred aftermath queue`);
   expect(src.includes('deferNightAftermath: deferredNightAftermath'), `${file}: primary night deaths still trigger skills immediately`);
   expect(src.indexOf("Render.log('death', '昨夜死亡：' + batchNames)") < src.indexOf('for (const item of deferredNightAftermath)'), `${file}: triggered death skills run before the batched night-death announcement`);
