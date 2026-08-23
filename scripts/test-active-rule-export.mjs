@@ -24,7 +24,7 @@ const exportSource = [
 const roleDefs = {
   werewolf:['狼人','bad'], wolfking:['狼王','bad'], wolfbeauty:['狼美人','bad'],
   seer:['预言家','good'], witch:['女巫','good'], hunter:['猎人','good'], guard:['守卫','good'],
-  knight:['骑士','good'], magician:['魔术师','good'], merchant:['奇迹商人','good'], whitewolf:['白狼王','bad'],
+  knight:['骑士','good'], magician:['魔术师','good'], merchant:['奇迹商人','good'], fool:['愚者','good'], youshang:['游商','good'], whitewolf:['白狼王','bad'],
   mechwolf:['机械狼','bad'], fox:['子狐','good'], jester:['小丑','third'],
   serialkiller:['连环杀手','third'], alchemist:['炼金魔女','good'],
   wolfconcubine:['蚀时狼妃','bad'], soulwarden:['净魂师','good'], imitator:['摹术师','good'],
@@ -33,6 +33,8 @@ const roleDefs = {
 const ALL_ROLES = Object.fromEntries(Object.entries(roleDefs).map(([id,[name,team]]) => [id, {
   id, name, team, emoji:'', desc:`${name}默认说明。`
 }]));
+ALL_ROLES.custom_god = {id:'custom_god',name:'星术师',team:'good',goodRoleClass:'god',emoji:'',desc:'自创神职说明。'};
+ALL_ROLES.custom_civilian = {id:'custom_civilian',name:'记录员',team:'good',goodRoleClass:'villager',emoji:'',desc:'自创民牌说明。'};
 
 const sandbox = {
   ALL_ROLES,
@@ -47,6 +49,13 @@ vm.runInContext(exportSource + '\nthis.buildRulesExport=buildRulesExport;this.bu
 function setGame(ids) {
   sandbox.S = {
     players:ids.map((id, i) => ({id:i, name:`P${i + 1}`, role:ALL_ROLES[id]})),
+    killEdgeMode:true, singleRound:true, round:1, extraSpeechEnabled:false,
+    sheriffDailyOrderMode:false, knightChainMode:false
+  };
+}
+function setGameRoles(roles) {
+  sandbox.S = {
+    players:roles.map((role, i) => ({id:i, name:`P${i + 1}`, role})),
     killEdgeMode:true, singleRound:true, round:1, extraSpeechEnabled:false,
     sheriffDailyOrderMode:false, knightChainMode:false
   };
@@ -85,6 +94,22 @@ exportBoth(['whitecat','villager']).forEach(text => {
   assert.ok(text.includes('白猫（好人阵营·神职（计入屠神））'), 'White Cat is not explicitly classified as a god role in Chinese exports');
   assert.ok(text.includes('村民（好人阵营·平民）'), 'Villager is not explicitly distinguished from god roles in Chinese exports');
 });
+exportBoth(['fool','merchant','youshang','villager']).forEach(text => {
+  for (const name of ['愚者','奇迹商人','游商']) {
+    assert.ok(text.includes(`${name}（好人阵营·神职（计入屠神））`), `${name} is not classified as a god role in Chinese exports`);
+  }
+  assert.ok(text.includes('村民（好人阵营·平民）'), 'Villager lost its civilian classification');
+});
+exportBoth(['custom_god','custom_civilian']).forEach(text => {
+  assert.ok(text.includes('星术师（好人阵营·神职（计入屠神））'), 'custom good power role lost its god-wipe classification');
+  assert.ok(text.includes('记录员（好人阵营·民牌（计入屠民））'), 'custom good civilian lost its civilian-wipe classification');
+});
+const customTemplateCivilian = {...ALL_ROLES.seer, id:'seer', customId:'custom_oracle', name:'占星记录员', goodRoleClass:'villager', desc:'自创模板民牌说明。'};
+setGameRoles([customTemplateCivilian]);
+for (const text of [sandbox.buildRulesExport(), sandbox.buildWebRulesExport(sandbox.S.players[0])]) {
+  assert.ok(text.includes('占星记录员（好人阵营·民牌（计入屠民））'), 'template-cloned custom civilian lost its custom name or civilian class');
+  assert.ok(text.includes('自创模板民牌说明。'), 'template-cloned custom role export replaced its custom description with the built-in template description');
+}
 
 const normalWebRules = exportBoth(['fox','mechwolf'])[1];
 const hardWebRules = exportWebHardRules(['fox','mechwolf']);
@@ -115,8 +140,10 @@ assert.ok(!englishRules(['wolfking']).includes('Knight'), 'English Wolf King exp
 assert.ok(englishRules(['wolfking','knight']).includes('Knight duel'), 'English active Knight interaction missing');
 assert.ok(!englishRules(['werewolf']).includes('Known packmates'), 'single known-pack wolf should not receive packmate sacrifice rule');
 assert.ok(englishRules(['werewolf','werewolf']).includes('Known packmates'), 'multi-wolf setup should include packmate sacrifice rule');
-assert.ok(englishRules(['imitator']).includes('Imitator:'), 'English export omitted active Imitator');
+assert.ok(englishRules(['imitator']).includes('Imitator (Good-team power role (counts toward god wipe)):'), 'English export omitted active Imitator or its god-role class');
 assert.ok(englishRules(['whitecat']).includes('counts as a god role for edge-victory god wipe'), 'English export does not classify White Cat as a god role');
+assert.ok(englishRules(['fool']).includes('Fool (Good-team power role (counts toward god wipe)):'), 'English export does not classify Fool as a god role');
+assert.ok(englishRules(['villager']).includes('Villager (Good-team civilian (counts toward civilian wipe)):'), 'English export does not classify Villager as a civilian role');
 assert.ok(!englishRules(['wolfking']).includes('Villager'), 'English edge rule leaked absent Villager role name');
 assert.ok(englishRules(['fox','mechwolf']).includes('Mechanical Charm always precedes the real Fox'), 'English export omitted Mechanical Wolf/Fox action order');
 const hardEnglishRules = englishRules(['werewolf','werewolf'], {hardRulesOnly:true});
@@ -124,5 +151,19 @@ assert.ok(hardEnglishRules.includes('— Public action and resolution order —'
 assert.ok(hardEnglishRules.includes('being targeted by the wolf attack') && hardEnglishRules.includes('cannot verify that you were the attack target'), 'English hard-only rules omitted the attack-target knowledge boundary');
 assert.ok(!hardEnglishRules.includes('— Evidence discipline —'), 'English hard-only rules leaked evidence teaching');
 assert.ok(!hardEnglishRules.includes('Known packmates are legal wolf-attack targets'), 'English hard-only rules leaked wolf strategy');
+const customEnglishRules = i18nSandbox.window.WolfI18n.buildEnglishRules({
+  players:[
+    {role:{id:'custom_god',name:'Astromancer',team:'good',goodRoleClass:'god',desc:'Custom power role.'}},
+    {role:{id:'custom_civilian',name:'Archivist',team:'good',goodRoleClass:'villager',desc:'Custom civilian role.'}}
+  ], edge:true, singleRound:true, hiddenDeath:false
+});
+assert.ok(customEnglishRules.includes('Astromancer (Good-team power role (counts toward god wipe)):'), 'English export omitted custom god-role classification');
+assert.ok(customEnglishRules.includes('Archivist (Good-team civilian (counts toward civilian wipe)):'), 'English export omitted custom civilian classification');
+const customTemplateEnglishRules = i18nSandbox.window.WolfI18n.buildEnglishRules({
+  players:[{role:{id:'seer',customId:'custom_oracle',name:'Oracle Archivist',team:'good',goodRoleClass:'villager',desc:'Custom template civilian.'}}],
+  edge:true, singleRound:true, hiddenDeath:false
+});
+assert.ok(customTemplateEnglishRules.includes('Oracle Archivist (Good-team civilian (counts toward civilian wipe)):'), 'English export replaced a template-cloned custom role with its built-in role name/class');
+assert.ok(customTemplateEnglishRules.includes('Custom template civilian.'), 'English export replaced a template-cloned custom description with the built-in template description');
 
 console.log('active role export tests passed');

@@ -385,6 +385,21 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
     return ROLE_EN[id] ? ROLE_EN[id].desc : '';
   }
 
+  function englishRoleClass(id, roleInfo) {
+    const desc = String(roleInfo && roleInfo.desc || '');
+    if (roleInfo && roleInfo.team === 'good') {
+      const cls = roleInfo.goodRoleClass === 'villager' || (roleInfo.goodRoleClass !== 'god' && id === 'villager') ? 'villager' : 'god';
+      return cls === 'villager' ? 'Good-team civilian (counts toward civilian wipe)' : 'Good-team power role (counts toward god wipe)';
+    }
+    if (roleInfo && roleInfo.team === 'bad') return 'Wolf team';
+    if (roleInfo && roleInfo.team === 'third') return 'Independent';
+    if (id === 'villager') return 'Good-team civilian (counts toward civilian wipe)';
+    if (desc.startsWith('Good team.') || desc.startsWith('Good-team')) return 'Good-team power role (counts toward god wipe)';
+    if (desc.startsWith('Wolf team.')) return 'Wolf team';
+    if (desc.startsWith('Independent.')) return 'Independent';
+    return 'Role class follows the current setup';
+  }
+
   function buildEnglishActiveRoleTiming(players) {
     const list = (players || []).filter(p => p && p.role), ids = new Set(list.map(p => p.role.id));
     const steps = [], covered = new Set();
@@ -442,11 +457,18 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
 
   function buildEnglishRules(opts) {
     const players = opts.players || [], ids = [...new Set(players.map(p => p.role && p.role.id).filter(Boolean))];
+    const seenRoleKeys = new Set();
+    const activeRoles = players.filter(p => p && p.role).map(p => p.role).filter(role => {
+      const key = role.customId || role.id;
+      if (seenRoleKeys.has(key)) return false;
+      seenRoleKeys.add(key);
+      return true;
+    });
     const activeIds = new Set(ids);
     const knownPackRoles = new Set(['werewolf','wolfking','wolfbeauty','whitewolf','wolfconcubine']);
     const knownPackCount = players.filter(p => p.role && knownPackRoles.has(p.role.id)).length;
     const counts = {};
-    players.forEach(p => { if (p.role) { const n=(ROLE_EN[p.role.id]||p.role).name; counts[n]=(counts[n]||0)+1; } });
+    players.forEach(p => { if (p.role) { const n=p.role.customId ? p.role.name : (ROLE_EN[p.role.id]||p.role).name; counts[n]=(counts[n]||0)+1; } });
     const config = Object.entries(counts).map(([n,c]) => c > 1 ? `${c} ${n}` : n).join(' + ');
     const lines = ['[ACTIVE GAME RULES · CONCISE EXPORT]', `Setup: ${players.length} players | ${config}`, '', '— Victory and flow —',
       opts.edge ? '• Edge victory: wolves win by eliminating every god-role or every civilian role present in the setup, or by reaching parity. Good wins by eliminating every wolf.' : '• City victory: wolves win only at parity. Eliminating one role category alone does not end the game. Good wins by eliminating every wolf.',
@@ -455,7 +477,12 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
       ...(!opts.hardRulesOnly && knownPackCount > 1 ? ['• Known packmates are legal wolf-attack targets, but sacrificing one is justified only by concrete net gain (for example baiting the antidote, building cover, triggering a death skill, or sacrificing a wolf almost certain to be exiled). It must be compared against attacking a good player and must not cause an immediate loss.'] : []),
       opts.hiddenDeath ? '• Hidden deaths: ordinary night deaths reveal neither identity nor private cause. Public skill events remain public.' : '• Public deaths: identities revealed by the system are factual.',
       '• A night choice may only be explained with information available before that night action. A future plan is not an executed action.', '', '— Roles in this game —'];
-    ids.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${buildActiveEnglishRoleDesc(id, activeIds)}`); });
+    activeRoles.forEach(playerRole => {
+      const id = playerRole.id;
+      const r = playerRole.customId ? playerRole : (ROLE_EN[id] || playerRole);
+      const classRole = r ? Object.assign({}, r, playerRole || {}) : null;
+      if (r) lines.push(`• ${r.name} (${englishRoleClass(id, classRole)}): ${playerRole.customId ? (playerRole.desc || '') : (ROLE_EN[id] ? buildActiveEnglishRoleDesc(id, activeIds) : (r.desc || ''))}`);
+    });
     lines.push('• Only the roles listed above exist in this match. Unlisted roles and their mechanics must not be used as premises for reasoning.');
     lines.push('', ...buildEnglishActiveRoleTiming(players));
     if (!opts.hardRulesOnly) lines.push('', '— Terminology —','• Use standard English Werewolf/Mafia terms: town, wolf result, town result, counterclaim, bussing, miselimination, voting pattern, and night-kill target. Never translate Chinese jargon literally.','', '— Evidence discipline —','• System verification and your own explicit private action results have highest priority; claims and last words are not automatic proof.','• A single slip, wording issue, rule-summary mismatch, or speaking style is suspicion only—not a standalone conviction.','• Repetition by several players is still one argument. Use voting patterns, sustained behavior, information access, and faction benefit.');
@@ -463,7 +490,7 @@ Prefer the plain-language term when jargon would sound unnatural. Preserve playe
   }
   function buildEnglishRulebook(roleIds) {
     const lines=['[WEREWOLF ROLE ENCYCLOPEDIA]','This reference lists every role available in the app. A particular game uses only the roles shown in its setup.',''];
-    roleIds.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name}: ${r.desc}`); });
+    roleIds.forEach(id => { const r=ROLE_EN[id]; if(r) lines.push(`• ${r.name} (${englishRoleClass(id, r)}): ${r.desc}`); });
     lines.push('', 'Pack rule: known packmates are legal wolf-attack targets only as a deliberate tactical sacrifice with concrete net benefit; accidental or purposeless friendly fire remains bad play.');
     return lines.join('\n');
   }

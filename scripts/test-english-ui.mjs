@@ -83,6 +83,8 @@ requireText(i18n, 'characterData:true', 'dynamic text mutation translation');
 requireText(i18n, 'After voting starts, every AI judge scores each player', 'dynamic MVP translation fallback');
 requireText(i18n, 'The game has not started. Finish the role setup', 'empty-rule translation fallback');
 requireText(i18n, 'Speaking permission by phase:', 'English exported phase speaking boundary');
+requireText(i18n, 'Good-team power role (counts toward god wipe)', 'English god-role classification');
+requireText(i18n, 'Good-team civilian (counts toward civilian wipe)', 'English civilian classification');
 for (const roleId of ['werewolf','wolfking','wolfbeauty','seer','witch','guard','hunter','knight','magician','villager','fool','jester','merchant','fox','whitecat','cupid','serialkiller','mechwolf']) {
   requireText(sigils, `${roleId}:`, `role sigil for ${roleId}`);
 }
