@@ -24694,6 +24694,11 @@ function openExport() {
     }
     else if (r.type==='foolImmune' || r.type==='reprieve' || r.type==='skillConsumed') { txt += localizeExport(_formatPublicRevealEvent(r))+'\n\n'; }
     else if (r.type==='speech') { txt += '['+localizeExport(r.label)+'] '+r.name+':\n'; if(inc&&r.thinking) txt+='  ('+r.thinking+')\n'; txt += '  '+r.game+'\n\n'; }
+    else if (r.type==='web_choice_thinking' && inc) {
+      txt += `[${exportEnglish ? 'Web relay private draft' : '网页接力·私密草稿'} · ${localizeExport(r.choiceKind === 'vote' ? '投票' : '操作')}] ${r.name}:\n`;
+      txt += '  ('+r.thinking+')\n';
+      txt += `  ${exportEnglish ? 'Submitted' : '提交'}: ${localizeExport(r.action)}\n\n`;
+    }
     else if (r.type==='night_action') {
       // ★ 夜间行动本身属于上帝视角完整记录，始终导出；“含内心独白”只控制 thinking，
       //   不能因为未勾选内心独白就把整段夜间行动一起删掉。
@@ -28943,30 +28948,59 @@ buildWebPrompt = function(p, opts) {
   return base;
 };
 
+// 把网页 AI 的草稿与最终答案硬隔离。公开发言、投票和技能操作共用这一层：
+// 草稿保存为私密 thinking，但永远不参与姓名/选项匹配，避免“方案A/方案B”被误执行。
+function _splitWebReplyDraft(rawText) {
+  const raw = String(rawText || '').trim();
+  if (!raw) return {thinking:'', visible:''};
+  let visible = raw;
+  const thoughts = [];
+  const blocks = [
+    /<\s*thinking\s*>([\s\S]*?)<\s*\/\s*thinking\s*>\s*/gi,
+    /<\s*draft\s*>([\s\S]*?)<\s*\/\s*draft\s*>\s*/gi,
+    /[\[【]\s*(?:思考|草稿)\s*[\]】]([\s\S]*?)[\[【]\s*\/\s*(?:思考|草稿)\s*[\]】]\s*/gi
+  ];
+  blocks.forEach(re => {
+    visible = visible.replace(re, (_all, body) => {
+      if (body && String(body).trim()) thoughts.push(String(body).trim());
+      return '\n';
+    });
+  });
+  return {thinking:thoughts.join('\n'), visible:visible.replace(/\n{3,}/g,'\n\n').trim()};
+}
+
+function _lastTaggedWebAction(rawText) {
+  const hits = [...String(rawText || '').matchAll(/<\s*action\s*>([\s\S]*?)<\s*\/\s*action\s*>/gi)];
+  return hits.length ? String(hits[hits.length - 1][1] || '').trim() : '';
+}
+
+function _lastExplicitWebDecisionText(source) {
+  source = String(source || '');
+  const re = /(?:最终|正式|实际)(?:选择|决定|行动|投票)|我的(?:最终)?(?:选择|决定|行动|投票)|提交(?:选择|投票)/gi;
+  const hits = [...source.matchAll(re)];
+  if (!hits.length) return '';
+  const tail = source.slice(hits[hits.length - 1].index + hits[hits.length - 1][0].length);
+  return tail.replace(/^\s*(?:是|为|给|投|选择)?\s*[：:|]?\s*/i,'').split(/[\n。；;]/,1)[0].trim();
+}
+
+function _recordWebChoiceThinking(p, rawText, choiceKind, action) {
+  const thinking = _splitWebReplyDraft(rawText).thinking;
+  if (!thinking) return;
+  gameRecord.push({
+    type:'web_choice_thinking', round:S.round, phase:S.phase,
+    name:p.name, role:p.role && p.role.name, thinking,
+    choiceKind, action:String(action == null ? '' : action), private:true
+  });
+  Render.devLog && Render.devLog('info', `[网页接力·私密草稿] ${p.name} ${choiceKind === 'vote' ? '投票' : '操作'} → ${String(action)}`);
+}
+
 // ── 智能解析粘贴内容：处理网页端各种非标准格式 ──
 function parseWebPaste(rawText) {
   if (!rawText || !rawText.trim()) return '';
-  let text = rawText.trim();
-
-  // 1. 提取[思考]/[草稿]块的内容（保留下来，最后用<thinking>标签包回，以便存入导出记录的内心独白）
-  let _webThinking = '';
-  const thinkCapture = [
-    /[\[【]思考[\]】]([\s\S]*?)[\[【]\/思考[\]】]/g,
-    /\[草稿\]([\s\S]*?)\[\/草稿\]/g,
-    /【草稿】([\s\S]*?)【\/草稿】/g,
-    /<draft>([\s\S]*?)<\/draft>/gi,
-  ];
-  thinkCapture.forEach(re => {
-    let m;
-    while ((m = re.exec(rawText)) !== null) { if (m[1] && m[1].trim()) _webThinking += (_webThinking?'\n':'') + m[1].trim(); }
-  });
-  const thinkPatterns = [
-    /[\[【]思考[\]】][\s\S]*?[\[【]\/思考[\]】]\s*/g,
-    /\[草稿\][\s\S]*?\[\/草稿\]\s*/g,
-    /【草稿】[\s\S]*?【\/草稿】\s*/g,
-    /<draft>[\s\S]*?<\/draft>\s*/gi,
-  ];
-  thinkPatterns.forEach(p => { text = text.replace(p, ''); });
+  const replyParts = _splitWebReplyDraft(rawText);
+  let text = replyParts.visible;
+  const _webThinking = replyParts.thinking;
+  const _webAction = _lastTaggedWebAction(rawText);
 
   // 2. 去掉常见助手前缀（网页端Claude/GPT很爱加这些）
   const prefixes = [
@@ -28995,15 +29029,17 @@ function parseWebPaste(rawText) {
     const parsed = parseAI(text);
     const thk = parsed.thinking || _webThinking || '';
     const gm = parsed.game || text;
-    if (thk && thk.trim()) return '<thinking>' + thk.trim() + '</thinking><game>' + gm + '</game>';
-    return gm;
+    const action = parsed.action || _webAction;
+    const actionTag = action ? '<action>' + action + '</action>' : '';
+    if (thk && thk.trim()) return '<thinking>' + thk.trim() + '</thinking><game>' + gm + '</game>' + actionTag;
+    return action ? '<game>' + gm + '</game>' + actionTag : gm;
   }
 
   // 5. 去掉多余空行
   text = text.replace(/\n{3,}/g, '\n\n').trim();
   // 若提取到草稿/思考，用<thinking>标签包回，使其能存入导出记录的内心独白
   if (_webThinking && _webThinking.trim()) {
-    return '<thinking>' + _webThinking.trim() + '</thinking><game>' + text + '</game>';
+    return '<thinking>' + _webThinking.trim() + '</thinking><game>' + text + '</game>' + (_webAction ? '<action>' + _webAction + '</action>' : '');
   }
   return text;
 }
@@ -29107,11 +29143,19 @@ directorChoose = function(p, promptFn, opts) {
 function _parseWebVotePaste(rawText, candidates) {
   const raw = String(rawText || '').trim();
   if (!raw) return '';
-  const parsed = parseAI(raw);
-  const tagged = String((parsed && parsed.action) || '').trim();
-  const explicit = raw.match(/(?:投票|票给|vote)\s*[：:|]?\s*(P?\d+|[^\s，,。；;！!？?<>]{1,30})/i);
-  if (!tagged && !explicit && raw.length > 40) return '';
-  let action = tagged || (explicit ? explicit[1] : raw);
+  const parts = _splitWebReplyDraft(raw);
+  const finalText = parts.visible;
+  const parsed = parseAI(finalText, {skillConfirm:true, requireGame:false});
+  const taggedVisible = String((parsed && parsed.action) || '').trim();
+  const explicit = finalText.match(/(?:最终)?(?:投票|票给|vote)\s*[：:|]?\s*(P?\d+|[^\s，,。；;！!？?<>]{1,30})/i);
+  const declaredVisible = _lastExplicitWebDecisionText(finalText);
+  const taggedFallback = (!taggedVisible && !explicit && !declaredVisible) ? _lastTaggedWebAction(raw) : '';
+  const declaredDraft = (!taggedVisible && !explicit && !declaredVisible && !taggedFallback)
+    ? _lastExplicitWebDecisionText(parts.thinking) : '';
+  const tagged = taggedVisible || taggedFallback;
+  const declared = declaredVisible || declaredDraft;
+  if (!tagged && !explicit && !declared && finalText.length > 40) return '';
+  let action = tagged || (explicit ? explicit[1] : declared || finalText);
   action = action.replace(/^\s*(?:VOTE|投票)\s*[|：:]?\s*/i, '').trim();
   if (/^(?:PASS|NONE|弃权|不投|不投票)$/i.test(action)) return 'None';
   const explode = action.match(/^\s*(?:EXPLODE|自爆)\s*[|：:]?\s*(.+)$/i);
@@ -29122,7 +29166,7 @@ function _parseWebVotePaste(rawText, candidates) {
     if (seat) target = candidates.find(x => x.id + 1 === Number(seat[1])) || null;
   }
   if (!target) {
-    const hits = candidates.filter(x => raw.includes(x.name));
+    const hits = candidates.filter(x => finalText.includes(x.name));
     if (hits.length === 1) target = hits[0];
   }
   return target ? (explode ? 'EXPLODE:' : '') + target.name : '';
@@ -29131,11 +29175,19 @@ function _parseWebVotePaste(rawText, candidates) {
 function _parseWebOperationPaste(rawText, options) {
   const raw = String(rawText || '').trim();
   if (!raw) return '';
-  const parsed = parseAI(raw);
-  const tagged = String((parsed && parsed.action) || '').trim();
-  const explicit = raw.match(/(?:选择|决定|操作|action)\s*[：:|]?\s*([^\n<>]{1,60})/i);
-  if (!tagged && !explicit && raw.length > 60) return '';
-  let action = tagged || (explicit ? explicit[1] : raw);
+  const parts = _splitWebReplyDraft(raw);
+  const finalText = parts.visible;
+  const parsed = parseAI(finalText, {skillConfirm:true, requireGame:false});
+  const taggedVisible = String((parsed && parsed.action) || '').trim();
+  const explicit = finalText.match(/(?:最终)?(?:选择|决定|操作|action)\s*[：:|]?\s*([^\n<>]{1,60})/i);
+  const declaredVisible = _lastExplicitWebDecisionText(finalText);
+  const taggedFallback = (!taggedVisible && !explicit && !declaredVisible) ? _lastTaggedWebAction(raw) : '';
+  const declaredDraft = (!taggedVisible && !explicit && !declaredVisible && !taggedFallback)
+    ? _lastExplicitWebDecisionText(parts.thinking) : '';
+  const tagged = taggedVisible || taggedFallback;
+  const declared = declaredVisible || declaredDraft;
+  if (!tagged && !explicit && !declared && finalText.length > 60) return '';
+  let action = tagged || (explicit ? explicit[1] : declared || finalText);
   action = action.replace(/^\s*(?:ACTION|选择|决定|操作)\s*[|：:]?\s*/i, '').trim();
   const enabled = (options || []).filter(o => !o.disabled);
   const normalize = value => String(value == null ? '' : value).replace(/<[^>]*>/g,'').replace(/[“”"'`]/g,'').trim().toLowerCase();
@@ -29206,7 +29258,7 @@ function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
       <!-- 回复粘贴区域 -->
       <div>
         <div style="font-size:0.72em;color:#a0b8c8;margin-bottom:4px">将AI的${isChoiceOnly?'选择结果':'回复'}粘贴到这里：</div>
-        <textarea id="_wpm-reply" placeholder="把网页端AI的回复粘贴到这里…&#10;&#10;可以是任何格式——带前缀、带[思考]、带markdown加粗都没关系，系统会自动提取发言内容。" style="width:100%;height:100px;background:rgba(0,0,0,0.3);border:1px solid rgba(64,192,160,0.3);color:#d8e8d0;border-radius:8px;padding:8px;font-size:0.82em;font-family:var(--font-body);resize:vertical;line-height:1.5;box-sizing:border-box"></textarea>
+        <textarea id="_wpm-reply" placeholder="把网页端AI的回复粘贴到这里…&#10;&#10;支持[草稿]、[思考]、&lt;thinking&gt;：草稿会存为私密思考，不会干扰投票或技能目标；请保留最终答案或&lt;action&gt;标签。" style="width:100%;height:100px;background:rgba(0,0,0,0.3);border:1px solid rgba(64,192,160,0.3);color:#d8e8d0;border-radius:8px;padding:8px;font-size:0.82em;font-family:var(--font-body);resize:vertical;line-height:1.5;box-sizing:border-box"></textarea>
         <div id="_wpm-preview" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(64,192,160,0.06);border:1px solid rgba(64,192,160,0.2);border-radius:6px;font-size:0.75em;color:#80d8b0"></div>
       </div>
 
@@ -29355,13 +29407,13 @@ function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
     if (isVoteChoice) {
       const voteChoice = _parseWebVotePaste(raw, modalOpts.voteCandidates || []);
       preview.style.display = voteChoice ? 'block' : 'none';
-      if (voteChoice) preview.innerHTML = `<b style="color:#60d8b8">识别到的投票：</b> ${voteChoice.replace(/^EXPLODE:/,'自爆带走 ')}`;
+      if (voteChoice) preview.innerHTML = `<b style="color:#60d8b8">识别到的投票：</b> ${voteChoice.replace(/^EXPLODE:/,'自爆带走 ')}${_splitWebReplyDraft(raw).thinking ? ' <span style="color:#80b0d8">（草稿已收纳为私密思考，不参与目标匹配）</span>' : ''}`;
       return;
     }
     if (isOperationChoice) {
       const operationChoice = _parseWebOperationPaste(raw, modalOpts.operationOptions || []);
       preview.style.display = operationChoice !== '' ? 'block' : 'none';
-      if (operationChoice !== '') preview.innerHTML = `<b style="color:#60d8b8">识别到的操作：</b> ${String(operationChoice)}`;
+      if (operationChoice !== '') preview.innerHTML = `<b style="color:#60d8b8">识别到的操作：</b> ${String(operationChoice)}${_splitWebReplyDraft(raw).thinking ? ' <span style="color:#80b0d8">（草稿已收纳为私密思考，不参与目标匹配）</span>' : ''}`;
       return;
     }
     const parsed = parseWebPaste(raw);
@@ -29382,6 +29434,7 @@ function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
     if (isVoteChoice) {
       const voteChoice = _parseWebVotePaste(raw, modalOpts.voteCandidates || []);
       if (!voteChoice) { replyTA.style.borderColor = '#e87060'; setTimeout(() => { replyTA.style.borderColor = ''; }, 1000); return; }
+      _recordWebChoiceThinking(p, raw, 'vote', voteChoice);
       document.body.removeChild(overlay);
       dirClearStatus();
       Render.log('system', `网页端AI已为${p.name}提交投票`);
@@ -29391,6 +29444,7 @@ function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
     if (isOperationChoice) {
       const operationChoice = _parseWebOperationPaste(raw, modalOpts.operationOptions || []);
       if (operationChoice === '') { replyTA.style.borderColor = '#e87060'; setTimeout(() => { replyTA.style.borderColor = ''; }, 1000); return; }
+      _recordWebChoiceThinking(p, raw, 'operation', operationChoice);
       document.body.removeChild(overlay);
       dirClearStatus();
       Render.log('system', `网页端AI已为${p.name}提交私密操作`);
