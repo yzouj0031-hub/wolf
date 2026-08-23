@@ -36,6 +36,17 @@ for (const file of files) {
 
   expect('ALL_ROLES.whitecat.desc = \'好人阵营·神职（屠边局计入屠神）', '白猫简介未明确归类为屠神神职');
   expect('屠边局中你明确计入神职，不能按普通村民或民牌计算', '白猫本人提示未说明神民分类');
+  expect("['fool','merchant','youshang'].forEach", '愚者、奇迹商人、游商未统一标为神职');
+  expect('【身份分类·硬规则】你是好人阵营的【神职】，屠边局计入屠神，不计入屠民。', '个人提示未明确神职归属');
+  expect('【身份分类·硬规则】你是好人阵营的【平民/民牌】，屠边局计入屠民，不计入屠神。', '个人提示未明确民牌归属');
+  expect('属于${roleFactionClassLabel(p.role)}', '纯净或自定义角色提示未使用实际神民分类');
+  expect('id="cr-good-class"', '自创好人角色缺少神职/民牌选择');
+  expect("goodRoleClass: normalizeGoodRoleClass(cr.goodRoleClass, team, cr.id)", '自创角色注册时未保留屠边分类');
+  expect('goodRoleClass: normalizeGoodRoleClass(def.goodRoleClass, b.team, def.id)', '模板克隆角色上桌时丢失屠边分类');
+  expect('function isGoodGodRole(role)', '缺少统一神职判定函数');
+  expect('function isGoodVillagerRole(role)', '缺少统一民牌判定函数');
+  reject("p.role.team==='good' && p.role.id!=='villager'", '屠边逻辑仍把所有非村民ID硬算作神职');
+  reject("p.role.team==='good' && p.role.id==='villager'", '屠边逻辑仍只按村民ID识别民牌');
   expect("return english ? 'Good team · Power role (counts toward god wipe)' : '好人阵营·神职（计入屠神）';", '规则导出未统一标注好人神职分类');
 
   expect("case 'hunter':", '精简导出缺少猎人特殊死因');

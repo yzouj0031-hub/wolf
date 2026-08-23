@@ -18,8 +18,8 @@ for (const file of clients) {
   expect(saveBlock.includes('_initVillagerCount: S._initVillagerCount'), `${file}: 存档没有保存开局村民数`);
   expect(loadBlock.includes('Number.isInteger(ss._initGodCount)'), `${file}: 读档没有校验并恢复开局神职数`);
   expect(loadBlock.includes('Number.isInteger(ss._initVillagerCount)'), `${file}: 读档没有校验并恢复开局村民数`);
-  expect(loadBlock.includes("S.players.filter(p => p.role.team==='good' && p.role.id!=='villager').length"), `${file}: 旧存档没有按全体玩家重建神职数`);
-  expect(loadBlock.includes("S.players.filter(p => p.role.team==='good' && p.role.id==='villager').length"), `${file}: 旧存档没有按全体玩家重建村民数`);
+  expect(loadBlock.includes('S.players.filter(p => isGoodGodRole(p.role)).length'), `${file}: 旧存档没有按实际角色分类重建神职数`);
+  expect(loadBlock.includes('S.players.filter(p => isGoodVillagerRole(p.role)).length'), `${file}: 旧存档没有按实际角色分类重建民牌数`);
   expect(loadBlock.includes('const restoredWinner = !S.gameOver ? evalWinNow() : null'), `${file}: 读档后没有即时重新判断胜负`);
   expect(loadBlock.includes('checkEnd().catch'), `${file}: 读档达到终局时没有执行正式结算`);
 }

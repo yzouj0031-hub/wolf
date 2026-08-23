@@ -2791,6 +2791,8 @@ body.has-wp::after {
   <div style="font-size:0.72em;color:#8880a8;text-align:center;margin-bottom:12px">创建专属身份，加入自定义局中使用</div>
   <div class="ct-row"><label>角色名</label><input type="text" id="cr-name" placeholder="例：魔术师" style="flex:1;max-width:none"></div>
   <div class="ct-row"><label>Emoji</label><input type="text" id="cr-emoji" placeholder="🪄" style="max-width:60px;text-align:center;font-size:1.2em"><label style="margin-left:12px">阵营</label><select id="cr-team" style="min-width:80px"><option value="good">✅ 好人</option><option value="bad">🐺 狼人</option><option value="third">🎭 第三方</option></select></div>
+  <div class="ct-row" id="cr-good-class-row"><label>屠边分类</label><select id="cr-good-class" style="flex:1;max-width:none"><option value="god">神职 · 计入屠神</option><option value="villager">民牌 · 计入屠民</option></select></div>
+  <div id="cr-good-class-note" style="font-size:0.66em;color:#6a6080;margin:-2px 0 8px;line-height:1.5">仅影响屠边胜负分类，不会自动添加或移除技能。旧版自创好人角色默认按神职兼容。</div>
   <div class="cr-art-grid">
     <div class="cr-art-box" id="cr-portrait-box"><span class="cr-art-caption">图鉴立绘 · 3:4</span><div class="cr-art-preview" id="cr-portrait-preview">上传后显示在角色图鉴正面</div><div class="cr-art-actions"><label>选择图片<input type="file" id="cr-portrait-file" accept="image/*" hidden></label><button type="button" id="cr-portrait-clear">移除</button></div></div>
     <div class="cr-art-box" id="cr-cg-box"><span class="cr-art-caption">行动 CG · 16:9</span><div class="cr-art-preview cg" id="cr-cg-preview">发动夜间技能时全屏展示</div><div class="cr-art-actions"><label>选择图片<input type="file" id="cr-cg-file" accept="image/*" hidden></label><button type="button" id="cr-cg-clear">移除</button></div></div>
@@ -4607,6 +4609,11 @@ reg({id:'mechwolf',name:'机械狼',team:'bad',emoji:'🤖',desc:'狼阵营·孤
 // 所有 AI 的角色总览读取 desc，机械狼本人读取 guide；两处必须保持同一口径。
 ALL_ROLES.whitecat.desc = '好人阵营·神职（屠边局计入屠神）。被任意方式出局后触发【缓死】：翻牌公开、本次不死，延迟到下一个同类阶段才真正死亡；缓死期间仍是活人，可发言投票。';
 ALL_ROLES.whitecat.guide = ALL_ROLES.whitecat.guide.replace('你是白猫（好人）。', '你是白猫，属于【好人阵营·神职】；屠边局中你明确计入神职，不能按普通村民或民牌计算。');
+['fool','merchant','youshang'].forEach(id => {
+  if (!ALL_ROLES[id]) return;
+  ALL_ROLES[id].desc = ALL_ROLES[id].desc.replace(/^好人。/, '好人阵营·神职（屠边局计入屠神）。');
+  ALL_ROLES[id].guide = ALL_ROLES[id].guide.replace(/你是([^。]+)（好人）。/, '你是$1，属于【好人阵营·神职】；屠边局计入屠神。');
+});
 
 ALL_ROLES.mechwolf.desc = '狼阵营·孤狼学习牌：整局学习一次、次夜生效；学预言家可验准确身份，学魔术师可看见当夜换位，学平民后获得好人查验伪装；其余角色复制强化技能。其他狼系全灭后获得独立狼刀，可刀任意候选玩家（包括自己）或空刀，并私下得知所选刀口最终是否死亡；与狼队互不相认、不能自爆。';
 ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
@@ -4768,14 +4775,14 @@ function buildCustomAbilityGuide(name, team, abilities){
 }
 
 function registerCustomRole(cr) {
-  // cr: {id, name, emoji, team, desc, guide, ability, abilities, portrait, actionCG}
+  // cr: {id, name, emoji, team, goodRoleClass, desc, guide, ability, abilities, portrait, actionCG}
   // ★ 优先级：勾了积木(abilities) → 积木组合(保留自身id、通用引擎结算)；否则单选模板(ability)克隆内置角色；否则纯人设皮。
   const abilities = Array.isArray(cr.abilities) ? cr.abilities.filter(a => CUSTOM_BLOCKS[a]) : [];
   if (abilities.length) {
     const team = cr.team;
     const baseGuide = (cr.guide && cr.guide.trim()) ? cr.guide.trim() : ('你是' + cr.name + '。' + (cr.desc || ''));
     reg({
-      id: cr.id, name: cr.name, team, emoji: cr.emoji, desc: cr.desc, maxCount: 99,
+      id: cr.id, name: cr.name, team, goodRoleClass: normalizeGoodRoleClass(cr.goodRoleClass, team, cr.id), emoji: cr.emoji, desc: cr.desc, maxCount: 99,
       customAbilities: abilities,                         // ★ 积木列表，通用引擎据此逐块结算
       portrait: safeCustomRoleArt(cr.portrait), actionCG: safeCustomRoleArt(cr.actionCG),
       delayedDeath: abilities.includes('delayedDeath') || undefined,  // 缓死复用白猫机制
@@ -4790,6 +4797,7 @@ function registerCustomRole(cr) {
     id: cr.id,
     name: cr.name,
     team: team,
+    goodRoleClass: normalizeGoodRoleClass(cr.goodRoleClass, team, cr.id),
     emoji: cr.emoji,
     desc: cr.desc,
     maxCount: 99,
@@ -4814,7 +4822,7 @@ function resolveRoleForPlay(rid) {
     const b = ALL_ROLES[def.baseAbility];
     return Object.assign({}, b, {
       id: b.id,                        // 机械身份=模板，夜间技能据此生效
-      name: def.name, emoji: def.emoji, desc: def.desc, team: b.team,
+      name: def.name, emoji: def.emoji, desc: def.desc, team: b.team, goodRoleClass: normalizeGoodRoleClass(def.goodRoleClass, b.team, def.id),
       customId: def.id, customName: def.name, customEmoji: def.emoji,
       customPortrait: safeCustomRoleArt(def.portrait), customActionCG: safeCustomRoleArt(def.actionCG)
     });
@@ -5865,16 +5873,11 @@ function getFullRoleBrief(p) {
   // p 为当前玩家。所有角色都只给简短描述——
   // ★ 优化：自己的角色完整 guide 已在 buildSystemPrompt 通过 guide 变量注入，
   //   这里再注入一次是重复，会浪费数百 token。所有角色统一只给一行简介。
-  const seen = {};
-  const teamNames = {bad:'狼人阵营',good:'好人阵营',third:'第三阵营'};
-  return S.players.map(pl => pl.role.id).filter(id => { if(seen[id]) return false; seen[id]=true; return true; })
-    .filter(id => ALL_ROLES[id])
-    .map(id => {
-      const r = ALL_ROLES[id];
-      const shown = window.WolfI18n ? WolfI18n.role(id, r) : r;
+  return uniqueActiveRoleObjects(S.players).map(r => {
+      const shown = r.customId ? r : (window.WolfI18n ? WolfI18n.role(r.id, r) : r);
       // ★ fix: 让"你的角色"标记更显眼,防止AI在同阵营多个角色中混淆自己的能力
       // 例如普通狼人不能在死前误以为自己是狼王/白狼王并开枪/自爆
-      const isSelf = p && r.id === p.role.id;
+      const isSelf = p && (r.customId || r.id) === (p.role.customId || p.role.id);
       const selfMark = isSelf
         ? (window.WolfI18n && WolfI18n.isEnglish()
           ? ' 👈 [THIS IS YOU. You have only this role\'s abilities, not those of other roles on your team.]'
@@ -6039,10 +6042,39 @@ function buildActiveRoleExportDesc(role, activeRoleIds) {
   }
 }
 
+function normalizeGoodRoleClass(value, team, roleId) {
+  if (team !== 'good') return '';
+  if (value === 'villager') return 'villager';
+  if (value === 'god') return 'god';
+  // 兼容旧配置：内置村民仍是民牌；旧版自创好人角色维持原来的神职判定。
+  return roleId === 'villager' ? 'villager' : 'god';
+}
+function getGoodRoleClass(role) {
+  return role && role.team === 'good'
+    ? normalizeGoodRoleClass(role.goodRoleClass, role.team, role.id)
+    : '';
+}
+function isGoodGodRole(role) { return getGoodRoleClass(role) === 'god'; }
+function isGoodVillagerRole(role) { return getGoodRoleClass(role) === 'villager'; }
+function uniqueActiveRoleObjects(players) {
+  const seen = new Set();
+  return (players || []).filter(p => p && p.role).map(p => p.role).filter(role => {
+    const key = role.customId || role.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+function activeRoleDescriptionForExport(role, activeIds) {
+  return role && role.customId ? (role.desc || '具体技能以系统行动提示和实际结算为准。') : buildActiveRoleExportDesc(role, activeIds);
+}
+
 function roleFactionClassLabel(role, english) {
   if (!role) return english ? 'Unknown' : '未知阵营';
   if (role.team === 'good') {
-    if (role.id === 'villager') return english ? 'Good team · Villager' : '好人阵营·平民';
+    if (isGoodVillagerRole(role)) return english
+      ? (role.id === 'villager' ? 'Good team · Villager' : 'Good team · Civilian role (counts toward civilian wipe)')
+      : (role.id === 'villager' ? '好人阵营·平民' : '好人阵营·民牌（计入屠民）');
     return english ? 'Good team · Power role (counts toward god wipe)' : '好人阵营·神职（计入屠神）';
   }
   if (role.team === 'bad') return english ? 'Wolf team' : '狼人阵营';
@@ -6092,9 +6124,8 @@ function buildRulesExport() {
     '━━ 本局在场角色 ━━'
   ];
 
-  ids.filter(id => ALL_ROLES[id]).forEach(id => {
-    const r = ALL_ROLES[id];
-    lines.push(`· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${buildActiveRoleExportDesc(r, ids)}`);
+  uniqueActiveRoleObjects(players).forEach(r => {
+    lines.push(`· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${activeRoleDescriptionForExport(r, ids)}`);
   });
   lines.push('· 只有以上配置中列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。');
   lines.push(buildActiveRoleTimingBlock(players));
@@ -6150,9 +6181,8 @@ function buildWebRulesExport(viewerP, options) {
   const ids = [...new Set((S.players || []).filter(x => x.role).map(x => x.role.id))];
   const has = id => ids.includes(id);
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
-  const roleLines = ids.filter(id => ALL_ROLES[id]).map(id => {
-    const r = ALL_ROLES[id];
-    return `· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${buildActiveRoleExportDesc(r, ids)}`;
+  const roleLines = uniqueActiveRoleObjects(S.players || []).map(r => {
+    return `· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${activeRoleDescriptionForExport(r, ids)}`;
   });
 
   const lines = [
@@ -7264,8 +7294,8 @@ function loadGame(slotArg, opts) {
 
     // ★ 回档屠边修复：恢复开局神/民基数。旧存档没有这两个字段时，必须按“全体玩家”重建；
     //   不能只数当前存活者，否则已经被屠光的一边会被误认成开局就不存在。
-    const inferredInitialGodCount = S.players.filter(p => p.role.team==='good' && p.role.id!=='villager').length;
-    const inferredInitialVillagerCount = S.players.filter(p => p.role.team==='good' && p.role.id==='villager').length;
+    const inferredInitialGodCount = S.players.filter(p => isGoodGodRole(p.role)).length;
+    const inferredInitialVillagerCount = S.players.filter(p => isGoodVillagerRole(p.role)).length;
     S._initGodCount = Number.isInteger(ss._initGodCount) && ss._initGodCount >= 0
       ? ss._initGodCount : inferredInitialGodCount;
     S._initVillagerCount = Number.isInteger(ss._initVillagerCount) && ss._initVillagerCount >= 0
@@ -9082,8 +9112,14 @@ function buildSystemPrompt(p) {
   // role.guide 把官方打法整段塞回来。内置角色此时只保留身份、阵营和技能说明；
   // 自创角色的 guide 可能就是玩家定义的机制本身，必须完整保留。
   let guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean') && !customMechanicRole
-    ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${p.role.team === 'bad' ? '狼人阵营' : p.role.team === 'third' ? '第三阵营' : '好人阵营'}。${roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。'}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
+    ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${roleFactionClassLabel(p.role)}。${roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。'}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
     : (roleDef.guide || '');
+  const roleClassRule = p.role.team === 'good'
+    ? (isGoodVillagerRole(p.role)
+      ? '【身份分类·硬规则】你是好人阵营的【平民/民牌】，屠边局计入屠民，不计入屠神。'
+      : '【身份分类·硬规则】你是好人阵营的【神职】，屠边局计入屠神，不计入屠民。')
+    : `【身份分类·硬规则】你属于${roleFactionClassLabel(p.role)}，不属于好人方的神职或民牌。`;
+  guide = roleClassRule + '\n' + guide;
   // 只把实际同场角色的专项交互教给 AI，避免不存在的角色进入它的推理范围。
   if (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' &&
       p.role.id === 'fox' && S.players.some(x => x.role && x.role.id === 'mechwolf')) {
@@ -19296,8 +19332,8 @@ function evalWinNow() {
   if (skAlive && alive.length === 1) return 'sk';
   if (bad === 0 && !skAlive) return 'good';
   if (S.killEdgeMode && bad > 0 && !skAlive) {
-    const aliveGod = alive.filter(p => p.role.team==='good' && p.role.id!=='villager').length;
-    const aliveVil = alive.filter(p => p.role.team==='good' && p.role.id==='villager').length;
+    const aliveGod = alive.filter(p => isGoodGodRole(p.role)).length;
+    const aliveVil = alive.filter(p => isGoodVillagerRole(p.role)).length;
     if ((S._initGodCount > 0 && aliveGod === 0) || (S._initVillagerCount > 0 && aliveVil === 0)) return 'bad';
   }
   if (good <= bad && !skAlive) return 'bad';
@@ -19347,8 +19383,8 @@ async function checkEnd() {
   //   神全灭 或 民全灭 → 狼立刻胜。只对"开局存在"的那一边判定。
   //   放在屠城判定之前：屠边是更宽松的狼胜条件，先于屠城检查。
   if (S.killEdgeMode && bad > 0) {
-    const aliveGod = alive.filter(p => p.role.team==='good' && p.role.id!=='villager').length;
-    const aliveVil = alive.filter(p => p.role.team==='good' && p.role.id==='villager').length;
+    const aliveGod = alive.filter(p => isGoodGodRole(p.role)).length;
+    const aliveVil = alive.filter(p => isGoodVillagerRole(p.role)).length;
     const godWipedOut  = S._initGodCount > 0 && aliveGod === 0;
     const vilWipedOut  = S._initVillagerCount > 0 && aliveVil === 0;
     if (godWipedOut || vilWipedOut) {
@@ -20391,11 +20427,11 @@ function startGame() {
   S._matchUid = 'match_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10);
   S._winType = null;
   // ★ v9.9.24：记录开局"神/民"数量，供屠边胜负判定用。
-  //   神 = 好人阵营里有技能的（非普通村民）；民 = 普通村民(villager)。
+  //   内置角色除村民外均为神职；自创好人角色按 goodRoleClass 明确选择神职或民牌。
   //   只有"开局有、后来被杀光"才算屠成功——开局就为0的那一边不参与屠边判定，
   //   避免出现"配置里没村民→开局民数为0→游戏一开始就判狼赢"的错误。
-  S._initGodCount = S.players.filter(p => p.role.team==='good' && p.role.id!=='villager').length;
-  S._initVillagerCount = S.players.filter(p => p.role.team==='good' && p.role.id==='villager').length;
+  S._initGodCount = S.players.filter(p => isGoodGodRole(p.role)).length;
+  S._initVillagerCount = S.players.filter(p => isGoodVillagerRole(p.role)).length;
   shuffleBgm(S.players);
   preloadActionCGForRoster();   // 🖼️ 后台预取本局用得到的行动CG，避免演出时来不及加载只剩徽记
   S.silenced=-1;
@@ -24708,6 +24744,7 @@ function bindEvents() {
   $('btn-custom-role').addEventListener('click', openCustomRoleDialog);
   $('cr-cancel').addEventListener('click', () => $('crpop').classList.remove('show'));
   $('cr-save').addEventListener('click', saveCustomRole);
+  $('cr-team').addEventListener('change', updateCustomRoleClassVisibility);
   // 点击弹窗外关闭
   $('crpop').addEventListener('click', e => { if(e.target===$('crpop')) $('crpop').classList.remove('show'); });
 
@@ -24795,11 +24832,19 @@ function bindCustomRoleArtInputs() {
   }
 }
 
+function updateCustomRoleClassVisibility() {
+  const show = $('cr-team') && $('cr-team').value === 'good';
+  if ($('cr-good-class-row')) $('cr-good-class-row').style.display = show ? '' : 'none';
+  if ($('cr-good-class-note')) $('cr-good-class-note').style.display = show ? '' : 'none';
+}
+
 function openCustomRoleDialog() {
   // 清空表单（新建模式）
   $('cr-name').value = '';
   $('cr-emoji').value = '';
   $('cr-team').value = 'good';
+  if ($('cr-good-class')) $('cr-good-class').value = 'god';
+  updateCustomRoleClassVisibility();
   $('cr-desc').value = '';
   $('cr-guide').value = '';
   if ($('cr-ability')) $('cr-ability').value = '';
@@ -24822,14 +24867,13 @@ function renderCustomRoleList() {
     return;
   }
   const teamColor = {bad:'var(--cinnabar-light)', good:'var(--jade)', third:'var(--third-amber)'};
-  const teamName = {bad:'狼人阵营', good:'好人阵营', third:'第三方'};
   list.innerHTML = '<div style="font-size:0.72em;color:#8880a8;margin-bottom:6px;font-family:var(--font-title)">── 已创建的角色 ──</div>'
     + defs.map(cr => { const portrait=safeCustomRoleArt(cr.portrait); const visual=portrait?`<img src="${portrait}" alt="" style="width:38px;height:48px;object-fit:cover;border-radius:7px;border:1px solid rgba(208,160,240,.24)">`:(window.RoleSigils?window.RoleSigils.render(cr.id):''); return `
     <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(208,160,240,0.04);border:1px solid rgba(208,160,240,0.1);border-radius:var(--r);margin-bottom:4px">
       <span class="cr-role-thumb" style="width:38px;flex:0 0 38px;display:grid;place-items:center">${visual}</span>
       <div style="flex:1">
         <div style="font-size:0.82em;font-family:var(--font-title);color:${teamColor[cr.team]||'#d8d0e8'}">${escapeHtml(cr.name)}</div>
-        <div style="font-size:0.65em;color:#6a6080">${teamName[cr.team]||''} · ${escapeHtml(cr.desc||'')}</div>
+        <div style="font-size:0.65em;color:#6a6080">${escapeHtml(roleFactionClassLabel(ALL_ROLES[cr.id] || cr))} · ${escapeHtml(cr.desc||'')}</div>
       </div>
       <button data-cr-edit="${escapeHtml(cr.id)}" style="padding:3px 8px;font-size:0.7em;background:rgba(104,184,232,0.1);color:var(--jade);border:1px solid var(--jade);border-radius:var(--r);cursor:pointer">编辑</button>
       <button data-cr-delete="${escapeHtml(cr.id)}" style="padding:3px 8px;font-size:0.7em;background:rgba(200,48,64,0.1);color:var(--cinnabar-light);border:1px solid rgba(200,48,64,0.3);border-radius:var(--r);cursor:pointer">删除</button>
@@ -24844,6 +24888,8 @@ function editCustomRole(id) {
   $('cr-name').value = cr.name;
   $('cr-emoji').value = cr.emoji||'';
   $('cr-team').value = cr.team;
+  if ($('cr-good-class')) $('cr-good-class').value = cr.goodRoleClass === 'villager' ? 'villager' : 'god';
+  updateCustomRoleClassVisibility();
   $('cr-desc').value = cr.desc||'';
   $('cr-guide').value = cr.guide||'';
   if ($('cr-ability')) $('cr-ability').value = cr.ability||'';
@@ -24872,6 +24918,7 @@ function saveCustomRole() {
   const name = $('cr-name').value.trim();
   const emoji = $('cr-emoji').value.trim() || '❓';
   const team = $('cr-team').value;
+  const goodRoleClass = team === 'good' && $('cr-good-class') && $('cr-good-class').value === 'villager' ? 'villager' : 'god';
   const desc = $('cr-desc').value.trim();
   const guide = $('cr-guide').value.trim();
   const ability = ($('cr-ability') && $('cr-ability').value) || '';  // ★ 技能模板（单选）
@@ -24889,19 +24936,19 @@ function saveCustomRole() {
   if (editId) {
     // 编辑模式：原id保留
     id = editId;
-    const nextDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,desc,guide,ability,abilities,portrait,actionCG} : x);
+    const nextDefs = (window._customRolesDefs||[]).map(x => x.id===id ? {id,name,emoji,team,goodRoleClass,desc,guide,ability,abilities,portrait,actionCG} : x);
     if (nextDefs.reduce((n,x)=>n+(x.portrait||'').length+(x.actionCG||'').length,0) > 1800000) { alert('自创角色图片总量过大，请移除部分图片后再保存。'); return; }
     window._customRolesDefs = nextDefs;
   } else {
     // 新建：生成唯一id
     id = 'custom_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
     window._customRolesDefs = window._customRolesDefs || [];
-    const next = {id, name, emoji, team, desc, guide, ability, abilities, portrait, actionCG};
+    const next = {id, name, emoji, team, goodRoleClass, desc, guide, ability, abilities, portrait, actionCG};
     if ((window._customRolesDefs||[]).reduce((n,x)=>n+(x.portrait||'').length+(x.actionCG||'').length,0)+(portrait||'').length+(actionCG||'').length > 1800000) { alert('自创角色图片总量过大，请移除部分图片后再保存。'); return; }
     window._customRolesDefs.push(next);
   }
 
-  registerCustomRole({id, name, emoji, team, desc, guide, ability, abilities, portrait, actionCG});
+  registerCustomRole({id, name, emoji, team, goodRoleClass, desc, guide, ability, abilities, portrait, actionCG});
   saveCfg();
   roleBookPage = Math.max(0, Math.ceil(Object.keys(ALL_ROLES).length / ROLE_BOOK_PAGE_SIZE) - 1); initRoles();
   renderCustomRoleList();
