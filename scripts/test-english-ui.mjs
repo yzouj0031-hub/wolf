@@ -53,6 +53,8 @@ for (const [source, label] of [[root, 'root client'], [english, 'English client'
   requireText(source, '现在是投票阶段，不是发言阶段', `${label} web handoff vote-only instruction`);
   requireText(source, '只向主持人提交一个投票目标', `${label} web handoff choice-only vote output`);
   requireText(source, '现在是夜间私密操作阶段，不是公开发言', `${label} web handoff private night-action boundary`);
+  requireText(source, 'function _splitWebReplyDraft(rawText)', `${label} web draft isolation`);
+  requireText(source, 'const action = parsed.action || _webAction;', `${label} web action preservation`);
   if (source.includes('━━ 阅读与推理 ━━')) {
     throw new Error(`${label} still exports reasoning guidance as an undifferentiated rules section`);
   }

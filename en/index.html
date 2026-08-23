@@ -27583,30 +27583,38 @@ buildWebPrompt = function(p) {
   return base;
 };
 
+// 把网页 AI 的草稿与最终答案硬隔离；草稿保存为私密 thinking，不参与行动识别。
+function _splitWebReplyDraft(rawText) {
+  const raw = String(rawText || '').trim();
+  if (!raw) return {thinking:'', visible:''};
+  let visible = raw;
+  const thoughts = [];
+  const blocks = [
+    /<\s*thinking\s*>([\s\S]*?)<\s*\/\s*thinking\s*>\s*/gi,
+    /<\s*draft\s*>([\s\S]*?)<\s*\/\s*draft\s*>\s*/gi,
+    /[\[【]\s*(?:思考|草稿)\s*[\]】]([\s\S]*?)[\[【]\s*\/\s*(?:思考|草稿)\s*[\]】]\s*/gi
+  ];
+  blocks.forEach(re => {
+    visible = visible.replace(re, (_all, body) => {
+      if (body && String(body).trim()) thoughts.push(String(body).trim());
+      return '\n';
+    });
+  });
+  return {thinking:thoughts.join('\n'), visible:visible.replace(/\n{3,}/g,'\n\n').trim()};
+}
+
+function _lastTaggedWebAction(rawText) {
+  const hits = [...String(rawText || '').matchAll(/<\s*action\s*>([\s\S]*?)<\s*\/\s*action\s*>/gi)];
+  return hits.length ? String(hits[hits.length - 1][1] || '').trim() : '';
+}
+
 // ── 智能解析粘贴内容：处理网页端各种非标准格式 ──
 function parseWebPaste(rawText) {
   if (!rawText || !rawText.trim()) return '';
-  let text = rawText.trim();
-
-  // 1. 提取[思考]/[草稿]块的内容（保留下来，最后用<thinking>标签包回，以便存入导出记录的内心独白）
-  let _webThinking = '';
-  const thinkCapture = [
-    /[\[【]思考[\]】]([\s\S]*?)[\[【]\/思考[\]】]/g,
-    /\[草稿\]([\s\S]*?)\[\/草稿\]/g,
-    /【草稿】([\s\S]*?)【\/草稿】/g,
-    /<draft>([\s\S]*?)<\/draft>/gi,
-  ];
-  thinkCapture.forEach(re => {
-    let m;
-    while ((m = re.exec(rawText)) !== null) { if (m[1] && m[1].trim()) _webThinking += (_webThinking?'\n':'') + m[1].trim(); }
-  });
-  const thinkPatterns = [
-    /[\[【]思考[\]】][\s\S]*?[\[【]\/思考[\]】]\s*/g,
-    /\[草稿\][\s\S]*?\[\/草稿\]\s*/g,
-    /【草稿】[\s\S]*?【\/草稿】\s*/g,
-    /<draft>[\s\S]*?<\/draft>\s*/gi,
-  ];
-  thinkPatterns.forEach(p => { text = text.replace(p, ''); });
+  const replyParts = _splitWebReplyDraft(rawText);
+  let text = replyParts.visible;
+  const _webThinking = replyParts.thinking;
+  const _webAction = _lastTaggedWebAction(rawText);
 
   // 2. 去掉常见助手前缀（网页端Claude/GPT很爱加这些）
   const prefixes = [
@@ -27635,15 +27643,17 @@ function parseWebPaste(rawText) {
     const parsed = parseAI(text);
     const thk = parsed.thinking || _webThinking || '';
     const gm = parsed.game || text;
-    if (thk && thk.trim()) return '<thinking>' + thk.trim() + '</thinking><game>' + gm + '</game>';
-    return gm;
+    const action = parsed.action || _webAction;
+    const actionTag = action ? '<action>' + action + '</action>' : '';
+    if (thk && thk.trim()) return '<thinking>' + thk.trim() + '</thinking><game>' + gm + '</game>' + actionTag;
+    return action ? '<game>' + gm + '</game>' + actionTag : gm;
   }
 
   // 5. 去掉多余空行
   text = text.replace(/\n{3,}/g, '\n\n').trim();
   // 若提取到草稿/思考，用<thinking>标签包回，使其能存入导出记录的内心独白
   if (_webThinking && _webThinking.trim()) {
-    return '<thinking>' + _webThinking.trim() + '</thinking><game>' + text + '</game>';
+    return '<thinking>' + _webThinking.trim() + '</thinking><game>' + text + '</game>' + (_webAction ? '<action>' + _webAction + '</action>' : '');
   }
   return text;
 }
