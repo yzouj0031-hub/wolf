@@ -34,6 +34,10 @@ for (const file of files) {
   reject('净魂师可提前净除锁定', '规则导出仍把净魂师写成先于狼妃');
   expect('净魂师在你之后行动', '狼妃指南未写清净魂师随后行动');
 
+  expect('ALL_ROLES.whitecat.desc = \'好人阵营·神职（屠边局计入屠神）', '白猫简介未明确归类为屠神神职');
+  expect('屠边局中你明确计入神职，不能按普通村民或民牌计算', '白猫本人提示未说明神民分类');
+  expect("return english ? 'Good team · Power role (counts toward god wipe)' : '好人阵营·神职（计入屠神）';", '规则导出未统一标注好人神职分类');
+
   expect("case 'hunter':", '精简导出缺少猎人特殊死因');
   expect('被带走者无遗言、无警徽传递且不能发动死亡技能', '白狼王带走目标的死亡技能限制缺失');
   expect("case 'guard':", '精简导出缺少守卫完整限制');

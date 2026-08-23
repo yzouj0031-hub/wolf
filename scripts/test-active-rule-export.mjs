@@ -27,7 +27,8 @@ const roleDefs = {
   knight:['骑士','good'], magician:['魔术师','good'], merchant:['奇迹商人','good'], whitewolf:['白狼王','bad'],
   mechwolf:['机械狼','bad'], fox:['子狐','good'], jester:['小丑','third'],
   serialkiller:['连环杀手','third'], alchemist:['炼金魔女','good'],
-  wolfconcubine:['蚀时狼妃','bad'], soulwarden:['净魂师','good'], imitator:['摹术师','good']
+  wolfconcubine:['蚀时狼妃','bad'], soulwarden:['净魂师','good'], imitator:['摹术师','good'],
+  whitecat:['白猫','good'], villager:['村民','good']
 };
 const ALL_ROLES = Object.fromEntries(Object.entries(roleDefs).map(([id,[name,team]]) => [id, {
   id, name, team, emoji:'', desc:`${name}默认说明。`
@@ -80,6 +81,10 @@ assertAbsent(['mechwolf'], ['预言家','魔术师','平民']);
 assertAbsent(['wolfconcubine'], ['净魂师']);
 assertAbsent(['soulwarden'], ['蚀时狼妃','狼美人']);
 assertPresent(['soulwarden','wolfbeauty'], '狼美人');
+exportBoth(['whitecat','villager']).forEach(text => {
+  assert.ok(text.includes('白猫（好人阵营·神职（计入屠神））'), 'White Cat is not explicitly classified as a god role in Chinese exports');
+  assert.ok(text.includes('村民（好人阵营·平民）'), 'Villager is not explicitly distinguished from god roles in Chinese exports');
+});
 
 const normalWebRules = exportBoth(['fox','mechwolf'])[1];
 const hardWebRules = exportWebHardRules(['fox','mechwolf']);
@@ -111,6 +116,7 @@ assert.ok(englishRules(['wolfking','knight']).includes('Knight duel'), 'English 
 assert.ok(!englishRules(['werewolf']).includes('Known packmates'), 'single known-pack wolf should not receive packmate sacrifice rule');
 assert.ok(englishRules(['werewolf','werewolf']).includes('Known packmates'), 'multi-wolf setup should include packmate sacrifice rule');
 assert.ok(englishRules(['imitator']).includes('Imitator:'), 'English export omitted active Imitator');
+assert.ok(englishRules(['whitecat']).includes('counts as a god role for edge-victory god wipe'), 'English export does not classify White Cat as a god role');
 assert.ok(!englishRules(['wolfking']).includes('Villager'), 'English edge rule leaked absent Villager role name');
 assert.ok(englishRules(['fox','mechwolf']).includes('Mechanical Charm always precedes the real Fox'), 'English export omitted Mechanical Wolf/Fox action order');
 const hardEnglishRules = englishRules(['werewolf','werewolf'], {hardRulesOnly:true});
