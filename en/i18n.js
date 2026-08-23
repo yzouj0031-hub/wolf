@@ -12,7 +12,7 @@
     guard:{name:'Guard',desc:'Good team. Protects one player from night attacks each night and cannot protect the same target on consecutive nights.'},
     knight:{name:'Knight',desc:'Good team. May publicly duel a player: a wolf target dies; against a good target, only the Knight dies.'},
     magician:{name:'Magician',desc:'Good team. Acts first each night and may swap two living seat numbers. The swap redirects only the wolf attack.'},
-    whitecat:{name:'White Cat',desc:'Good team. The first time it would die at night, death is delayed until the next day unless healed.'},
+    whitecat:{name:'White Cat',desc:'Good-team power role; it counts as a god role for edge-victory god wipe. When eliminated by any method, it is revealed and its death is deferred until the next matching phase; it remains alive and may speak and vote during the reprieve.'},
     fox:{name:'Fox Cub',desc:'Good team. Each night may block a target’s skill or block a wolf attack aimed at that target.'},
     fool:{name:'Fool',desc:'Good team. Has one shared survival charge: survive the first daytime exile, or place a nightly shield that returns to the Fool if its target is not attacked.'},
     merchant:{name:'Miracle Merchant',desc:'Good team. Once per game grants a trusted player a shield, recurring investigation, or poison. Granting a wolf backfires and eliminates the Merchant.'},

@@ -4605,6 +4605,9 @@ reg({id:'mechwolf',name:'机械狼',team:'bad',emoji:'🤖',desc:'狼阵营·孤
 
 // ★ 机械狼增强规则：覆盖旧简介/指南中的“平民与魔术师白学、永远验狼”等旧设定。
 // 所有 AI 的角色总览读取 desc，机械狼本人读取 guide；两处必须保持同一口径。
+ALL_ROLES.whitecat.desc = '好人阵营·神职（屠边局计入屠神）。被任意方式出局后触发【缓死】：翻牌公开、本次不死，延迟到下一个同类阶段才真正死亡；缓死期间仍是活人，可发言投票。';
+ALL_ROLES.whitecat.guide = ALL_ROLES.whitecat.guide.replace('你是白猫（好人）。', '你是白猫，属于【好人阵营·神职】；屠边局中你明确计入神职，不能按普通村民或民牌计算。');
+
 ALL_ROLES.mechwolf.desc = '狼阵营·孤狼学习牌：整局学习一次、次夜生效；学预言家可验准确身份，学魔术师可看见当夜换位，学平民后获得好人查验伪装；其余角色复制强化技能。其他狼系全灭后获得独立狼刀，可刀任意候选玩家（包括自己）或空刀，并私下得知所选刀口最终是否死亡；与狼队互不相认、不能自爆。';
 ALL_ROLES.mechwolf.guide = ALL_ROLES.mechwolf.guide
   .replace('学到预言家 → 从下一晚起，每晚可查验一名玩家的真实身份（结果只有你自己知道）。', '学到预言家 → 从下一晚起，每晚可查验一名玩家的【准确身份】（例如预言家、白狼王），不只是好人/狼人阵营；结果只有你自己知道。')
@@ -5877,9 +5880,7 @@ function getFullRoleBrief(p) {
           ? ' 👈 [THIS IS YOU. You have only this role\'s abilities, not those of other roles on your team.]'
           : ' 👈【这就是你！你只有这个角色的能力，不是同阵营其他角色】')
         : '';
-      const team = window.WolfI18n && WolfI18n.isEnglish()
-        ? ({bad:'Wolf team', good:'Good team', third:'Independent'}[r.team] || r.team)
-        : teamNames[r.team];
+      const team = roleFactionClassLabel(r, window.WolfI18n && WolfI18n.isEnglish());
       return `${r.emoji}${shown.name}(${team}): ${shown.desc}${selfMark}`;
     }).join('\n');
 }
@@ -5913,7 +5914,7 @@ function buildRulesExportLegacy(includeAllRoles = false) {
 
   const roleLines = roleIds.filter(id => ALL_ROLES[id]).map(id => {
     const r = ALL_ROLES[id];
-    return `· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${r.desc}`;
+    return `· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${r.desc}`;
   }).join('\n');
 
   const lines = [];
@@ -6038,6 +6039,17 @@ function buildActiveRoleExportDesc(role, activeRoleIds) {
   }
 }
 
+function roleFactionClassLabel(role, english) {
+  if (!role) return english ? 'Unknown' : '未知阵营';
+  if (role.team === 'good') {
+    if (role.id === 'villager') return english ? 'Good team · Villager' : '好人阵营·平民';
+    return english ? 'Good team · Power role (counts toward god wipe)' : '好人阵营·神职（计入屠神）';
+  }
+  if (role.team === 'bad') return english ? 'Wolf team' : '狼人阵营';
+  if (role.team === 'third') return english ? 'Independent' : '第三阵营';
+  return role.team || (english ? 'Unknown' : '未知阵营');
+}
+
 function buildRulesExport() {
   const players = (S && Array.isArray(S.players)) ? S.players : [];
   if (!players.length) return uiEnglish()
@@ -6082,7 +6094,7 @@ function buildRulesExport() {
 
   ids.filter(id => ALL_ROLES[id]).forEach(id => {
     const r = ALL_ROLES[id];
-    lines.push(`· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${buildActiveRoleExportDesc(r, ids)}`);
+    lines.push(`· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${buildActiveRoleExportDesc(r, ids)}`);
   });
   lines.push('· 只有以上配置中列出的角色存在于本局；未列出的角色及其机制不得作为推理前提。');
   lines.push(buildActiveRoleTimingBlock(players));
@@ -6140,7 +6152,7 @@ function buildWebRulesExport(viewerP, options) {
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
   const roleLines = ids.filter(id => ALL_ROLES[id]).map(id => {
     const r = ALL_ROLES[id];
-    return `· ${r.emoji}${r.name}（${teamNames[r.team] || r.team}）：${buildActiveRoleExportDesc(r, ids)}`;
+    return `· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${buildActiveRoleExportDesc(r, ids)}`;
   });
 
   const lines = [
