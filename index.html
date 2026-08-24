@@ -28973,10 +28973,27 @@ ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicN
 ${battleReport}${endingSpeechBlock}${wolfChatBlock}
 
 ${phaseBlock}
-
+${p.role && p.role.team === 'good' ? '\n发言/投票前，仍按最初那条里的「独立打火四题」先在草稿里答一遍（①蒙住所有人发言、只凭硬事实定底盘 ②这个共识若整个错了谁获利 ③该发生却没发生的是什么 ④我最想投的人若是好人怎么解释），别因为这是续报就跳过——这几题恰恰是你不被提醒就不会自己问的。\n' : ''}
 只回应上面这一条任务，不要重述历史、不要复盘整局。
 如需先思考再开口，可以写[草稿]你的分析[/草稿]，然后写发言内容。[草稿]内容会被自动过滤，不算发言。
 直接输出，不要加"好的""当然""以下是"等前缀。`;
+  }
+
+  // ★ 推理框架：与 API 路径(buildSystemPrompt)对齐，让网页接力的 AI 也吃到同一套
+  //   目标函数 + 硬事实图谱 + 独立打火四题 + 挡刀教学。这几个都是独立函数/常量，
+  //   直接复用不重写。只按阵营区分：图谱/挡刀是好人逻辑，胜负目标人人适用。
+  //   ★ 跳过 opts.noTeaching(「只留规则层」的 A/B 对照臂)——它的定位就是"零推理
+  //   指导的干净对照"，与 API 侧 custom/clean 教学模式不注入图谱一致。默认(完整)模式
+  //   才给全套框架，用户想让某个网页位吃到推理框架就用默认模式。
+  let _reasoningBlock = '';
+  if (!opts.noTeaching) {
+    try {
+      const _rfIds = new Set((S.players || []).map(x => x && x.role && x.role.id).filter(Boolean));
+      const _rfClaims = (typeof buildPublicClaimsBlock === 'function') ? buildPublicClaimsBlock(p) : '';
+      const _rfDecoy = (p.role && p.role.team === 'good' && typeof buildDecoySacrificeBlock === 'function')
+        ? buildDecoySacrificeBlock(p.role, _rfIds) : '';
+      _reasoningBlock = (typeof WIN_OBJECTIVE_RULE === 'string' ? WIN_OBJECTIVE_RULE.trim() + '\n' : '') + _rfClaims + _rfDecoy;
+    } catch (e) { _reasoningBlock = ''; }
   }
 
   return `你正在扮演一个狼人杀游戏的玩家。请完全代入角色，直接用第一人称说话，不要有助手口吻。
@@ -28995,6 +29012,7 @@ ${secretBlock}
 ${deadList ? `已出局：${deadList}` : '目前无人出局'}
 ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${_publicEventReadingNote()}
 ${hdeathOn ? (opts.noTeaching ? '隐死亡模式：普通夜间死亡不翻身份，也不公开狼刀、毒药等私密死因；公开技能事件仍按系统公告显示。玩家自报身份只是声明，不是系统翻牌。' : '隐死亡模式（全局说明，仅需遵守、不必在回答中复述）：普通夜间死亡不翻身份、不公开狼刀/毒药等私密死因；公开技能事件仍按系统公告显示。自报身份是声明而非系统翻牌，但你必须结合无人对跳、记录吻合、技能兑现、票型和行为形成可行动的工作判断，可用“暂认、偏信、待验、目前不信”表达。只有当上下文把声明误写成系统铁证时才简短纠正一次，不要反复说“死者身份不公开”或“跳了不等于真神”。') : '死者身份公开：系统翻牌结果是真实身份。'}
+${_reasoningBlock}
 
 ━━━━ 本局战报（事实与玩家观点混合记录）━━━━
 ${opts.noTeaching ? '以下按时间记录系统事件与玩家发言；系统事件按其公开范围生效，玩家发言只是玩家当时说过的话。' : '按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。'}
