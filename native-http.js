@@ -106,10 +106,39 @@
     wireTabletControls();
   }
 
-  if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) return;
+  // 公网页面的 CORS Worker 无法访问用户家里的私网。这里保留浏览器原始 fetch，
+  // 等 index.html 安装完公网代理后再覆一层：私网直连，其余请求继续走原代理。
+  const browserFetch = window.fetch.bind(window);
+  const isPrivateNetworkHost = (host) => {
+    host = String(host || '').toLowerCase().replace(/^\[|\]$/g, '');
+    if (host === 'localhost' || host === '::1' || host.endsWith('.local')) return true;
+    if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) return true;
+    const match = host.match(/^172\.(\d{1,3})\./);
+    return !!(match && Number(match[1]) >= 16 && Number(match[1]) <= 31);
+  };
+
+  if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) {
+    setTimeout(() => {
+      const publicProxyFetch = window.fetch.bind(window);
+      window.fetch = function lanAwareBrowserFetch(input, init) {
+        const rawUrl = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
+        const url = new URL(rawUrl, location.href);
+        if (!isPrivateNetworkHost(url.hostname)) return publicProxyFetch(input, init);
+        if (location.protocol === 'https:' && url.protocol === 'http:') {
+          return Promise.reject(new TypeError(
+            '局域网 API 无法从当前 HTTPS 网页直连：' + url.origin +
+            '。请使用安卓版 APK，或让内网 API 提供 HTTPS 并开放 CORS；也可以在局域网内用 HTTP 部署本页面。'
+          ));
+        }
+        return browserFetch(input, init);
+      };
+      console.info('[LAN API] Private-network requests bypass the public CORS proxy.');
+    }, 0);
+    return;
+  }
+
   document.documentElement.classList.add('capacitor-native');
 
-  const browserFetch = window.fetch.bind(window);
   const nativeHttp = window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
   if (!nativeHttp || typeof nativeHttp.request !== 'function') return;
 
