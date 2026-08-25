@@ -3,7 +3,8 @@
   "appName": "AI狼人杀",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "cleartext": true
   },
   "plugins": {
     "CapacitorHttp": {
