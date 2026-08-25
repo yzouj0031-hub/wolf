@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v37-reasoning-control';
+const CACHE_NAME = 'wolf-pwa-v38-lan-api';
 const APP_SHELL = [
   './',
   './index.html',
@@ -20,7 +20,8 @@ const APP_SHELL = [
 ];
 
 function shouldRefreshFromNetwork(url) {
-  return url.pathname.endsWith('/role-effects.js') ||
+  return url.pathname.endsWith('/native-http.js') ||
+    url.pathname.endsWith('/role-effects.js') ||
     url.pathname.endsWith('/role-effects.css') ||
     url.pathname.includes('/icons/roles/');
 }
