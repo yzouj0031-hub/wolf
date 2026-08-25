@@ -2578,6 +2578,7 @@ body.has-wp::after {
     <div class="mcd" data-mode="custom"><img class="mcd-art" src="icons/modes/custom.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>自定</h3><div class="pl">🎲</div><div class="desc">自由配置<br>角色与人数</div></div>
     <div class="mcd" data-mode="groupchat"><img class="mcd-art" src="icons/modes/groupchat.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">赛后复盘群<br>AI 吐槽甩锅互相盘</div></div>
     <div class="mcd mcd-chaos" data-mode="mystery"><img class="mcd-art" src="icons/modes/mystery.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>纯AI／网页端AI</div></div>
+    <div class="mcd mcd-chaos" onclick="Undercover.openUI()" role="button" tabindex="0"><i class="mcd-scrim"></i><h3>谁是卧底</h3><div class="pl">🕵️</div><div class="desc">描述词语·找出卧底<br>纯AI观战（真人下场开发中）</div></div>
     </div></section>
     <section class="mode-section mode-section-saved" id="custom-mode-section" hidden><div class="mode-section-head"><span>05</span><h2>我的模式</h2><p>你保存的私人板型</p></div><div class="mode-section-grid" id="custom-mode-cards"></div></section>
   </div>
@@ -11004,7 +11005,9 @@ async function callAI(p, prompt, opts) {
   const myGid = S.gameId;
   const api = getAPI(p.id);
   if (!api.key) return {thinking:'', game:'(未配置API)', action:''};
-  const sys = buildSystemPrompt(p);
+  // ★ opts.systemPromptOverride：给"谁是卧底"等复用 callAI 的其他游戏用——它们有
+  //   自己的 system prompt，不能走狼人杀的 buildSystemPrompt。狼人杀不传此参数，行为不变。
+  const sys = (opts && opts.systemPromptOverride) || buildSystemPrompt(p);
   const globalMemLimit = parseInt($('g-mem').value) || 0;
   // ★ 单独玩家memLimit优先于全局设置，留空=用全局，0=无限
   const pcMemLimit = (playerConfigs[p.id] || {}).memLimit;
@@ -29037,6 +29040,252 @@ buildWebPrompt = function(p, opts) {
   }
   return base;
 };
+
+/* ================================================================
+ *  § 谁是卧底（Undercover）· 独立模块
+ *
+ *  设计原则：不碰狼人杀主循环（proc / PhaseHandlers / freshState / S 状态机）。
+ *  自带流程与状态(UC.state)，只复用最底层的东西——callAI(带 systemPromptOverride)、
+ *  getAPI/playerConfigs(玩家的 API 与人格配置)、parseAI。这样调狼人杀不会碰坏卧底、
+ *  调卧底也不会碰坏狼人杀。
+ *
+ *  经典简单版：N 人、1 卧底、无白板。多数人拿同一个词，卧底拿一个相近但不同的词；
+ *  谁都不被告知自己是不是卧底——要从别人的描述里自己判断（这是卧底的核心乐趣）。
+ *  每轮：存活者各用一句话描述自己的词（不能直接说出词）→ 投票 → 最高票出局翻牌 →
+ *  判定：卧底被投出→平民胜；出局到只剩 3 人而卧底还活着→卧底胜。
+ * ================================================================ */
+const UNDERCOVER_WORDS = [
+  ['苹果','梨'], ['可乐','雪碧'], ['老虎','狮子'], ['钢笔','铅笔'], ['沙发','床'],
+  ['咖啡','奶茶'], ['地铁','公交'], ['西瓜','冬瓜'], ['吉他','小提琴'], ['微信','QQ'],
+  ['警察','保安'], ['医生','护士'], ['电影院','剧院'],
+  ['筷子','叉子'], ['雨伞','雨衣'], ['蝴蝶','蜜蜂'], ['火锅','烧烤'], ['篮球','排球'],
+  ['蜡烛','台灯'], ['围巾','手套'], ['馒头','包子'], ['乌龟','蜗牛'], ['钢琴','手风琴'],
+  ['旅行箱','背包'], ['牛奶','豆浆']
+].filter(pair => Array.isArray(pair) && pair.length === 2);
+
+const Undercover = {
+  state: null,
+
+  // 开一局：players = [{id,name}...]（id 对应 playerConfigs 的 API/人格配置）
+  //   wordPair 不传则随机抽一对；随机决定哪个词当"多数"、哪个当卧底词。
+  setup(players, wordPair) {
+    const n = players.length;
+    if (n < 3) throw new Error('至少 3 人');
+    const pair = wordPair || UNDERCOVER_WORDS[Math.floor(Math.random() * UNDERCOVER_WORDS.length)];
+    const flip = Math.random() < 0.5;
+    const civWord = flip ? pair[0] : pair[1];
+    const spyWord = flip ? pair[1] : pair[0];
+    const spyIdx = Math.floor(Math.random() * n);
+    this.state = {
+      pair, civWord, spyWord,
+      players: players.map((p, i) => ({
+        id: p.id, name: p.name, isPlayer: !!p.isPlayer,
+        alive: true, isSpy: i === spyIdx,
+        word: i === spyIdx ? spyWord : civWord,
+        // callAI 兼容用的最小结构（buildSystemPrompt 被 override 跳过，这里只喂它要读的字段）
+        memory: [], role: { id: 'uc', team: i === spyIdx ? 'bad' : 'good', name: '玩家' }
+      })),
+      round: 0, over: false, winner: null,
+      descLog: [],   // 全部轮次的描述 [{round,name,text}]
+      voteLog: [],   // 每轮投票结果
+      out: []        // 出局顺序 [{name,isSpy,round}]
+    };
+    return this.state;
+  },
+
+  alivePlayers() { return this.state.players.filter(p => p.alive); },
+  spyAlive() { return this.state.players.some(p => p.alive && p.isSpy); },
+
+  _descSys(pl) {
+    return `你在玩"谁是卧底"。你拿到的词是【${pl.word}】。
+规则：场上多数人拿到的是同一个词，只有一名"卧底"拿到一个相近但不同的词。你【不知道】自己是多数还是卧底——要从大家的描述里自己判断。
+轮到你时，用【一句话】描述你的词，【绝对不能直接说出这个词本身】，也不要用太露骨的近义替换。
+· 如果前面的描述都和你的词对得上，你大概是多数，描述可以精准一点，好让同词的人认出你。
+· 如果前面有描述明显和你的词对不上，你可能就是卧底——把描述往大众方向靠、说得模糊、蹭一个两个词都成立的角度，别暴露。
+只输出你要说的那一句描述，不要解释、不要复述规则。`;
+  },
+  _voteSys(pl) {
+    return `你在玩"谁是卧底"，你的词是【${pl.word}】。现在要投票选出你认为最可能是卧底（拿到不同词）的人。
+依据是每个人的描述和你自己的词对不对得上：和多数描述格格不入、或刻意含糊蹭边的，最可疑。
+只输出你要投的那个人的名字，不要解释。`;
+  },
+
+  async describe(pl, priorThisRound) {
+    const user = `【本轮已有的描述】\n${priorThisRound.map(d => `${d.name}：${d.text}`).join('\n') || '（你是本轮第一个描述的）'}\n\n轮到你（${pl.name}）。用一句话描述你的词【${pl.word}】，不要说出这个词本身。`;
+    return (await this._ask(pl, this._descSys(pl), user)).trim();
+  },
+
+  async vote(pl, roundDescs, alive) {
+    const opts = alive.filter(x => x.name !== pl.name).map(x => x.name);
+    const user = `【本轮所有人的描述】\n${roundDescs.map(d => `${d.name}：${d.text}`).join('\n')}\n\n请从这些人里选一个你认为最可能是卧底的，只输出名字：${opts.join('、')}`;
+    const raw = (await this._ask(pl, this._voteSys(pl), user)).trim();
+    // 从回答里抠出一个合法名字；抠不到就投描述最"离群"的兜底（这里简单取第一个候选）
+    const hit = opts.find(nm => raw.includes(nm));
+    return hit || opts[0];
+  },
+
+  // 默认走 callAI（复用它的重试/思考字段/多 API 类型）；测试时可覆盖 _ask 注入脚本
+  async _ask(pl, sys, user) {
+    const r = await callAI(pl, user, { systemPromptOverride: sys, noMemory: true, requireGame: true });
+    return (r && r.game) ? r.game : '';
+  },
+
+  // 跑完整一局。hooks 可选：{onDesc, onVote, onOut} 供 UI/观战回调。
+  async runGame(players, wordPair, hooks) {
+    hooks = hooks || {};
+    this.setup(players, wordPair);
+    const S = this.state;
+    while (!S.over) {
+      S.round++;
+      const alive = this.alivePlayers();
+      const roundDescs = [];
+      for (const pl of alive) {
+        const text = await this.describe(pl, roundDescs);
+        const d = { round: S.round, name: pl.name, text };
+        roundDescs.push(d); S.descLog.push(d);
+        hooks.onDesc && await hooks.onDesc(pl, text, S);
+      }
+      // 投票
+      const tally = {};
+      for (const pl of alive) {
+        const target = await this.vote(pl, roundDescs, alive);
+        tally[target] = (tally[target] || 0) + 1;
+        hooks.onVote && await hooks.onVote(pl, target, S);
+      }
+      S.voteLog.push({ round: S.round, tally });
+      // 最高票出局（平票取先到者，MVP 简化）
+      let outName = null, mx = -1;
+      Object.entries(tally).forEach(([nm, c]) => { if (c > mx) { mx = c; outName = nm; } });
+      const outP = S.players.find(p => p.name === outName && p.alive);
+      if (outP) {
+        outP.alive = false;
+        S.out.push({ name: outP.name, isSpy: outP.isSpy, round: S.round });
+        hooks.onOut && await hooks.onOut(outP, S);
+      }
+      // 判定
+      if (outP && outP.isSpy) { S.over = true; S.winner = 'civilians'; }
+      else if (this.alivePlayers().length <= 3 && this.spyAlive()) { S.over = true; S.winner = 'spy'; }
+      else if (!this.spyAlive()) { S.over = true; S.winner = 'civilians'; }
+    }
+    return { winner: S.winner, out: S.out, descLog: S.descLog, spy: S.players.find(p => p.isSpy) };
+  },
+
+  /* ── 朴素专用界面（B 方案）：全屏遮罩，JS 动态生成，不复用狼人杀牌桌 ── */
+  _ui: null,
+  _running: false,
+
+  openUI() {
+    if (this._ui) { this._ui.style.display = 'flex'; return; }
+    const el = document.createElement('div');
+    el.id = 'uc-view';
+    el.style.cssText = 'display:flex;position:fixed;inset:0;z-index:960;flex-direction:column;background:linear-gradient(180deg,#141024,#0d0b16);color:#e6e2f0;font-family:var(--font-body);padding:0';
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(160,120,240,.25);background:rgba(30,22,50,.6)">
+        <span style="font-size:1.1em;font-family:var(--font-seal);color:#c8a0f0">🕵️ 谁是卧底</span>
+        <span id="uc-status" style="font-size:.8em;color:#9a90b8">经典 8 人 · 1 卧底</span>
+        <span style="flex:1"></span>
+        <button id="uc-start" style="padding:7px 16px;background:rgba(112,80,200,.3);border:1px solid rgba(160,120,240,.6);border-radius:8px;color:#d0b0ff;font-size:.85em;cursor:pointer">▶ 开一局（纯AI观战）</button>
+        <button id="uc-close" style="padding:7px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(200,180,140,.2);border-radius:8px;color:#8a8070;font-size:.85em;cursor:pointer">✕ 退出</button>
+      </div>
+      <div style="display:flex;flex:1;min-height:0">
+        <div id="uc-seats" style="width:230px;flex-shrink:0;overflow-y:auto;padding:12px;border-right:1px solid rgba(160,120,240,.15);display:flex;flex-direction:column;gap:7px"></div>
+        <div id="uc-feed" style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px;font-size:.9em;line-height:1.5"></div>
+      </div>`;
+    document.body.appendChild(el);
+    this._ui = el;
+    el.querySelector('#uc-close').onclick = () => { el.style.display = 'none'; };
+    el.querySelector('#uc-start').onclick = () => this.startSpectate();
+  },
+
+  _feed(html, color) {
+    const f = this._ui && this._ui.querySelector('#uc-feed');
+    if (!f) return;
+    const row = document.createElement('div');
+    row.style.cssText = 'color:' + (color || '#c8c0dc');
+    row.innerHTML = html;
+    f.appendChild(row);
+    f.scrollTop = f.scrollHeight;
+  },
+
+  _renderSeats(godView) {
+    const box = this._ui && this._ui.querySelector('#uc-seats');
+    if (!box || !this.state) return;
+    box.innerHTML = this.state.players.map(p => {
+      const dead = !p.alive;
+      const tag = dead ? (p.isSpy ? '🕵️卧底' : '👤平民') : '';
+      const word = godView ? `<span style="color:#7a90c8">「${p.word}」</span>` : '';
+      return `<div style="padding:7px 10px;border-radius:8px;border:1px solid ${dead ? 'rgba(200,80,90,.3)' : 'rgba(160,120,240,.25)'};background:${dead ? 'rgba(80,20,30,.15)' : 'rgba(40,30,60,.35)'};opacity:${dead ? '.55' : '1'}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b style="color:${dead ? '#a08a9a' : '#d8c8f0'}">${p.name}${p.isPlayer ? '（你）' : ''}</b>
+          <span style="font-size:.72em;color:${p.isSpy ? '#e89090' : '#90b8a0'}">${tag}</span>
+        </div>${word ? `<div style="font-size:.72em;margin-top:2px">${word}</div>` : ''}</div>`;
+    }).join('');
+  },
+
+  async startSpectate() {
+    if (this._running) return;
+    this._running = true;
+    const startBtn = this._ui.querySelector('#uc-start');
+    startBtn.disabled = true; startBtn.textContent = '进行中…';
+    this._ui.querySelector('#uc-feed').innerHTML = '';
+    // 玩家 = 前 8 个（复用 playerConfigs 的 API/人格配置，id 0..7）
+    const players = Array.from({ length: 8 }, (_, i) => ({ id: i, name: 'P' + (i + 1) }));
+    try {
+      this.setup(players);
+      this._renderSeats(true); // 观战=上帝视角，显示每人的词
+      const st = this.state;
+      this._feed(`本局词对：多数词【<b style="color:#90c8a0">${st.civWord}</b>】 · 卧底词【<b style="color:#e89090">${st.spyWord}</b>】（观战可见，玩家各自只知道自己的）`, '#9a90b8');
+      const r = await this._runWithUI(players);
+      const spy = r.spy;
+      this._feed(`—— 本局结束：<b style="color:${r.winner === 'spy' ? '#e89090' : '#90c8a0'}">${r.winner === 'spy' ? '🕵️ 卧底获胜' : '👤 平民获胜'}</b>　卧底是 <b>${spy.name}</b>（词：${spy.word}）——`, '#e0c060');
+    } catch (e) {
+      this._feed('⚠️ 出错：' + (e && e.message || e) + '（多半是没配 API Key——卧底和狼人杀共用同一套 API 设置）', '#e89090');
+    }
+    startBtn.disabled = false; startBtn.textContent = '▶ 再来一局';
+    this._running = false;
+  },
+
+  // 带 UI 回调地跑一局（复用 runGame 的 hooks，但因为 runGame 内部 setup 会重置，
+  // 这里改为直接驱动，保留已 setup 的 state）
+  async _runWithUI(players) {
+    const S = this.state;
+    while (!S.over) {
+      S.round++;
+      this._ui.querySelector('#uc-status').textContent = `第 ${S.round} 轮 · 存活 ${this.alivePlayers().length}`;
+      this._feed(`<b style="color:#c8a0f0">── 第 ${S.round} 轮·描述 ──</b>`, '#c8a0f0');
+      const alive = this.alivePlayers();
+      const roundDescs = [];
+      for (const pl of alive) {
+        const text = await this.describe(pl, roundDescs);
+        const d = { round: S.round, name: pl.name, text };
+        roundDescs.push(d); S.descLog.push(d);
+        this._feed(`<b>${pl.name}</b>：${text}`, '#d0c8e4');
+      }
+      this._feed(`<b style="color:#a0a0d8">── 投票 ──</b>`, '#a0a0d8');
+      const tally = {};
+      for (const pl of alive) {
+        const target = await this.vote(pl, roundDescs, alive);
+        tally[target] = (tally[target] || 0) + 1;
+      }
+      S.voteLog.push({ round: S.round, tally });
+      let outName = null, mx = -1;
+      Object.entries(tally).forEach(([nm, c]) => { if (c > mx) { mx = c; outName = nm; } });
+      this._feed('票数：' + Object.entries(tally).map(([n, c]) => `${n}×${c}`).join('　'), '#8a90b0');
+      const outP = S.players.find(p => p.name === outName && p.alive);
+      if (outP) {
+        outP.alive = false;
+        S.out.push({ name: outP.name, isSpy: outP.isSpy, round: S.round });
+        this._feed(`🗳️ <b>${outP.name}</b> 被投出——身份是 <b style="color:${outP.isSpy ? '#e89090' : '#90c8a0'}">${outP.isSpy ? '🕵️卧底' : '👤平民'}</b>`, '#e0c060');
+        this._renderSeats(true);
+      }
+      if (outP && outP.isSpy) { S.over = true; S.winner = 'civilians'; }
+      else if (this.alivePlayers().length <= 3 && this.spyAlive()) { S.over = true; S.winner = 'spy'; }
+      else if (!this.spyAlive()) { S.over = true; S.winner = 'civilians'; }
+    }
+    return { winner: S.winner, out: S.out, descLog: S.descLog, spy: S.players.find(p => p.isSpy) };
+  }
+};
+if (typeof window !== 'undefined') window.Undercover = Undercover;
 
 // 把网页 AI 的草稿与最终答案硬隔离。公开发言、投票和技能操作共用这一层：
 // 草稿保存为私密 thinking，但永远不参与姓名/选项匹配，避免“方案A/方案B”被误执行。
