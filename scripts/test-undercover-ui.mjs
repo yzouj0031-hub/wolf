@@ -5,12 +5,13 @@ const js = fs.readFileSync('undercover-ui.js', 'utf8');
 const css = fs.readFileSync('undercover-ui.css', 'utf8');
 const build = fs.readFileSync('scripts/build-www.mjs', 'utf8');
 const sw = fs.readFileSync('sw.js', 'utf8');
+const nativeHttp = fs.readFileSync('native-http.js', 'utf8');
 
 function expect(ok, message) { if (!ok) throw new Error(message); }
 
-expect(html.includes('icons/modes/undercover.jpg'), '大厅未使用谁是卧底专属立绘');
-expect(html.includes('<script src="./undercover-ui.js"></script>'), '正式卧底界面脚本未加载');
-expect(html.includes('<link rel="stylesheet" href="./undercover-ui.css">'), '正式卧底界面样式未加载');
+expect(html.includes('icons/modes/undercover.jpg') || nativeHttp.includes('icons/modes/undercover.jpg'), '大厅未使用谁是卧底专属立绘');
+expect(html.includes('<script src="./undercover-ui.js"></script>') || nativeHttp.includes("script.src = './undercover-ui.js'"), '正式卧底界面脚本未加载');
+expect(html.includes('<link rel="stylesheet" href="./undercover-ui.css">') || nativeHttp.includes("style.href = './undercover-ui.css'"), '正式卧底界面样式未加载');
 expect(js.includes('configOf(i).name'), '卧底席位未同步狼人杀玩家名称');
 expect(js.includes('configOf(id).avatar'), '卧底席位未同步狼人杀头像');
 expect(js.includes('cfg.persona'), '卧底席位未同步狼人杀人格');
