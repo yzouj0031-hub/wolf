@@ -75,7 +75,7 @@
     el.querySelector('#uc-roster-toggle').onclick = () => el.querySelector('.uc-roster').classList.toggle('mobile-open');
     el.querySelector('#uc-seats').onclick = e => {
       const seat = e.target.closest('.uc-seat');
-      if (!seat || this._running) return;
+      if (!seat) return;
       this._openSharedConfig(Number(seat.dataset.id));
     };
     this._system(tx('点击右侧任意席位即可设置玩家。所有配置会与狼人杀双向共用。','Click any seat to configure it. Settings are shared with Werewolf in both directions.'),true);
@@ -92,6 +92,9 @@
         if (pop && pop.classList.contains('show')) return;
         document.body.classList.remove('uc-configuring');
         this._lobbyNames = namesFromWerewolf();
+        const cfg = configOf(id);
+        const livePlayer = this.state?.players?.find(player => player.id === id);
+        if (livePlayer && cfg.name) livePlayer.name = cfg.name;
         this._renderLobby();
       },20);
     };
@@ -109,7 +112,7 @@
       const dead = pl && !pl.alive;
       const word = pl && this._godView ? `<div class="uc-seat-word">「${esc(pl.word)}」</div>` : '';
       const badge = dead ? (pl.isSpy ? tx('卧底','SPY') : tx('平民','CIVILIAN')) : '';
-      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(api.model || tx('未设置模型','No model configured'))}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
+      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(api.model || tx('未设置模型','No model configured'))}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div><button class="uc-seat-config" type="button">⚙ ${tx('玩家 / API','Player / API')}</button>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
     }).join('');
   };
 
