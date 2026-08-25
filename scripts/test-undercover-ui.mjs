@@ -23,7 +23,14 @@ expect(js.includes('data-test-seat') && js.includes('data-clear-seat'), '卧底�
 expect(js.includes('UC._ask = async function') && js.includes('kit.request(api,sys,user'), '卧底实际对局仍未切换到独立 API');
 expect(!js.includes('const apiOf = id => { try { return getAPI(id)'), '卧底仍直接读取狼人杀 P1-P8 API');
 expect(js.includes('openPCfg(id)'), '卧底席位不能打开内置玩家配置');
+expect(js.includes('if (!seat || this._running) return'), '对局运行中仍可误改玩家身份资料');
+expect(js.includes('uc-seat-config') && css.includes('.uc-seat-config'), '席位中没有可见的玩家资料设置入口');
+expect(js.includes("tx('编辑玩家','Edit player')") && !js.includes('⚙'), '玩家资料入口仍使用 emoji 或错误暗示可修改共享 API');
+expect(css.includes('body.uc-configuring #pcpop{z-index:1200'), '玩家资料配置层会被卧底全屏界面遮挡');
 expect(js.includes("document.body.classList.add('uc-configuring')"), '玩家配置弹窗未进入卧底同步状态');
+expect(js.includes("classList.add('uc-page-locked')") && js.includes("classList.remove('uc-page-locked')"), '打开或退出卧底界面时未正确锁定/恢复底层页面');
+expect(css.includes('height:100dvh') && css.includes('overscroll-behavior:none') && css.includes('#uc-view{') && css.includes('touch-action:pan-y'), '移动端全屏、纵向滚动或穿透防护不完整');
+expect(!css.includes('#uc-view{position:fixed;inset:0;width:100%;height:100vh;height:100dvh;z-index:960;display:none;overflow:hidden;overscroll-behavior:none;touch-action:none'), '卧底根层禁止全部触摸，平板列表将无法滚动');
 expect(js.includes('apiOf(pl.id).model'), '发言记录未显示玩家模型');
 expect(css.includes('.uc-seat-avatar') && css.includes('.uc-msg-avatar'), '席位或发言区缺少头像视觉');
 expect(build.includes("'undercover-ui.js'") && build.includes("'undercover-ui.css'"), 'APK 构建未包含卧底正式界面');
