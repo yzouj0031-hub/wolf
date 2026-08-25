@@ -111,6 +111,78 @@ const MurderMystery = (() => {
     // suspicion[发出怀疑的人][被怀疑的人] = 0~100；quizScores[角色id] = 答对题数
     suspicion:{},quizScores:{}
   };
+  const MYSTERY_API_STORAGE='wg_mystery_api_v2';
+  let mysteryApiCfg=null;
+  const FALLBACK_API_PROVIDERS=[
+    {id:'anthropic',name:'Claude（Anthropic 官方）',type:'anthropic',url:'https://api.anthropic.com'},
+    {id:'gemini',name:'Gemini（Google 官方）',type:'gemini',url:'https://generativelanguage.googleapis.com'},
+    {id:'openai',name:'OpenAI 官方',type:'openai',url:'https://api.openai.com/v1'},
+    {id:'deepseek',name:'DeepSeek 官方',type:'openai',url:'https://api.deepseek.com/v1'},
+    {id:'openrouter',name:'OpenRouter',type:'openai',url:'https://openrouter.ai/api/v1'},
+    {id:'ollama',name:'Ollama（本地）',type:'openai',url:'http://localhost:11434/v1'},
+    {id:'custom-anthropic',name:'Claude 反代／中转（Anthropic 格式）',type:'anthropic',url:''},
+    {id:'custom-gemini',name:'Gemini 反代／中转（Gemini 格式）',type:'gemini',url:''},
+    {id:'custom',name:'GPT／OpenAI 反代／中转（OpenAI 兼容）',type:'openai',url:''}
+  ];
+  function apiProviders(){
+    return (typeof API_PROVIDERS!=='undefined'&&Array.isArray(API_PROVIDERS)&&API_PROVIDERS.length)
+      ?API_PROVIDERS:FALLBACK_API_PROVIDERS;
+  }
+  function apiProvider(id){return apiProviders().find(x=>x.id===id)||null;}
+  function inferMysteryProvider(url){
+    const s=String(url||'').toLowerCase();
+    if(s.includes('anthropic.com'))return 'anthropic';
+    if(s.includes('generativelanguage.googleapis.com')&&!s.includes('/openai'))return 'gemini';
+    return 'custom';
+  }
+  function readMainApi(){
+    const typeEl=q('g-apitype'),urlEl=q('g-url'),keyEl=q('g-key'),modelEl=q('g-model');
+    const provider=(typeEl&&typeEl.value)||inferMysteryProvider(urlEl&&urlEl.value);
+    return {provider:provider,url:(urlEl&&urlEl.value||'').trim(),key:(keyEl&&keyEl.value||'').trim(),model:(modelEl&&modelEl.value||'').trim()};
+  }
+  function loadMysteryApi(){
+    if(mysteryApiCfg)return mysteryApiCfg;
+    let saved=null;
+    try{saved=JSON.parse(localStorage.getItem(MYSTERY_API_STORAGE)||'null');}catch(e){}
+    mysteryApiCfg=saved&&saved.default&&saved.roles?saved:{version:2,default:readMainApi(),roles:{}};
+    mysteryApiCfg.version=2;mysteryApiCfg.default=mysteryApiCfg.default||{};mysteryApiCfg.roles=mysteryApiCfg.roles||{};
+    return mysteryApiCfg;
+  }
+  function saveMysteryApi(){
+    try{localStorage.setItem(MYSTERY_API_STORAGE,JSON.stringify(loadMysteryApi()));}catch(e){}
+  }
+  function roleApiOverride(roleId,create){
+    const cfg=loadMysteryApi();
+    if(!cfg.roles[SCRIPT.id]&&create)cfg.roles[SCRIPT.id]={};
+    if(create&&!cfg.roles[SCRIPT.id][roleId])cfg.roles[SCRIPT.id][roleId]={};
+    return (cfg.roles[SCRIPT.id]&&cfg.roles[SCRIPT.id][roleId])||{};
+  }
+  function resolveMysteryApi(pl){
+    const base=loadMysteryApi().default||{},own=roleApiOverride(pl.id,false);
+    const api=Object.assign({},base,own);
+    api.provider=api.provider||inferMysteryProvider(api.url);
+    const meta=apiProvider(api.provider);
+    api.type=(meta&&meta.type)||(/anthropic/i.test(api.provider)?'anthropic':/gemini/i.test(api.provider)?'gemini':'openai');
+    api.url=String(api.url||'').trim().replace(/\/+$/,'');
+    api.key=String(api.key||'').trim();api.model=String(api.model||'').trim();
+    return api;
+  }
+  function mysteryEndpoint(api){
+    let base=String(api.url||'').replace(/\/+$/,'');
+    if(api.type==='anthropic'){
+      if(/\/v1\/messages$/i.test(base))return base;
+      base=base.replace(/\/v1$/i,'');return base+'/v1/messages';
+    }
+    if(api.type==='gemini'){
+      base=base.replace(/\/v1beta$/i,'');
+      return base+'/v1beta/models/'+encodeURIComponent(api.model||'<模型名>')+':generateContent';
+    }
+    return /\/chat\/completions$/i.test(base)?base:base+'/chat/completions';
+  }
+  function mysteryApiNeedsKey(api){
+    if(api.type!=='openai')return true;
+    return !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(String(api.url||''));
+  }
   function clueById(id){ return SCRIPT.clues.find(c=>c.id===id)||null; }
 
   /* ── 嫌疑度状态 ────────────────────────────────────────────────
@@ -348,31 +420,64 @@ const MurderMystery = (() => {
     if(!text) text='（沉默）';
     return {thinking:thinking,text:text,action:am?am[1].trim():'',suspect:parseSuspect(pm?pm[1]:'')};
   }
-  function apiEndpoint(base,path){
-    const b=String(base||'').replace(/\/$/,'');
-    return b.endsWith(path)?b:b+path;
+  async function requestMysteryApi(api,sysPrompt,userPrompt,signal,maxTokens){
+    if(!api.url)throw new Error('未配置 API 地址。');
+    if(!api.model)throw new Error('未配置模型名称。');
+    if(!api.key&&mysteryApiNeedsKey(api))throw new Error('该渠道未配置 API 密钥。');
+    const endpoint=mysteryEndpoint(api);let res,data,raw='';
+    if(api.type==='anthropic'){
+      res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':api.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:api.model,max_tokens:maxTokens||4096,system:[{type:'text',text:sysPrompt,cache_control:{type:'ephemeral'}}],messages:[{role:'user',content:userPrompt}]}),signal:signal});
+      if(!res.ok){raw=await res.text().catch(()=> '');throw new Error('API HTTP '+res.status+' '+raw.slice(0,180));}
+      data=await res.json();raw=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
+    }else if(api.type==='gemini'){
+      const url=endpoint+'?key='+encodeURIComponent(api.key);
+      res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:sysPrompt}]},contents:[{role:'user',parts:[{text:userPrompt}]}],generationConfig:{maxOutputTokens:maxTokens||8192,temperature:.8}}),signal:signal});
+      if(!res.ok){raw=await res.text().catch(()=> '');throw new Error('API HTTP '+res.status+' '+raw.slice(0,180));}
+      data=await res.json();
+      const parts=data.candidates?.[0]?.content?.parts||[];
+      const thought=parts.filter(x=>x&&x.thought===true).map(x=>x.text||'').join('');
+      const answer=parts.filter(x=>x&&x.thought!==true).map(x=>x.text||'').join('');
+      raw=(thought?'<thinking>'+thought+'</thinking>':'')+(answer||parts.map(x=>x.text||'').join(''));
+    }else{
+      const mn=api.model.toLowerCase();
+      const reasoning=/gpt-?5(?:\.|[-_]|$)|(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
+      const body={model:api.model,messages:[{role:'system',content:sysPrompt},{role:'user',content:userPrompt}],stream:true};
+      if(reasoning)body.max_completion_tokens=maxTokens&&maxTokens<1024?maxTokens:Math.max(maxTokens||8192,8192);
+      else{body.max_tokens=maxTokens||4096;body.temperature=.8;}
+      const headers={'Content-Type':'application/json'};if(api.key)headers.Authorization='Bearer '+api.key;
+      const send=()=>fetch(endpoint,{method:'POST',headers:headers,body:JSON.stringify(body),signal:signal});
+      res=await send();
+      if(!res.ok){
+        let detail=await res.text().catch(()=> '');
+        // 中转对 token 字段的兼容程度不一致：只在明确的 400 参数错误时换字段重试。
+        if(res.status===400&&/max_(completion_)?tokens/i.test(detail)){
+          if(body.max_completion_tokens){body.max_tokens=body.max_completion_tokens;delete body.max_completion_tokens;}
+          else{body.max_completion_tokens=body.max_tokens;delete body.max_tokens;}
+          res=await send();
+          if(!res.ok)detail=await res.text().catch(()=>detail);
+        }
+        // 少数旧中转不接受 stream 字段；先走原生流式，明确拒绝时才降级成普通 JSON。
+        if(!res.ok&&res.status===400&&body.stream&&/stream/i.test(detail)){
+          delete body.stream;res=await send();if(!res.ok)detail=await res.text().catch(()=>detail);
+        }
+        if(!res.ok)throw new Error('API HTTP '+res.status+' '+String(detail).slice(0,180));
+      }
+      data=await parseAPIResponseWithSSEFallback(res,{tag:'[剧本杀 API]'});
+      const msg=data.choices?.[0]?.message||{};
+      const thought=msg.reasoning_content||msg.reasoning||msg.thinking||'';
+      raw=(thought?'<thinking>'+thought+'</thinking>':'')+(msg.content||data.output_text||'');
+    }
+    if(!raw)throw new Error('API 没有返回有效文本。');
+    return raw;
   }
   async function apiAsk(pl,sysPrompt,userPrompt,token){
-    const api=getAPI(pl.slot);
-    if(!api.key) throw new Error('P'+(pl.slot+1)+'（'+pl.name+'）未配置 API 密钥。请返回狼人杀主菜单设置填写全局 API，或为对应命牌单独配置。');
-    if(!api.url) throw new Error('未配置 API 地址。');
+    const api=resolveMysteryApi(pl);
+    if(!api.key&&mysteryApiNeedsKey(api)) throw new Error(pl.name+' 没有可用的 API 密钥，请返回剧本杀设置填写。');
     const ctrl=new AbortController(); J.currentAbort=ctrl;
     const timeout=setTimeout(()=>ctrl.abort(),600000);
     try{
-      const anthropic=/anthropic\.com/i.test(api.url);
-      let res,data,raw;
-      if(anthropic){
-        res=await fetch(apiEndpoint(api.url,'/v1/messages'),{method:'POST',headers:{'Content-Type':'application/json','x-api-key':api.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:api.model,max_tokens:2400,system:[{type:'text',text:sysPrompt,cache_control:{type:'ephemeral'}}],messages:[{role:'user',content:userPrompt}]}),signal:ctrl.signal});
-        if(!res.ok){raw=await res.text().catch(()=> '');throw new Error('API HTTP '+res.status+' '+raw.slice(0,140));}
-        data=await res.json(); raw=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
-      }else{
-        res=await fetch(apiEndpoint(api.url,'/chat/completions'),{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+api.key},body:JSON.stringify({model:api.model,messages:[{role:'system',content:sysPrompt},{role:'user',content:userPrompt}],max_tokens:2400,temperature:.8,stream:false}),signal:ctrl.signal});
-        if(!res.ok){raw=await res.text().catch(()=> '');throw new Error('API HTTP '+res.status+' '+raw.slice(0,140));}
-        data=await parseAPIResponseWithSSEFallback(res,{tag:'[剧本杀 '+pl.name+']'});
-        raw=data.choices?.[0]?.message?.content||data.output_text||'';
-      }
+      const raw=await requestMysteryApi(api,sysPrompt,userPrompt,ctrl.signal,8192);
       if(!aliveToken(token)) return null;
-      if(!raw) throw new Error(pl.name+' 的 API 没有返回有效文本。');
       return parseReply(raw);
     }catch(e){
       if(e && e.name==='AbortError') throw new Error(aliveToken(token)?'AI 请求超时或已取消。':'流程已取消');
@@ -763,7 +868,7 @@ const MurderMystery = (() => {
     return opt?opt.value:'';
   }
   function start(){
-    cancelRun();const token=++J.runId;
+    flushApiPanel();cancelRun();const token=++J.runId;
     J.driver=selectedValue(q('jbs-driver'))||'api';J.youId=J.driver==='web'?null:(selectedValue(q('jbs-role'))||null);
     const wid=J.driver==='web'?'':selectedValue(q('jbs-webai'));
     J.webIds=(wid&&wid!==J.youId)?[wid]:[];
@@ -781,70 +886,144 @@ const MurderMystery = (() => {
       J.busy=true;phaseIntro().catch(e=>{if(aliveToken(token))fatal(e);});
     }
   }
-  // 把全局 API 三件套和每个角色的模型覆盖摊在剧本杀设置页里。
-  // 数据源就是狼人杀那份：全局是 g-url / g-key / g-model，
-  // 单角色是 playerConfigs[slot]（getAPI(pl.slot) 读的正是它）。
+  function providerOptions(inherit){
+    return (inherit?'<option value="">继承默认渠道</option>':'')+apiProviders().map(p=>'<option value="'+h(p.id)+'">'+h(p.name)+'</option>').join('');
+  }
+  function setProviderSelect(el,value){
+    if(!el)return;el.value=value||'';
+    if(value&&el.value!==value){
+      const opt=document.createElement('option');opt.value=value;opt.textContent=value;el.appendChild(opt);el.value=value;
+    }
+  }
+  function updateApiEndpoint(){
+    const el=q('jbs-api-endpoint');if(!el)return;
+    const provider=selectedValue(q('jbs-api-type')),meta=apiProvider(provider);
+    const api={provider:provider,type:(meta&&meta.type)||'openai',url:q('jbs-api-url').value.trim(),model:q('jbs-api-model').value.trim()};
+    const ep=api.url?mysteryEndpoint(api):'';
+    let warning='';
+    if(api.type==='openai'&&api.url&&!/\/v\d+($|\/)/i.test(api.url)&&!/\/chat\/completions$/i.test(api.url))warning=' · 请确认地址是否需要以 /v1 结尾';
+    el.textContent=ep?'实际请求：'+ep+warning:'填写地址后，这里会显示最终请求地址。';
+  }
+  function flushApiPanel(){
+    const panel=q('jbs-api-panel');if(!panel||panel.style.display==='none')return;
+    const cfg=loadMysteryApi();
+    cfg.default={provider:selectedValue(q('jbs-api-type'))||'custom',url:q('jbs-api-url').value.trim(),key:q('jbs-api-key').value.trim(),model:q('jbs-api-model').value.trim()};
+    q('jbs-api-cast').querySelectorAll('[data-role][data-f]').forEach(inp=>{
+      const own=roleApiOverride(inp.dataset.role,true),v=String(inp.value||'').trim();
+      if(v)own[inp.dataset.f]=v;else delete own[inp.dataset.f];
+      if(!Object.keys(own).length)delete cfg.roles[SCRIPT.id][inp.dataset.role];
+    });
+    saveMysteryApi();updateApiEndpoint();renderApiStatus();
+  }
+  function bindApiField(el){
+    if(!el)return;
+    el.addEventListener('input',()=>{flushApiPanel();});
+    el.addEventListener('change',()=>{
+      if(el.id==='jbs-api-type'){
+        const meta=apiProvider(el.value),url=q('jbs-api-url');
+        const known=apiProviders().some(x=>x.url&&x.url.replace(/\/+$/,'')===url.value.trim().replace(/\/+$/,''));
+        if(meta&&meta.url&&(!url.value.trim()||known))url.value=meta.url;
+      }
+      flushApiPanel();
+    });
+  }
+  // 剧本杀有自己的一套默认 API；单角色覆盖按「剧本 id + 角色 id」保存。
+  // 不再写 playerConfigs[P1/P2]，所以换本和返回狼人杀都不会串配置。
   function renderApiPanel(){
     const panel=q('jbs-api-panel'); if(!panel) return;
     const web=selectedValue(q('jbs-driver'))==='web';
     // 全员网页端接力时一个 API 请求都不会发，面板整个收起来
     panel.style.display=web?'none':'';
     if(web) return;
-    const gu=$('g-url'),gk=$('g-key'),gm=$('g-model');
-    q('jbs-api-url').value=gu?gu.value:'';
-    q('jbs-api-key').value=gk?gk.value:'';
-    q('jbs-api-model').value=gm?gm.value:'';
+    const cfg=loadMysteryApi(),base=cfg.default||{};
+    q('jbs-api-type').innerHTML=providerOptions(false);setProviderSelect(q('jbs-api-type'),base.provider||inferMysteryProvider(base.url));
+    q('jbs-api-url').value=base.url||'';q('jbs-api-key').value=base.key||'';q('jbs-api-model').value=base.model||'';
     const mine=selectedValue(q('jbs-role')), relay=selectedValue(q('jbs-webai'));
     q('jbs-api-cast').innerHTML=SCRIPT.cast.map((x,i)=>{
-      const c=playerConfigs[i]||{};
+      const c=roleApiOverride(x.id,false);
       const tagArr=[];
       if(x.id===mine) tagArr.push('你扮演');
       if(x.id===relay) tagArr.push('网页端AI');
       const tag=tagArr.length?'<span class="jbs-api-inherit" style="font-size:.86em">（'+tagArr.join('·')+'）</span>':'';
-      const f=(k,label,ph,type)=>'<label>'+label+'<input class="jbs-input" data-slot="'+i+'" data-f="'+k+'"'
+      const f=(k,label,ph,type)=>'<label>'+label+'<input class="jbs-input" data-role="'+h(x.id)+'" data-f="'+k+'"'
         +(type?' type="'+type+'"':'')+' placeholder="'+ph+'" value="'+h(c[k]||'')+'"></label>';
       return '<details class="jbs-api-item"><summary><span class="jbs-api-slot">P'+(i+1)+'</span><b>'+h(x.name)+'</b>'+tag
-        +'<span class="jbs-api-sum" data-sum="'+i+'">'+h(slotSummary(i))+'</span></summary>'
-        +'<div class="jbs-api-fields">'+f('url','地址','继承默认')+f('key','密钥','继承默认','password')+f('model','模型','继承默认')+'</div></details>';
+        +'<span class="jbs-api-sum" data-sum="'+h(x.id)+'">'+h(slotSummary(x.id))+'</span></summary>'
+        +'<div class="jbs-api-fields"><label>渠道／格式<select class="jbs-input" data-role="'+h(x.id)+'" data-f="provider">'+providerOptions(true)+'</select></label>'
+        +f('url','地址','继承默认')+f('key','密钥','继承默认','password')+f('model','模型','继承默认')
+        +'<div class="jbs-api-row-actions"><button type="button" class="jbs-btn" data-test-role="'+h(x.id)+'">测试此角色</button>'
+        +'<button type="button" class="jbs-btn ghost" data-clear-role="'+h(x.id)+'">清除单独配置</button></div></div></details>';
     }).join('');
-    q('jbs-api-cast').querySelectorAll('input[data-slot]').forEach(inp=>{
-      inp.onchange=()=>{
-        const i=+inp.dataset.slot, k=inp.dataset.f, v=inp.value.trim();
-        if(!playerConfigs[i]) playerConfigs[i]={};
-        if(v) playerConfigs[i][k]=v; else delete playerConfigs[i][k];
-        try{ saveCfg(); }catch(e){}
-        const sum=q('jbs-api-cast').querySelector('[data-sum="'+i+'"]');
-        if(sum) sum.textContent=slotSummary(i);
-        renderApiStatus();
+    SCRIPT.cast.forEach(x=>setProviderSelect(q('jbs-api-cast').querySelector('select[data-role="'+x.id+'"]'),roleApiOverride(x.id,false).provider||''));
+    q('jbs-api-cast').querySelectorAll('[data-role][data-f]').forEach(inp=>{
+      const refresh=()=>{
+        if(inp.dataset.f==='provider'&&inp.value){
+          const meta=apiProvider(inp.value),url=q('jbs-api-cast').querySelector('input[data-role="'+inp.dataset.role+'"][data-f="url"]');
+          if(meta&&meta.url&&url&&!url.value.trim())url.value=meta.url;
+        }
+        flushApiPanel();const sum=q('jbs-api-cast').querySelector('[data-sum="'+inp.dataset.role+'"]');if(sum)sum.textContent=slotSummary(inp.dataset.role);
       };
+      inp.oninput=refresh;inp.onchange=refresh;
     });
-    renderApiStatus();
+    q('jbs-api-cast').querySelectorAll('[data-test-role]').forEach(btn=>btn.onclick=e=>{e.preventDefault();testRoleApi(btn.dataset.testRole);});
+    q('jbs-api-cast').querySelectorAll('[data-clear-role]').forEach(btn=>btn.onclick=e=>{
+      e.preventDefault();const cfg=loadMysteryApi();if(cfg.roles[SCRIPT.id])delete cfg.roles[SCRIPT.id][btn.dataset.clearRole];saveMysteryApi();renderApiPanel();
+    });
+    updateApiEndpoint();renderApiStatus();
   }
   // 收起状态下用一行字说明这个角色到底覆盖了什么，免得要逐个展开才知道
-  function slotSummary(i){
-    const c=playerConfigs[i]||{};
+  function slotSummary(roleId){
+    const c=roleApiOverride(roleId,false);
     const parts=[];
     if(c.model) parts.push(c.model);
+    if(c.provider) parts.push((apiProvider(c.provider)||{}).name||c.provider);
     if(c.url) parts.push('独立地址');
     if(c.key) parts.push('独立密钥');
     return parts.length?parts.join(' · '):'继承默认';
   }
   function renderApiStatus(){
     const el=q('jbs-api-status'); if(!el) return;
-    const gk=$('g-key')&&$('g-key').value.trim(), gm=($('g-model')&&$('g-model').value.trim())||'(未填)';
+    const cfg=loadMysteryApi(),base=cfg.default||{},gm=base.model||'(未填)';
     // 只统计这一局真会用到 API 的角色：我自己演的和走网页端接力的都不算
     const mine=selectedValue(q('jbs-role')), relay=selectedValue(q('jbs-webai'));
     const needApi=SCRIPT.cast.filter(x=>x.id!==mine&&x.id!==relay);
-    const perSlot=SCRIPT.cast.filter((x,i)=>needApi.indexOf(x)>=0&&playerConfigs[i]&&playerConfigs[i].model).length;
-    const miss=needApi.filter((x,i)=>{
-      const slot=SCRIPT.cast.indexOf(x); const c=playerConfigs[slot]||{};
-      return !(c.key||gk);
-    }).length;
+    const perSlot=needApi.filter(x=>roleApiOverride(x.id,false).model).length;
+    const invalid=needApi.filter(x=>{const a=resolveMysteryApi(x);return !a.url||!a.model||(!a.key&&mysteryApiNeedsKey(a));});
+    const miss=invalid.length;
     el.innerHTML = miss
-      ? '⚠️ 还有 '+miss+' 个角色没有可用的 API 密钥，开局会报错。在下面填一个默认密钥即可。'
+      ? '⚠️ 还有 '+miss+' 个角色缺少地址、模型或必要的密钥：'+invalid.map(x=>h(x.name)).join('、')+'。'
       : (needApi.length
-          ? '本局有 '+needApi.length+' 个角色走 API，默认模型 <b>'+h(gm)+'</b>'+(perSlot?'，其中 '+perSlot+' 个用了单独模型。':'。')
+          ? '本局有 '+needApi.length+' 个角色走 API，默认模型 <b>'+h(gm)+'</b>'+(perSlot?'，其中 '+perSlot+' 个用了单独模型。':'。')+' 配置已独立保存在本机。'
           : '本局没有角色走 API。');
+  }
+  async function runApiTest(api,label,button){
+    const out=q('jbs-api-test-result'),btn=q('jbs-api-test');
+    out.style.display='block';out.textContent='正在测试 '+label+' · '+(api.model||'（未填模型）')+'…';btn.disabled=true;if(button)button.disabled=true;
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),45000),started=Date.now();
+    try{
+      const raw=await requestMysteryApi(api,'你是 API 连通性测试助手。','只回复：连接成功',ctrl.signal,64);
+      out.textContent=label+' 连接成功 · '+((Date.now()-started)/1000).toFixed(1)+' 秒\n回复：'+String(raw).replace(/<[^>]+>/g,'').trim().slice(0,120);
+    }catch(e){
+      out.textContent='连接失败：'+(e&&e.name==='AbortError'?'45 秒内没有响应':(e.message||e));
+    }finally{clearTimeout(timer);btn.disabled=false;if(button)button.disabled=false;}
+  }
+  async function testDefaultApi(){
+    flushApiPanel();const base=loadMysteryApi().default||{},meta=apiProvider(base.provider);
+    return runApiTest(Object.assign({},base,{type:(meta&&meta.type)||'openai'}),'默认 API',q('jbs-api-test'));
+  }
+  async function testRoleApi(roleId){
+    flushApiPanel();const pl=SCRIPT.cast.find(x=>x.id===roleId);if(!pl)return;
+    const btn=q('jbs-api-cast').querySelector('[data-test-role="'+roleId+'"]');
+    return runApiTest(resolveMysteryApi(pl),pl.name,btn);
+  }
+  function importMainApi(){
+    const cfg=loadMysteryApi();cfg.default=readMainApi();saveMysteryApi();renderApiPanel();
+    const out=q('jbs-api-test-result');out.style.display='block';out.textContent='已复制狼人杀主 API 设置。之后在这里修改不会影响狼人杀。';
+  }
+  function toggleApiKeys(){
+    const keys=[q('jbs-api-key')].concat([...q('jbs-api-cast').querySelectorAll('input[data-f="key"]')]);
+    const show=keys.some(x=>x&&x.type==='password');keys.forEach(x=>{if(x)x.type=show?'text':'password';});
+    q('jbs-api-toggle-key').textContent=show?'隐藏密钥':'显示密钥';
   }
   function syncDriver(){
     const web=selectedValue(q('jbs-driver'))==='web';
@@ -884,9 +1063,9 @@ const MurderMystery = (() => {
     if(J.inited)return;J.inited=true;
     renderScriptPicker();
     q('jbs-driver').onchange=syncDriver;q('jbs-role').onchange=syncDriver;q('jbs-webai').onchange=syncDriver;q('jbs-start').onclick=start;
-    [['jbs-api-url','g-url'],['jbs-api-key','g-key'],['jbs-api-model','g-model']].forEach(([from,to])=>{
-      q(from).onchange=()=>{ const t=$(to); if(t){ t.value=q(from).value.trim(); try{ saveCfg(); }catch(e){} } renderApiStatus(); };
-    });q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
+    ['jbs-api-type','jbs-api-url','jbs-api-key','jbs-api-model'].forEach(id=>bindApiField(q(id)));
+    q('jbs-api-test').onclick=testDefaultApi;q('jbs-api-import').onclick=importMainApi;q('jbs-api-toggle-key').onclick=toggleApiKeys;
+    q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
     q('jbs-web-copy').onclick=async()=>{try{await navigator.clipboard.writeText(q('jbs-web-prompt').value);q('jbs-web-copy').textContent='✅ 已复制';setTimeout(()=>q('jbs-web-copy').textContent='📋 复制提示词',1500);}catch(e){q('jbs-web-prompt').select();}};
     q('jbs-web-submit').onclick=()=>{const raw=q('jbs-web-reply').value.trim();if(!raw)return;if(J.webResolve)J.webResolve(raw);};
     q('jbs-web-cancel').onclick=()=>{if(J.webReject)J.webReject();};

@@ -2160,11 +2160,17 @@ body.has-wp::after {
 .jbs-api-item>summary b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jbs-api-slot{flex:0 0 auto;padding:1px 5px;border:1px solid rgba(140,150,190,.24);border-radius:3px;color:#8b93ab;font-size:.86em}
 .jbs-api-sum{margin-left:auto;padding-left:10px;color:#7f869e;font-size:.92em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.jbs-api-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:2px 2px 12px}
+.jbs-api-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:2px 2px 12px}
 .jbs-api-fields label{display:flex;flex-direction:column;gap:4px;color:#8b93ab;font-size:.72em}
 /* .jbs-input 的 min-height:90px 是给文本域用的，这里全是单行输入 */
-#jbs-api-panel input.jbs-input{min-height:38px;font-size:.82em;padding:8px 10px}
-.jbs-api-fields input.jbs-input{min-height:32px;font-size:.76em;padding:6px 8px}
+#jbs-api-panel input.jbs-input,#jbs-api-panel select.jbs-input{min-height:38px;font-size:.82em;padding:8px 10px}
+.jbs-api-fields input.jbs-input,.jbs-api-fields select.jbs-input{min-height:32px;font-size:.76em;padding:6px 8px}
+.jbs-api-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.jbs-api-actions .jbs-btn{padding:7px 11px;font-size:.75em}
+.jbs-api-row-actions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}
+.jbs-api-row-actions .jbs-btn{padding:5px 9px;font-size:.72em}
+.jbs-api-endpoint{grid-column:1/-1;color:#737b95;font-size:.68em;line-height:1.45;word-break:break-all}
+.jbs-api-result{margin-top:8px;min-height:0;white-space:pre-wrap}
 .jbs-api-inherit{color:#6f7691}
 @media(max-width:640px){.jbs-api-fields{grid-template-columns:1fr}}.jbs-note{padding:9px 11px;border-left:3px solid rgba(232,184,120,.55);background:rgba(232,184,120,.06);color:#9ca2b8;font-size:.74em;line-height:1.6}
 .jbs-field label{display:block;color:#8b90a8;font-size:.75em;margin-bottom:5px}
@@ -2986,21 +2992,27 @@ body.has-wp::after {
         <div class="jbs-note">推荐亲自扮演一名角色：你会获得私密剧本，并在搜证、发言和指认中改变这一局。</div>
         <button class="jbs-btn primary" id="jbs-start" type="button">开始剧本杀</button>
       </div>
-      <!-- 剧本杀的 API 面板。以前只能回狼人杀主菜单去配，而且第 N 个角色
-           对应哪张命牌完全看不出来（代码里是 getAPI(pl.slot)，角色1↔P1）。
-           这里把同一份配置直接摊开：上面是全局，下面每个角色一行，
-           留空就继承全局——跟狼人杀命牌单独配模型是同一套数据。 -->
+      <!-- 剧本杀使用独立 API 配置，避免按 P1/P2 覆盖狼人杀命牌。
+           每个剧本的角色覆盖也按角色 id 保存，换本不会串配置。 -->
       <div class="jbs-panel" id="jbs-api-panel">
-        <div class="jbs-kicker">API 配置</div>
+        <div class="jbs-kicker">剧本杀 API 配置</div>
         <div id="jbs-api-status" class="jbs-note" style="margin:9px 0 12px"></div>
         <div class="jbs-grid">
+          <label>渠道／接口格式<select class="jbs-input" id="jbs-api-type"></select></label>
           <label>API 地址<input class="jbs-input" id="jbs-api-url" placeholder="https://api.openai.com/v1"></label>
           <label>API 密钥<input class="jbs-input" id="jbs-api-key" type="password" placeholder="sk-..."></label>
-          <label style="grid-column:1/-1">默认模型<input class="jbs-input" id="jbs-api-model" placeholder="gpt-4o"></label>
+          <label>默认模型<input class="jbs-input" id="jbs-api-model" placeholder="gpt-4o"></label>
+          <div class="jbs-api-endpoint" id="jbs-api-endpoint"></div>
         </div>
+        <div class="jbs-api-actions">
+          <button class="jbs-btn" id="jbs-api-test" type="button">测试默认 API</button>
+          <button class="jbs-btn ghost" id="jbs-api-import" type="button">读取狼人杀主设置</button>
+          <button class="jbs-btn ghost" id="jbs-api-toggle-key" type="button">显示密钥</button>
+        </div>
+        <div id="jbs-api-test-result" class="jbs-note jbs-api-result" style="display:none"></div>
         <div class="jbs-kicker" style="margin:14px 0 4px">各角色单独配置（留空＝用上面的默认）</div>
         <div id="jbs-api-cast"></div>
-        <div class="jbs-note" style="margin-top:10px">点开角色可以给它单独指定地址／密钥／模型——三项各自独立，只填模型就只覆盖模型，其余继续用上面的默认值。这里改的就是狼人杀设置里那一份，两边通用；角色第 N 位对应狼人杀的 P<span style="font-family:var(--font-title)">N</span> 命牌。</div>
+        <div class="jbs-note" style="margin-top:10px">配置只属于剧本杀，不会改动狼人杀命牌。点开角色可覆盖渠道、地址、密钥或模型；没有填写的项目继续继承默认值。点击“读取狼人杀主设置”可一次复制现有主配置。</div>
       </div>
     </section>
 

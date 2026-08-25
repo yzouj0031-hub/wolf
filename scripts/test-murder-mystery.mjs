@@ -30,7 +30,8 @@ function extract(html, file) {
   return src.replace(ret,
     '  return {open,close,parseReply,_state:J,SCRIPTS,setScript:s=>{SCRIPT=s;},getScript:()=>SCRIPT,' +
     'resolveVote,resolveSearch,compressLog,contextPrompt,clue,speakOrder,clueById,clueTaken,record,' +
-    'resolveAsk,resolveQuiz,parseSuspect,noteSuspect,topSuspect,suspicionBoard,quizScore,systemPrompt};');
+    'resolveAsk,resolveQuiz,parseSuspect,noteSuspect,topSuspect,suspicionBoard,quizScore,systemPrompt,' +
+    'mysteryEndpoint,mysteryApiNeedsKey,inferMysteryProvider};');
 }
 
 function stubDom() {
@@ -46,6 +47,7 @@ function stubDom() {
     addEventListener(){}
   };
   globalThis.window = globalThis;
+  globalThis.localStorage = { getItem(){ return null; }, setItem(){} };
 }
 
 function check(label, cond) {
@@ -180,6 +182,22 @@ for (const file of FILES) {
   check('mustAvoid 进了系统提示词', sys.includes(killer.mustAvoid));
   check('凶手提示词讲了说谎的代价，不只是禁令', sys.includes('说谎是有代价的'));
   check('输出格式里有 suspect 段', sys.includes('<suspect>'));
+
+  // ⑪ 剧本杀独立 API：显式渠道决定请求格式，不再靠反代域名猜。
+  check('OpenAI 兼容地址补 /chat/completions',
+    MM.mysteryEndpoint({type:'openai',url:'https://relay.example/v1',model:'gpt-x'}) === 'https://relay.example/v1/chat/completions');
+  check('已填完整 OpenAI 路径不会重复追加',
+    MM.mysteryEndpoint({type:'openai',url:'https://relay.example/v1/chat/completions',model:'gpt-x'}) === 'https://relay.example/v1/chat/completions');
+  check('Anthropic 地址即使误带 /v1 也能纠正',
+    MM.mysteryEndpoint({type:'anthropic',url:'https://relay.example/v1',model:'claude-x'}) === 'https://relay.example/v1/messages');
+  check('已填完整 Anthropic 路径不会重复追加',
+    MM.mysteryEndpoint({type:'anthropic',url:'https://relay.example/v1/messages',model:'claude-x'}) === 'https://relay.example/v1/messages');
+  check('Gemini 地址即使误带 /v1beta 也能纠正',
+    MM.mysteryEndpoint({type:'gemini',url:'https://relay.example/v1beta',model:'gemini-x'}) === 'https://relay.example/v1beta/models/gemini-x:generateContent');
+  check('本地 OpenAI 兼容服务允许无密钥',
+    !MM.mysteryApiNeedsKey({type:'openai',url:'http://localhost:11434/v1'}));
+  check('公网 OpenAI 兼容服务仍要求密钥',
+    MM.mysteryApiNeedsKey({type:'openai',url:'https://relay.example/v1'}));
 }
 
 if (failures) {
