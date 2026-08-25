@@ -26,9 +26,22 @@
 
   UC.openUI = function(){
     if (!this._ui) this._buildPremiumUI();
+    this._pageScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add('uc-page-locked');
+    document.body.classList.add('uc-page-locked');
+    document.body.style.setProperty('--uc-page-scroll', `-${this._pageScrollY}px`);
     this._ui.classList.add('show');
     this._lobbyNames = namesFromWerewolf();
     this._renderLobby();
+  };
+
+  UC.closeUI = function(){
+    if (this._running) return;
+    this._ui?.classList.remove('show');
+    document.documentElement.classList.remove('uc-page-locked');
+    document.body.classList.remove('uc-page-locked');
+    document.body.style.removeProperty('--uc-page-scroll');
+    window.scrollTo(0, this._pageScrollY || 0);
   };
 
   UC._buildPremiumUI = function(){
@@ -56,7 +69,7 @@
       </main>`;
     document.body.appendChild(el);
     this._ui = el;
-    el.querySelector('#uc-close').onclick = () => { if (!this._running) el.classList.remove('show'); };
+    el.querySelector('#uc-close').onclick = () => this.closeUI();
     el.querySelector('#uc-start').onclick = () => this.startSpectate();
     el.querySelector('#uc-sync').onclick = () => { this._lobbyNames = namesFromWerewolf(); this._renderLobby(); this._system(tx('已同步狼人杀的玩家名称、头像、人格和 API 配置。','Werewolf player names, portraits, personas and API settings synced.'),true); };
     el.querySelector('#uc-roster-toggle').onclick = () => el.querySelector('.uc-roster').classList.toggle('mobile-open');
