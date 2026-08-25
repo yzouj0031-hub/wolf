@@ -18,6 +18,8 @@ expect(js.includes('cfg.persona'), '卧底席位未同步狼人杀人格');
 expect(js.includes('getAPI(id)'), '卧底席位未同步狼人杀 API / 模型');
 expect(js.includes('openPCfg(id)'), '卧底席位不能打开内置玩家配置');
 expect(js.includes("document.body.classList.add('uc-configuring')"), '玩家配置弹窗未进入卧底同步状态');
+expect(js.includes("classList.add('uc-page-locked')") && js.includes("classList.remove('uc-page-locked')"), '打开或退出卧底界面时未正确锁定/恢复底层页面');
+expect(css.includes('height:100dvh') && css.includes('overscroll-behavior:none') && css.includes('touch-action:pan-y'), '移动端全屏或滚动穿透防护不完整');
 expect(js.includes('apiOf(pl.id).model'), '发言记录未显示玩家模型');
 expect(css.includes('.uc-seat-avatar') && css.includes('.uc-msg-avatar'), '席位或发言区缺少头像视觉');
 expect(build.includes("'undercover-ui.js'") && build.includes("'undercover-ui.css'"), 'APK 构建未包含卧底正式界面');
