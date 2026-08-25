@@ -26,9 +26,22 @@
 
   UC.openUI = function(){
     if (!this._ui) this._buildPremiumUI();
+    this._pageScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add('uc-page-locked');
+    document.body.classList.add('uc-page-locked');
+    document.body.style.setProperty('--uc-page-scroll', `-${this._pageScrollY}px`);
     this._ui.classList.add('show');
     this._lobbyNames = namesFromWerewolf();
     this._renderLobby();
+  };
+
+  UC.closeUI = function(){
+    if (this._running) return;
+    this._ui?.classList.remove('show');
+    document.documentElement.classList.remove('uc-page-locked');
+    document.body.classList.remove('uc-page-locked');
+    document.body.style.removeProperty('--uc-page-scroll');
+    window.scrollTo(0, this._pageScrollY || 0);
   };
 
   UC._buildPremiumUI = function(){
@@ -56,13 +69,13 @@
       </main>`;
     document.body.appendChild(el);
     this._ui = el;
-    el.querySelector('#uc-close').onclick = () => { if (!this._running) el.classList.remove('show'); };
+    el.querySelector('#uc-close').onclick = () => this.closeUI();
     el.querySelector('#uc-start').onclick = () => this.startSpectate();
     el.querySelector('#uc-sync').onclick = () => { this._lobbyNames = namesFromWerewolf(); this._renderLobby(); this._system(tx('已同步狼人杀的玩家名称、头像、人格和 API 配置。','Werewolf player names, portraits, personas and API settings synced.'),true); };
     el.querySelector('#uc-roster-toggle').onclick = () => el.querySelector('.uc-roster').classList.toggle('mobile-open');
     el.querySelector('#uc-seats').onclick = e => {
       const seat = e.target.closest('.uc-seat');
-      if (!seat || this._running) return;
+      if (!seat) return;
       this._openSharedConfig(Number(seat.dataset.id));
     };
     this._system(tx('点击右侧任意席位即可设置玩家。所有配置会与狼人杀双向共用。','Click any seat to configure it. Settings are shared with Werewolf in both directions.'),true);
@@ -79,6 +92,9 @@
         if (pop && pop.classList.contains('show')) return;
         document.body.classList.remove('uc-configuring');
         this._lobbyNames = namesFromWerewolf();
+        const cfg = configOf(id);
+        const livePlayer = this.state?.players?.find(player => player.id === id);
+        if (livePlayer && cfg.name) livePlayer.name = cfg.name;
         this._renderLobby();
       },20);
     };
@@ -96,7 +112,7 @@
       const dead = pl && !pl.alive;
       const word = pl && this._godView ? `<div class="uc-seat-word">「${esc(pl.word)}」</div>` : '';
       const badge = dead ? (pl.isSpy ? tx('卧底','SPY') : tx('平民','CIVILIAN')) : '';
-      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(api.model || tx('未设置模型','No model configured'))}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
+      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(api.model || tx('未设置模型','No model configured'))}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div><button class="uc-seat-config" type="button">⚙ ${tx('玩家 / API','Player / API')}</button>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
     }).join('');
   };
 
