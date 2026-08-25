@@ -1,9 +1,11 @@
-const CACHE_NAME = 'wolf-pwa-v38-lan-api';
+const CACHE_NAME = 'wolf-pwa-v39-undercover-ui';
 const APP_SHELL = [
   './',
   './index.html',
   './i18n.js',
   './reasoning-control.js',
+  './undercover-ui.js',
+  './undercover-ui.css',
   './manifest.webmanifest',
   './tablet.css',
   './role-effects.css?v=36',

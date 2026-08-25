@@ -28,6 +28,8 @@ const FILES = [
   'exit-guard.css',
   'multiplayer.js',
   'multiplayer.css',
+  'undercover-ui.js',
+  'undercover-ui.css',
   'lobby-redesign.css',
   'horror.html',
   'style-preview.html'

@@ -195,3 +195,29 @@
 
   console.info('[Native HTTP] AI API direct mode enabled; Supabase remains on browser fetch.');
 })();
+
+// Load the premium Undercover presentation after the legacy inline game core is ready.
+(() => {
+  const loadUndercoverUI = () => {
+    if (!document.querySelector('link[href="./undercover-ui.css"]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = './undercover-ui.css';
+      document.head.appendChild(style);
+    }
+    const card = document.querySelector('[onclick="Undercover.openUI()"]');
+    if (card && !card.querySelector('img.mcd-art')) {
+      card.classList.add('has-art');
+      card.insertAdjacentHTML('afterbegin', '<img class="mcd-art" src="icons/modes/undercover.jpg" alt="" loading="lazy">');
+      const desc = card.querySelector('.desc');
+      if (desc) desc.innerHTML = '假面沙龙·词语推理<br>8席AI配置与狼人杀同步';
+    }
+    if (!document.querySelector('script[src="./undercover-ui.js"]')) {
+      const script = document.createElement('script');
+      script.src = './undercover-ui.js';
+      document.body.appendChild(script);
+    }
+  };
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', loadUndercoverUI, { once: true });
+  else loadUndercoverUI();
+})();
