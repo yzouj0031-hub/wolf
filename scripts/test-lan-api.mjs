@@ -4,6 +4,7 @@ const zh = fs.readFileSync('native-http.js', 'utf8');
 const en = fs.readFileSync('en/native-http.js', 'utf8');
 const cap = JSON.parse(fs.readFileSync('capacitor.config.json', 'utf8'));
 const native = fs.readFileSync('native-http.js', 'utf8');
+const serviceWorker = fs.readFileSync('sw.js', 'utf8');
 
 function expect(ok, message) {
   if (!ok) throw new Error(message);
@@ -21,5 +22,7 @@ for (const [name, source] of [['中文', zh], ['英文', en]]) {
 expect(cap.server?.cleartext === true, 'Capacitor 未允许 Android 局域网 HTTP 明文请求');
 expect(cap.plugins?.CapacitorHttp?.enabled === true, 'CapacitorHttp 未启用');
 expect(native.includes('nativeHttp.request({'), 'APK 未使用原生 HTTP 请求');
+expect(serviceWorker.includes("CACHE_NAME = 'wolf-pwa-v38-lan-api'"), 'Service Worker 未升级局域网支持缓存版本');
+expect(serviceWorker.includes("url.pathname.endsWith('/native-http.js')"), 'native-http.js 未设置为网络优先，旧缓存会继续接管 API 请求');
 
 console.log('LAN API: private ranges bypass public proxy; APK native HTTP and cleartext mode enabled');
