@@ -1077,6 +1077,16 @@ const MurderMystery = (() => {
   function close(){
     cancelRun();closeWebOverlay();q('jbs-view').classList.remove('on');q('jbs-view').setAttribute('aria-hidden','true');q('mm').style.display='';
   }
+  // 剧本杀与谁是卧底都需要同一套多渠道请求协议，但配置必须各自独立。
+  // 这里只共享无状态的「渠道元数据 / 路径拼接 / 发请求」能力，不共享密钥或 localStorage。
+  if(typeof window!=='undefined')window.AuxGameAPI={
+    providers:apiProviders,
+    provider:apiProvider,
+    inferProvider:inferMysteryProvider,
+    endpoint:mysteryEndpoint,
+    needsKey:mysteryApiNeedsKey,
+    request:requestMysteryApi
+  };
   window.WolfExitGuard?.register('murder-mystery',{
     label:document.documentElement.lang==='en'?'Murder mystery':'剧本杀',
     isActive:()=>q('jbs-view')?.classList.contains('on') && J.phase!=='setup' && J.players.length>0,

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v39-undercover-ui';
+const CACHE_NAME = 'wolf-pwa-v40-undercover-custom-api';
 const APP_SHELL = [
   './',
   './index.html',
