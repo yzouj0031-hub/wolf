@@ -31,7 +31,7 @@ function extract(html, file) {
     '  return {open,close,parseReply,_state:J,SCRIPTS,setScript:s=>{SCRIPT=s;},getScript:()=>SCRIPT,' +
     'resolveVote,resolveSearch,compressLog,contextPrompt,clue,speakOrder,clueById,clueTaken,record,' +
     'resolveAsk,resolveQuiz,parseSuspect,noteSuspect,topSuspect,suspicionBoard,quizScore,systemPrompt,' +
-    'mysteryEndpoint,mysteryApiNeedsKey,inferMysteryProvider};');
+    'mysteryEndpoint,mysteryModelsEndpoint,mysteryApiNeedsKey,inferMysteryProvider};');
 }
 
 function stubDom() {
@@ -198,6 +198,12 @@ for (const file of FILES) {
     !MM.mysteryApiNeedsKey({type:'openai',url:'http://localhost:11434/v1'}));
   check('公网 OpenAI 兼容服务仍要求密钥',
     MM.mysteryApiNeedsKey({type:'openai',url:'https://relay.example/v1'}));
+  check('OpenAI 模型列表地址会移除 chat/completions',
+    MM.mysteryModelsEndpoint({type:'openai',url:'https://relay.example/v1/chat/completions'}) === 'https://relay.example/v1/models');
+  check('Anthropic 模型列表使用 /v1/models',
+    MM.mysteryModelsEndpoint({type:'anthropic',url:'https://api.anthropic.com/v1'}) === 'https://api.anthropic.com/v1/models');
+  check('Gemini 模型列表使用 /v1beta/models',
+    MM.mysteryModelsEndpoint({type:'gemini',url:'https://generativelanguage.googleapis.com/v1beta'}) === 'https://generativelanguage.googleapis.com/v1beta/models');
 }
 
 // ⑫ API 设置必须能在剧本杀进行中打开，且角色卡可直达自己的覆盖配置。
@@ -208,6 +214,8 @@ check('中英文页面都有常驻 API 设置按钮和游戏内弹层', mysteryP
 check('API 面板在弹层关闭后会回到设置页', mysteryUiSource.includes("home.appendChild(panel)") && mysteryUiSource.includes("overlay.classList.remove('on')"));
 check('对局角色卡可以直达该角色 API 覆盖', mysteryUiSource.includes('data-api-role') && mysteryUiSource.includes('openApiSettings(btn.dataset.apiRole)'));
 check('游戏内修改说明下一次请求生效', mysteryPages.every(page => page.includes('新配置从下一次请求开始生效')));
+check('剧本杀默认和单角色配置都能拉取模型', mysteryPages.every(page => page.includes('id="jbs-api-fetch-models"')) && mysteryUiSource.includes('data-fetch-role') && mysteryUiSource.includes('listApiModels'));
+check('拉取结果使用可搜索选择器而不是要求手填', mysteryUiSource.includes('aux-model-search') && mysteryUiSource.includes('chooseApiModel'));
 
 if (failures) {
   console.error(`\n❌ 剧本杀：${failures} 项检查未通过`);

@@ -183,6 +183,47 @@ const MurderMystery = (() => {
     if(api.type!=='openai')return true;
     return !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(String(api.url||''));
   }
+  function mysteryModelsEndpoint(api){
+    let base=String(api.url||'').trim().replace(/\/+$/,'');
+    if(api.type==='anthropic'){
+      base=base.replace(/\/v1\/messages$/i,'').replace(/\/v1$/i,'');
+      return base+'/v1/models';
+    }
+    if(api.type==='gemini'){
+      base=base.replace(/\/v1beta(?:\/models(?:\/.*)?)?$/i,'');
+      return base+'/v1beta/models';
+    }
+    base=base.replace(/\/(?:chat\/completions|responses)$/i,'');
+    return base+'/models';
+  }
+  async function listApiModels(api,signal){
+    if(!api||!api.url)throw new Error('请先填写 API 地址。');
+    if(!api.key&&mysteryApiNeedsKey(api))throw new Error('请先填写该渠道的 API 密钥。');
+    let url=mysteryModelsEndpoint(api),headers={Accept:'application/json'};
+    if(api.type==='anthropic')headers=Object.assign(headers,{'x-api-key':api.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'});
+    else if(api.type==='gemini')url+=(url.includes('?')?'&':'?')+'key='+encodeURIComponent(api.key);
+    else if(api.key)headers.Authorization='Bearer '+api.key;
+    const res=await fetch(url,{headers:headers,signal:signal});
+    const raw=await res.text();let data={};
+    try{data=raw?JSON.parse(raw):{};}catch(_){if(!res.ok)throw new Error('HTTP '+res.status+' '+raw.slice(0,180));}
+    if(!res.ok)throw new Error('HTTP '+res.status+' '+String(data.error?.message||data.message||raw).slice(0,180));
+    const rows=Array.isArray(data.data)?data.data:(Array.isArray(data.models)?data.models:[]);
+    const models=[...new Set(rows.filter(x=>api.type!=='gemini'||!Array.isArray(x.supportedGenerationMethods)||x.supportedGenerationMethods.includes('generateContent')).map(x=>String(x&&((x.id||x.name))||'').replace(/^models\//,'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    if(!models.length)throw new Error('接口已响应，但没有返回可用模型。');
+    return models;
+  }
+  function chooseApiModel(models,title){
+    return new Promise(resolve=>{
+      const veil=document.createElement('div');veil.className='aux-model-picker';veil.setAttribute('role','dialog');veil.setAttribute('aria-modal','true');
+      veil.innerHTML='<div class="aux-model-box"><div class="aux-model-head"><div><b>'+h(title||'选择模型')+'</b><small>已拉取 '+models.length+' 个模型</small></div><button type="button" data-model-close>关闭</button></div><input type="search" class="aux-model-search" placeholder="搜索模型名称"><div class="aux-model-items"></div></div>';
+      const list=veil.querySelector('.aux-model-items'),search=veil.querySelector('.aux-model-search');
+      const finish=value=>{veil.remove();resolve(value||'');};
+      const draw=()=>{const keyword=search.value.trim().toLowerCase(),shown=models.filter(x=>!keyword||x.toLowerCase().includes(keyword));list.innerHTML=shown.length?shown.map(x=>'<button type="button" data-model="'+h(x)+'">'+h(x)+'</button>').join(''):'<div class="aux-model-empty">没有匹配的模型</div>';};
+      search.oninput=draw;list.onclick=e=>{const btn=e.target.closest('[data-model]');if(btn)finish(btn.dataset.model);};
+      veil.querySelector('[data-model-close]').onclick=()=>finish('');veil.onclick=e=>{if(e.target===veil)finish('');};
+      document.body.appendChild(veil);draw();requestAnimationFrame(()=>search.focus());
+    });
+  }
   function clueById(id){ return SCRIPT.clues.find(c=>c.id===id)||null; }
 
   /* ── 嫌疑度状态 ────────────────────────────────────────────────
@@ -953,7 +994,7 @@ const MurderMystery = (() => {
         +'<span class="jbs-api-sum" data-sum="'+h(x.id)+'">'+h(slotSummary(x.id))+'</span></summary>'
         +'<div class="jbs-api-fields"><label>渠道／格式<select class="jbs-input" data-role="'+h(x.id)+'" data-f="provider">'+providerOptions(true)+'</select></label>'
         +f('url','地址','继承默认')+f('key','密钥','继承默认','password')+f('model','模型','继承默认')
-        +'<div class="jbs-api-row-actions"><button type="button" class="jbs-btn" data-test-role="'+h(x.id)+'">测试此角色</button>'
+        +'<div class="jbs-api-row-actions"><button type="button" class="jbs-btn" data-fetch-role="'+h(x.id)+'">拉取模型</button><button type="button" class="jbs-btn" data-test-role="'+h(x.id)+'">测试此角色</button>'
         +'<button type="button" class="jbs-btn ghost" data-clear-role="'+h(x.id)+'">清除单独配置</button></div></div></details>';
     }).join('');
     SCRIPT.cast.forEach(x=>setProviderSelect(q('jbs-api-cast').querySelector('select[data-role="'+x.id+'"]'),roleApiOverride(x.id,false).provider||''));
@@ -967,6 +1008,7 @@ const MurderMystery = (() => {
       };
       inp.oninput=refresh;inp.onchange=refresh;
     });
+    q('jbs-api-cast').querySelectorAll('[data-fetch-role]').forEach(btn=>btn.onclick=e=>{e.preventDefault();fetchRoleModels(btn.dataset.fetchRole,btn);});
     q('jbs-api-cast').querySelectorAll('[data-test-role]').forEach(btn=>btn.onclick=e=>{e.preventDefault();testRoleApi(btn.dataset.testRole);});
     q('jbs-api-cast').querySelectorAll('[data-clear-role]').forEach(btn=>btn.onclick=e=>{
       e.preventDefault();const cfg=loadMysteryApi();if(cfg.roles[SCRIPT.id])delete cfg.roles[SCRIPT.id][btn.dataset.clearRole];saveMysteryApi();renderApiPanel();
@@ -1017,6 +1059,27 @@ const MurderMystery = (() => {
     flushApiPanel();const pl=SCRIPT.cast.find(x=>x.id===roleId);if(!pl)return;
     const btn=q('jbs-api-cast').querySelector('[data-test-role="'+roleId+'"]');
     return runApiTest(resolveMysteryApi(pl),pl.name,btn);
+  }
+  async function fetchModelsInto(api,target,label,button){
+    const out=q('jbs-api-test-result'),old=button.textContent;flushApiPanel();button.disabled=true;button.textContent='拉取中…';
+    out.style.display='block';out.textContent='正在从 '+label+' 拉取模型列表…';
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),30000);
+    try{
+      const models=await listApiModels(api,ctrl.signal);out.textContent='已拉取 '+models.length+' 个模型，请选择一个。';
+      const selected=await chooseApiModel(models,label+' · 选择模型');
+      if(selected){target.value=selected;target.dispatchEvent(new Event('input',{bubbles:true}));out.textContent='已选择模型：'+selected;}
+      else out.textContent='已拉取 '+models.length+' 个模型，未更改当前选择。';
+    }catch(e){out.textContent='拉取模型失败：'+(e&&e.name==='AbortError'?'30 秒内没有响应':(e.message||e));}
+    finally{clearTimeout(timer);button.disabled=false;button.textContent=old;}
+  }
+  function fetchDefaultModels(){
+    flushApiPanel();const base=loadMysteryApi().default||{},meta=apiProvider(base.provider);
+    return fetchModelsInto(Object.assign({},base,{type:(meta&&meta.type)||'openai'}),q('jbs-api-model'),'默认 API',q('jbs-api-fetch-models'));
+  }
+  function fetchRoleModels(roleId,button){
+    flushApiPanel();const pl=SCRIPT.cast.find(x=>x.id===roleId);if(!pl)return;
+    const target=q('jbs-api-cast').querySelector('input[data-role="'+roleId+'"][data-f="model"]');
+    return fetchModelsInto(resolveMysteryApi(pl),target,pl.name,button);
   }
   function importMainApi(){
     const cfg=loadMysteryApi();cfg.default=readMainApi();saveMysteryApi();renderApiPanel();
@@ -1080,7 +1143,7 @@ const MurderMystery = (() => {
     renderScriptPicker();
     q('jbs-driver').onchange=syncDriver;q('jbs-role').onchange=syncDriver;q('jbs-webai').onchange=syncDriver;q('jbs-start').onclick=start;
     ['jbs-api-type','jbs-api-url','jbs-api-key','jbs-api-model'].forEach(id=>bindApiField(q(id)));
-    q('jbs-api-test').onclick=testDefaultApi;q('jbs-api-import').onclick=importMainApi;q('jbs-api-toggle-key').onclick=toggleApiKeys;
+    q('jbs-api-fetch-models').onclick=fetchDefaultModels;q('jbs-api-test').onclick=testDefaultApi;q('jbs-api-import').onclick=importMainApi;q('jbs-api-toggle-key').onclick=toggleApiKeys;
     q('jbs-api-open').onclick=()=>openApiSettings();q('jbs-api-close').onclick=closeApiSettings;q('jbs-api-overlay').onclick=e=>{if(e.target===q('jbs-api-overlay'))closeApiSettings();};
     q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
     q('jbs-web-copy').onclick=async()=>{try{await navigator.clipboard.writeText(q('jbs-web-prompt').value);q('jbs-web-copy').textContent='✅ 已复制';setTimeout(()=>q('jbs-web-copy').textContent='📋 复制提示词',1500);}catch(e){q('jbs-web-prompt').select();}};
@@ -1101,6 +1164,9 @@ const MurderMystery = (() => {
     provider:apiProvider,
     inferProvider:inferMysteryProvider,
     endpoint:mysteryEndpoint,
+    modelsEndpoint:mysteryModelsEndpoint,
+    listModels:listApiModels,
+    chooseModel:chooseApiModel,
     needsKey:mysteryApiNeedsKey,
     request:requestMysteryApi
   };

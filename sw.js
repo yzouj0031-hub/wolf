@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v41-in-game-api-settings';
+const CACHE_NAME = 'wolf-pwa-v42-aux-model-fetch';
 const APP_SHELL = [
   './',
   './index.html',

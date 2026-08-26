@@ -102,7 +102,7 @@
             <label>${tx('默认模型','Default model')}<input id="uc-api-model" placeholder="gpt-4o"></label>
             <div class="uc-api-endpoint" id="uc-api-endpoint"></div>
           </div>
-          <div class="uc-api-actions"><button class="uc-btn primary" id="uc-api-test">${tx('测试默认 API','Test default API')}</button><button class="uc-btn" id="uc-api-import">${tx('读取狼人杀主设置','Import Werewolf settings')}</button><button class="uc-btn" id="uc-api-toggle-key">${tx('显示密钥','Show keys')}</button></div>
+          <div class="uc-api-actions"><button class="uc-btn" id="uc-api-fetch-models">${tx('拉取模型','Fetch models')}</button><button class="uc-btn primary" id="uc-api-test">${tx('测试默认 API','Test default API')}</button><button class="uc-btn" id="uc-api-import">${tx('读取狼人杀主设置','Import Werewolf settings')}</button><button class="uc-btn" id="uc-api-toggle-key">${tx('显示密钥','Show keys')}</button></div>
           <div class="uc-api-test-result" id="uc-api-test-result"></div>
           <div class="uc-api-section-title">${tx('各席单独配置（留空＝继承默认）','Per-seat overrides (blank = inherit default)')}</div><div id="uc-api-seats"></div>
         </div>
@@ -193,17 +193,31 @@
     this._ui.querySelector('#uc-api-url').value=base.url||'';this._ui.querySelector('#uc-api-key').value=base.key||'';this._ui.querySelector('#uc-api-model').value=base.model||'';
     host.innerHTML=Array.from({length:8},(_,id)=>{const c=seatOverride(id,false),name=this._lobbyNames?.[id]||configOf(id).name||`P${id+1}`;
       const input=(f,label,type)=>`<label>${label}<input data-seat="${id}" data-f="${f}" ${type?`type="${type}"`:''} value="${esc(c[f]||'')}" placeholder="${tx('继承默认','Inherit default')}"></label>`;
-      return `<details class="uc-api-seat"><summary><b>P${id+1} · ${esc(name)}</b><span data-seat-summary="${id}">${esc(seatSummary(id))}</span></summary><div class="uc-api-seat-grid"><label>${tx('渠道／格式','Provider / format')}<select data-seat="${id}" data-f="provider">${providerOptions(true)}</select></label>${input('url',tx('地址','URL'))}${input('key',tx('密钥','Key'),'password')}${input('model',tx('模型','Model'))}<div class="uc-api-seat-actions"><button class="uc-btn" data-test-seat="${id}">${tx('测试此席','Test seat')}</button><button class="uc-btn" data-clear-seat="${id}">${tx('清除覆盖','Clear override')}</button></div></div></details>`;
+      return `<details class="uc-api-seat"><summary><b>P${id+1} · ${esc(name)}</b><span data-seat-summary="${id}">${esc(seatSummary(id))}</span></summary><div class="uc-api-seat-grid"><label>${tx('渠道／格式','Provider / format')}<select data-seat="${id}" data-f="provider">${providerOptions(true)}</select></label>${input('url',tx('地址','URL'))}${input('key',tx('密钥','Key'),'password')}${input('model',tx('模型','Model'))}<div class="uc-api-seat-actions"><button class="uc-btn" data-fetch-seat="${id}">${tx('拉取模型','Fetch models')}</button><button class="uc-btn" data-test-seat="${id}">${tx('测试此席','Test seat')}</button><button class="uc-btn" data-clear-seat="${id}">${tx('清除覆盖','Clear override')}</button></div></div></details>`;
     }).join('');host.dataset.ready='1';
     Array.from({length:8},(_,id)=>setProvider(host.querySelector(`select[data-seat="${id}"]`),seatOverride(id,false).provider||''));
     ['uc-api-type','uc-api-url','uc-api-key','uc-api-model'].forEach(id=>{const el=this._ui.querySelector('#'+id);el.oninput=()=>this._flushApiPanel();el.onchange=()=>{if(id==='uc-api-type'){const meta=kit&&kit.provider(el.value),url=this._ui.querySelector('#uc-api-url');const known=kit&&kit.providers().some(x=>x.url&&x.url.replace(/\/+$/,'')===url.value.trim().replace(/\/+$/,''));if(meta?.url&&(!url.value.trim()||known))url.value=meta.url;}this._flushApiPanel();};});
     host.querySelectorAll('[data-seat][data-f]').forEach(el=>{const refresh=()=>{if(el.dataset.f==='provider'&&el.value){const meta=kit&&kit.provider(el.value),url=host.querySelector(`input[data-seat="${el.dataset.seat}"][data-f="url"]`);if(meta?.url&&url&&!url.value.trim())url.value=meta.url;}this._flushApiPanel();const s=host.querySelector(`[data-seat-summary="${el.dataset.seat}"]`);if(s)s.textContent=seatSummary(el.dataset.seat);};el.oninput=refresh;el.onchange=refresh;});
+    host.querySelectorAll('[data-fetch-seat]').forEach(btn=>btn.onclick=e=>{e.preventDefault();const id=Number(btn.dataset.fetchSeat),target=host.querySelector(`input[data-seat="${id}"][data-f="model"]`);this._fetchModels(apiOf(id),target,`P${id+1}`,btn);});
     host.querySelectorAll('[data-test-seat]').forEach(btn=>btn.onclick=e=>{e.preventDefault();this._testApi(apiOf(Number(btn.dataset.testSeat)),`P${Number(btn.dataset.testSeat)+1}`,btn);});
     host.querySelectorAll('[data-clear-seat]').forEach(btn=>btn.onclick=e=>{e.preventDefault();delete cfg.seats[btn.dataset.clearSeat];saveApiConfig();this._renderApiPanel();});
+    this._ui.querySelector('#uc-api-fetch-models').onclick=()=>{this._flushApiPanel();this._fetchModels(apiOf(-1),this._ui.querySelector('#uc-api-model'),tx('默认 API','Default API'),this._ui.querySelector('#uc-api-fetch-models'));};
     this._ui.querySelector('#uc-api-test').onclick=()=>{this._flushApiPanel();this._testApi(apiOf(-1),tx('默认 API','Default API'),this._ui.querySelector('#uc-api-test'));};
     this._ui.querySelector('#uc-api-import').onclick=()=>{cfg.default=readMainApi();saveApiConfig();this._renderApiPanel();const o=this._ui.querySelector('#uc-api-test-result');o.style.display='block';o.textContent=tx('已复制狼人杀主设置；后续修改不会反向影响狼人杀。','Werewolf settings copied; later edits will not affect Werewolf.');};
     this._ui.querySelector('#uc-api-toggle-key').onclick=()=>{const keys=[this._ui.querySelector('#uc-api-key'),...host.querySelectorAll('input[data-f="key"]')],show=keys.some(x=>x.type==='password');keys.forEach(x=>x.type=show?'text':'password');this._ui.querySelector('#uc-api-toggle-key').textContent=show?tx('隐藏密钥','Hide keys'):tx('显示密钥','Show keys');};
     this._apiEndpointPreview();this._renderApiStatus();
+  };
+  UC._fetchModels = async function(api,target,label,button){
+    const kit=apiKit(),out=this._ui.querySelector('#uc-api-test-result'),old=button.textContent;this._flushApiPanel();out.style.display='block';out.textContent=tx('正在拉取模型列表…','Fetching model list…');button.disabled=true;button.textContent=tx('拉取中…','Fetching…');
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),30000);
+    try{
+      if(!kit?.listModels||!kit?.chooseModel)throw new Error(tx('模型列表模块未加载','Model-list module is unavailable'));
+      const models=await kit.listModels(api,ctrl.signal);out.textContent=tx(`已拉取 ${models.length} 个模型，请选择一个。`,`${models.length} models loaded. Choose one.`);
+      const selected=await kit.chooseModel(models,label+' · '+tx('选择模型','Choose model'));
+      if(selected){target.value=selected;target.dispatchEvent(new Event('input',{bubbles:true}));out.textContent=tx('已选择模型：','Selected model: ')+selected;}
+      else out.textContent=tx(`已拉取 ${models.length} 个模型，未更改当前选择。`,`${models.length} models loaded; current selection unchanged.`);
+    }catch(e){out.textContent=tx('拉取模型失败：','Failed to fetch models: ')+(e?.name==='AbortError'?tx('30 秒内没有响应','no response within 30 seconds'):(e?.message||e));}
+    finally{clearTimeout(timer);button.disabled=false;button.textContent=old;}
   };
   UC._testApi = async function(api,label,button){
     const kit=apiKit(),out=this._ui.querySelector('#uc-api-test-result');out.style.display='block';out.textContent=tx('正在测试 ','Testing ')+label+'…';button.disabled=true;
