@@ -210,7 +210,12 @@
       card.classList.add('has-art');
       card.insertAdjacentHTML('afterbegin', '<img class="mcd-art" src="icons/modes/undercover.jpg" alt="" loading="lazy">');
       const desc = card.querySelector('.desc');
-      if (desc) desc.innerHTML = '假面沙龙·词语推理<br>8席AI配置与狼人杀同步';
+      if (desc) {
+        const isEnglish = /\/en(?:\/|$)/.test(location.pathname);
+        desc.innerHTML = isEnglish
+          ? 'Masked salon · word deduction<br>8 seats · independent API settings'
+          : '假面沙龙·词语推理<br>8席独立 API 配置';
+      }
     }
     if (!document.querySelector('script[src="./undercover-ui.js"]')) {
       const script = document.createElement('script');
