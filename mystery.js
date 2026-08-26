@@ -103,7 +103,7 @@ const MurderMystery = (() => {
     // webIds：指定走网页端AI接力的角色 id。driver==='web' 时全员都走，
     // driver==='api' 时只有这里列出的走——这样就能「一个角色用网页端AI、
     // 其余用 API」，而不是原来那样只能全有或全无。
-    players:[],youId:null,driver:'api',webIds:[],phase:'setup',round:0,found:[],
+    players:[],youId:null,driver:'mixed',webIds:[],controllers:{},phase:'setup',round:0,found:[],
     events:[],votes:{},seq:0,runId:0,busy:false,currentAbort:null,actionsLeft:0,
     pendingCancel:null,webResolve:null,webReject:null,inited:false,
     // known[角色id] = [线索id]：该角色私下搜到、别人不知道的线索
@@ -112,7 +112,9 @@ const MurderMystery = (() => {
     suspicion:{},quizScores:{}
   };
   const MYSTERY_API_STORAGE='wg_mystery_api_v2';
+  const MYSTERY_CONTROLLER_STORAGE='wg_mystery_controllers_v1';
   let mysteryApiCfg=null;
+  let mysteryControllerCfg=null;
   const FALLBACK_API_PROVIDERS=[
     {id:'anthropic',name:'Claude（Anthropic 官方）',type:'anthropic',url:'https://api.anthropic.com'},
     {id:'gemini',name:'Gemini（Google 官方）',type:'gemini',url:'https://generativelanguage.googleapis.com'},
@@ -151,6 +153,23 @@ const MurderMystery = (() => {
   function saveMysteryApi(){
     try{localStorage.setItem(MYSTERY_API_STORAGE,JSON.stringify(loadMysteryApi()));}catch(e){}
   }
+  function loadMysteryControllers(){
+    if(mysteryControllerCfg)return mysteryControllerCfg;
+    try{mysteryControllerCfg=JSON.parse(localStorage.getItem(MYSTERY_CONTROLLER_STORAGE)||'null');}catch(_){mysteryControllerCfg=null;}
+    if(!mysteryControllerCfg||typeof mysteryControllerCfg!=='object')mysteryControllerCfg={};
+    return mysteryControllerCfg;
+  }
+  function scriptControllers(create){
+    const all=loadMysteryControllers();
+    if(!all[SCRIPT.id]&&create){
+      all[SCRIPT.id]={};SCRIPT.cast.forEach(x=>{all[SCRIPT.id][x.id]='api';});
+    }
+    return all[SCRIPT.id]||{};
+  }
+  function saveMysteryControllers(){try{localStorage.setItem(MYSTERY_CONTROLLER_STORAGE,JSON.stringify(loadMysteryControllers()));}catch(_){}}
+  function controllerOf(pl){return (J.controllers&&J.controllers[pl.id])||scriptControllers(true)[pl.id]||'api';}
+  function isHuman(pl){return !!pl&&controllerOf(pl)==='human';}
+  function hasHumans(){return J.players.some(isHuman);}
   function roleApiOverride(roleId,create){
     const cfg=loadMysteryApi();
     if(!cfg.roles[SCRIPT.id]&&create)cfg.roles[SCRIPT.id]={};
@@ -333,7 +352,7 @@ const MurderMystery = (() => {
       const e=record('clue',finder.name+' 单独去查了一处，没有当众说明结果','搜证');
       log('sys',eid(e)+' 🤫 '+h(finder.name)+' 单独去查了一处，没有当众说明结果');
       // 主持人（纯观战）和线索的主人本人可以看到内容，其他情况不剧透
-      if(J.youId===null||finder.id===J.youId){
+      if(!hasHumans()){
         log('clue','<b>🔒 '+h(finder.name)+' 私下发现 · '+h(c.title)+'</b><br>'+h(c.text)
           +'<br><small style="opacity:.7">只有 '+h(finder.name)+' 知道这条</small>');
       }
@@ -347,7 +366,7 @@ const MurderMystery = (() => {
   }
   function say(pl,text,thinking,isHuman){
     const e=record('say',text,pl.name);
-    const showThink=!isHuman && J.driver==='api' && J.youId===null && thinking;
+    const showThink=!isHuman && !hasHumans() && thinking;
     const think=showThink?'<details class="jbs-think"><summary>💭 主持人查看内心</summary><div>'+h(thinking)+'</div></details>':'';
     log('say','<div class="jbs-who"><span>'+pl.emoji+'</span><b>'+h(pl.name)+'</b><small>'+h(pl.public)+'</small>'+eid(e)+'</div><div class="jbs-bubble">'+h(text)+'</div>'+think);
   }
@@ -355,7 +374,8 @@ const MurderMystery = (() => {
     document.querySelectorAll('#jbs-cast .jbs-pcard').forEach(x=>x.classList.toggle('speaking',x.dataset.id===id));
   }
   function renderCast(){
-    q('jbs-cast').innerHTML=J.players.map(p=>'<div class="jbs-pcard" data-id="'+p.id+'"><span>'+p.emoji+'</span><span class="nm">'+h(p.name)+(p.id===J.youId?' <b style="color:#54c8b8">你</b>':'')+'</span><span class="pub">'+h(p.public)+'</span><button type="button" class="jbs-cast-api" data-api-role="'+h(p.id)+'">API</button></div>').join('');
+    const labels={api:'API',web:'网页端 AI',human:'真人'};
+    q('jbs-cast').innerHTML=J.players.map(p=>{const mode=controllerOf(p);return '<div class="jbs-pcard" data-id="'+p.id+'"><span>'+p.emoji+'</span><span class="nm">'+h(p.name)+'</span><span class="pub">'+h(p.public)+' · '+labels[mode]+'</span>'+(mode==='api'?'<button type="button" class="jbs-cast-api" data-api-role="'+h(p.id)+'">API</button>':'')+'</div>';}).join('');
     q('jbs-cast').querySelectorAll('[data-api-role]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();openApiSettings(btn.dataset.apiRole);});
   }
   function setPhase(name,desc,idx){
@@ -544,8 +564,8 @@ const MurderMystery = (() => {
       setTimeout(()=>q('jbs-web-reply').focus(),50);
     });
   }
-  // 这一局里这个角色走不走网页端接力
-  function useWeb(pl){ return J.driver==='web' || (J.webIds||[]).indexOf(pl.id)>=0; }
+  // 每个角色独立选择 API、网页端接力或真人；三种方式可以在同一局混用。
+  function useWeb(pl){ return controllerOf(pl)==='web'; }
   function ask(pl,instruction,token){
     const sp=systemPrompt(pl),up=contextPrompt(pl,instruction);
     return useWeb(pl)?webAsk(pl,sp,up,token):apiAsk(pl,sp,up,token);
@@ -580,7 +600,22 @@ const MurderMystery = (() => {
     say(pl,r.text,r.thinking,false);speaking('');return r;
   }
   // 真人玩家发问用的面板：先点人，再写问题
-  function humanAsk(others){
+  function humanHandoff(pl,task){
+    return new Promise(resolve=>{
+      clearDynamic();
+      q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">真人席位交接</div><h3>请把设备交给 '+h(pl.name)+'</h3><div class="jbs-note">下一页会显示该角色的私密剧本与私密线索。其他玩家请移开视线。</div><div class="jbs-controls"><button class="jbs-btn primary" id="jbs-human-reveal">由 '+h(pl.name)+' 查看</button></div></div>';
+      const done=()=>{J.pendingCancel=null;clearDynamic();resolve();};J.pendingCancel=done;
+      q('jbs-human-reveal').onclick=()=>{
+        const privateClues=(J.known[pl.id]||[]).map(clueById).filter(Boolean);
+        q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">'+h(task||'轮到你行动')+' · '+h(pl.name)+'</div><h3>'+h(pl.public)+'</h3><div class="jbs-bubble">'+h(pl.secret)+'</div><div class="jbs-note" style="margin-top:10px">目标：'+h(pl.goal)+'</div>'
+          +(privateClues.length?'<div class="jbs-note" style="margin-top:9px"><b>你的私密线索</b><br>'+privateClues.map(c=>h(c.title)+'：'+h(c.text)).join('<br><br>')+'</div>':'')
+          +'<div class="jbs-controls"><button class="jbs-btn primary" id="jbs-human-ready">我已确认，开始操作</button></div></div>';
+        q('jbs-human-ready').onclick=done;
+      };
+    });
+  }
+  async function humanAsk(pl,others){
+    await humanHandoff(pl,'公开发问');
     return new Promise(resolve=>{
       clearDynamic();let sel='';
       q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">❓ 轮到你发问</div>'
@@ -612,8 +647,8 @@ const MurderMystery = (() => {
   async function oneExchange(asker,token){
     const others=J.players.filter(x=>x.id!==asker.id);
     let target=null,question='';
-    if(asker.id===J.youId){
-      const picked=await humanAsk(others);
+    if(isHuman(asker)){
+      const picked=await humanAsk(asker,others);
       if(!picked)return;
       target=picked.target;question=picked.question;
       const eu=record('ask',asker.name+' 问 '+target.name+'：'+question,asker.name);
@@ -637,7 +672,7 @@ const MurderMystery = (() => {
     }
     if(!aliveToken(token))return;
     // 被问的人当场回应
-    if(target.id===J.youId){
+    if(isHuman(target)){
       sys('轮到你回答 '+asker.name+' 的问题。');
       await humanSpeak(target);
     }else{
@@ -646,7 +681,8 @@ const MurderMystery = (() => {
         +'但必须符合你的身份和你不能说漏的东西。',token);
     }
   }
-  function humanSpeak(pl){
+  async function humanSpeak(pl){
+    await humanHandoff(pl,'公开发言');
     return new Promise(resolve=>{
       clearDynamic();
       q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">🎤 轮到你 · '+h(pl.name)+'</div><textarea class="jbs-input" id="jbs-human-text" rows="5" placeholder="以角色身份公开发言……"></textarea><div class="jbs-controls"><button class="jbs-btn primary" id="jbs-human-send">发言</button><button class="jbs-btn ghost" id="jbs-human-skip">跳过</button></div></div>';
@@ -659,7 +695,7 @@ const MurderMystery = (() => {
   }
   async function letSpeak(pl,instruction,token){
     speaking(pl.id);
-    const r=pl.id===J.youId?await humanSpeak(pl):await aiSpeak(pl,instruction,token);
+    const r=isHuman(pl)?await humanSpeak(pl):await aiSpeak(pl,instruction,token);
     speaking('');return r;
   }
   async function phaseIntro(){
@@ -675,38 +711,47 @@ const MurderMystery = (() => {
   }
   function renderClueBoard(stage){
     const avail=SCRIPT.clues.filter(c=>c.stage===stage);
-    const me=J.youId?J.players.find(x=>x.id===J.youId):null;
-    q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">'
-      +(J.youId?'你的行动点：<span id="jbs-ap">'+J.actionsLeft+'</span> / 2':'主持人公开线索')+'</div>'
-      +'<div class="jbs-note">'+(J.youId?'挑你最想查的方向。🔒 的线索只有搜到的人知道，别人看不见。':'点击公开线索；🔒 的线索若被 AI 搜走，只会进它自己手里。')+'</div>'
+    q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">搜证进度</div>'
+      +'<div class="jbs-note">点击可以由主持人直接公开线索；选择“角色依次搜证”后，真人、网页端 AI 与 API 角色会按各自控制方式行动。私密线索不会显示给其他真人。</div>'
       +'<div class="jbs-clues">'+avail.map(c=>{
         const taken=clueTaken(c.id);
-        const byMe=me&&(J.known[me.id]||[]).includes(c.id);
-        const state=!taken?'点击搜查':(J.found.includes(c.id)?'已公开':(byMe?'你私下掌握':'已被人搜走'));
+        const state=!taken?'主持人公开':(J.found.includes(c.id)?'已公开':'已被角色私下搜走');
         return '<button class="jbs-clue '+(taken?'found':'')+'" data-clue="'+c.id+'" '+(taken?'disabled':'')+'>'
           +'<b>'+(c.secret?'🔒 ':'')+h(c.title)+'</b><br><small>'+state+'</small></button>';
       }).join('')+'</div></div>';
     q('jbs-dynamic').querySelectorAll('[data-clue]').forEach(btn=>btn.onclick=()=>{
       const c=clueById(btn.dataset.clue);
-      if(!c||clueTaken(c.id)||(J.youId&&J.actionsLeft<=0))return;
-      if(J.youId){J.actionsLeft--;}
-      clue(c,me);renderClueBoard(stage);
+      if(!c||clueTaken(c.id))return;
+      clue(c,null);renderClueBoard(stage);
+    });
+  }
+  async function humanInvestigate(pl,stage,options){
+    await humanHandoff(pl,'私密搜证');
+    return new Promise(resolve=>{
+      clearDynamic();
+      q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">'+h(pl.name)+' · 选择一处搜查</div><div class="jbs-note">你获得的私密线索只会记录到自己的视角。</div><div class="jbs-clues">'+options.map(c=>'<button class="jbs-clue" data-human-clue="'+h(c.id)+'"><b>'+h(c.title)+'</b><br><small>选择此处</small></button>').join('')+'</div></div>';
+      const done=c=>{J.pendingCancel=null;clearDynamic();resolve(c||options[0]);};J.pendingCancel=()=>done(options[0]);
+      q('jbs-dynamic').querySelectorAll('[data-human-clue]').forEach(btn=>btn.onclick=()=>done(options.find(c=>c.id===btn.dataset.humanClue)));
     });
   }
   // 让 AI 各自挑一条去查。原来只有真人玩家有行动点（actionsLeft = youId ? 2 : 0），
   // 纯 AI 局里「搜证」其实是主持人手动公开线索、AI 全程被动——
   // 模式卡上写着「搜证·圆桌·指认」，这一幕却没有人在搜。
   async function aiInvestigate(stage,token){
-    for(const pl of J.players.filter(p=>p.id!==J.youId)){
+    for(const pl of J.players){
       if(!aliveToken(token))return;
       const options=SCRIPT.clues.filter(c=>c.stage===stage&&!clueTaken(c.id));
       if(!options.length){sys('本幕的线索已经被查完了。');break;}
       speaking(pl.id);sys(pl.name+' 正在挑要查的方向……');
-      const r=await askSearch(pl,options,token);
-      if(!aliveToken(token))return;
-      // 没解析出来就替它随机挑一条，别让一次格式跑偏白白浪费一个搜证名额
-      const c=(r&&resolveSearch(r.action,options))||options[Math.floor(Math.random()*options.length)];
-      if(r&&r.text&&r.text!=='（沉默）')say(pl,r.text,r.thinking,false);
+      let r=null,c=null;
+      if(isHuman(pl))c=await humanInvestigate(pl,stage,options);
+      else{
+        r=await askSearch(pl,options,token);
+        if(!aliveToken(token))return;
+        // 没解析出来就替它随机挑一条，别让一次格式跑偏白白浪费一个搜证名额
+        c=(r&&resolveSearch(r.action,options))||options[Math.floor(Math.random()*options.length)];
+        if(r&&r.text&&r.text!=='（沉默）')say(pl,r.text,r.thinking,false);
+      }
       clue(c,pl);speaking('');renderClueBoard(stage);
       await delay(80,token);
     }
@@ -714,15 +759,15 @@ const MurderMystery = (() => {
   }
   async function phaseInvestigate(stage){
     const token=J.runId;
-    J.phase=stage===1?'第一幕搜证':'第二幕搜证';J.round=stage;J.actionsLeft=J.youId?2:0;
+    J.phase=stage===1?'第一幕搜证':'第二幕搜证';J.round=stage;J.actionsLeft=0;
     setPhase(J.phase,stage===1?'勘察案发现场':'追查证词与隐藏物证',stage===1?1:3);clearDynamic();
     renderClueBoard(stage);
     J.busy=false;
     const next={label:stage===1?'进入初步讨论':'进入圆桌交锋',primary:true,run:()=>phaseDiscuss(stage)};
     if(J.aiSearch){
       setControls([
-        {hint:'先搜你自己的，再让其余角色各查一条。'},
-        {label:'🔍 其余角色搜证',primary:true,run:async()=>{
+        {hint:'所有角色将按席位依次搜证；真人会进入私密交接页。'},
+        {label:'角色依次搜证',primary:true,run:async()=>{
           await aiInvestigate(stage,token);
           if(!aliveToken(token))return;
           J.busy=false;setControls([next]);
@@ -769,7 +814,8 @@ const MurderMystery = (() => {
     const loose=candidates.filter(x=>raw.includes(x.id)||raw.includes(x.name));
     return loose.length===1?loose[0]:null;
   }
-  function humanVote(pl,candidates){
+  async function humanVote(pl,candidates){
+    await humanHandoff(pl,'最终指认');
     return new Promise(resolve=>{
       clearDynamic();let selected='';
       q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">🗳️ 请选择你指认的真凶</div><div class="jbs-votes">'+candidates.map(x=>'<button class="jbs-vote" data-vote="'+x.id+'">'+x.emoji+' '+h(x.name)+'</button>').join('')+'</div><div class="jbs-controls"><button class="jbs-btn primary" id="jbs-vote-ok" disabled>确认指认</button></div></div>';
@@ -788,7 +834,7 @@ const MurderMystery = (() => {
       if(only&&only.length)candidates=candidates.filter(x=>only.includes(x.id));
       if(!candidates.length)continue;   // 加赛时平票名单里只有自己，跳过
       let target=null;
-      if(pl.id===J.youId)target=await humanVote(pl,candidates);
+      if(isHuman(pl))target=await humanVote(pl,candidates);
       else{
         const list=candidates.map(x=>x.id+'='+x.name).join('、');
         const r=await ask(pl,'最终指认。必须从以下候选中选择一人：'+list+'。公开说明理由，并在 action 中严格写 ACCUSE|角色id。凶手不能投自己，应努力把票引向最合适的替罪者。',token);
@@ -818,7 +864,7 @@ const MurderMystery = (() => {
     const killer=J.players.find(x=>x.id===SCRIPT.solution.killer);const correct=!J.lastTie&&J.lastAccused===killer.id;
     const verdict=correct?'🎉 指认正确，真凶落网！':J.lastTie?'⚖️ 最高票相同，真凶逃脱。':'❌ 指认错误，真凶逃脱。';
     narr(verdict+'\n\n'+SCRIPT.solution.title+'\n\n'+SCRIPT.solution.story);
-    if(killer.id!==J.youId&&aliveToken(token)){
+    if(!isHuman(killer)&&aliveToken(token)){
       const r=await ask(killer,correct?'真相已经揭晓，你被识破。卸下伪装，用第一人称作一段简短认罪独白。':'真相已经揭晓，你成功逃过指认。卸下伪装，对观众作一段简短独白。',token);
       if(r&&aliveToken(token))say(killer,r.text,'',false);
     }
@@ -829,7 +875,8 @@ const MurderMystery = (() => {
       :again);
   }
   function quizScore(ans,qs){ return (ans||[]).reduce((n,v,i)=>n+(qs[i]&&v===qs[i].a?1:0),0); }
-  function humanQuiz(qs){
+  async function humanQuiz(pl,qs){
+    await humanHandoff(pl,'事实小测');
     return new Promise(resolve=>{
       clearDynamic();const picks=new Array(qs.length).fill(-1);
       q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">📝 你的答卷</div>'
@@ -858,9 +905,9 @@ const MurderMystery = (() => {
     setControls([{hint:'角色正在答题……'}]);
     for(const pl of J.players){
       if(!aliveToken(token))return;
-      if(pl.id===J.youId){
-        J.quizScores[pl.id]=quizScore(await humanQuiz(qs),qs);
-        sys('你答对 '+J.quizScores[pl.id]+'/'+qs.length);
+      if(isHuman(pl)){
+        J.quizScores[pl.id]=quizScore(await humanQuiz(pl,qs),qs);
+        sys(pl.name+' 答对 '+J.quizScores[pl.id]+'/'+qs.length);
         continue;
       }
       speaking(pl.id);
@@ -911,19 +958,18 @@ const MurderMystery = (() => {
   }
   function start(){
     closeApiSettings();flushApiPanel();cancelRun();const token=++J.runId;
-    J.driver=selectedValue(q('jbs-driver'))||'api';J.youId=J.driver==='web'?null:(selectedValue(q('jbs-role'))||null);
-    const wid=J.driver==='web'?'':selectedValue(q('jbs-webai'));
-    J.webIds=(wid&&wid!==J.youId)?[wid]:[];
+    J.controllers=Object.assign({},scriptControllers(true));
+    J.driver='mixed';J.youId=Object.keys(J.controllers).find(id=>J.controllers[id]==='human')||null;
+    J.webIds=Object.keys(J.controllers).filter(id=>J.controllers[id]==='web');
     J.aiSearch=!q('jbs-ai-search')||q('jbs-ai-search').checked;
     J.players=SCRIPT.cast.map((x,i)=>Object.assign({slot:i},x));J.phase='开场';J.round=0;J.found=[];J.events=[];J.votes={};J.seq=0;J.lastAccused=null;J.lastTie=false;
     J.known={};J.runoffDone=false;J.suspicion={};J.quizScores={};
     q('jbs-log').innerHTML='';clearDynamic();q('jbs-setup').style.display='none';q('jbs-game').style.display='block';q('jbs-restart').style.visibility='visible';renderCast();
     window.WolfExitGuard?.refresh();
-    if(J.youId){
-      const me=J.players.find(x=>x.id===J.youId);
-      setPhase('私密剧本','只有你能看到，记住后再开场',0);
-      q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">'+me.emoji+' 你扮演 · '+h(me.name)+'</div><h3>'+h(me.public)+'</h3><div class="jbs-bubble">'+h(me.secret)+'</div><div class="jbs-note" style="margin-top:10px">你的目标：'+h(me.goal)+'。这份内容不会写入公开日志，也不会发送给其他角色。</div></div>';
-      J.busy=false;setControls([{label:'我已记住，开始游戏',primary:true,run:()=>phaseIntro()}]);
+    if(hasHumans()){
+      setPhase('准备交接','真人席位将在轮到自己时查看私密内容',0);
+      q('jbs-dynamic').innerHTML='<div class="jbs-panel"><div class="jbs-kicker">混合对局已就绪</div><div class="jbs-note">本局有 '+J.players.filter(isHuman).length+' 个真人席位。每次轮到真人时都会先遮住私密信息，请把设备交给对应玩家后再继续。</div></div>';
+      J.busy=false;setControls([{label:'开始游戏',primary:true,run:()=>phaseIntro()}]);
     }else{
       J.busy=true;phaseIntro().catch(e=>{if(aliveToken(token))fatal(e);});
     }
@@ -973,23 +1019,17 @@ const MurderMystery = (() => {
   // 不再写 playerConfigs[P1/P2]，所以换本和返回狼人杀都不会串配置。
   function renderApiPanel(){
     const panel=q('jbs-api-panel'); if(!panel) return;
-    const web=selectedValue(q('jbs-driver'))==='web';
-    const inside=q('jbs-api-overlay')&&q('jbs-api-overlay').classList.contains('on');
-    // 全员网页端接力时一个 API 请求都不会发，面板整个收起来
-    panel.style.display=web&&!inside?'none':'';
-    if(web&&!inside) return;
+    panel.style.display='';
     const cfg=loadMysteryApi(),base=cfg.default||{};
     q('jbs-api-type').innerHTML=providerOptions(false);setProviderSelect(q('jbs-api-type'),base.provider||inferMysteryProvider(base.url));
     q('jbs-api-url').value=base.url||'';q('jbs-api-key').value=base.key||'';q('jbs-api-model').value=base.model||'';
-    const mine=selectedValue(q('jbs-role')), relay=selectedValue(q('jbs-webai'));
     q('jbs-api-cast').innerHTML=SCRIPT.cast.map((x,i)=>{
       const c=roleApiOverride(x.id,false);
-      const tagArr=[];
-      if(x.id===mine) tagArr.push('你扮演');
-      if(x.id===relay) tagArr.push('网页端AI');
-      const tag=tagArr.length?'<span class="jbs-api-inherit" style="font-size:.86em">（'+tagArr.join('·')+'）</span>':'';
+      const mode=scriptControllers(true)[x.id]||'api',modeLabel={api:'API',web:'网页端 AI',human:'真人'}[mode];
+      const tag='<span class="jbs-api-inherit" style="font-size:.86em">（'+modeLabel+'）</span>';
       const f=(k,label,ph,type)=>'<label>'+label+'<input class="jbs-input" data-role="'+h(x.id)+'" data-f="'+k+'"'
         +(type?' type="'+type+'"':'')+' placeholder="'+ph+'" value="'+h(c[k]||'')+'"></label>';
+      if(mode!=='api')return '<details class="jbs-api-item"><summary><span class="jbs-api-slot">P'+(i+1)+'</span><b>'+h(x.name)+'</b>'+tag+'<span class="jbs-api-sum">无需 API</span></summary><div class="jbs-note" style="margin-bottom:10px">该角色由'+modeLabel+'控制，不会发起 API 请求。可在开局设置中切换控制方式。</div></details>';
       return '<details class="jbs-api-item"><summary><span class="jbs-api-slot">P'+(i+1)+'</span><b>'+h(x.name)+'</b>'+tag
         +'<span class="jbs-api-sum" data-sum="'+h(x.id)+'">'+h(slotSummary(x.id))+'</span></summary>'
         +'<div class="jbs-api-fields"><label>渠道／格式<select class="jbs-input" data-role="'+h(x.id)+'" data-f="provider">'+providerOptions(true)+'</select></label>'
@@ -1028,9 +1068,7 @@ const MurderMystery = (() => {
   function renderApiStatus(){
     const el=q('jbs-api-status'); if(!el) return;
     const cfg=loadMysteryApi(),base=cfg.default||{},gm=base.model||'(未填)';
-    // 只统计这一局真会用到 API 的角色：我自己演的和走网页端接力的都不算
-    const mine=selectedValue(q('jbs-role')), relay=selectedValue(q('jbs-webai'));
-    const needApi=SCRIPT.cast.filter(x=>x.id!==mine&&x.id!==relay);
+    const needApi=SCRIPT.cast.filter(x=>(scriptControllers(true)[x.id]||'api')==='api');
     const perSlot=needApi.filter(x=>roleApiOverride(x.id,false).model).length;
     const invalid=needApi.filter(x=>{const a=resolveMysteryApi(x);return !a.url||!a.model||(!a.key&&mysteryApiNeedsKey(a));});
     const miss=invalid.length;
@@ -1104,22 +1142,16 @@ const MurderMystery = (() => {
     if(!panel||!overlay||!home||!overlay.classList.contains('on'))return;
     flushApiPanel();home.appendChild(panel);overlay.classList.remove('on');overlay.setAttribute('aria-hidden','true');renderApiPanel();
   }
-  function syncDriver(){
-    const web=selectedValue(q('jbs-driver'))==='web';
-    q('jbs-role').disabled=web;q('jbs-web-warning').style.display=web?'block':'none';
-    if(web&&q('jbs-role').options[0])q('jbs-role').options[0].selected=true;
-    // 全员网页端时这个下拉没意义；否则把「我自己扮演的那个」从候选里排掉，
-    // 免得选出「我和网页端AI同时演一个人」这种状态。
-    const sel=q('jbs-webai'); if(!sel) return;
-    sel.disabled=web;
-    const mine=web?'':selectedValue(q('jbs-role'));
-    const keep=selectedValue(sel);
-    sel.innerHTML='<option value="">无（其余角色都走 API）</option>'
-      +SCRIPT.cast.filter(x=>x.id!==mine).map(x=>'<option value="'+x.id+'">'+x.emoji+' '+h(x.name)+'（'+h(x.public)+'）</option>').join('');
-    if(keep&&keep!==mine&&[...sel.options].some(o=>o.value===keep)) sel.value=keep;
-    const on=!web&&!!selectedValue(sel);
-    q('jbs-webai-note').style.display=on?'block':'none';
+  function renderControllerPanel(){
+    const cfg=scriptControllers(true),host=q('jbs-controller-list');if(!host)return;
+    host.innerHTML=SCRIPT.cast.map((x,i)=>'<div class="jbs-controller-row"><div class="jbs-controller-role"><b>P'+(i+1)+' · '+h(x.name)+'</b><small>'+h(x.public)+'</small></div><select class="jbs-input" data-controller-role="'+h(x.id)+'"><option value="api">API 模型</option><option value="web">网页端 AI</option><option value="human">真人玩家</option></select></div>').join('');
+    host.querySelectorAll('[data-controller-role]').forEach(sel=>{sel.value=cfg[sel.dataset.controllerRole]||'api';sel.onchange=()=>{cfg[sel.dataset.controllerRole]=sel.value;saveMysteryControllers();renderApiPanel();};});
     renderApiPanel();
+  }
+  function applyControllerPreset(value){
+    if(!value)return;const cfg=scriptControllers(true),host=SCRIPT.cast.find(x=>x.role==='good')||SCRIPT.cast[0];
+    SCRIPT.cast.forEach(x=>{cfg[x.id]=value==='mixed'?(x.id===host.id?'human':'api'):value;});
+    saveMysteryControllers();renderControllerPanel();q('jbs-controller-all').value='';
   }
   // 换本时角色选择器要整个重建。推荐扮演的是剧本里第一个 role==='good' 的角色
   //（清白、没有涉案秘密的那个），而不是像原来那样把「江户川柯南」写死在这里。
@@ -1132,16 +1164,12 @@ const MurderMystery = (() => {
       if(!s)return;SCRIPT=s;renderScriptPicker();
     });
     q('jbs-script-intro').innerHTML='<p style="color:#a9a1b8;line-height:1.75;margin:0">'+h(SCRIPT.intro)+'</p>';
-    const host=SCRIPT.cast.find(x=>x.role==='good')||SCRIPT.cast[0];
-    q('jbs-role').innerHTML='<option value="'+host.id+'">'+host.emoji+' 我来扮演：'+h(host.name)+'（推荐）</option>'
-      +'<option value="">🍿 纯观战（全部角色由AI扮演）</option>'
-      +SCRIPT.cast.filter(x=>x.id!==host.id).map(x=>'<option value="'+x.id+'">'+x.emoji+' '+h(x.name)+'（'+h(x.public)+'）</option>').join('');
-    syncDriver();
+    renderControllerPanel();
   }
   function init(){
     if(J.inited)return;J.inited=true;
     renderScriptPicker();
-    q('jbs-driver').onchange=syncDriver;q('jbs-role').onchange=syncDriver;q('jbs-webai').onchange=syncDriver;q('jbs-start').onclick=start;
+    q('jbs-controller-all').onchange=e=>applyControllerPreset(e.target.value);q('jbs-start').onclick=start;
     ['jbs-api-type','jbs-api-url','jbs-api-key','jbs-api-model'].forEach(id=>bindApiField(q(id)));
     q('jbs-api-fetch-models').onclick=fetchDefaultModels;q('jbs-api-test').onclick=testDefaultApi;q('jbs-api-import').onclick=importMainApi;q('jbs-api-toggle-key').onclick=toggleApiKeys;
     q('jbs-api-open').onclick=()=>openApiSettings();q('jbs-api-close').onclick=closeApiSettings;q('jbs-api-overlay').onclick=e=>{if(e.target===q('jbs-api-overlay'))closeApiSettings();};
@@ -1149,7 +1177,7 @@ const MurderMystery = (() => {
     q('jbs-web-copy').onclick=async()=>{try{await navigator.clipboard.writeText(q('jbs-web-prompt').value);q('jbs-web-copy').textContent='✅ 已复制';setTimeout(()=>q('jbs-web-copy').textContent='📋 复制提示词',1500);}catch(e){q('jbs-web-prompt').select();}};
     q('jbs-web-submit').onclick=()=>{const raw=q('jbs-web-reply').value.trim();if(!raw)return;if(J.webResolve)J.webResolve(raw);};
     q('jbs-web-cancel').onclick=()=>{if(J.webReject)J.webReject();};
-    syncDriver();
+    renderControllerPanel();
   }
   function open(){
     init();q('mm').style.display='none';q('jbs-view').classList.add('on');q('jbs-view').setAttribute('aria-hidden','false');showSetup();

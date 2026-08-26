@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v42-aux-model-fetch';
+const CACHE_NAME = 'wolf-pwa-v43-mixed-controllers';
 const APP_SHELL = [
   './',
   './index.html',

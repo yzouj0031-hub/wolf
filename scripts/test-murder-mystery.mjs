@@ -216,6 +216,11 @@ check('对局角色卡可以直达该角色 API 覆盖', mysteryUiSource.include
 check('游戏内修改说明下一次请求生效', mysteryPages.every(page => page.includes('新配置从下一次请求开始生效')));
 check('剧本杀默认和单角色配置都能拉取模型', mysteryPages.every(page => page.includes('id="jbs-api-fetch-models"')) && mysteryUiSource.includes('data-fetch-role') && mysteryUiSource.includes('listApiModels'));
 check('拉取结果使用可搜索选择器而不是要求手填', mysteryUiSource.includes('aux-model-search') && mysteryUiSource.includes('chooseApiModel'));
+check('剧本杀提供逐角色 API／网页端 AI／真人控制', mysteryPages.every(page => page.includes('id="jbs-controller-list"') && page.includes('id="jbs-controller-all"')) && mysteryUiSource.includes("controllerOf(pl)==='web'") && mysteryUiSource.includes("controllerOf(pl)==='human'"));
+check('新增混合控制不改变旧用户的全 API 默认开局', mysteryUiSource.includes("SCRIPT.cast.forEach(x=>{all[SCRIPT.id][x.id]='api';})"));
+check('真人剧本杀包含私密交接与逐人搜证', mysteryUiSource.includes('function humanHandoff') && mysteryUiSource.includes('function humanInvestigate') && mysteryUiSource.includes('其他玩家请移开视线'));
+check('非 API 角色不会被计入 API 配置缺失', mysteryUiSource.includes("SCRIPT.cast.filter(x=>(scriptControllers(true)[x.id]||'api')==='api')"));
+check('大厅明确标明剧本杀支持三种控制方式', mysteryPages.every(page => /API(?:／| \/ )网页端? AI(?:／| \/ )真人|API \/ Web AI \/ human mix/.test(page)));
 
 if (failures) {
   console.error(`\n❌ 剧本杀：${failures} 项检查未通过`);
