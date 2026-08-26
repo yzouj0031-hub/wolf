@@ -200,6 +200,15 @@ for (const file of FILES) {
     MM.mysteryApiNeedsKey({type:'openai',url:'https://relay.example/v1'}));
 }
 
+// ⑫ API 设置必须能在剧本杀进行中打开，且角色卡可直达自己的覆盖配置。
+const mysteryUiSource = readFileSync('mystery.js', 'utf8');
+const mysteryPages = [readFileSync('index.html', 'utf8'), readFileSync('en/index.html', 'utf8')];
+check('中英文页面都有常驻 API 设置按钮和游戏内弹层', mysteryPages.every(page =>
+  page.includes('id="jbs-api-open"') && page.includes('id="jbs-api-overlay"') && page.includes('id="jbs-api-overlay-body"')));
+check('API 面板在弹层关闭后会回到设置页', mysteryUiSource.includes("home.appendChild(panel)") && mysteryUiSource.includes("overlay.classList.remove('on')"));
+check('对局角色卡可以直达该角色 API 覆盖', mysteryUiSource.includes('data-api-role') && mysteryUiSource.includes('openApiSettings(btn.dataset.apiRole)'));
+check('游戏内修改说明下一次请求生效', mysteryPages.every(page => page.includes('新配置从下一次请求开始生效')));
+
 if (failures) {
   console.error(`\n❌ 剧本杀：${failures} 项检查未通过`);
   process.exit(1);

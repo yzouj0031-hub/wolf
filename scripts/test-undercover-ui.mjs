@@ -25,7 +25,9 @@ expect(!js.includes('const apiOf = id => { try { return getAPI(id)'), '卧底仍
 expect(js.includes('openPCfg(id)'), '卧底席位不能打开内置玩家配置');
 expect(js.includes('if (!seat || this._running) return'), '对局运行中仍可误改玩家身份资料');
 expect(js.includes('uc-seat-config') && css.includes('.uc-seat-config'), '席位中没有可见的玩家资料设置入口');
-expect(js.includes("tx('编辑玩家','Edit player')") && !js.includes('⚙'), '玩家资料入口仍使用 emoji 或错误暗示可修改共享 API');
+expect(js.includes("tx('玩家资料','Player')") && !js.includes('⚙'), '玩家资料入口仍使用 emoji 或错误暗示可修改共享 API');
+expect(js.includes('data-seat-api') && js.includes('this._openApiPanel(Number(apiButton.dataset.seatApi))'), '卧底席位内没有直达该席 API 的入口');
+expect(js.includes('item.open=true') && js.includes("scrollIntoView({block:'nearest'})"), '单席 API 入口没有自动展开对应席位');
 expect(css.includes('body.uc-configuring #pcpop{z-index:1200'), '玩家资料配置层会被卧底全屏界面遮挡');
 expect(js.includes("document.body.classList.add('uc-configuring')"), '玩家配置弹窗未进入卧底同步状态');
 expect(js.includes("classList.add('uc-page-locked')") && js.includes("classList.remove('uc-page-locked')"), '打开或退出卧底界面时未正确锁定/恢复底层页面');
@@ -34,7 +36,7 @@ expect(!css.includes('#uc-view{position:fixed;inset:0;width:100%;height:100vh;he
 expect(js.includes('apiOf(pl.id).model'), '发言记录未显示玩家模型');
 expect(css.includes('.uc-seat-avatar') && css.includes('.uc-msg-avatar'), '席位或发言区缺少头像视觉');
 expect(build.includes("'undercover-ui.js'") && build.includes("'undercover-ui.css'"), 'APK 构建未包含卧底正式界面');
-expect(sw.includes("CACHE_NAME = 'wolf-pwa-v40-undercover-custom-api'"), 'PWA 缓存版本未随卧底 API 界面升级');
+expect(sw.includes("CACHE_NAME = 'wolf-pwa-v41-in-game-api-settings'"), 'PWA 缓存版本未随游戏内 API 界面升级');
 expect(sw.includes("'./undercover-ui.js'") && sw.includes("'./undercover-ui.css'"), 'PWA 未缓存卧底界面资源');
 
 console.log('undercover UI: premium layout, independent custom API, per-seat overrides and PWA cache passed');

@@ -314,7 +314,8 @@ const MurderMystery = (() => {
     document.querySelectorAll('#jbs-cast .jbs-pcard').forEach(x=>x.classList.toggle('speaking',x.dataset.id===id));
   }
   function renderCast(){
-    q('jbs-cast').innerHTML=J.players.map(p=>'<div class="jbs-pcard" data-id="'+p.id+'"><span>'+p.emoji+'</span><span class="nm">'+h(p.name)+(p.id===J.youId?' <b style="color:#54c8b8">你</b>':'')+'</span><span class="pub">'+h(p.public)+'</span></div>').join('');
+    q('jbs-cast').innerHTML=J.players.map(p=>'<div class="jbs-pcard" data-id="'+p.id+'"><span>'+p.emoji+'</span><span class="nm">'+h(p.name)+(p.id===J.youId?' <b style="color:#54c8b8">你</b>':'')+'</span><span class="pub">'+h(p.public)+'</span><button type="button" class="jbs-cast-api" data-api-role="'+h(p.id)+'">API</button></div>').join('');
+    q('jbs-cast').querySelectorAll('[data-api-role]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();openApiSettings(btn.dataset.apiRole);});
   }
   function setPhase(name,desc,idx){
     q('jbs-phase-name').textContent=name; q('jbs-phase-desc').textContent=desc||'';
@@ -860,7 +861,7 @@ const MurderMystery = (() => {
     if(J.webReject){const fn=J.webReject;J.webReject=null;fn();}
   }
   function showSetup(){
-    cancelRun();q('jbs-game').style.display='none';q('jbs-setup').style.display='grid';q('jbs-restart').style.visibility='hidden';
+    closeApiSettings();cancelRun();q('jbs-game').style.display='none';q('jbs-setup').style.display='grid';q('jbs-restart').style.visibility='hidden';
   }
   function selectedValue(el){
     if(el && typeof el.value==='string' && el.value) return el.value;
@@ -868,7 +869,7 @@ const MurderMystery = (() => {
     return opt?opt.value:'';
   }
   function start(){
-    flushApiPanel();cancelRun();const token=++J.runId;
+    closeApiSettings();flushApiPanel();cancelRun();const token=++J.runId;
     J.driver=selectedValue(q('jbs-driver'))||'api';J.youId=J.driver==='web'?null:(selectedValue(q('jbs-role'))||null);
     const wid=J.driver==='web'?'':selectedValue(q('jbs-webai'));
     J.webIds=(wid&&wid!==J.youId)?[wid]:[];
@@ -932,9 +933,10 @@ const MurderMystery = (() => {
   function renderApiPanel(){
     const panel=q('jbs-api-panel'); if(!panel) return;
     const web=selectedValue(q('jbs-driver'))==='web';
+    const inside=q('jbs-api-overlay')&&q('jbs-api-overlay').classList.contains('on');
     // 全员网页端接力时一个 API 请求都不会发，面板整个收起来
-    panel.style.display=web?'none':'';
-    if(web) return;
+    panel.style.display=web&&!inside?'none':'';
+    if(web&&!inside) return;
     const cfg=loadMysteryApi(),base=cfg.default||{};
     q('jbs-api-type').innerHTML=providerOptions(false);setProviderSelect(q('jbs-api-type'),base.provider||inferMysteryProvider(base.url));
     q('jbs-api-url').value=base.url||'';q('jbs-api-key').value=base.key||'';q('jbs-api-model').value=base.model||'';
@@ -1025,6 +1027,20 @@ const MurderMystery = (() => {
     const show=keys.some(x=>x&&x.type==='password');keys.forEach(x=>{if(x)x.type=show?'text':'password';});
     q('jbs-api-toggle-key').textContent=show?'隐藏密钥':'显示密钥';
   }
+  function openApiSettings(roleId){
+    const panel=q('jbs-api-panel'),overlay=q('jbs-api-overlay'),body=q('jbs-api-overlay-body');
+    if(!panel||!overlay||!body)return;
+    body.appendChild(panel);overlay.classList.add('on');overlay.setAttribute('aria-hidden','false');renderApiPanel();panel.style.display='';
+    if(roleId){
+      const item=q('jbs-api-cast').querySelector('[data-role="'+roleId+'"]')?.closest('.jbs-api-item');
+      if(item){item.open=true;requestAnimationFrame(()=>item.scrollIntoView({block:'nearest'}));}
+    }
+  }
+  function closeApiSettings(){
+    const panel=q('jbs-api-panel'),overlay=q('jbs-api-overlay'),home=q('jbs-api-home');
+    if(!panel||!overlay||!home||!overlay.classList.contains('on'))return;
+    flushApiPanel();home.appendChild(panel);overlay.classList.remove('on');overlay.setAttribute('aria-hidden','true');renderApiPanel();
+  }
   function syncDriver(){
     const web=selectedValue(q('jbs-driver'))==='web';
     q('jbs-role').disabled=web;q('jbs-web-warning').style.display=web?'block':'none';
@@ -1065,6 +1081,7 @@ const MurderMystery = (() => {
     q('jbs-driver').onchange=syncDriver;q('jbs-role').onchange=syncDriver;q('jbs-webai').onchange=syncDriver;q('jbs-start').onclick=start;
     ['jbs-api-type','jbs-api-url','jbs-api-key','jbs-api-model'].forEach(id=>bindApiField(q(id)));
     q('jbs-api-test').onclick=testDefaultApi;q('jbs-api-import').onclick=importMainApi;q('jbs-api-toggle-key').onclick=toggleApiKeys;
+    q('jbs-api-open').onclick=()=>openApiSettings();q('jbs-api-close').onclick=closeApiSettings;q('jbs-api-overlay').onclick=e=>{if(e.target===q('jbs-api-overlay'))closeApiSettings();};
     q('jbs-back').onclick=close;q('jbs-restart').onclick=showSetup;
     q('jbs-web-copy').onclick=async()=>{try{await navigator.clipboard.writeText(q('jbs-web-prompt').value);q('jbs-web-copy').textContent='✅ 已复制';setTimeout(()=>q('jbs-web-copy').textContent='📋 复制提示词',1500);}catch(e){q('jbs-web-prompt').select();}};
     q('jbs-web-submit').onclick=()=>{const raw=q('jbs-web-reply').value.trim();if(!raw)return;if(J.webResolve)J.webResolve(raw);};
@@ -1075,7 +1092,7 @@ const MurderMystery = (() => {
     init();q('mm').style.display='none';q('jbs-view').classList.add('on');q('jbs-view').setAttribute('aria-hidden','false');showSetup();
   }
   function close(){
-    cancelRun();closeWebOverlay();q('jbs-view').classList.remove('on');q('jbs-view').setAttribute('aria-hidden','true');q('mm').style.display='';
+    closeApiSettings();cancelRun();closeWebOverlay();q('jbs-view').classList.remove('on');q('jbs-view').setAttribute('aria-hidden','true');q('mm').style.display='';
   }
   // 剧本杀与谁是卧底都需要同一套多渠道请求协议，但配置必须各自独立。
   // 这里只共享无状态的「渠道元数据 / 路径拼接 / 发请求」能力，不共享密钥或 localStorage。

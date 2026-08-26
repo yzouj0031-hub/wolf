@@ -116,6 +116,8 @@
     el.querySelector('#uc-api-close').onclick = () => this._closeApiPanel();
     el.querySelector('#uc-roster-toggle').onclick = () => el.querySelector('.uc-roster').classList.toggle('mobile-open');
     el.querySelector('#uc-seats').onclick = e => {
+      const apiButton = e.target.closest('[data-seat-api]');
+      if (apiButton) { this._openApiPanel(Number(apiButton.dataset.seatApi)); return; }
       const seat = e.target.closest('.uc-seat');
       if (!seat || this._running) return;
       this._openSharedConfig(Number(seat.dataset.id));
@@ -165,7 +167,7 @@
     if(c.url)parts.push(tx('独立地址','custom URL'));if(c.key)parts.push(tx('独立密钥','custom key'));
     return parts.length?parts.join(' · '):tx('继承默认','inherits default');
   };
-  UC._openApiPanel = function(){this._renderApiPanel();const box=this._ui.querySelector('#uc-api-overlay');box.classList.add('show');box.setAttribute('aria-hidden','false');};
+  UC._openApiPanel = function(seatId){this._renderApiPanel();const box=this._ui.querySelector('#uc-api-overlay');box.classList.add('show');box.setAttribute('aria-hidden','false');if(Number.isInteger(seatId)){const item=this._ui.querySelectorAll('.uc-api-seat')[seatId];if(item){item.open=true;requestAnimationFrame(()=>item.scrollIntoView({block:'nearest'}));}}};
   UC._closeApiPanel = function(){this._flushApiPanel();const box=this._ui.querySelector('#uc-api-overlay');box.classList.remove('show');box.setAttribute('aria-hidden','true');};
   UC._apiEndpointPreview = function(){
     const kit=apiKit(),box=this._ui.querySelector('#uc-api-endpoint');if(!kit||!box)return;
@@ -221,7 +223,7 @@
       const dead = pl && !pl.alive;
       const word = pl && this._godView ? `<div class="uc-seat-word">「${esc(pl.word)}」</div>` : '';
       const badge = dead ? (pl.isSpy ? tx('卧底','SPY') : tx('平民','CIVILIAN')) : '';
-      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(api.model || tx('未设置模型','No model configured'))}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div><button class="uc-seat-config" type="button"${this._running?' disabled':''}>${tx('编辑玩家','Edit player')}</button>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
+      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(api.model || tx('未设置模型','No model configured'))}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div><div class="uc-seat-tools"><button class="uc-seat-config" type="button"${this._running?' disabled':''}>${tx('玩家资料','Player')}</button><button class="uc-seat-api" type="button" data-seat-api="${id}">API</button></div>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
     }).join('');
   };
 

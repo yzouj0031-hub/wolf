@@ -2204,6 +2204,9 @@ body.has-wp::after {
 .jbs-api-endpoint{grid-column:1/-1;color:#737b95;font-size:.68em;line-height:1.45;word-break:break-all}
 .jbs-api-result{margin-top:8px;min-height:0;white-space:pre-wrap}
 .jbs-api-inherit{color:#6f7691}
+.jbs-cast-api{margin-left:auto;padding:3px 7px;border:1px solid rgba(232,184,120,.24);border-radius:6px;background:rgba(232,184,120,.07);color:#d8b77e;font-size:.72em;cursor:pointer}
+#jbs-api-overlay{display:none;position:fixed;inset:0;z-index:880;align-items:center;justify-content:center;padding:12px;background:rgba(5,7,13,.86);backdrop-filter:blur(10px);overscroll-behavior:none}
+#jbs-api-overlay.on{display:flex}.jbs-api-dialog{width:min(980px,100%);max-height:94dvh;display:flex;flex-direction:column;border:1px solid rgba(232,184,120,.28);border-radius:14px;background:#101421;box-shadow:0 24px 80px rgba(0,0,0,.62);overflow:hidden}.jbs-api-dialog-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border-bottom:1px solid rgba(232,184,120,.15)}#jbs-api-overlay-body{min-height:0;overflow-y:auto;padding:14px;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch}#jbs-api-overlay-body #jbs-api-panel{margin:0}
 @media(max-width:640px){.jbs-api-fields{grid-template-columns:1fr}}.jbs-note{padding:9px 11px;border-left:3px solid rgba(232,184,120,.55);background:rgba(232,184,120,.06);color:#9ca2b8;font-size:.74em;line-height:1.6}
 .jbs-field label{display:block;color:#8b90a8;font-size:.75em;margin-bottom:5px}
 .jbs-field select{width:100%;background:#171b2b;color:#e6e2f0;border:1px solid rgba(140,150,190,.22);padding:9px;border-radius:8px}
@@ -3008,6 +3011,7 @@ body.has-wp::after {
   <div class="jbs-top">
     <button class="jbs-btn ghost" id="jbs-back" type="button">← 返回</button>
     <div class="jbs-top-title">🔍 AI 剧本杀</div>
+    <button class="jbs-btn ghost" id="jbs-api-open" type="button">API 设置</button>
     <button class="jbs-btn ghost" id="jbs-restart" type="button" style="visibility:hidden">重新开局</button>
   </div>
   <div class="jbs-scroll">
@@ -3046,7 +3050,7 @@ body.has-wp::after {
       </div>
       <!-- 剧本杀使用独立 API 配置，避免按 P1/P2 覆盖狼人杀命牌。
            每个剧本的角色覆盖也按角色 id 保存，换本不会串配置。 -->
-      <div class="jbs-panel" id="jbs-api-panel">
+      <div id="jbs-api-home"><div class="jbs-panel" id="jbs-api-panel">
         <div class="jbs-kicker">剧本杀 API 配置</div>
         <div id="jbs-api-status" class="jbs-note" style="margin:9px 0 12px"></div>
         <div class="jbs-grid">
@@ -3065,7 +3069,7 @@ body.has-wp::after {
         <div class="jbs-kicker" style="margin:14px 0 4px">各角色单独配置（留空＝用上面的默认）</div>
         <div id="jbs-api-cast"></div>
         <div class="jbs-note" style="margin-top:10px">配置只属于剧本杀，不会改动狼人杀命牌。点开角色可覆盖渠道、地址、密钥或模型；没有填写的项目继续继承默认值。点击“读取狼人杀主设置”可一次复制现有主配置。</div>
-      </div>
+      </div></div>
     </section>
 
     <section class="jbs-shell" id="jbs-game" style="display:none">
@@ -3084,6 +3088,13 @@ body.has-wp::after {
         </aside>
       </div>
     </section>
+  </div>
+
+  <div id="jbs-api-overlay" aria-hidden="true">
+    <div class="jbs-api-dialog">
+      <div class="jbs-api-dialog-head"><div><div class="jbs-kicker">剧本杀 API 设置</div><div class="jbs-muted">开局前和对局中都可以修改；新配置从下一次请求开始生效。</div></div><button class="jbs-btn ghost" id="jbs-api-close" type="button">关闭</button></div>
+      <div id="jbs-api-overlay-body"></div>
+    </div>
   </div>
 
   <div id="jbs-web-overlay" aria-hidden="true">
@@ -29251,7 +29262,7 @@ const Undercover = {
       const spy = r.spy;
       this._feed(`—— 本局结束：<b style="color:${r.winner === 'spy' ? '#e89090' : '#90c8a0'}">${r.winner === 'spy' ? '🕵️ 卧底获胜' : '👤 平民获胜'}</b>　卧底是 <b>${spy.name}</b>（词：${spy.word}）——`, '#e0c060');
     } catch (e) {
-      this._feed('⚠️ 出错：' + (e && e.message || e) + '（多半是没配 API Key——卧底和狼人杀共用同一套 API 设置）', '#e89090');
+      this._feed('⚠️ 出错：' + (e && e.message || e) + '（可在谁是卧底顶部“API 设置”中检查默认配置或当前席位）', '#e89090');
     }
     startBtn.disabled = false; startBtn.textContent = '▶ 再来一局';
     this._running = false;
