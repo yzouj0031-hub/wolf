@@ -2172,6 +2172,10 @@ body.has-wp::after {
 .jbs-api-endpoint{grid-column:1/-1;color:#737b95;font-size:.68em;line-height:1.45;word-break:break-all}
 .jbs-api-result{margin-top:8px;min-height:0;white-space:pre-wrap}
 .jbs-api-inherit{color:#6f7691}
+.jbs-cast-api{margin-left:auto;padding:3px 7px;border:1px solid rgba(232,184,120,.24);border-radius:6px;background:rgba(232,184,120,.07);color:#d8b77e;font-size:.72em;cursor:pointer}
+#jbs-api-overlay{display:none;position:fixed;inset:0;z-index:880;align-items:center;justify-content:center;padding:12px;background:rgba(5,7,13,.86);backdrop-filter:blur(10px);overscroll-behavior:none}
+#jbs-api-overlay.on{display:flex}.jbs-api-dialog{width:min(980px,100%);max-height:94dvh;display:flex;flex-direction:column;border:1px solid rgba(232,184,120,.28);border-radius:14px;background:#101421;box-shadow:0 24px 80px rgba(0,0,0,.62);overflow:hidden}.jbs-api-dialog-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border-bottom:1px solid rgba(232,184,120,.15)}#jbs-api-overlay-body{min-height:0;overflow-y:auto;padding:14px;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch}#jbs-api-overlay-body #jbs-api-panel{margin:0}
+.aux-model-picker{position:fixed;inset:0;z-index:990;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(4,5,10,.9);backdrop-filter:blur(12px)}.aux-model-box{width:min(620px,100%);max-height:min(720px,92dvh);display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;padding:14px;border:1px solid rgba(232,184,120,.3);border-radius:14px;background:#111522;box-shadow:0 28px 90px rgba(0,0,0,.7)}.aux-model-head{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#e8d6b4}.aux-model-head>div{display:grid;gap:3px}.aux-model-head small{color:#7f8499;font-size:.72em}.aux-model-head button,.aux-model-items button{border:1px solid rgba(232,184,120,.2);border-radius:8px;background:rgba(232,184,120,.06);color:#c9bfd5;cursor:pointer}.aux-model-head button{padding:7px 10px}.aux-model-search{width:100%;padding:10px;border:1px solid rgba(151,132,184,.3);border-radius:8px;background:#0b0e18;color:#eee}.aux-model-items{min-height:100px;overflow:auto;display:grid;align-content:start;gap:5px;overscroll-behavior:contain}.aux-model-items button{padding:9px 11px;text-align:left;word-break:break-all}.aux-model-items button:hover{border-color:#d8b77e;color:#f1d9aa}.aux-model-empty{padding:18px;text-align:center;color:#74798d}
 @media(max-width:640px){.jbs-api-fields{grid-template-columns:1fr}}.jbs-note{padding:9px 11px;border-left:3px solid rgba(232,184,120,.55);background:rgba(232,184,120,.06);color:#9ca2b8;font-size:.74em;line-height:1.6}
 .jbs-field label{display:block;color:#8b90a8;font-size:.75em;margin-bottom:5px}
 .jbs-field select{width:100%;background:#171b2b;color:#e6e2f0;border:1px solid rgba(140,150,190,.22);padding:9px;border-radius:8px}
@@ -2956,6 +2960,7 @@ body.has-wp::after {
   <div class="jbs-top">
     <button class="jbs-btn ghost" id="jbs-back" type="button">← 返回</button>
     <div class="jbs-top-title">🔍 AI 剧本杀</div>
+    <button class="jbs-btn ghost" id="jbs-api-open" type="button">API 设置</button>
     <button class="jbs-btn ghost" id="jbs-restart" type="button" style="visibility:hidden">重新开局</button>
   </div>
   <div class="jbs-scroll">
@@ -2994,7 +2999,7 @@ body.has-wp::after {
       </div>
       <!-- 剧本杀使用独立 API 配置，避免按 P1/P2 覆盖狼人杀命牌。
            每个剧本的角色覆盖也按角色 id 保存，换本不会串配置。 -->
-      <div class="jbs-panel" id="jbs-api-panel">
+      <div id="jbs-api-home"><div class="jbs-panel" id="jbs-api-panel">
         <div class="jbs-kicker">剧本杀 API 配置</div>
         <div id="jbs-api-status" class="jbs-note" style="margin:9px 0 12px"></div>
         <div class="jbs-grid">
@@ -3005,6 +3010,7 @@ body.has-wp::after {
           <div class="jbs-api-endpoint" id="jbs-api-endpoint"></div>
         </div>
         <div class="jbs-api-actions">
+          <button class="jbs-btn" id="jbs-api-fetch-models" type="button">拉取模型</button>
           <button class="jbs-btn" id="jbs-api-test" type="button">测试默认 API</button>
           <button class="jbs-btn ghost" id="jbs-api-import" type="button">读取狼人杀主设置</button>
           <button class="jbs-btn ghost" id="jbs-api-toggle-key" type="button">显示密钥</button>
@@ -3013,7 +3019,7 @@ body.has-wp::after {
         <div class="jbs-kicker" style="margin:14px 0 4px">各角色单独配置（留空＝用上面的默认）</div>
         <div id="jbs-api-cast"></div>
         <div class="jbs-note" style="margin-top:10px">配置只属于剧本杀，不会改动狼人杀命牌。点开角色可覆盖渠道、地址、密钥或模型；没有填写的项目继续继承默认值。点击“读取狼人杀主设置”可一次复制现有主配置。</div>
-      </div>
+      </div></div>
     </section>
 
     <section class="jbs-shell" id="jbs-game" style="display:none">
@@ -3032,6 +3038,13 @@ body.has-wp::after {
         </aside>
       </div>
     </section>
+  </div>
+
+  <div id="jbs-api-overlay" aria-hidden="true">
+    <div class="jbs-api-dialog">
+      <div class="jbs-api-dialog-head"><div><div class="jbs-kicker">剧本杀 API 设置</div><div class="jbs-muted">开局前和对局中都可以修改；新配置从下一次请求开始生效。</div></div><button class="jbs-btn ghost" id="jbs-api-close" type="button">关闭</button></div>
+      <div id="jbs-api-overlay-body"></div>
+    </div>
   </div>
 
   <div id="jbs-web-overlay" aria-hidden="true">
