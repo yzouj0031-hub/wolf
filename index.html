@@ -2204,6 +2204,7 @@ body.has-wp::after {
 .jbs-api-endpoint{grid-column:1/-1;color:#737b95;font-size:.68em;line-height:1.45;word-break:break-all}
 .jbs-api-result{margin-top:8px;min-height:0;white-space:pre-wrap}
 .jbs-api-inherit{color:#6f7691}
+.jbs-controller-head{grid-column:1/-1;display:flex;align-items:end;justify-content:space-between;gap:10px}.jbs-controller-head label{min-width:190px}.jbs-controller-list{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.jbs-controller-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,.7fr);align-items:center;gap:9px;padding:9px 10px;border:1px solid rgba(137,121,172,.17);border-radius:9px;background:rgba(255,255,255,.018)}.jbs-controller-role{min-width:0}.jbs-controller-role b,.jbs-controller-role small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.jbs-controller-role small{margin-top:2px;color:#777b91;font-size:.72em}.jbs-controller-row select{width:100%}@media(max-width:640px){.jbs-controller-list{grid-template-columns:1fr}.jbs-controller-head{align-items:stretch;flex-direction:column}.jbs-controller-head label{width:100%}}
 .jbs-cast-api{margin-left:auto;padding:3px 7px;border:1px solid rgba(232,184,120,.24);border-radius:6px;background:rgba(232,184,120,.07);color:#d8b77e;font-size:.72em;cursor:pointer}
 #jbs-api-overlay{display:none;position:fixed;inset:0;z-index:880;align-items:center;justify-content:center;padding:12px;background:rgba(5,7,13,.86);backdrop-filter:blur(10px);overscroll-behavior:none}
 #jbs-api-overlay.on{display:flex}.jbs-api-dialog{width:min(980px,100%);max-height:94dvh;display:flex;flex-direction:column;border:1px solid rgba(232,184,120,.28);border-radius:14px;background:#101421;box-shadow:0 24px 80px rgba(0,0,0,.62);overflow:hidden}.jbs-api-dialog-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border-bottom:1px solid rgba(232,184,120,.15)}#jbs-api-overlay-body{min-height:0;overflow-y:auto;padding:14px;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch}#jbs-api-overlay-body #jbs-api-panel{margin:0}
@@ -2587,8 +2588,8 @@ body.has-wp::after {
     <section class="mode-section mode-section-extend"><div class="mode-section-head"><span>04</span><h2>自由舞台</h2><p>自定义角色、复盘与剧本体验</p></div><div class="mode-section-grid">
     <div class="mcd" data-mode="custom"><img class="mcd-art" src="icons/modes/custom.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>自定</h3><div class="pl">🎲</div><div class="desc">自由配置<br>角色与人数</div></div>
     <div class="mcd" data-mode="groupchat"><img class="mcd-art" src="icons/modes/groupchat.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">赛后复盘群<br>AI 吐槽甩锅互相盘</div></div>
-    <div class="mcd mcd-chaos" data-mode="mystery"><img class="mcd-art" src="icons/modes/mystery.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>纯AI／网页端AI</div></div>
-    <div class="mcd mcd-chaos" onclick="Undercover.openUI()" role="button" tabindex="0"><i class="mcd-scrim"></i><h3>谁是卧底</h3><div class="pl">🕵️</div><div class="desc">描述词语·找出卧底<br>纯AI观战（真人下场开发中）</div></div>
+    <div class="mcd mcd-chaos" data-mode="mystery"><img class="mcd-art" src="icons/modes/mystery.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>API／网页端 AI／真人混合</div></div>
+    <div class="mcd mcd-chaos" onclick="Undercover.openUI()" role="button" tabindex="0"><i class="mcd-scrim"></i><h3>谁是卧底</h3><div class="pl">🕵️</div><div class="desc">描述词语·找出卧底<br>API／网页端 AI／真人混合</div></div>
     </div></section>
     <section class="mode-section mode-section-saved" id="custom-mode-section" hidden><div class="mode-section-head"><span>05</span><h2>我的模式</h2><p>你保存的私人板型</p></div><div class="mode-section-grid" id="custom-mode-cards"></div></section>
   </div>
@@ -3023,30 +3024,13 @@ body.has-wp::after {
         <div id="jbs-script-intro" style="margin-top:12px"></div>
       </div>
       <div class="jbs-panel jbs-grid">
-        <label>AI运行方式
-          <select class="jbs-input" id="jbs-driver">
-            <option value="api">API 自动扮演（纯AI）</option>
-            <option value="web">网页端AI（复制提示词／粘贴回复）</option>
-          </select>
-        </label>
-        <label>你的参与方式
-          <select class="jbs-input" id="jbs-role">
-            <option value="conan">🕵️ 我来扮演：江户川柯南（推荐）</option>
-            <option value="">🍿 纯观战（全部角色由AI扮演）</option>
-          </select>
-        </label>
-        <label>网页端AI 扮演
-          <select class="jbs-input" id="jbs-webai">
-            <option value="">无（其余角色都走 API）</option>
-          </select>
-        </label>
+        <div class="jbs-controller-head"><div><div class="jbs-kicker">逐角色控制方式</div><div class="jbs-muted">API、网页端 AI 与真人可以同时入局</div></div><label>批量设置<select class="jbs-input" id="jbs-controller-all"><option value="">选择预设…</option><option value="api">全部 API</option><option value="web">全部网页端 AI</option><option value="human">全部真人</option><option value="mixed">1 真人＋其余 API</option></select></label></div>
+        <div class="jbs-controller-list" id="jbs-controller-list"></div>
         <label style="display:flex;align-items:center;gap:7px;font-size:.82em;cursor:pointer">
           <input type="checkbox" id="jbs-ai-search" checked style="width:auto;margin:0">
           <span>AI 自主搜证（每人每幕自己挑一条线索查）</span>
         </label>
-        <div id="jbs-web-warning" class="jbs-note" style="display:none">网页端AI模式会逐个显示角色的私密提示词，只适合你作为主持人/观战者使用，因此会自动切换为纯观战。</div>
-        <div id="jbs-webai-note" class="jbs-note" style="display:none">你会看到这名角色的私密剧本（要复制给网页端AI）。如果你同时也在扮演另一个角色，等于提前知道了他的秘密——想保留悬念就选纯观战。</div>
-        <div class="jbs-note">推荐亲自扮演一名角色：你会获得私密剧本，并在搜证、发言和指认中改变这一局。</div>
+        <div class="jbs-note" style="grid-column:1/-1">真人席位轮到行动时会先显示交接遮罩，再只向本人展示私密剧本和已获得的私密线索；网页端 AI 会弹出复制提示词／粘贴回复面板。</div>
         <button class="jbs-btn primary" id="jbs-start" type="button">开始剧本杀</button>
       </div>
       <!-- 剧本杀使用独立 API 配置，避免按 P1/P2 覆盖狼人杀命牌。

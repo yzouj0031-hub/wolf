@@ -213,8 +213,8 @@
       if (desc) {
         const isEnglish = /\/en(?:\/|$)/.test(location.pathname);
         desc.innerHTML = isEnglish
-          ? 'Masked salon · word deduction<br>8 seats · independent API settings'
-          : '假面沙龙·词语推理<br>8席独立 API 配置';
+          ? 'Masked salon · word deduction<br>API / Web AI / human mix'
+          : '假面沙龙·词语推理<br>API／网页端 AI／真人混合';
       }
     }
     if (!document.querySelector('script[src="./undercover-ui.js"]')) {

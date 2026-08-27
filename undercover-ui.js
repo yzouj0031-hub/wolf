@@ -21,7 +21,8 @@
     if(apiConfig)return apiConfig;
     let saved=null;try{saved=JSON.parse(localStorage.getItem(API_STORAGE)||'null');}catch(_){}
     apiConfig=saved&&saved.default&&saved.seats?saved:{version:2,default:readMainApi(),seats:{}};
-    apiConfig.version=2;apiConfig.default=apiConfig.default||{};apiConfig.seats=apiConfig.seats||{};return apiConfig;
+    apiConfig.version=3;apiConfig.default=apiConfig.default||{};apiConfig.seats=apiConfig.seats||{};apiConfig.controllers=apiConfig.controllers||{};
+    Array.from({length:8},(_,id)=>{if(!['api','web','human'].includes(apiConfig.controllers[id]))apiConfig.controllers[id]='api';});return apiConfig;
   };
   const saveApiConfig = () => {try{localStorage.setItem(API_STORAGE,JSON.stringify(loadApiConfig()));}catch(_){}};
   const seatOverride = (id,create) => {
@@ -80,7 +81,7 @@
           <button class="uc-btn secondary" id="uc-sync">↻ ${tx('同步名单','Sync roster')}</button>
           <button class="uc-btn secondary" id="uc-api-open">◇ ${tx('API 设置','API settings')}</button>
           <button class="uc-btn uc-roster-toggle" id="uc-roster-toggle">♙ ${tx('八席','Seats')}</button>
-          <button class="uc-btn primary" id="uc-start">▶ ${tx('开始观战','Start')}</button>
+          <button class="uc-btn primary" id="uc-start">${tx('开始对局','Start game')}</button>
           <button class="uc-btn" id="uc-close">✕ ${tx('退出','Exit')}</button>
         </div>
       </header>
@@ -90,11 +91,11 @@
           <div class="uc-hero-copy"><div class="uc-round-label">CURRENT CHAPTER</div><div class="uc-round-value" id="uc-round">${tx('等待入席','Awaiting players')}</div><div class="uc-hero-rule">${tx('同词者彼此试探，异词者藏入人群。每一句描述，都可能暴露真正的阵营。','Shared words form trust; one different word hides among them. Every clue can betray its speaker.')}</div><div class="uc-word-pair" id="uc-words">${tx('词面将在开局后揭晓给观众。','The word pair is revealed to spectators after the game starts.')}</div></div>
         </aside>
         <section class="uc-panel uc-feed-panel"><div class="uc-panel-head"><div><div class="uc-panel-title">${tx('沙龙记录','SALON TRANSCRIPT')}</div><div class="uc-panel-sub">${tx('描述 · 观察 · 投票','Clues · Reads · Votes')}</div></div></div><div class="uc-feed" id="uc-feed"></div></section>
-        <aside class="uc-panel uc-roster"><div class="uc-panel-head"><div><div class="uc-panel-title">${tx('八席名册','EIGHT SEATS')}</div><div class="uc-panel-sub">${tx('点击席位设置姓名、头像与人格','Click a seat to edit name, avatar and persona')}</div></div><span class="uc-config-hint">${tx('API 独立保存','Independent API')}</span></div><div class="uc-seats" id="uc-seats"></div></aside>
+        <aside class="uc-panel uc-roster"><div class="uc-panel-head"><div><div class="uc-panel-title">${tx('八席名册','EIGHT SEATS')}</div><div class="uc-panel-sub">${tx('点击席位设置姓名、头像与人格','Click a seat to edit name, avatar and persona')}</div></div><span class="uc-config-hint">${tx('逐席控制','Per-seat control')}</span></div><div class="uc-seats" id="uc-seats"></div></aside>
       </main>
       <div class="uc-api-overlay" id="uc-api-overlay" aria-hidden="true"><div class="uc-api-dialog">
         <div class="uc-api-head"><div><div class="uc-panel-title">${tx('谁是卧底 · API 设置','UNDERCOVER · API SETTINGS')}</div><div class="uc-panel-sub">${tx('独立于狼人杀和剧本杀保存','Saved separately from other games')}</div></div><button class="uc-btn" id="uc-api-close">✕</button></div>
-        <div class="uc-api-scroll"><div class="uc-api-status" id="uc-api-status"></div>
+        <div class="uc-api-scroll"><div class="uc-api-status" id="uc-api-status"></div><div class="uc-api-seat-control"><label>${tx('批量控制方式','Bulk controller')}<select id="uc-controller-all"><option value="">${tx('选择预设…','Choose preset…')}</option><option value="api">${tx('全部 API','All API')}</option><option value="web">${tx('全部网页端 AI','All Web AI')}</option><option value="human">${tx('全部真人','All human')}</option><option value="mixed">${tx('1 真人＋其余 API','1 human + remaining API')}</option></select></label><div>${tx('随后仍可逐席调整。','You can still adjust each seat below.')}</div></div>
           <div class="uc-api-grid">
             <label>${tx('渠道／接口格式','Provider / format')}<select id="uc-api-type"></select></label>
             <label>${tx('API 地址','API URL')}<input id="uc-api-url" placeholder="https://api.openai.com/v1"></label>
@@ -106,7 +107,8 @@
           <div class="uc-api-test-result" id="uc-api-test-result"></div>
           <div class="uc-api-section-title">${tx('各席单独配置（留空＝继承默认）','Per-seat overrides (blank = inherit default)')}</div><div id="uc-api-seats"></div>
         </div>
-      </div></div>`;
+      </div></div>
+      <div class="uc-turn-overlay" id="uc-turn-overlay" aria-hidden="true"><div class="uc-turn-dialog" id="uc-turn-dialog"></div></div>`;
     document.body.appendChild(el);
     this._ui = el;
     el.querySelector('#uc-close').onclick = () => this.closeUI();
@@ -122,7 +124,7 @@
       if (!seat || this._running) return;
       this._openSharedConfig(Number(seat.dataset.id));
     };
-    this._system(tx('点击席位可同步编辑姓名、头像与人格；点击顶部“API 设置”可配置卧底专用接口。','Click a seat to edit identity/persona; use API settings above for Undercover-specific endpoints.'),true);
+    this._system(tx('点击席位的“控制设置”，可逐席选择 API、网页端 AI 或真人。','Use each seat’s Control button to choose API, Web AI, or a human player.'),true);
   };
 
   UC._openSharedConfig = function(id){
@@ -163,6 +165,7 @@
   };
   const seatSummary = id => {
     const kit=apiKit(),c=seatOverride(id,false),parts=[];
+    if(seatController(id)!=='api')return controllerLabel(id)+' · '+tx('无需 API','no API');
     if(c.model)parts.push(c.model);if(c.provider)parts.push((kit&&kit.provider(c.provider)?.name)||c.provider);
     if(c.url)parts.push(tx('独立地址','custom URL'));if(c.key)parts.push(tx('独立密钥','custom key'));
     return parts.length?parts.join(' · '):tx('继承默认','inherits default');
@@ -182,10 +185,12 @@
     saveApiConfig();this._apiEndpointPreview();this._renderApiStatus();this._renderLobby();
   };
   UC._renderApiStatus = function(){
-    const out=this._ui.querySelector('#uc-api-status'),bad=Array.from({length:8},(_,id)=>id).filter(id=>{const a=apiOf(id),kit=apiKit();return !a.url||!a.model||(!a.key&&(!kit||kit.needsKey(a)));});
-    out.textContent=bad.length
+    const out=this._ui.querySelector('#uc-api-status'),apiSeats=Array.from({length:8},(_,id)=>id).filter(id=>seatController(id)==='api'),bad=apiSeats.filter(id=>{const a=apiOf(id),kit=apiKit();return !a.url||!a.model||(!a.key&&(!kit||kit.needsKey(a)));});
+    out.textContent=!apiSeats.length
+      ?tx('本局没有 API 席位；网页端 AI 与真人席位会在轮到时交接。','No API seats. Web AI and human seats are handled turn by turn.')
+      :bad.length
       ?tx(`还有 ${bad.length} 个席位缺少地址、模型或必要密钥：`,`Missing URL, model, or required key for ${bad.length} seats: `)+bad.map(x=>'P'+(x+1)).join('、')
-      :tx('8 个席位均已有可用配置；配置只属于谁是卧底。','All 8 seats are configured. These settings belong only to Undercover.');
+      :tx(`${apiSeats.length} 个 API 席位均已有可用配置；其余席位无需 API。`,`All ${apiSeats.length} API seats are configured; other seats do not require an API.`);
   };
   UC._renderApiPanel = function(){
     const kit=apiKit(),cfg=loadApiConfig(),base=cfg.default||{},host=this._ui.querySelector('#uc-api-seats');
@@ -193,8 +198,10 @@
     this._ui.querySelector('#uc-api-url').value=base.url||'';this._ui.querySelector('#uc-api-key').value=base.key||'';this._ui.querySelector('#uc-api-model').value=base.model||'';
     host.innerHTML=Array.from({length:8},(_,id)=>{const c=seatOverride(id,false),name=this._lobbyNames?.[id]||configOf(id).name||`P${id+1}`;
       const input=(f,label,type)=>`<label>${label}<input data-seat="${id}" data-f="${f}" ${type?`type="${type}"`:''} value="${esc(c[f]||'')}" placeholder="${tx('继承默认','Inherit default')}"></label>`;
-      return `<details class="uc-api-seat"><summary><b>P${id+1} · ${esc(name)}</b><span data-seat-summary="${id}">${esc(seatSummary(id))}</span></summary><div class="uc-api-seat-grid"><label>${tx('渠道／格式','Provider / format')}<select data-seat="${id}" data-f="provider">${providerOptions(true)}</select></label>${input('url',tx('地址','URL'))}${input('key',tx('密钥','Key'),'password')}${input('model',tx('模型','Model'))}<div class="uc-api-seat-actions"><button class="uc-btn" data-fetch-seat="${id}">${tx('拉取模型','Fetch models')}</button><button class="uc-btn" data-test-seat="${id}">${tx('测试此席','Test seat')}</button><button class="uc-btn" data-clear-seat="${id}">${tx('清除覆盖','Clear override')}</button></div></div></details>`;
+      const mode=seatController(id),apiFields=`<div class="uc-api-seat-grid${mode==='api'?'':' uc-api-disabled'}"><label>${tx('渠道／格式','Provider / format')}<select data-seat="${id}" data-f="provider">${providerOptions(true)}</select></label>${input('url',tx('地址','URL'))}${input('key',tx('密钥','Key'),'password')}${input('model',tx('模型','Model'))}<div class="uc-api-seat-actions"><button class="uc-btn" data-fetch-seat="${id}">${tx('拉取模型','Fetch models')}</button><button class="uc-btn" data-test-seat="${id}">${tx('测试此席','Test seat')}</button><button class="uc-btn" data-clear-seat="${id}">${tx('清除覆盖','Clear override')}</button></div></div>`;
+      return `<details class="uc-api-seat"><summary><b>P${id+1} · ${esc(name)}</b><span data-seat-summary="${id}">${esc(seatSummary(id))}</span></summary><div class="uc-api-seat-control"><label>${tx('控制方式','Controller')}<select data-control-seat="${id}"><option value="api">${tx('API 模型','API model')}</option><option value="web">${tx('网页端 AI','Web AI')}</option><option value="human">${tx('真人玩家','Human player')}</option></select></label><div>${mode==='api'?tx('自动调用本席 API。','Uses this seat API automatically.'):mode==='web'?tx('轮到时复制提示词并粘贴回复。','Copy the prompt and paste the web AI reply on each turn.'):tx('轮到时私密查看词语并手动发言／投票。','Privately reveal the word, then speak or vote manually.')}</div></div>${apiFields}</details>`;
     }).join('');host.dataset.ready='1';
+    host.querySelectorAll('[data-control-seat]').forEach(sel=>{sel.value=seatController(Number(sel.dataset.controlSeat));sel.onchange=()=>{cfg.controllers[sel.dataset.controlSeat]=sel.value;saveApiConfig();this._renderApiPanel();this._renderLobby();};});
     Array.from({length:8},(_,id)=>setProvider(host.querySelector(`select[data-seat="${id}"]`),seatOverride(id,false).provider||''));
     ['uc-api-type','uc-api-url','uc-api-key','uc-api-model'].forEach(id=>{const el=this._ui.querySelector('#'+id);el.oninput=()=>this._flushApiPanel();el.onchange=()=>{if(id==='uc-api-type'){const meta=kit&&kit.provider(el.value),url=this._ui.querySelector('#uc-api-url');const known=kit&&kit.providers().some(x=>x.url&&x.url.replace(/\/+$/,'')===url.value.trim().replace(/\/+$/,''));if(meta?.url&&(!url.value.trim()||known))url.value=meta.url;}this._flushApiPanel();};});
     host.querySelectorAll('[data-seat][data-f]').forEach(el=>{const refresh=()=>{if(el.dataset.f==='provider'&&el.value){const meta=kit&&kit.provider(el.value),url=host.querySelector(`input[data-seat="${el.dataset.seat}"][data-f="url"]`);if(meta?.url&&url&&!url.value.trim())url.value=meta.url;}this._flushApiPanel();const s=host.querySelector(`[data-seat-summary="${el.dataset.seat}"]`);if(s)s.textContent=seatSummary(el.dataset.seat);};el.oninput=refresh;el.onchange=refresh;});
@@ -205,8 +212,12 @@
     this._ui.querySelector('#uc-api-test').onclick=()=>{this._flushApiPanel();this._testApi(apiOf(-1),tx('默认 API','Default API'),this._ui.querySelector('#uc-api-test'));};
     this._ui.querySelector('#uc-api-import').onclick=()=>{cfg.default=readMainApi();saveApiConfig();this._renderApiPanel();const o=this._ui.querySelector('#uc-api-test-result');o.style.display='block';o.textContent=tx('已复制狼人杀主设置；后续修改不会反向影响狼人杀。','Werewolf settings copied; later edits will not affect Werewolf.');};
     this._ui.querySelector('#uc-api-toggle-key').onclick=()=>{const keys=[this._ui.querySelector('#uc-api-key'),...host.querySelectorAll('input[data-f="key"]')],show=keys.some(x=>x.type==='password');keys.forEach(x=>x.type=show?'text':'password');this._ui.querySelector('#uc-api-toggle-key').textContent=show?tx('隐藏密钥','Hide keys'):tx('显示密钥','Show keys');};
+    this._ui.querySelector('#uc-controller-all').onchange=e=>{const value=e.target.value;if(!value)return;Array.from({length:8},(_,id)=>{cfg.controllers[id]=value==='mixed'?(id===0?'human':'api'):value;});e.target.value='';saveApiConfig();this._renderApiPanel();this._renderLobby();};
     this._apiEndpointPreview();this._renderApiStatus();
   };
+  const seatController = id => loadApiConfig().controllers[id]||'api';
+  const controllerLabel = id => ({api:tx('API 模型','API model'),web:tx('网页端 AI','Web AI'),human:tx('真人玩家','Human player')})[seatController(id)]||'API';
+  const hasHumanSeats = () => Array.from({length:8},(_,id)=>id).some(id=>seatController(id)==='human');
   UC._fetchModels = async function(api,target,label,button){
     const kit=apiKit(),out=this._ui.querySelector('#uc-api-test-result'),old=button.textContent;this._flushApiPanel();out.style.display='block';out.textContent=tx('正在拉取模型列表…','Fetching model list…');button.disabled=true;button.textContent=tx('拉取中…','Fetching…');
     const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),30000);
@@ -237,7 +248,8 @@
       const dead = pl && !pl.alive;
       const word = pl && this._godView ? `<div class="uc-seat-word">「${esc(pl.word)}」</div>` : '';
       const badge = dead ? (pl.isSpy ? tx('卧底','SPY') : tx('平民','CIVILIAN')) : '';
-      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(api.model || tx('未设置模型','No model configured'))}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div><div class="uc-seat-tools"><button class="uc-seat-config" type="button"${this._running?' disabled':''}>${tx('玩家资料','Player')}</button><button class="uc-seat-api" type="button" data-seat-api="${id}">API</button></div>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
+      const control=seatController(id),controlText=control==='api'?(api.model||tx('未设置模型','No model configured')):controllerLabel(id);
+      return `<article class="uc-seat${dead?' dead':''}" data-id="${id}"><img class="uc-seat-avatar" src="${esc(portraitOf(id))}" alt="" onerror="this.src='${ROOT}/icons/roles/villager.jpg'"><div class="uc-seat-copy"><div class="uc-seat-top"><span class="uc-seat-name">${esc(name)}</span><span class="uc-seat-id">P${id+1}</span></div><div class="uc-seat-model">${esc(controlText)}</div><div class="uc-seat-persona">${esc(cfg.persona || tx('默认人格 · 点击配置','Default persona · click to edit'))}</div><div class="uc-seat-tools"><button class="uc-seat-config" type="button"${this._running?' disabled':''}>${tx('玩家资料','Player')}</button><button class="uc-seat-api" type="button" data-seat-api="${id}">${tx('控制设置','Control')}</button></div>${word}</div>${badge?`<span class="uc-seat-badge">${esc(badge)}</span>`:''}</article>`;
     }).join('');
   };
 
@@ -250,7 +262,7 @@
   UC._speech = function(pl,text){
     const feed=this._ui?.querySelector('#uc-feed'); if(!feed)return;
     const row=document.createElement('div'); row.className='uc-msg';
-    row.innerHTML=`<img class="uc-msg-avatar" src="${esc(portraitOf(pl.id))}" alt=""><div class="uc-msg-main"><div class="uc-msg-meta"><span class="uc-msg-name">${esc(pl.name)}</span><span class="uc-model">${esc(apiOf(pl.id).model||'AI')}</span></div><div class="uc-msg-text">${esc(text)}</div></div>`;
+    row.innerHTML=`<img class="uc-msg-avatar" src="${esc(portraitOf(pl.id))}" alt=""><div class="uc-msg-main"><div class="uc-msg-meta"><span class="uc-msg-name">${esc(pl.name)}</span><span class="uc-model">${esc(seatController(pl.id)==='api'?(apiOf(pl.id).model||'API'):controllerLabel(pl.id))}</span></div><div class="uc-msg-text">${esc(text)}</div></div>`;
     feed.appendChild(row); feed.scrollTop=feed.scrollHeight;
   };
   UC._setSpeaking = function(id,on){ this._ui?.querySelector(`.uc-seat[data-id="${id}"]`)?.classList.toggle('speaking',!!on); };
@@ -261,8 +273,43 @@
     if(tagged)text=tagged[1].trim();
     return text.replace(/<[^>]+>/g,'').trim();
   };
-  // 覆盖核心里复用狼人杀 callAI 的旧实现：卧底现在直接读取自己的默认/单席 API。
+  UC._closeTurnOverlay = function(){const box=this._ui?.querySelector('#uc-turn-overlay');if(box){box.classList.remove('show');box.setAttribute('aria-hidden','true');this._ui.querySelector('#uc-turn-dialog').innerHTML='';}};
+  UC._webAsk = function(pl,sys,user){
+    return new Promise((resolve,reject)=>{
+      const box=this._ui.querySelector('#uc-turn-overlay'),dialog=this._ui.querySelector('#uc-turn-dialog');
+      const prompt=tx(`以下是【${pl.name}】的私密席位提示，只供这个网页端 AI 使用。`,`This is private context for ${pl.name}. Use it only for this web AI seat.`)+'\n\n===== SYSTEM =====\n'+sys+'\n\n===== USER =====\n'+user;
+      dialog.innerHTML=`<div class="uc-panel-title">${tx('网页端 AI 接力','WEB AI RELAY')} · ${esc(pl.name)}</div><h3>${tx('复制提示词，粘贴回复','Copy prompt, paste reply')}</h3><textarea id="uc-turn-prompt" readonly></textarea><div class="uc-turn-actions"><button class="uc-btn" id="uc-turn-copy">${tx('复制提示词','Copy prompt')}</button></div><textarea id="uc-turn-reply" placeholder="${tx('粘贴网页端 AI 的回复','Paste the web AI reply')}"></textarea><div class="uc-turn-actions"><button class="uc-btn" id="uc-turn-cancel">${tx('中断对局','Stop game')}</button><button class="uc-btn primary" id="uc-turn-submit">${tx('提交回复','Submit reply')}</button></div>`;
+      dialog.querySelector('#uc-turn-prompt').value=prompt;box.classList.add('show');box.setAttribute('aria-hidden','false');
+      dialog.querySelector('#uc-turn-copy').onclick=async e=>{try{await navigator.clipboard.writeText(prompt);e.currentTarget.textContent=tx('已复制','Copied');}catch(_){dialog.querySelector('#uc-turn-prompt').select();}};
+      dialog.querySelector('#uc-turn-submit').onclick=()=>{const raw=dialog.querySelector('#uc-turn-reply').value.trim();if(!raw)return;this._closeTurnOverlay();resolve(raw);};
+      dialog.querySelector('#uc-turn-cancel').onclick=()=>{this._closeTurnOverlay();reject(new Error(tx('网页端 AI 接力已取消','Web AI relay cancelled')));};
+    });
+  };
+  UC._humanAsk = function(pl,sys,user){
+    return new Promise((resolve,reject)=>{
+      const vote=/投票|vote/i.test(sys+'\n'+user),box=this._ui.querySelector('#uc-turn-overlay'),dialog=this._ui.querySelector('#uc-turn-dialog');
+      const cancel=()=>{this._closeTurnOverlay();reject(new Error(tx('真人回合已中断','Human turn cancelled')));};
+      const reveal=()=>{
+        if(vote){
+          const candidates=this.alivePlayers().filter(x=>x.id!==pl.id);let selected='';
+          dialog.innerHTML=`<div class="uc-panel-title">${tx('真人私密回合','PRIVATE HUMAN TURN')} · ${esc(pl.name)}</div><h3>${tx('你的词语','Your word')}：「${esc(pl.word)}」</h3><div class="uc-turn-private">${tx('只选择投票对象，不需要公开解释。','Choose a ballot target. No public explanation is needed.')}</div><div class="uc-turn-options">${candidates.map(x=>`<button class="uc-btn" data-human-vote="${x.id}">${esc(x.name)}</button>`).join('')}</div><div class="uc-turn-actions"><button class="uc-btn" id="uc-human-cancel">${tx('中断对局','Stop game')}</button><button class="uc-btn primary" id="uc-human-submit" disabled>${tx('确认投票','Confirm vote')}</button></div>`;
+          dialog.querySelectorAll('[data-human-vote]').forEach(btn=>btn.onclick=()=>{selected=btn.dataset.humanVote;dialog.querySelectorAll('[data-human-vote]').forEach(x=>x.classList.toggle('sel',x===btn));dialog.querySelector('#uc-human-submit').disabled=false;});
+          dialog.querySelector('#uc-human-submit').onclick=()=>{const target=candidates.find(x=>String(x.id)===selected);if(target){this._closeTurnOverlay();resolve(target.name);}};
+        }else{
+          dialog.innerHTML=`<div class="uc-panel-title">${tx('真人私密回合','PRIVATE HUMAN TURN')} · ${esc(pl.name)}</div><h3>${tx('你的词语','Your word')}：「${esc(pl.word)}」</h3><div class="uc-turn-private">${tx('用一句话描述它，但不能直接说出词语本身。','Describe it in one sentence without saying the word itself.')}</div><textarea id="uc-human-desc" placeholder="${tx('输入你的公开描述','Enter your public clue')}"></textarea><div class="uc-api-test-result" id="uc-human-warning"></div><div class="uc-turn-actions"><button class="uc-btn" id="uc-human-cancel">${tx('中断对局','Stop game')}</button><button class="uc-btn primary" id="uc-human-submit">${tx('公开描述','Publish clue')}</button></div>`;
+          dialog.querySelector('#uc-human-submit').onclick=()=>{const text=dialog.querySelector('#uc-human-desc').value.trim(),warn=dialog.querySelector('#uc-human-warning');if(!text)return;if(text.includes(pl.word)){warn.style.display='block';warn.textContent=tx('描述中直接出现了你的词，请换一种说法。','Your clue contains the secret word. Rephrase it.');return;}this._closeTurnOverlay();resolve(text);};
+        }
+        dialog.querySelector('#uc-human-cancel').onclick=cancel;
+      };
+      dialog.innerHTML=`<div class="uc-panel-title">${tx('真人席位交接','HUMAN HANDOFF')}</div><h3>${tx('请把设备交给','Pass the device to')} ${esc(pl.name)}</h3><div class="uc-turn-private">${tx('下一页会显示该玩家的秘密词语。其他玩家请移开视线。','The next screen reveals this player’s secret word. Other players should look away.')}</div><div class="uc-turn-actions"><button class="uc-btn" id="uc-human-cancel">${tx('中断对局','Stop game')}</button><button class="uc-btn primary" id="uc-human-reveal">${tx('由本人查看','Reveal to player')}</button></div>`;
+      box.classList.add('show');box.setAttribute('aria-hidden','false');dialog.querySelector('#uc-human-reveal').onclick=reveal;dialog.querySelector('#uc-human-cancel').onclick=cancel;
+    });
+  };
+  // 逐席路由：API 自动请求、网页端接力、真人私密操作可以混在同一局。
   UC._ask = async function(pl,sys,user){
+    const control=seatController(pl.id);
+    if(control==='web')return cleanApiReply(await this._webAsk(pl,sys,user));
+    if(control==='human')return (await this._humanAsk(pl,sys,user)).trim();
     const kit=apiKit(),api=apiOf(pl.id);if(!kit)throw new Error(tx('自定义 API 模块未加载','Custom API module is unavailable'));
     const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),180000);
     try{const raw=await kit.request(api,sys,user,ctrl.signal,4096),text=cleanApiReply(raw);if(!text)throw new Error(tx(`${pl.name} 没有返回可识别的答案`,`${pl.name} returned no usable answer`));return text;}
@@ -277,17 +324,17 @@
     const start=this._ui.querySelector('#uc-start'), dot=this._ui.querySelector('.uc-status-dot');
     start.disabled=true; start.textContent=tx('进行中…','Running…'); dot.classList.add('live');
     this._ui.querySelector('#uc-feed').innerHTML='';
-    const players=this._lobbyNames.map((name,id)=>({id,name}));
+    const players=this._lobbyNames.map((name,id)=>({id,name,isPlayer:seatController(id)==='human'}));
     try{
-      this.setup(players); this._renderLobby();
+      this._godView=!hasHumanSeats();this.setup(players); this._renderLobby();
       const st=this.state;
-      this._ui.querySelector('#uc-words').innerHTML=`${tx('多数词','Civilian')} <b>「${esc(st.civWord)}」</b><br>${tx('卧底词','Spy')} <b>「${esc(st.spyWord)}」</b>`;
-      this._system(tx('观众已进入上帝视角；玩家只知道自己的词，不知道自身阵营。','God view enabled. Players know only their own word, not their faction.'),true);
+      this._ui.querySelector('#uc-words').innerHTML=this._godView?`${tx('多数词','Civilian')} <b>「${esc(st.civWord)}」</b><br>${tx('卧底词','Spy')} <b>「${esc(st.spyWord)}」</b>`:tx('本局含真人席位，词语已进入隐私保护模式。','Human seats are present; secret words are privacy-protected.');
+      this._system(this._godView?tx('当前为上帝视角；AI 玩家只知道自己的词，不知道自身阵营。','God view enabled. AI players know only their own word, not their faction.'):tx('真人混合对局已开始；轮到真人时会出现私密交接页。','Mixed human game started. A private handoff appears on each human turn.'),true);
       const result=await this._runPremiumGame();
       this._chapter(tx('终局揭晓','FINAL REVEAL'));
       this._system(`${result.winner==='spy'?tx('卧底获胜','Spy victory'):tx('平民获胜','Civilian victory')} · ${tx('卧底是','The spy was')} <b>${esc(result.spy.name)}</b>「${esc(result.spy.word)}」`,true);
     }catch(e){ this._system(`⚠ ${tx('对局中断','Game interrupted')}：${esc(e?.message||e)}<br><small>${tx('可点击席位切换该玩家的 API / 模型后重试。','Click a seat to change that player’s API/model, then retry.')}</small>`,true); }
-    start.disabled=false; start.textContent='▶ '+tx('再来一局','Play again'); dot.classList.remove('live'); this._running=false; this._renderLobby();
+    start.disabled=false; start.textContent=tx('再来一局','Play again'); dot.classList.remove('live'); this._running=false; this._renderLobby();
   };
 
   UC._runPremiumGame = async function(){
