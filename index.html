@@ -11006,6 +11006,74 @@ function removeCompatibleReasoningControl(body) {
   delete body.thinking;
 }
 
+// ── 关键决策锚点 ────────────────────────────────────────────────
+// 只在真正需要落票/落刀/交高风险技能时临时注入，不进入公开发言，也不把
+// 隐藏身份算成“系统事实”。目的不是替 AI 判断谁是狼，而是防止局部话术瑕疵
+// 挤掉人数边界、信息时点和第二候选这些更重要的约束。
+function buildDecisionAnchor(p, kind, candidates, meta) {
+  if (!p || !kind || !S || !Array.isArray(S.players)) return '';
+  meta = meta || {};
+  const alive = S.players.filter(x => x && x.alive);
+  const pool = (Array.isArray(candidates) ? candidates : alive)
+    .map(x => typeof x === 'number' ? S.players[x] : x)
+    .filter(Boolean);
+  const uniquePool = [...new Map(pool.map(x => [x.id, x])).values()];
+  const candidateText = uniquePool.length
+    ? uniquePool.map(x => `P${x.id + 1} ${x.name}`).join('、')
+    : '以本轮任务列出的合法选项为准';
+  const labels = {
+    'day-vote':'白天放逐', 'pk-vote':'PK放逐', 'wolf-kill':'狼刀',
+    'witch':'女巫用药', 'guard':'守卫守护', 'dreamwalker':'摄梦',
+    'magician':'魔术师换位', 'alchemist':'炼金术', 'knight':'骑士决斗',
+    'hunter':'猎人开枪', 'night-skill':'夜间技能'
+  };
+  const allowPass = meta.allowPass !== false;
+  const lines = [
+    `【私密决策锚点·${labels[kind] || kind}·不要在公开发言中复读】`,
+    `合法候选：${candidateText}${allowPass ? '；空过/保留若在本轮格式中合法，也必须作为真实方案比较' : ''}。`,
+    '信息时点：只使用此刻已公开的信息和你此前合法获得的私密记录；尚未结算的他人行动只能列成分支，不能当作已经发生。'
+  ];
+
+  if (kind === 'day-vote' || kind === 'pk-vote' || kind === 'knight' || kind === 'hunter') {
+    const configuredBad = S.players.filter(x => x.role && x.role.team === 'bad').length;
+    let publicDeadBad = 0;
+    for (const x of S.players) {
+      if (x.alive || !x.role || x.role.team !== 'bad') continue;
+      let publiclyBad = false;
+      try {
+        // revealed 是结算内部状态；隐死亡模式下也可能为 true，不能直接泄露。
+        const hiddenDeaths = !!(document.getElementById('m-hdeath') && document.getElementById('m-hdeath').checked);
+        publiclyBad = !hiddenDeaths && !!x.revealed;
+        const publicRole = _publiclyRevealedRoleName(x.name);
+        const publicAlignment = _publiclyVerifiedAlignment(x.name);
+        if (publicRole) {
+          const roleDef = Object.values(ALL_ROLES || {}).find(r => r && r.name === publicRole);
+          publiclyBad = publiclyBad || !!(roleDef && roleDef.team === 'bad');
+        }
+        publiclyBad = publiclyBad || /狼|狼人|bad/i.test(String(publicAlignment || ''));
+      } catch (e) { /* 旧存档缺公开索引时宁可少算，也不泄露隐藏身份 */ }
+      if (publiclyBad) publicDeadBad++;
+    }
+    const publicAliveBadUpper = Math.min(alive.length, Math.max(0, configuredBad - publicDeadBad));
+    const afterGoodChoice = Math.max(0, alive.length - 1);
+    const fatalWolfThreshold = Math.ceil(afterGoodChoice / 2);
+    lines.push(`人数边界：当前存活${alive.length}人；配置初始狼阵营${configuredBad}人，公开确认已死狼阵营${publicDeadBad}人，因此公开信息只能给出“存活狼至多${publicAliveBadUpper}人”，不是实际答案。若本次误伤好人，剩余${afterGoodChoice}人时狼达到${fatalWolfThreshold}人即可触发狼数不少于好人数；${publicAliveBadUpper >= fatalWolfThreshold ? '当前公开上限覆盖这一终局线，必须按可能的生死轮提高证据门槛。' : '当前公开上限未触及这一人数终局线，但仍要检查屠边条件。'}`);
+    lines.push('候选比较：至少比较首选与第二候选；各写一条最硬依据、一种“他其实是好人”的自然解释，以及投错/不投对谁有利，再落票。');
+    lines.push('证据优先级：信息权限或时点矛盾、系统结果冲突、持续票型/行动收益，高于单次口误、表达不完整、太自洽、太像故事或“换成我不会这样”。只有后者时，不能因其更显眼就越过证据更厚的目标。');
+    lines.push('同标尺复核：若别人做过同类行为却没被你惩罚，必须说明本人的新增差异；“有瑕疵”不自动等于“本轮最该出”。');
+  } else if (kind === 'wolf-kill') {
+    const knownPack = alive.filter(x => isPackWolfRole(p.role) && isPackWolfRole(x.role));
+    if (knownPack.length) lines.push('你确定仍存活的已互认狼队成员：' + knownPack.map(x => x.name).join('、') + '。这只是你的合法狼队私密信息，不得在白天泄露。');
+    lines.push('刀口比较：至少比较首选刀口、第二刀口与合法空刀；分别计算最终能否死亡、保护/换位/雾等失败风险、次日信息与票型收益，不能只看“今晚能刀到一个好人”。');
+    lines.push('对好人设下的限制区，先问“不按对方给的选项行动能否让其整晚零收益”；空刀、刀队友或改刀只有团队净收益更高时才选，也不能因害怕空刀就机械跳进对方给出的收益区。');
+  } else {
+    lines.push('方案比较：至少比较首选、第二选择，以及合法时的保留/空过；写清成功收益、判断错的损失和对后续轮次的影响。');
+    lines.push('避免重复投资：只有你此刻确知的已完成行动才能当事实；对女巫、守卫、摄梦、换位等尚未结算动作只能比较不同分支，不能假定队友或神职一定会怎样做。');
+  }
+  lines.push('最终只按任务要求提交 action；上面的检查留在私密思考，不生成额外公开发言。');
+  return lines.join('\n');
+}
+
 async function callAI(p, prompt, opts) {
   opts = opts || {};
   const _reasoningBase = resolveAIReasoning(p, prompt, opts);
@@ -11047,6 +11115,16 @@ async function callAI(p, prompt, opts) {
     const formatHint = formatMatch ? formatMatch[1] : '<thinking>思考</thinking>\n<game>发言</game>\n<action>目标或None</action>';
     const cotInjected = pcCot.trim().replace(/\{\{format\}\}/g, formatHint);
     finalPrompt = prompt + '\n\n' + cotInjected;
+  }
+
+  // 决策锚点必须晚于自定义 CoT 注入，避免被 finalPrompt = prompt + cot 覆盖；
+  // 其他小游戏使用 systemPromptOverride 时不注入狼人杀状态。
+  const inferredDecisionKind = opts.decisionKind || (/^【猎人开枪】/.test(String(prompt || '')) ? 'hunter' : '');
+  if (inferredDecisionKind && !opts.systemPromptOverride) {
+    const anchor = buildDecisionAnchor(p, inferredDecisionKind, opts.decisionCandidates || (inferredDecisionKind === 'hunter' ? S.players.filter(x=>x.alive) : null), {
+      allowPass: opts.decisionAllowPass
+    });
+    if (anchor) finalPrompt += '\n\n' + anchor;
   }
 
   // ★ 自由输出模式：去掉格式标签要求，让 AI 自然说话
@@ -14510,7 +14588,7 @@ function isThinkingMode() {
 // ★ 夜晚操作两步法：第一步自由推理（可选显示thinking），第二步精确选目标
 // p: 玩家, contextPrompt: 给AI的上下文说明, actionPrompt: 只问操作的极短prompt
 // 返回 {thinking, action} — thinking 供日志展示，action 供后续逻辑使用
-async function nightTwoStep(p, contextPrompt, actionPrompt) {
+async function nightTwoStep(p, contextPrompt, actionPrompt, decisionOpts) {
   // ★ v 单次调用优化：原先拆成两次 API（第一步自由 thinking、第二步把前300字摘要塞回去再让它选目标），
   //   但第二步看不到第一步的完整思维链、只拿到截断摘要，等于让 AI【重复思考一遍】，
   //   对 thinking 模型尤其浪费（两次都会生成完整 thinking，却只用上第一次的前300字）。
@@ -14518,7 +14596,7 @@ async function nightTwoStep(p, contextPrompt, actionPrompt) {
   //   thinking 模型省掉整整一次 API（夜间每个神职都省一次）；非 thinking 模式原本就只走第二步，行为不变。
   const r = await callAI(p,
     contextPrompt + '\n\n' + actionPrompt,
-    {noMemory: false, skillConfirm: true} // 写入memory，让AI记住自己的决定；保留格式要求
+    Object.assign({noMemory: false, skillConfirm: true}, decisionOpts || {}) // 写入memory，让AI记住自己的决定；保留格式要求
   );
   return r;
 }
@@ -15967,7 +16045,8 @@ const NightActions = {
       const r = await nightTwoStep(dw,
         '【摄梦人·第'+S.round+'夜】可选：'+ts.map(x=>'P'+(x.id+1)+' '+x.name).join('、')+
         lastLine+'请按当前身份判断、风险和收益选择。',
-        '只选择一人。\n<action>玩家名</action>');
+        '只选择一人。\n<action>玩家名</action>',
+        {decisionKind:'dreamwalker', decisionCandidates:ts, decisionAllowPass:false});
       logNightThinking(dw, r);
       const d = await resolveAIAction3(dw, r, {label:'摄梦',candidates:ts,targetCount:1,allowPass:false,formatHint:'DREAM|P数字'});
       if (d.status === 'execute') {
@@ -16027,7 +16106,8 @@ const NightActions = {
       const r = await nightTwoStep(al,
         '【炼金魔女·第'+S.round+'夜】未明之雾剩余：'+(!al._mistUsed?'可用':'已用')+'；法老之蛇剩余：'+(!al._serpentUsed?'可用':'已用')+
         '。雾会把今晚狼刀限制在你选择的2至3名存活玩家中；两人限制更强，三人给狼队更多选择。蛇会等实际刀口确定后再让你决定是否救。两者同夜不能并用。可选玩家：'+alive.map(x=>'P'+(x.id+1)+' '+x.name).join('、'),
-        '选择雾时写 MIST 和2或3名玩家；准备蛇写 SERPENT；空过写 PASS。\n<action>MIST|玩家A|玩家B 或 MIST|玩家A|玩家B|玩家C 或 SERPENT 或 PASS</action>');
+        '选择雾时写 MIST 和2或3名玩家；准备蛇写 SERPENT；空过写 PASS。\n<action>MIST|玩家A|玩家B 或 MIST|玩家A|玩家B|玩家C 或 SERPENT 或 PASS</action>',
+        {decisionKind:'alchemist', decisionCandidates:alive, decisionAllowPass:true});
       logNightThinking(al,r);
       const raw = String(r.action || r.game || '');
       if (!al._mistUsed && /MIST|未明之雾/i.test(raw)) {
@@ -16069,7 +16149,8 @@ const NightActions = {
       save = (await waitChoice('法老之蛇看见实际狼刀落在 '+victim.name+'。是否消耗药剂救下？','法老之蛇',
         [{label:'救下 '+victim.name,value:'SAVE'},{label:'保留药剂',value:'PASS',abs:true}])) === 'SAVE';
     } else {
-      const r = await nightTwoStep(al,'【法老之蛇·私密】魔术师换位后，今晚实际狼刀落在'+victim.name+'。你可以消耗唯一一次蛇救，也可以保留。只根据现有信息权衡。','<action>SAVE 或 PASS</action>');
+      const r = await nightTwoStep(al,'【法老之蛇·私密】魔术师换位后，今晚实际狼刀落在'+victim.name+'。你可以消耗唯一一次蛇救，也可以保留。只根据现有信息权衡。','<action>SAVE 或 PASS</action>',
+        {decisionKind:'alchemist', decisionCandidates:[victim], decisionAllowPass:true});
       logNightThinking(al,r); save=/SAVE|救/i.test(String(r.action||r.game||'')) && !/PASS|不救|保留/i.test(String(r.action||r.game||''));
     }
     if (save) {
@@ -16195,7 +16276,8 @@ const NightActions = {
         '③ 至少比较“狼直刀V”“狼反刀D”“狼改刀第三人/你空过”三条路线各会死谁。若反刀风险高，就换不显眼的搭档、换另一组、或空过，别机械地用同一种保护思路。\n'+
         '目标不是口头保护某个神，而是比较交换与空过在当前局势下的期望收益；有明确可执行路线就交换，误换成本更高就空过，不设置固定首夜答案。\n'+
         '基于以上推演做决定：\n<action>名字A 和 名字B 或 None（空过）</action>\n只在 action 写最终选择，不要附加第三个名字。';
-      const r = await nightTwoStep(mg, contextPrompt, actionPrompt);
+      const r = await nightTwoStep(mg, contextPrompt, actionPrompt,
+        {decisionKind:'magician', decisionCandidates:ts, decisionAllowPass:true});
       logNightThinking(mg, r);
       const previousPairText = lastPair ? `${S.players[lastPair[0]]?.name||'?'}↔${S.players[lastPair[1]]?.name||'?'}` : '';
       const decision = await resolveAIAction3(mg, r, {
@@ -16603,7 +16685,8 @@ const NightActions = {
           ? '\n【第一夜同样没有固定答案】你不知道真实刀口，女巫却能看到刀口并可能选择救人；不能假定“女巫多半不用药”，也不能因为担心撞药就自动空守。请比较：①守中某人的概率与该目标价值；②女巫看到同一刀口后救他的概率；③同守同救会让目标死亡且浪费解药的损失；④空守时完全放弃本夜挡刀的代价；⑤守自己与守其他人的不同风险。根据本局配置和目标分布独立决定守人或空守。'
           : '\n【根据已有信息重新算，不沿用固定顺序】先推测狼队今晚最可能的1—2个刀口，再比较守目标、守自己和空守。把目标价值、自己是否暴露、女巫解药是否可能仍在、明显神职发生同守同救的概率、上夜守护与死亡结果，以及空守放弃防御的代价一起计算。女巫已无解药或已出局时撞药风险会下降，但这也不自动等于必须守人；每夜都由当前证据决定。');
       const actionPrompt = '基于你上面的推演做决定：守谁？\n姓名可能有中文、英文、罗马音或昵称差异，所以最终操作【只提交目标左侧的座位编号】，不要提交或翻译姓名。\n示例：想守“P3=龙崎”，就输出 <action>P3</action>。\n<action>P编号 或 None（明确空守）</action>\n只写这一行，不要其他内容。';
-      const r = await nightTwoStep(gu, contextPrompt, actionPrompt);
+      const r = await nightTwoStep(gu, contextPrompt, actionPrompt,
+        {decisionKind:'guard', decisionCandidates:ts, decisionAllowPass:true});
       logNightThinking(gu, r);
       const actStr = (r.action || '').trim();
       // ★★ 最终 action 是守卫真正提交的决定，必须优先于 thinking。
@@ -17267,7 +17350,8 @@ ${mistDecisionHint}
 【格式·严格】
 只输出一个名字或 PASS（空刀）,不要解释。
 <action>名字 或 PASS</action>`,
-          {noMemory: true, timeoutMs: 360000, maxRetries: 2, skillConfirm: true}
+          {noMemory: true, timeoutMs: 360000, maxRetries: 2, skillConfirm: true,
+           decisionKind:'wolf-kill', decisionCandidates:validWolfTargets, decisionAllowPass:true}
         );
         const voteAction = String((voteR && voteR.action) || '').trim();
         const finalVoteIsEmpty = /^(?:none|pass|空刀|不刀|不出刀|不刀任何人)$/i.test(voteAction);
@@ -17441,7 +17525,7 @@ ${mistDecisionHint}
       const wR2 = {};
       await batchCall(aiW2,'c-wvote', async w => {
         const tn2 = tieNames;
-        wR2[w.id] = await callAI(w,'【平票再投】只能从这些选项中选一个：'+tn2+magicKillDecisionHint+'\n空刀也是正式选项；若选择空刀，在 action 中填写 PASS。\n<thinking>比较正常出刀、魔术师换位风险与战术空刀的收益后再投</thinking>\n<game>简短说明最终选择</game>\n<action>名字 或 PASS</action>',{noMemory:true, skillConfirm:true});
+        wR2[w.id] = await callAI(w,'【平票再投】只能从这些选项中选一个：'+tn2+magicKillDecisionHint+'\n空刀也是正式选项；若选择空刀，在 action 中填写 PASS。\n<thinking>比较正常出刀、魔术师换位风险与战术空刀的收益后再投</thinking>\n<game>简短说明最终选择</game>\n<action>名字 或 PASS</action>',{noMemory:true, skillConfirm:true, decisionKind:'wolf-kill', decisionCandidates:tieTargets, decisionAllowPass:tieAllowsEmpty});
       });
       // ★ 导演模式bug修复:对每个 isPlayer 狼人分别弹再投票框
       const humanWolves = tieVotingWolves.filter(w => w.isPlayer);
@@ -17643,7 +17727,8 @@ ${mistDecisionHint}
         ? '\n\n⚠️ 必须使用上面可毒名单里的【完整全名】，不要用别名、简称、编号(P1/P2)、外号。例如名单里写"灰原哀"，你就必须写"POISON:灰原哀"，不能写"POISON:灰原"或"POISON:哀"。\n⚠️ <action>标签必须包含目标名字，不能只写"POISON"。如果不用毒药就明确写 NO_POISON。'
         : '';
       const actionPrompt = '现在做决定，从以下格式中精确选一个：\n'+actionOptions.join('\n')+fullNameWarn+'\n<action>只写上面格式之一</action>';
-      const r = await nightTwoStep(wi, contextPrompt, actionPrompt);
+      const r = await nightTwoStep(wi, contextPrompt, actionPrompt,
+        {decisionKind:'witch', decisionCandidates:poisonAliveList, decisionAllowPass:true});
       logNightThinking(wi, r);
       const poisonPool = alive.filter(x => x.id !== wi.id);
       const decision = await resolveAIWitchAction(wi, r, {
@@ -19404,7 +19489,7 @@ const PhaseHandlers = {
         +'\n【私密确认】你的判断和理由都只留在<thinking>中，不进行额外公开发言。只有真正发动决斗后，系统才会公开固定的一句技能宣告；PASS必须完全静默。\n'
         +'<thinking>分析：谁的行为矛盾最明确？获利方向最像狼？值不值得现在决斗？</thinking>\n'
         +'<game></game>\n'
-        +'<action>DUEL:名字 或 PASS</action>',{skillConfirm:true});
+        +'<action>DUEL:名字 或 PASS</action>',{skillConfirm:true, decisionKind:'knight', decisionCandidates:alive2.filter(x=>x.id!==knight.id), decisionAllowPass:true});
       // 这是未公开的技能判断，即使斗蛐蛐模式也不写进公共战报。
       const decision = await resolveAIAction3(knight, duelAIResult, {
         label:'骑士决斗', candidates:alive2.filter(x=>x.id!==knight.id), targetCount:1, allowPass:true,
@@ -19474,7 +19559,7 @@ const PhaseHandlers = {
     await requestExtraSpeech(alive);
     const aiP = alive.filter(p => !p.isPlayer);
     const aiR = {};
-    const voteEvidenceReminder = '\n\n【投票前证据校验·先拆发言再代入】代入式推理和“真身份通常怎样行动”的行为模型可以辅助判断，但不能成为唯一投票理由。先在thinking里拆解目标的事实主张、信息来源、前提、推导和结论，指出哪句原话的哪一环与已知事实冲突、泄露了什么不应知道的信息，或怎样持续让狼人获利。审查过去行为时必须先锁定当时时点T，只保留T前已公开给他的内容和他在T前合法获得的私密记录；今天才公开的信息只能更新今天的判断，不能倒灌成他昨夜“本应知道”的事实。完成内容与时点核验后，行为模型只能作为低权重辅助微调概率。不要只凭“换成我不会这样、别人没这么玩、说得太完整自洽、像故事、我无法反驳”投人。若目标因发言顺序无法回应，沉默只是流程限制，不是默认认罪。找不到具体断点就承认指控未成立，改投有实际证据的人或弃权。投票阶段只做选择，不进行公开发言。';
+    const voteEvidenceReminder = '\n\n【投票前证据校验】优先核对信息时点、系统事实冲突和持续票型/行动收益；行为模型只能辅助。沉默可能只是发言顺序限制，发言有瑕疵也不自动等于本轮最该出。具体候选比较与人数边界按下方私密决策锚点执行。投票阶段只做选择，不进行公开发言。';
     await batchCall(aiP,'c-vote', async p => {
       const duelReminder = (S.duelLog && S.duelLog.length > 0)
         ? '\n⚠️ 注意：本局有已通过决斗被验证为真骑士的玩家，请看【⚔️ 决斗结果·铁证】，不要投票给已被证实的好人！'
@@ -19484,7 +19569,7 @@ const PhaseHandlers = {
       const whitewolfHint = isWhitewolfReady
         ? '\n\n【💥 你是白狼王·投票阶段自爆机会】\n你可以放弃这次投票,改为自爆带走一人。判断:你已经看到本轮发言和票意表态,如果票型已经锁死你、或你看到能换掉关键好人的机会,自爆替代投票是更高价值的动作。\n要自爆:<action>EXPLODE:目标名</action> (替代正常投票,自爆瞬间结束本轮投票直接入夜)\n要投票:<action>玩家名</action> (正常投票)\n要弃权:<action>None</action>'
         : '';
-      aiR[p.id] = await callAI(p,'【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true, requireGame:false});
+      aiR[p.id] = await callAI(p,'【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true, requireGame:false, decisionKind:'day-vote', decisionCandidates:alive, decisionAllowPass:true});
       logNightThinking(p, aiR[p.id]);
     });
     // ★ 白狼王投票阶段自爆检测:在统计票数前优先处理
@@ -19715,8 +19800,20 @@ const PhaseHandlers = {
       await batchCall(aiPK,'c-vote', async p => {
         const isPKCand = pkCandIds.includes(p.id);
         const otherPKNames = isPKCand ? pkCands.filter(x=>x.id!==p.id).map(x=>x.name).join('、') : pkNames;
-        const pkPrompt = '【PK投票 - 关键决战】\n刚才投票出现平票（'+pkNames+' 票数相同），现在 PK 候选人已经做完了最后的自救发言（请回看刚才的发言记录）。\n\n你现在要做的是：从 '+otherPKNames+' 中选一个放逐。\n'+(isPKCand?'⚠️ 你是 PK 候选人之一，不能投自己。\n':'')+'\n【⚠️ 重要：不要弃权】\n· 弃权 = 让平票再次发生 = 本轮无人出局 = 狼队白嫖一天\n· 即使你心里两个都怀疑/都不确定，也要凭刚才的 PK 发言、之前的票型、获利链选一个最像狼的\n· 不要因为"我刚才已经投过他了"就重投相同目标——也要重新评估对方的 PK 发言\n· 不要因为"两个都像好人"就弃权——平票就意味着至少有一个是狼，二选一也是抓狼\n\n【判断重点】\n① 谁的 PK 自救发言更有逻辑漏洞？\n② 谁如果是好人，狼队会因此更安全？（反向推狼）\n③ 之前的发言里谁的票型更可疑？\n\n<thinking>分析两个 PK 候选人的自救发言，决定投谁，给出明确依据</thinking>\n<game></game>\n<action>玩家完整名字（必须从 '+otherPKNames+' 中选一个，不要写 None）</action>';
-        aiRPK[p.id] = await callAI(p, pkPrompt, {skillConfirm:true, requireGame:false});
+        const pkPrompt = `【PK投票 - 关键决战】
+刚才投票出现平票（${pkNames} 票数相同），PK 候选人已经完成最后自救发言。
+
+你现在必须从 ${otherPKNames} 中选择一人放逐。
+${isPKCand ? '你是 PK 候选人之一，不能投自己。' : ''}
+
+这是流程强制二选一，不代表平票者中必然有狼；两人都可能是好人，也可能包含狼人。
+重新比较两人的硬事实矛盾、信息时点、此前票型和放逐收益。不要因已经投过而机械重复，也不要因谁措辞更差就自动惩罚谁。若证据都薄，选择误伤风险更低、其好人解释更不自然的一方，但不要虚构铁证。
+
+<thinking>比较两个候选人的硬证据、好人解释与投错代价，决定投谁</thinking>
+<game></game>
+<action>玩家完整名字（必须从 ${otherPKNames} 中选一个，不要写 None）</action>`;
+        const pkPool = pkCands.filter(x=>x.id!==p.id && x.alive);
+        aiRPK[p.id] = await callAI(p, pkPrompt, {skillConfirm:true, requireGame:false, decisionKind:'pk-vote', decisionCandidates:pkPool, decisionAllowPass:false});
         logNightThinking(p, aiRPK[p.id]);
       });
       for (const p of aiPK) {
@@ -29567,10 +29664,27 @@ function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
     const base = buildWebPrompt(p, deltaMode && relayMark
       ? {mark: relayMark}
       : {noTeaching: !teachOn});
+    if (isVoteChoice) {
+      if (!teachOn) return base;
+      const voteAnchor = buildDecisionAnchor(p, 'day-vote', modalOpts.voteCandidates || [], {allowPass:true});
+      return voteAnchor ? base + '\n\n' + voteAnchor : base;
+    }
     if (!isOperationChoice) return base;
     const legalOptions = (modalOpts.operationOptions || []).filter(o=>!o.disabled)
       .map(o=>`- ${o.label} → <action>${o.value}</action>`).join('\n');
-    return base + `\n\n━━━━ 当前私密操作 ━━━━\n${modalOpts.operationTitle || '请选择操作'}\n${modalOpts.operationContext || ''}\n\n合法选项：\n${legalOptions}\n只返回其中一个明确的 <action>值</action>。这是纯操作阶段，不追加公开发言，也不要向其他玩家提问。`;
+    let operationAnchor = '';
+    if (teachOn) {
+      const roleDecisionKinds = {
+        witch:'witch', guard:'guard', dreamwalker:'dreamwalker', magician:'magician',
+        alchemist:'alchemist', knight:'knight', hunter:'hunter'
+      };
+      const decisionKind = isPackWolfRole(p.role) ? 'wolf-kill' : (roleDecisionKinds[p.role.id] || 'night-skill');
+      const optionText = (modalOpts.operationOptions || []).map(o=>String(o.label||'')+' '+String(o.value||'')).join(' ');
+      const operationCandidates = S.players.filter(x => x.alive && (optionText.includes(x.name) || optionText.includes('P'+(x.id+1))));
+      const allowsPass = (modalOpts.operationOptions || []).some(o => /none|pass|skip|空|不|保留|放弃/i.test(String(o.value||'')+' '+String(o.label||'')));
+      operationAnchor = buildDecisionAnchor(p, decisionKind, operationCandidates, {allowPass:allowsPass});
+    }
+    return base + `\n\n━━━━ 当前私密操作 ━━━━\n${modalOpts.operationTitle || '请选择操作'}\n${modalOpts.operationContext || ''}\n\n合法选项：\n${legalOptions}\n只返回其中一个明确的 <action>值</action>。这是纯操作阶段，不追加公开发言，也不要向其他玩家提问。` + (operationAnchor ? '\n\n' + operationAnchor : '');
   };
   let webPrompt = buildNow();
 
