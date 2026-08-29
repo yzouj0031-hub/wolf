@@ -11060,12 +11060,21 @@ function buildDecisionAnchor(p, kind, candidates, meta) {
     lines.push(`人数边界：当前存活${alive.length}人；配置初始狼阵营${configuredBad}人，公开确认已死狼阵营${publicDeadBad}人，因此公开信息只能给出“存活狼至多${publicAliveBadUpper}人”，不是实际答案。若本次误伤好人，剩余${afterGoodChoice}人时狼达到${fatalWolfThreshold}人即可触发狼数不少于好人数；${publicAliveBadUpper >= fatalWolfThreshold ? '当前公开上限覆盖这一终局线，必须按可能的生死轮提高证据门槛。' : '当前公开上限未触及这一人数终局线，但仍要检查屠边条件。'}`);
     lines.push('候选比较：至少比较首选与第二候选；各写一条最硬依据、一种“他其实是好人”的自然解释，以及投错/不投对谁有利，再落票。');
     lines.push('证据优先级：信息权限或时点矛盾、系统结果冲突、持续票型/行动收益，高于单次口误、表达不完整、太自洽、太像故事或“换成我不会这样”。只有后者时，不能因其更显眼就越过证据更厚的目标。');
-    lines.push('同标尺复核：若别人做过同类行为却没被你惩罚，必须说明本人的新增差异；“有瑕疵”不自动等于“本轮最该出”。');
+    lines.push('陌生打法中立：没见过、不理解或不符合常规，只表示需要解释，不增加狼面；先分别计算它在好人与狼人身份下的实际收益。若没有规则冲突、越权信息或持续狼队收益，不得把“新奇”偷换成“狼人”。');
+    lines.push('同标尺复核：把实际行动与措辞强度分开。若你和其他人此前都按同一预言家路线跟过票，某人只是把“偏信”说成“铁信”，不能仅凭说得更满把他升级成狼人；必须指出相较你们同类行为新增的越权信息、矛盾或狼队收益。“有瑕疵”不自动等于“本轮最该出”。');
   } else if (kind === 'wolf-kill') {
     const knownPack = alive.filter(x => isPackWolfRole(p.role) && isPackWolfRole(x.role));
     if (knownPack.length) lines.push('你确定仍存活的已互认狼队成员：' + knownPack.map(x => x.name).join('、') + '。这只是你的合法狼队私密信息，不得在白天泄露。');
     lines.push('刀口比较：至少比较首选刀口、第二刀口与合法空刀；分别计算最终能否死亡、保护/换位/雾等失败风险、次日信息与票型收益，不能只看“今晚能刀到一个好人”。');
     lines.push('对好人设下的限制区，先问“不按对方给的选项行动能否让其整晚零收益”；空刀、刀队友或改刀只有团队净收益更高时才选，也不能因害怕空刀就机械跳进对方给出的收益区。');
+  } else if (kind === 'witch') {
+    const roleIds = new Set(S.players.map(x => x.role && x.role.id).filter(Boolean));
+    const otherDeathBranches = ['可能的实际狼刀'];
+    if (roleIds.has('dreamwalker')) otherDeathBranches.push('摄梦人的连续噩梦或夜死连带');
+    if (roleIds.has('gargoyle')) otherDeathBranches.push('石像鬼苏醒后的独立刀');
+    if (roleIds.has('mechwolf')) otherDeathBranches.push('机械狼可能已经获得的致死能力');
+    lines.push('女巫落毒前固定比较三案：毒首选、毒第二候选、今晚留毒；分别写清若首选已经被其他结算带走，以及没有被带走时，哪案的净收益更高。');
+    lines.push('本局需要纳入的潜在死亡分支：' + otherDeathBranches.join('、') + '。公开说过要梦/刀/处理某人只是计划，不等于技能已经执行；把重复投资当风险分支，而不是擅自认定目标必死。若故意用毒改变死因并压制死亡技能，必须明确算出这项额外收益。');
   } else {
     lines.push('方案比较：至少比较首选、第二选择，以及合法时的保留/空过；写清成功收益、判断错的损失和对后续轮次的影响。');
     lines.push('避免重复投资：只有你此刻确知的已完成行动才能当事实；对女巫、守卫、摄梦、换位等尚未结算动作只能比较不同分支，不能假定队友或神职一定会怎样做。');

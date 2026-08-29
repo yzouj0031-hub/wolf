@@ -36,6 +36,9 @@ assert.match(hiddenAnchor, /公开确认已死狼阵营0人/, 'hidden death leak
 assert.match(hiddenAnchor, /至少比较首选与第二候选/);
 assert.match(hiddenAnchor, /太自洽、太像故事/);
 assert.match(hiddenAnchor, /同标尺复核/);
+assert.match(hiddenAnchor, /陌生打法中立/);
+assert.match(hiddenAnchor, /实际行动与措辞强度分开/);
+assert.match(hiddenAnchor, /“偏信”说成“铁信”/);
 assert.match(hiddenAnchor, /信息时点/);
 assert.match(hiddenAnchor, /不要在公开发言中复读/);
 
@@ -45,6 +48,16 @@ assert.match(openAnchor, /公开确认已死狼阵营1人/, 'open identity mode 
 const wolfAnchor = makeAnchor(S, roles, hiddenDocument, noPublicRole, noPublicRole, isPackWolfRole)(players[2], 'wolf-kill', players.filter(x=>x.alive), {allowPass:true});
 assert.match(wolfAnchor, /首选刀口、第二刀口与合法空刀/);
 assert.match(wolfAnchor, /限制区/);
+
+const witchRoles = {...roles, witch:{id:'witch',name:'女巫',team:'good'}, dreamwalker:{id:'dreamwalker',name:'摄梦人',team:'good'}};
+const witchPlayers = players.map(x => ({...x}));
+witchPlayers[0].role = witchRoles.witch;
+witchPlayers[1].role = witchRoles.dreamwalker;
+const witchAnchor = makeAnchor({players:witchPlayers}, witchRoles, hiddenDocument, noPublicRole, noPublicRole, isPackWolfRole)(witchPlayers[0], 'witch', witchPlayers.filter(x=>x.alive && x.id!==0), {allowPass:true});
+assert.match(witchAnchor, /毒首选、毒第二候选、今晚留毒/);
+assert.match(witchAnchor, /摄梦人的连续噩梦或夜死连带/);
+assert.match(witchAnchor, /只是计划，不等于技能已经执行/);
+assert.doesNotMatch(witchAnchor, /石像鬼苏醒后的独立刀/, 'witch anchor mentioned an absent role');
 assert.match(html, /inferredDecisionKind[\s\S]*?【猎人开枪】[\s\S]*?'hunter'/, 'hunter shot does not receive a private decision anchor');
 
 for (const marker of [
