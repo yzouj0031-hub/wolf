@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v43-mixed-controllers';
+const CACHE_NAME = 'wolf-pwa-v44-community-matches';
 const APP_SHELL = [
   './',
   './index.html',
@@ -14,6 +14,7 @@ const APP_SHELL = [
   './action-cg.js',
   './ui-icons.js',
   './teaching-worldbooks.js',
+  './community-matches.js',
   './mystery.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -23,6 +24,8 @@ const APP_SHELL = [
 
 function shouldRefreshFromNetwork(url) {
   return url.pathname.endsWith('/native-http.js') ||
+    url.pathname.endsWith('/replay-generator.js') ||
+    url.pathname.endsWith('/community-matches.js') ||
     url.pathname.endsWith('/role-effects.js') ||
     url.pathname.endsWith('/role-effects.css') ||
     url.pathname.includes('/icons/roles/');

@@ -2556,6 +2556,7 @@ body.has-wp::after {
     <div><strong>云端档案</strong><div id="cloud-status">未登录 · 当前仅保存到本机</div></div>
     <div class="cloud-actions">
       <button class="cloud-btn" id="cloud-account-open">登录 / 注册</button>
+      <button class="cloud-btn" id="community-gallery-open">对局殿堂</button>
       <button class="cloud-btn" id="feedback-my-open">我的反馈</button>
       <button class="cloud-btn" id="feedback-admin-open" style="display:none">反馈收件箱</button>
       <button class="cloud-btn" id="cloud-save-now" style="display:none">上传</button>
@@ -3599,6 +3600,7 @@ body.has-wp::after {
 
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="pg-replay" style="flex:2;padding:8px;background:rgba(112,96,176,.18);border:1px solid #7060b0;color:#b8a8e8;border-radius:var(--r);font-size:.82em;cursor:pointer">🎬 对局回放</button>
+      <button id="pg-community-submit" style="flex:2;padding:8px;background:rgba(185,150,84,.16);border:1px solid #a9874c;color:#e3c77e;border-radius:var(--r);font-size:.82em;cursor:pointer">投稿本局</button>
       <button id="pg-start" style="flex:2;padding:8px;background:rgba(80,160,80,.2);border:1px solid #50a060;color:#80d090;border-radius:var(--r);font-size:.82em;cursor:pointer">💬 开始互动</button>
       <button id="pg-user-speak" style="flex:2;padding:8px;background:rgba(80,160,200,.15);border:1px solid #50a0c0;color:#80c8e8;border-radius:var(--r);font-size:.82em;cursor:pointer">🙋 我来插话</button>
       <button id="pg-close" style="flex:1;padding:8px;background:rgba(100,100,100,.15);border:1px solid rgba(200,200,200,.2);color:#8a8a8a;border-radius:var(--r);font-size:.82em;cursor:pointer">结束</button>
@@ -30282,6 +30284,7 @@ if ('serviceWorker' in navigator &&
 })();
 </script>
 <script src="./mystery.js"></script>
-<script src="replay-generator.js"></script>
+<script src="replay-generator.js?v=2"></script>
+<script src="./community-matches.js?v=1"></script>
 </body>
 </html>

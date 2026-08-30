@@ -2523,6 +2523,7 @@ body.has-wp::after {
     <div><strong>CLOUD ARCHIVE</strong><div id="cloud-status">未登录 · 当前仅保存到本机</div></div>
     <div class="cloud-actions">
       <button class="cloud-btn" id="cloud-account-open">登录 / 注册</button>
+      <button class="cloud-btn" id="community-gallery-open">Match Hall</button>
       <button class="cloud-btn" id="cloud-save-now" style="display:none">上传</button>
       <button class="cloud-btn" id="cloud-load" style="display:none">恢复</button>
       <button class="cloud-btn" id="cloud-cfg-up" style="display:none" title="把 API 配置(含所有 key/模型/各玩家设置)上传到你的云端账号">上传配置</button>
@@ -3522,6 +3523,7 @@ body.has-wp::after {
 
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="pg-replay" style="flex:2;padding:8px;background:rgba(112,96,176,.18);border:1px solid #7060b0;color:#b8a8e8;border-radius:var(--r);font-size:.82em;cursor:pointer">🎬 对局回放</button>
+      <button id="pg-community-submit" style="flex:2;padding:8px;background:rgba(185,150,84,.16);border:1px solid #a9874c;color:#e3c77e;border-radius:var(--r);font-size:.82em;cursor:pointer">Submit match</button>
       <button id="pg-start" style="flex:2;padding:8px;background:rgba(80,160,80,.2);border:1px solid #50a060;color:#80d090;border-radius:var(--r);font-size:.82em;cursor:pointer">💬 开始互动</button>
       <button id="pg-user-speak" style="flex:2;padding:8px;background:rgba(80,160,200,.15);border:1px solid #50a0c0;color:#80c8e8;border-radius:var(--r);font-size:.82em;cursor:pointer">🙋 我来插话</button>
       <button id="pg-close" style="flex:1;padding:8px;background:rgba(100,100,100,.15);border:1px solid rgba(200,200,200,.2);color:#8a8a8a;border-radius:var(--r);font-size:.82em;cursor:pointer">结束</button>
@@ -28236,6 +28238,7 @@ if ('serviceWorker' in navigator &&
 })();
 </script>
 <script src="../mystery.js"></script>
-<script src="replay-generator.js"></script>
+<script src="replay-generator.js?v=2"></script>
+<script src="../community-matches.js?v=1"></script>
 </body>
 </html>

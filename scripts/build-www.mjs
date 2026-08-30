@@ -22,6 +22,7 @@ const FILES = [
   'mystery.js',
   'ui-icons.js',
   'teaching-worldbooks.js',
+  'community-matches.js',
   'native-http.js',
   'reasoning-control.js',
   'exit-guard.js',

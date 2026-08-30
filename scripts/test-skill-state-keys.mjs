@@ -26,7 +26,12 @@ const NON_PLAYER_RECEIVERS = new Set([
   'WebRelay',    // 网页端接力复制水位线（_gameId），不是玩家技能状态
   'lb',          // 排行榜，跨局累计，与单局存档无关（_mvpMatches / _totalGames）
   'buildSystemPrompt', // 函数自身的一次性告警标记（_capWarned）
+  'inspectPromptContradictions', // 提示词体检函数的去重集合（_seen）
 ]);
+
+// `this` 不能整体豁免，否则未来角色方法里的 this._skill 会漏检。这里只允许谁是卧底
+// 控制器的两个明确 UI 字段。
+const NON_PLAYER_ASSIGNMENTS = new Set(['this._ui', 'this._running']);
 
 // 玩家对象上的字段，但 buildSnap 已经单独序列化，不需要再进 _sk。
 const SERIALIZED_ELSEWHERE = new Set(['_plan', '_planRound', '_sk']);
@@ -44,7 +49,7 @@ for (const file of clients) {
   const assigned = new Map();
   for (const m of src.matchAll(/\b([A-Za-z_$][A-Za-z0-9_$]*)\.(_[A-Za-z][A-Za-z0-9]*)\s*(?:\|\|)?=(?!=)/g)) {
     const [, receiver, flag] = m;
-    if (NON_PLAYER_RECEIVERS.has(receiver) || SERIALIZED_ELSEWHERE.has(flag)) continue;
+    if (NON_PLAYER_RECEIVERS.has(receiver) || NON_PLAYER_ASSIGNMENTS.has(`${receiver}.${flag}`) || SERIALIZED_ELSEWHERE.has(flag)) continue;
     if (!assigned.has(flag)) assigned.set(flag, { count: 0, receivers: new Set() });
     const e = assigned.get(flag);
     e.count++; e.receivers.add(receiver);
