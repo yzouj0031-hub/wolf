@@ -83,11 +83,14 @@ for (const path of ['../index.html','../en/index.html']) {
   for (const marker of ['【时点知识账本·防止事后信息倒灌】','K(玩家,T)','T之后才公开的结果','事前判断质量','事后结果对错','这条信息最早何时公开、公开给谁']) {
     if (!compactCore[1].includes(marker)) throw new Error(`${path} lacks temporal knowledge-ledger guidance: ${marker}`);
   }
-  if (!html.includes('审查过去行为时必须先锁定当时时点T') || !html.includes('今天才公开的信息只能更新今天的判断')) {
+  if (!html.includes('评价任何过去的发言、投票、夜间行动或计划前，先锁定它发生的时点T') || !html.includes('后来信息可以更新你今天对他的身份概率')) {
     throw new Error(`${path} lacks the pre-vote temporal knowledge check`);
   }
-  for (const marker of ['事实主张','信息来源','前提','推导','结论','像提前写好的故事','流程不给答辩机会','【投票前证据校验·先拆发言再代入】','行为模型作为低权重辅助','<game></game>']) {
+  for (const marker of ['事实主张','信息来源','前提','推导','结论','像提前写好的故事','流程不给答辩机会','行为模型作为低权重辅助','<game></game>']) {
     if (!html.includes(marker)) throw new Error(`${path} lacks speech-first voting safeguard: ${marker}`);
+  }
+  if (!html.includes('【投票前证据校验】') && !html.includes('【投票前证据校验·先拆发言再代入】')) {
+    throw new Error(`${path} lacks the pre-vote evidence-check block`);
   }
   for (const marker of [
     '狼队对跳核验（本局无魔术师）',

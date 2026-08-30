@@ -9951,7 +9951,65 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
   };
 }
 
-function buildSystemPrompt(p) {
+// ── Prompt 组装的两条硬边界 ─────────────────────────────────────
+// 角色存在性和当前输出阶段必须独立计算，不能再靠一段字符串里的连锁条件互相猜。
+function buildAbsentClassicRoleRule(presentRoleIds, capInspect, absentClassics) {
+  const present = presentRoleIds instanceof Set ? presentRoleIds : new Set(presentRoleIds || []);
+  const missing = Array.isArray(absentClassics) ? absentClassics.filter(Boolean) : [];
+  if (!missing.length) return '';
+  const seerReallyAbsent = !present.has('seer');
+  const substituteInspectorsExist = Array.isArray(capInspect) && capInspect.length > 0;
+  let out = '\n⛔【这些"角色名"本局不存在，一次都不许提】本局没有：' + missing.join('、') + '。不得自称、不得悍跳、不得声称与谁对跳这些身份，也不得在推理里等他们跳出来。';
+  if (seerReallyAbsent && substituteInspectorsExist) {
+    out += '⚠️注意区分：本局虽然没有"预言家"这张牌，但能力索引里【有能验阵营的角色】，查验类信息由他们产生——请用他们的真实角色名来称呼和推理，别套预言家模板（本局没有警徽流、也不存在"对跳预言家"）。';
+  }
+  out += '⚠️上文任何通用战术若以这些缺席角色举例，本局一律【不适用】，直接忽略对应例子。';
+  return out;
+}
+
+function promptTaskKind(taskContext) {
+  const ctx = taskContext || {};
+  const opts = ctx.opts || {};
+  const prompt = String(ctx.prompt || '');
+  if (opts.plainResponse) return 'plain';
+  if (opts.skillConfirm || opts.requireGame === false || /【(?:投票|PK投票|选警长投票|警长PK再投票|退选决定|警长竞选)】/.test(prompt)) return 'operation';
+  return 'speech';
+}
+
+function buildPhaseOutputContract(taskContext, isPureAI) {
+  const kind = promptTaskKind(taskContext);
+  const draft = isPureAI ? '\n<draft>可选的私密草稿；只保留当前决策真正需要的比较，不复述整份规则</draft>' : '';
+  const plan = isPureAI ? '\n<plan>可选；仅在有具体跨轮计划时填写，否则省略或写None</plan>' : '';
+  if (kind === 'plain') {
+    return '\n\n【本轮输出契约·直接回答】本轮不是桌上发言或游戏行动。按当前问题直接回答，不使用<draft>/<game>/<action>/<interrupt>/<plan>标签，也不虚构投票或技能目标。';
+  }
+  if (kind === 'operation') {
+    return '\n\n【本轮输出契约·纯操作】本轮核心是向主持人提交选择，不是公开讨论。按当前任务给出的格式填写<action>；不要因为全局模板出现<game>就额外发表演说或提问。只有当前任务明确要求“宣布/遗言/公开发言”时才填写<game>，否则留空。' + draft + plan;
+  }
+  return '\n\n【本轮输出契约·发言】本轮必须把真正说出口的话放在非空<game>中。<action>不是通用必填项：只有当前任务明确提供投票、技能或目标格式时才填写；普通竞选陈词、白天发言、PK自救或密谈不得为了凑格式虚构目标，省略<action>或写None都可以。' + draft + plan;
+}
+
+function promptEscapeRegExp(value) {
+  return String(value == null ? '' : value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function inspectPromptContradictions(systemPrompt, player, taskContext) {
+  const text = String(systemPrompt || '');
+  const issues = [];
+  const presentIds = new Set((S.players || []).map(x => x && x.role && x.role.id).filter(Boolean));
+  if (presentIds.has('seer') && /本局虽然没有["“]预言家["”]这张牌|本局没有警徽流/.test(text)) {
+    issues.push('配置含预言家，却注入了“没有预言家/没有警徽流”');
+  }
+  if (player && player.role && new RegExp('本局没有：[^。\\n]*' + promptEscapeRegExp(player.role.name)).test(text)) {
+    issues.push('当前玩家身份被列入本局缺席角色');
+  }
+  const contract = buildPhaseOutputContract(taskContext, !!S.pureAI);
+  if (promptTaskKind(taskContext) === 'operation' && /必须把真正说出口的话放在非空<game>/.test(contract)) issues.push('纯操作阶段误要求公开发言');
+  if (promptTaskKind(taskContext) === 'speech' && /action字段必须填完整玩家名/.test(contract)) issues.push('普通发言阶段误要求行动目标');
+  return issues;
+}
+
+function buildSystemPrompt(p, taskContext) {
   const hdeath = $('m-hdeath').checked;
   const trialOn = $('m-trial').checked;
   const isHardcore = $('m-hardcore') && $('m-hardcore').checked;
@@ -10631,17 +10689,14 @@ ${userPersona}
   //   这里只否定"名字"，能力有无一律以上面的能力索引为准（避免"没有预言家=没有查验"的错误暗示）。
   const _absentClassics = ['seer','witch','guard','hunter','knight']
     .filter(id => !_presentRoleIds.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name);
-  const absentRoleRule = _absentClassics.length
-    ? '\n⛔【这些"角色名"本局不存在，一次都不许提】本局没有：' + _absentClassics.join('、') + '。不得自称、不得悍跳、不得声称与谁对跳这些身份，也不得在推理里等他们跳出来。'
-      + (_capInspect.length ? '⚠️注意区分：本局虽然没有"预言家"这张牌，但能力索引里【有能验阵营的角色】，查验类信息由他们产生——请用他们的真实角色名来称呼和推理，别套预言家模板（本局没有警徽流、也不存在"对跳预言家"）。' : '')
-      + '⚠️上文任何通用战术若以这些角色举例（如"悍跳预言家""守卫挡刀""女巫救人""等预言家发查验"），本局一律【不适用】，直接忽略那些例子。'
-    : '';
+  const absentRoleRule = buildAbsentClassicRoleRule(_presentRoleIds, _capInspect, _absentClassics);
   const strictRoleRule = '\n\n【⚠️ 严重警告·绝对禁止脑补】本局游戏**仅存在**以下职业：[' + activeRolesList + ']。除此之外没有任何其他神职！\n绝对禁止在你的推理、伪装、或内心草稿中提及、暗示、或寻找任何不存在的职业。如果本局没有预言家，你就绝不可自称预言家或寻找预言家。如果本局没有女巫，就绝不可提解药毒药。绝对不要套用你记忆里的标准狼人杀板子！' + capabilityIndex + absentRoleRule;
 
   const isPureAI = S.pureAI;
-  let modelAdapt = isPureAI
-    ? '\n\n【⚠️ 你不是助手，你就是「' + p.name + '」本人，正坐在狼人杀桌上发言】\n禁止"让我写""以下是""我来帮你"等助手口吻。' + strictRoleRule + '\n\n【⚠️ 标签独立 — 不要嵌套不要交叉】\n· <draft>/<game>/<action>/<interrupt> 是四个独立字段，每个用闭合的尖括号标签包裹\n· 绝对不要把 <interrupt>no</interrupt> 这样的标签写进 <game> 里——会导致系统识别失败\n· 错误示例：<game><interrupt>no</interrupt> 我提议刀X</game>\n· 正确示例：<game>我提议刀X，理由是...</game><action>X的完整名字</action><interrupt>no</interrupt>\n\n【⚠️ action 字段必须填完整玩家名】\n· action 用于系统识别你的目标，**必须**写【本局配置】或【可刀目标】里完整的玩家名\n· 不要写简称（"灰原" → 应该写 "灰原哀"）、不要写 None（除非真的不行动）\n· 如果 action 提取失败，系统会随机给你选一个目标，那将是你最不想看到的结果\n\n【输出格式·必须严格遵守】\n<draft>\n<!-- 📄 建模演练：这里是你说话前的内心草稿，只有你自己看得到。\n     不用写成报告，不用完整，不用正确——就是你此刻脑子里在转的东西。\n     可以改主意，可以矛盾，可以只是一种感觉或直觉。\n     想到什么写什么，写着写着自然会知道该说什么。 -->\n</draft>\n<game>把草稿中的核心判断完整说给全场听。公开讨论时不能只给一句结论：至少说清立场、具体依据和投票或下一步倾向；被点名、被质疑或身份对跳时逐项回应。必须是实质内容，不能为空。</game>\n⚠️【thinking模型特别注意】你在<draft>/思考里分析完之后，【必须】把结论用<game>标签当众说出来——思考是给你自己看的，<game>才是别人听得到的。绝对不要\"想完就交卷\"、只输出思考而把<game>留空或省略，那样你这一轮等于一句话没说、白白沉默出局。无论你前面想了多少，最后【一定】要有一段非空的<game>发言。\n<action>行动目标（名字或None）</action>\n<plan>【给未来的自己留一句作战计划，下一手你会看到它】规则：要么留空写 None，要么就写【具体】——盯着谁、准备第几天做什么、为什么（例："深水到D3，盯P5疑似真预言家，等狼队消耗掉守卫再悍跳女巫"）。禁止"继续观察/再看看/保持潜伏"这种正确的废话，那种不如不写。局势没变就沿用上次计划保持连贯，变了就更新。</plan>'
-    : '\n\n【⚠️ 你不是助手，你就是「' + p.name + '」本人，正坐在狼人杀桌上发言】\n禁止"让我写""以下是""我来帮你"等助手口吻。' + strictRoleRule + '\n\n【⚠️ action 字段必须填完整玩家名（不要简称、不要 None 除非真的不行动）】\n\n【输出格式·必须严格遵守】\n<game>你当众说出口的话，必须有实质内容，不能为空</game>\n<action>行动目标（名字或None）</action>';
+  let modelAdapt = '\n\n【角色代入】你不是助手，你就是「' + p.name + '」本人。禁止“以下是”“我来帮你”等助手口吻。'
+    + strictRoleRule
+    + '\n\n【标签边界】<draft>/<game>/<action>/<interrupt>/<plan>彼此独立，不得嵌套。目标姓名只有在当前任务明确要求<action>时才按候选名单完整填写。'
+    + buildPhaseOutputContract(taskContext, isPureAI);
 
   modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。说清本轮想推动什么，并给出至少一个具体依据；被质疑时优先处理最强且会改变票型的一点。没有成立的新狼点时可以提问、保护、协调或保留意见，不要为了完成格式凭空攻击。投票、技能确认和夜间私密选择只提交系统要求的动作。';
   modelAdapt += hdeath
@@ -10728,8 +10783,8 @@ ${userPersona}
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
 // 角色简介已向所有 AI 说明完整技能，这里再消除全局提示中的直接矛盾。
 const _buildSystemPromptBeforeMechBuff = buildSystemPrompt;
-buildSystemPrompt = function(p) {
-  const out = _buildSystemPromptBeforeMechBuff(p);
+buildSystemPrompt = function(p, taskContext) {
+  const out = _buildSystemPromptBeforeMechBuff(p, taskContext);
   const hasMech = S.players && S.players.some(x => x.role && x.role.id === 'mechwolf');
   const hasGoodReadingThird = S.players && S.players.some(x => x.role && (x.role.id === 'jester' || x.role.id === 'serialkiller'));
   const exceptions = [];
@@ -11093,7 +11148,21 @@ async function callAI(p, prompt, opts) {
   if (!api.key) return {thinking:'', game:'(未配置API)', action:''};
   // ★ opts.systemPromptOverride：给"谁是卧底"等复用 callAI 的其他游戏用——它们有
   //   自己的 system prompt，不能走狼人杀的 buildSystemPrompt。狼人杀不传此参数，行为不变。
-  const sys = (opts && opts.systemPromptOverride) || buildSystemPrompt(p);
+  const promptTaskContext = {prompt, opts};
+  const sys = (opts && opts.systemPromptOverride) || buildSystemPrompt(p, promptTaskContext);
+  // 提示词是由世界书、角色说明和多层包装动态拼出来的；在真正请求模型前做一次
+  // 轻量体检，把“配置里有预言家却说没有”等组合型矛盾直接暴露在开发日志里。
+  if (!opts.systemPromptOverride) {
+    const promptIssues = inspectPromptContradictions(sys, p, promptTaskContext);
+    if (promptIssues.length) {
+      inspectPromptContradictions._seen = inspectPromptContradictions._seen || new Set();
+      const issueKey = `${p.role && p.role.id}|${promptTaskKind(promptTaskContext)}|${promptIssues.join('|')}`;
+      if (!inspectPromptContradictions._seen.has(issueKey)) {
+        inspectPromptContradictions._seen.add(issueKey);
+        Render.devLog('warn', `[Prompt体检] ${p.name}：${promptIssues.join('；')}`);
+      }
+    }
+  }
   const globalMemLimit = parseInt($('g-mem').value) || 0;
   // ★ 单独玩家memLimit优先于全局设置，留空=用全局，0=无限
   const pcMemLimit = (playerConfigs[p.id] || {}).memLimit;
@@ -23788,7 +23857,15 @@ function openChatSummary() {
   html += '</div>';
   html += '<div style="font-size:0.68em;color:#5a5070;margin-bottom:12px">可多选，点击高亮表示选中</div>';
 
-  // 3. 隐藏死亡身份选项
+  // 3. 摘要样式：默认给玩家/网页端 AI 一份清爽记录；审计模式保留完整权限与结算注释。
+  html += '<div style="font-size:0.75em;color:#8880a8;margin-bottom:6px">③ 摘要样式</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">';
+  html += '<label style="padding:7px 9px;border:1px solid rgba(104,184,232,.32);border-radius:7px;background:rgba(104,184,232,.08);font-size:.76em;cursor:pointer"><input type="radio" name="_summary-mode" value="clean" checked style="width:auto;min-width:auto"> 清爽摘要</label>';
+  html += '<label style="padding:7px 9px;border:1px solid rgba(200,180,140,.2);border-radius:7px;background:rgba(255,255,255,.025);font-size:.76em;cursor:pointer"><input type="radio" name="_summary-mode" value="audit" style="width:auto;min-width:auto"> 审计摘要</label>';
+  html += '</div>';
+  html += '<div style="font-size:0.68em;color:#5a5070;margin-bottom:12px">清爽摘要适合阅读和交给 AI；审计摘要保留完整信息权限、身份验证和技术结算说明。</div>';
+
+  // 4. 隐藏死亡身份选项
   const forceHideDeathRole = !!($('m-hdeath') && $('m-hdeath').checked);
   html += '<div style="margin-bottom:14px">';
   html += '<label style="display:flex;align-items:center;gap:6px;font-size:0.78em;color:#a090b8;cursor:pointer"><input type="checkbox" id="_hide-death-role" style="width:auto;min-width:auto" '+(forceHideDeathRole?'checked disabled':'')+'> '+(forceHideDeathRole?'本局开启隐死亡：玩家视角已强制隐藏死者身份':'额外隐藏已出局玩家的身份（喂给AI用）')+'</label>';
@@ -23831,13 +23908,21 @@ function openChatSummary() {
 
   // 视角按钮
   const list = box.querySelector('#_pov-list');
+  const selectedSummaryMode = () => {
+    const picked = box.querySelector('input[name="_summary-mode"]:checked');
+    return picked ? picked.value : 'clean';
+  };
+  const selectedSummaryOpts = extra => Object.assign({
+    hideDeathRole: box.querySelector('#_hide-death-role').checked,
+    detailMode: selectedSummaryMode()
+  }, extra || {});
   // 上帝视角选项
   const godBtn = document.createElement('button');
   godBtn.style.cssText = 'padding:7px 12px;background:rgba(232,200,72,0.08);border:1px solid rgba(232,200,72,0.25);border-radius:6px;color:#e8c848;cursor:pointer;text-align:left;font-size:0.82em;font-family:var(--font-body)';
   godBtn.textContent = blindReviewOn()
     ? '🔒 终局盲复盘（公开战报·隐藏真实身份）'
     : '👁 上帝视角（全公开，含狼队密谈）';
-  godBtn.onclick = () => { const h = box.querySelector('#_hide-death-role').checked; document.body.removeChild(overlay); _buildChatSummary(null, selectAll ? null : [...selectedRounds].map(i => rounds[i]), {hideDeathRole:h, blindReview:blindReviewOn()}); };
+  godBtn.onclick = () => { const exportOpts = selectedSummaryOpts({blindReview:blindReviewOn()}); document.body.removeChild(overlay); _buildChatSummary(null, selectAll ? null : [...selectedRounds].map(i => rounds[i]), exportOpts); };
   list.appendChild(godBtn);
 
   S.players.forEach(p => {
@@ -23850,13 +23935,13 @@ function openChatSummary() {
     btn.style.cssText = 'flex:1;display:flex;align-items:center;gap:9px;padding:7px 12px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);border-radius:6px;color:#d8d0e8;cursor:pointer;text-align:left;font-size:0.82em;font-family:var(--font-body);min-width:0';
     const roleSigil = p.role && window.RoleSigils ? window.RoleSigils.render(p.role.id, 'pov-role-sigil') : '';
     btn.innerHTML = roleSigil + '<span class="pov-role-copy">' + escapeHtml(publicPlayerLabel(p) + '　' + roleLabel + (p.alive ? '' : '　（已出局）')) + '</span>';
-    btn.onclick = () => { const h = box.querySelector('#_hide-death-role').checked; document.body.removeChild(overlay); _buildChatSummary(p, selectAll ? null : [...selectedRounds].map(i => rounds[i]), {hideDeathRole:h}); };
+    btn.onclick = () => { const exportOpts = selectedSummaryOpts(); document.body.removeChild(overlay); _buildChatSummary(p, selectAll ? null : [...selectedRounds].map(i => rounds[i]), exportOpts); };
 
     const claudeBtn = document.createElement('button');
     claudeBtn.style.cssText = 'padding:5px 9px;background:rgba(104,184,232,0.12);border:1px solid rgba(104,184,232,0.3);border-radius:6px;color:#68b8e8;cursor:pointer;font-size:0.75em;white-space:nowrap';
     claudeBtn.textContent = 'AI Claude';
     claudeBtn.title = '导出完整系统设定与摘要，交网页端 AI 代写发言';
-    claudeBtn.onclick = () => { const h = box.querySelector('#_hide-death-role').checked; document.body.removeChild(overlay); _buildChatSummary(p, selectAll ? null : [...selectedRounds].map(i => rounds[i]), {hideDeathRole:h, feedClaude:true}); };
+    claudeBtn.onclick = () => { const exportOpts = selectedSummaryOpts({feedClaude:true}); document.body.removeChild(overlay); _buildChatSummary(p, selectAll ? null : [...selectedRounds].map(i => rounds[i]), exportOpts); };
 
     row.appendChild(btn);
     row.appendChild(claudeBtn);
@@ -24528,10 +24613,78 @@ function _isOwnNightAction(r, viewerP) {
   return !!(r && viewerP && r.name && r.name === viewerP.name && /^(skill-muted$|custom-|granted-|gift-|fox$|fool$|merchant$|youshang$|wolfconcubine$|soulwarden$|imitator)/.test(r.role || ''));
 }
 
+// 聊天摘要只在展示层区分“清爽/审计”，底层 gameRecord 与信息权限完全不变。
+// 这里按结构化事件生成短句，避免用全局字符清洗误删玩家输入或角色名称。
+function _chatSummaryPrivateLine(line, auditMode) {
+  if (auditMode) return String(line || '');
+  return String(line || '').replace(/^(?:🐺|🌹|🔮|🧪|🛡️|🏹|🔫|🎩|💘|🔪|🤖|🦊|⚔️|👑)\s*/u, '');
+}
+
+function _formatCleanChatSummaryEvent(r) {
+  if (!r) return '事件记录不完整';
+  if (r.type === 'duel') {
+    if (r.result === 'wolf') return `决斗：${r.knight}指向${r.target}；${r.target}公开验证为狼人并死亡。`;
+    if (r.result === 'good') return `决斗：${r.knight}指向${r.target}；${r.knight}牺牲，${r.target}公开验证为好人。`;
+    if (r.result === 'mechwolf') return `机械决斗：${r.knight}公开为机械狼并处死${r.target}；本次不验证${r.target}阵营。`;
+    return `决斗：${r.knight}指向${r.target}；结果记录不完整。`;
+  }
+  if (r.type === 'shoot') {
+    return r.target ? `开枪：${r.hunter}死亡后带走${r.target}。` : `开枪：${r.hunter}死亡后${r.technical ? '因技术解析失败未能开枪' : '选择不开枪'}。`;
+  }
+  if (r.type === 'whitewolf_explode') return `白狼王自爆：${r.exploder}自爆并带走${r.target}。`;
+  if (r.type === 'bite') return `狼王咬人：${r.wolfking}死亡后带走${r.target}。`;
+  if (r.type === 'sheriff_transfer') return r.to ? `警徽：${r.from}死亡时将警徽交给${r.to}。` : `警徽：${r.from}死亡时销毁警徽。`;
+  if (r.type === 'foolImmune') return `${r.name}公开为${r.roleName || r.role || '愚者'}，触发首放逐免疫，本次不死。`;
+  if (r.type === 'reprieve') {
+    const when = r.phase === 'night' ? '下一个夜晚结算' : '下一个白天投票阶段';
+    return `${r.name}公开为${r.role || '白猫'}，触发缓死，本次不死，将在${when}死亡。`;
+  }
+  if (r.type === 'skillConsumed') return `${r.name}的${r.roleName || '保命'}技能已触发并消耗。`;
+  if (r.type === 'trial') {
+    const result = r.result === 'target_executed' || r.result === 'guilty'
+      ? `${r.target}被处决`
+      : (r.result === 'reporter_rebounded' || r.result === 'innocent' ? `${r.reporter}反坐身亡` : '平票，无人出局');
+    const reason = String(r.reason || '').replace(/\s+/g, ' ').trim();
+    const votes = [
+      r.guiltyVoters && r.guiltyVoters.length ? `有罪票：${r.guiltyVoters.join('、')}` : '',
+      r.innocentVoters && r.innocentVoters.length ? `无罪票：${r.innocentVoters.join('、')}` : ''
+    ].filter(Boolean).join('；');
+    return `审判：${r.reporter}质疑${r.target}${reason ? `（${reason}）` : ''}${votes ? `；${votes}` : ''}；结果：${result}。`;
+  }
+  if (r.type === 'vote') {
+    const entries = Object.entries(r.votes || {});
+    const voteText = entries.length
+      ? entries.map(([target, voters]) => `${(Array.isArray(voters) ? voters : [voters]).join('、')}→${target}`).join('；')
+      : '无有效票';
+    const abstain = r.abstains && r.abstains.length ? `；弃票：${r.abstains.join('、')}` : '';
+    const technical = r.technicalAbstains && r.technicalAbstains.length ? `；技术故障：${r.technicalAbstains.join('、')}` : '';
+    const labels = {sheriff:'警长首轮投票', sheriff_runoff:'警长PK再投票', day_runoff:'放逐PK再投票', day:'放逐投票'};
+    let result = r.result || '无';
+    if ((r.subtype === 'sheriff' || r.subtype === 'sheriff_runoff') && !/平票|无/.test(result)) result += '当选警长';
+    else if ((r.subtype === 'day' || r.subtype === 'day_runoff') && !/平票|无/.test(result)) result += '被放逐';
+    return `${labels[r.subtype] || '投票'}：${voteText}${abstain}${technical}；结果：${result}。`;
+  }
+  return '';
+}
+
+function _formatChatSummaryEvent(r, auditMode) {
+  if (!auditMode) return _formatCleanChatSummaryEvent(r);
+  if (r.type === 'duel') return _formatPublicDuelEvent(r);
+  if (r.type === 'shoot') return _formatPublicShootEvent(r);
+  if (r.type === 'whitewolf_explode') return _formatPublicWhitewolfExplodeEvent(r);
+  if (r.type === 'bite') return _formatPublicBiteEvent(r);
+  if (r.type === 'sheriff_transfer') return _formatPublicSheriffTransfer(r);
+  if (r.type === 'foolImmune' || r.type === 'reprieve' || r.type === 'skillConsumed') return _formatPublicRevealEvent(r);
+  if (r.type === 'trial') return _formatPublicTrialEvent(r);
+  if (r.type === 'vote') return _formatPublicVoteEvent(r);
+  return '';
+}
+
 function _buildChatSummary(viewerP, roundFilter, opts) {
   // viewerP=null 表示上帝视角；roundFilter=null 表示全部轮次，否则是 [{round,phase,label}] 数组
   // opts.hideDeathRole=true 隐藏已出局玩家身份；opts.feedClaude=true 在前面加完整系统prompt
   opts = opts || {};
+  const auditMode = opts.detailMode === 'audit';
   // ★ v8: 诊断日志——确认导出范围是否生效
   if (roundFilter && roundFilter.length) {
     Render.devLog('info', `📋 导出范围生效:${roundFilter.length}个轮次 [${roundFilter.map(r=>r.label).join('、')}]`);
@@ -24549,7 +24702,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   const hiddenDeathMode = (() => { try { return !!($('m-hdeath') && $('m-hdeath').checked); } catch(e) { return false; } })();
 
   const titleName = blindReview ? '终局盲复盘' : (isGod ? '上帝视角' : (blindNamesOn() ? playerCode(viewerP) : (viewerP.name + '（P' + (viewerP.id+1) + '）')));
-  $("ebox-title").innerText = "── 聊天摘要·" + titleName + " ──";
+  $("ebox-title").innerText = "── " + (auditMode ? '审计摘要' : '清爽摘要') + "·" + titleName + " ──";
   $("e-th-label").style.display = "none";
   $("btn-copye").style.display = "";
   $("btn-dle").style.display = "";
@@ -24568,7 +24721,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   // 上帝视角本身已含“视角”二字，避免旧版导出出现“上帝视角视角”。
   let txt = blindReview ? '【狼人杀·终局盲复盘】\n' : (isGod ? '【狼人杀·上帝视角】\n' : '【狼人杀·' + titleName + '视角】\n');
   if (!isGod) {
-    txt += '你的身份：' + role.emoji + role.name + '\n';
+    txt += '你的身份：' + (auditMode ? (role.emoji || '') : '') + role.name + '\n';
   } else if (blindReview) {
     txt += '（公开战报盲推版：系统真实身份、阵营人数、狼队密谈、私密夜间行动与终局泄底感言均已隐藏；玩家在对局中的身份声明只是其本人说法，不等于真实身份。）\n';
   } else {
@@ -24583,8 +24736,8 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       // ★ 隐死亡开启时，玩家视角强制隐藏死者身份，不能依赖一个容易漏勾的导出复选框。
       (!p.alive && p.revealed && !opts.hideDeathRole && !hiddenDeathMode));
     const roleStr = blindReview ? '' : (canSeeRole
-      ? '【' + (p.role ? p.role.emoji + p.role.name : '?') + '】'
-      : (publicRole ? '【公开身份·' + publicRole + '】' : (publicAlignment ? '【公开验证·' + publicAlignment + '】' : '')));
+      ? (auditMode ? '【' + (p.role ? (p.role.emoji || '') + p.role.name : '?') + '】' : '（' + (p.role ? p.role.name : '?') + '）')
+      : (publicRole ? (auditMode ? '【公开身份·' + publicRole + '】' : '（公开：' + publicRole + '）') : (publicAlignment ? (auditMode ? '【公开验证·' + publicAlignment + '】' : '（公开验证：' + publicAlignment + '）') : '')));
     return 'P' + (p.id+1) + ' ' + p.name + roleStr + (p.alive ? '' : '（已出局）');
   }).join('、') + '\n';
   if (roundFilter && roundFilter.length) {
@@ -24598,8 +24751,8 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   if (!isGod && viewerP) {
     const privLines = _buildPrivateInfoLines(viewerP);
     if (privLines.length) {
-      txt += '\n━━━━ 你的私密信息（含完整行动历史）━━━━\n';
-      txt += privLines.map(l => '• ' + l).join('\n') + '\n';
+      txt += auditMode ? '\n━━━━ 你的私密信息（含完整行动历史）━━━━\n' : '\n【你的私密记录】\n';
+      txt += privLines.map(l => '• ' + _chatSummaryPrivateLine(l, auditMode)).join('\n') + '\n';
     }
   }
 
@@ -24615,7 +24768,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   const thisRoundDeaths = deadPlayers.filter(p => p.deathRound === S.round);
   const isPeacefulNight = S.phase !== 'night' && S.phase !== 'waiting' && S.round > 1 && thisRoundDeaths.length === 0;
 
-  txt += '\n【📊 当前游戏状态】\n';
+  txt += auditMode ? '\n【📊 当前游戏状态】\n' : '\n【当前状态】\n';
   txt += '当前回合：第' + S.round + '回合　阶段：' + phaseStr + '\n';
   // ★ 视角隔离：阵营人数(好人X / 狼人Y)只允许【上帝视角】显示。
   //   玩家独立视角（包括狼人、狼美人、白狼王、机械狼）都不直接给出"好人/狼人存活数量"，
@@ -24626,7 +24779,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
   } else {
     txt += '存活：' + alivePlayers.length + '人\n';
   }
-  if (isPeacefulNight) txt += '⭐ 本回合为平安夜（昨晚无人死亡）\n';
+  if (isPeacefulNight) txt += auditMode ? '⭐ 本回合为平安夜（昨晚无人死亡）\n' : '本回合为平安夜。\n';
   if (deadPlayers.length > 0) {
     // ★ 视角隔离：普通玩家只看到公开死因；狼刀、毒药、独立袭击与摄梦夜间结算统一显示为「夜晚出局」。
     // 狼美人魅惑连带、猎人开枪、狼王咬人等公开技能死因仍明确显示。
@@ -24649,10 +24802,12 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
     }
   }
   if (S.sheriff >= 0 && S.players[S.sheriff]) {
-    txt += '👑 警长：' + S.players[S.sheriff].name + '\n';
+    txt += (auditMode ? '👑 ' : '') + '警长：' + S.players[S.sheriff].name + '\n';
   }
-  txt += _publicEventReadingNote() + '\n';
-  txt += '═'.repeat(40) + '\n\n';
+  txt += auditMode
+    ? _publicEventReadingNote() + '\n'
+    : '阅读说明：同回合同名的技能结算与死亡记录属于同一次出局；只有公开验证和本人私密记录能证明身份。\n';
+  txt += (auditMode ? '═'.repeat(40) : '—'.repeat(24)) + '\n\n';
 
   // 按轮次过滤 gameRecord
   // ★ v8修复:严格按选中轮次过滤,不漏不多
@@ -24693,18 +24848,18 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       // 📋 复盘：白天标题下列发言顺序。有权威记录(speak_order)则以其为准，这里只作老存档回退
       const _dm = r.text.match(/^第(\d+)天/);
       if (_dm && !_hasSpeakOrder[+_dm[1]] && _dayOrder[+_dm[1]] && _dayOrder[+_dm[1]].length) {
-        txt += '📋 发言顺序（据发言推导）：' + _dayOrder[+_dm[1]].map((n,i)=>(i+1)+'.'+n).join(' → ') + '\n';
+        txt += (auditMode ? '📋 发言顺序（据发言推导）：' : '发言顺序：') + _dayOrder[+_dm[1]].map((n,i)=>(i+1)+'.'+n).join(' → ') + '\n';
       }
 
     } else if (r.type === 'speak_order') {
       // 📋 复盘：权威发言顺序（含警长定下的起点与方向）
-      txt += (r.title ? r.title + '\n' : '') + '   发言顺序：' + (r.names||[]).map((n,i)=>(i+1)+'.'+n).join(' → ') + '\n';
+      txt += (r.title ? r.title + '\n' : '') + (auditMode ? '   发言顺序：' : '发言顺序：') + (r.names||[]).map((n,i)=>(i+1)+'.'+n).join(' → ') + '\n';
 
     } else if (r.type === 'speech') {
       // 正式胜负感言统一放到末尾“终局感言”区块；赛后互动不混入对局时间线。
       if (r.phase === 'end') return;
       if (r.wolfChat) {
-        if (isWolf) txt += '🐺[密谈] ' + r.name + '：' + r.game + '\n';
+        if (isWolf) txt += (auditMode ? '🐺[密谈] ' : '[狼队密谈] ') + r.name + '：' + r.game + '\n';
       } else {
         txt += r.name + '（P' + (S.players.findIndex(p=>p.name===r.name)+1) + '）：' + r.game + '\n';
       }
@@ -24716,21 +24871,23 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         : _formatPlayerVisibleDeathCause(r);
       // 仅保留投票数字后缀；其它技能后缀已由统一语义描述完整表达，避免重复或互相矛盾。
       const voteSuffix = r.cause === 'vote' && r.suffix ? r.suffix : '';
-      txt += '\n💀 ' + r.name + ' 出局 — ' + detail + voteSuffix + '\n';
+      txt += auditMode
+        ? '\n💀 ' + r.name + ' 出局 — ' + detail + voteSuffix + '\n'
+        : '\n死亡：' + r.name + '（' + detail + voteSuffix + '）\n';
 
     } else if (r.type === 'foolImmune' || r.type === 'reprieve' || (r.type === 'skillConsumed' && isGod)) {
-      txt += '\n' + _formatPublicRevealEvent(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
 
     } else if (r.type === 'lover_death') {
       txt += `\n💘 恋人连带：${r.trigger}死亡，${r.lover}随之殉情（只公开恋人关系，不验证原身份/阵营）\n`;
 
     } else if (r.type === 'vote') {
       if (r.subtype === 'day' || r.subtype === 'day_runoff' || r.subtype === 'sheriff' || r.subtype === 'sheriff_runoff') {
-        txt += '\n' + _formatPublicVoteEvent(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
       }
 
     } else if (r.type === 'sheriff_transfer') {
-      txt += '\n' + _formatPublicSheriffTransfer(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
 
     } else if (r.type === 'sheriff_roster') {
       txt += '\n' + (r.text || '警长候选名单已更新') + '\n';
@@ -24739,33 +24896,33 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       const isMechOwn = roleId === 'mechwolf' && /^mechwolf/.test(r.role);
       const appendNightAction = () => {
         if (r.technical) {
-          txt += '\n⚠️ '+r.role+'：行动指令技术解析失败，未执行；这不是主动空过。\n';
+          txt += '\n' + (auditMode ? '⚠️ ' : '') + r.role+'：行动指令技术解析失败，未执行；这不是主动空过。\n';
           return;
         }
         if (r.role === 'wolf' || r.role === 'wolfbeauty') {
-          txt += r.role === 'wolf' ? '\n🐺 狼队刀：' + r.target + '\n' : '\n🌹 魅惑：' + (r.target||'无') + '\n';
-        } else if (r.role === 'seer') txt += '\n🔮 查验：' + r.target + ' → ' + (r.result==='rebounded'?'被反弹，原目标未验证':r.result==='wolf'?'🐺狼人':'✅好人') + '\n';
+          txt += r.role === 'wolf' ? '\n' + (auditMode ? '🐺 ' : '') + '狼队刀：' + r.target + '\n' : '\n' + (auditMode ? '🌹 ' : '') + '魅惑：' + (r.target||'无') + '\n';
+        } else if (r.role === 'seer') txt += '\n' + (auditMode ? '🔮 ' : '') + '查验：' + r.target + ' → ' + (r.result==='rebounded'?'被反弹，原目标未验证':r.result==='wolf'?(auditMode?'🐺狼人':'狼人'):(auditMode?'✅好人':'好人')) + '\n';
         // ★ 守护反弹保持静默；查验、毒药、媚惑与摄梦的施术者会收到明确的反弹结果。
         //   个人视角必须按角色实际收到的反馈展示，不能把被反弹的原目标伪装成已成功命中。
-        else if (r.role === 'witch') txt += '\n🧪 女巫：救=' + (r.saved||'无') + ' 毒=' + (r.poisoned||'无')
+        else if (r.role === 'witch') txt += '\n' + (auditMode ? '🧪 ' : '') + '女巫：救=' + (r.saved||'无') + ' 毒=' + (r.poisoned||'无')
           + ((r.reflected && ((isGod && !blindReview) || roleId === 'witch'))
               ? '（毒被蚀时狼妃反弹 → 实际中毒的是女巫本人' + (r.actualPoisoned ? ' ' + r.actualPoisoned : '') + '；原目标未中毒）' : '') + '\n';
-        else if (r.role === 'guard') txt += '\n🛡️ 守卫：守护=' + (r.target||'无')
+        else if (r.role === 'guard') txt += '\n' + (auditMode ? '🛡️ ' : '') + '守卫：守护=' + (r.target||'无')
           + ((isGod && !blindReview && r.reflected)
               ? (r.actualTarget
                   ? '（被蚀时狼妃反弹 → 实际守到守卫本人 ' + r.actualTarget + '；原目标未被守护）'
                   : '（被蚀时狼妃反弹后撞上"不能连守"限制 → 本夜守护判定无效，无人被守）') : '') + '\n';
-        else if (r.role === 'hunter') txt += '\n🔫 猎人：开枪=' + (r.target||'未开枪') + '\n';
-        else if (r.role === 'magician') txt += '\n🎩 魔术师：' + (r.target ? '交换=' + r.target : '空过（未交换）') + '（换号只重定向当夜狼刀，不交换身份或其它技能目标）\n';
-        else if (r.role === 'cupid') txt += '\n💘 丘比特：恋人=' + (r.target||'未记录') + '\n';
-        else if (r.role === 'serialkiller') txt += '\n🔪 连环杀手：' + (r.target ? '袭击=' + r.target : '空刀') + '\n';
-        else if (r.role === 'mechwolf') txt += '\n🤖 机械狼学习：' + (r.target ? mechLearnSummaryText() : '今晚未学习') + '\n';
-        else if (r.role === 'mechwolf_seer') txt += '\n🤖🔮 机械狼精准查验：' + r.target + ' → ' + (r.result==='rebounded'?'被反弹，原目标未验证':'【'+(r.roleName || (r.result==='wolf'?'狼人':'好人'))+'】') + '\n';
-        else if (r.role === 'mechwolf_guard') txt += '\n🤖🛡️ 机械狼守护=' + (r.target||'空守') + '\n';
-        else if (r.role === 'mechwolf_poison') txt += '\n🤖☠️ 机械狼毒=' + (r.target||'未毒') + '\n';
-        else if (r.role === 'mechwolf_magician') txt += '\n🤖🎩 机械狼魔术情报=' + (r.target||'魔术师空过') + '\n';
-        else if (r.role === 'mechwolf_fox') txt += '\n🤖🦊 机械媚惑=' + (r.chosenTarget||r.target||'无') + (r.result==='rebounded'?'（被反弹到自己；唯一验证对象是自己，原目标完全未验证）':r.result==='blockKill'?'（狼→禁刀）':'（好人→封技）') + '\n';
-        else if (r.role === 'mechwolf_kill') txt += '\n🤖🔪 ' + (r.target ? '机械狼刀='+r.target : '机械狼选择空刀') + '\n';
+        else if (r.role === 'hunter') txt += '\n' + (auditMode ? '🔫 ' : '') + '猎人：开枪=' + (r.target||'未开枪') + '\n';
+        else if (r.role === 'magician') txt += '\n' + (auditMode ? '🎩 ' : '') + '魔术师：' + (r.target ? '交换=' + r.target : '空过（未交换）') + (auditMode ? '（换号只重定向当夜狼刀，不交换身份或其它技能目标）' : '') + '\n';
+        else if (r.role === 'cupid') txt += '\n' + (auditMode ? '💘 ' : '') + '丘比特：恋人=' + (r.target||'未记录') + '\n';
+        else if (r.role === 'serialkiller') txt += '\n' + (auditMode ? '🔪 ' : '') + '连环杀手：' + (r.target ? '袭击=' + r.target : '空刀') + '\n';
+        else if (r.role === 'mechwolf') txt += '\n' + (auditMode ? '🤖 ' : '') + '机械狼学习：' + (r.target ? mechLearnSummaryText() : '今晚未学习') + '\n';
+        else if (r.role === 'mechwolf_seer') txt += '\n' + (auditMode ? '🤖🔮 ' : '') + '机械狼精准查验：' + r.target + ' → ' + (r.result==='rebounded'?'被反弹，原目标未验证':(auditMode?'【':'')+(r.roleName || (r.result==='wolf'?'狼人':'好人'))+(auditMode?'】':'')) + '\n';
+        else if (r.role === 'mechwolf_guard') txt += '\n' + (auditMode ? '🤖🛡️ ' : '') + '机械狼守护=' + (r.target||'空守') + '\n';
+        else if (r.role === 'mechwolf_poison') txt += '\n' + (auditMode ? '🤖☠️ ' : '') + '机械狼毒=' + (r.target||'未毒') + '\n';
+        else if (r.role === 'mechwolf_magician') txt += '\n' + (auditMode ? '🤖🎩 ' : '') + '机械狼魔术情报=' + (r.target||'魔术师空过') + '\n';
+        else if (r.role === 'mechwolf_fox') txt += '\n' + (auditMode ? '🤖🦊 ' : '') + '机械媚惑=' + (r.chosenTarget||r.target||'无') + (r.result==='rebounded'?'（被反弹到自己；唯一验证对象是自己，原目标完全未验证）':r.result==='blockKill'?'（狼→禁刀）':'（好人→封技）') + '\n';
+        else if (r.role === 'mechwolf_kill') txt += '\n' + (auditMode ? '🤖🔪 ' : '') + (r.target ? '机械狼刀='+r.target : '机械狼选择空刀') + '\n';
         else { const _cl = _formatCustomNightAction(r); if (_cl) txt += '\n' + _cl + '\n'; }
       };
       if (isGod && !blindReview) {
@@ -24784,7 +24941,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
             const killTxt = saveWasUsedEarlier
               ? '今晚刀口=未知（无救药） · '
               : (wolfRec && wolfRec.target && wolfRec.target !== '无' ? '今晚刀口=' + wolfRec.target + ' · ' : '');
-            txt += '\n🧪 女巫：' + killTxt + '救=' + (r.saved||'无') + ' 毒=' + (r.poisoned||'无') + '\n';
+            txt += '\n' + (auditMode ? '🧪 ' : '') + '女巫：' + killTxt + '救=' + (r.saved||'无') + ' 毒=' + (r.poisoned||'无') + '\n';
           } else {
             appendNightAction();
           }
@@ -24792,19 +24949,19 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
       }
 
     } else if (r.type === 'duel') {
-      txt += '\n' + _formatPublicDuelEvent(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
 
     } else if (r.type === 'shoot') {
-      txt += '\n' + _formatPublicShootEvent(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
 
     } else if (r.type === 'bite') {
-      txt += '\n' + _formatPublicBiteEvent(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
 
     } else if (r.type === 'whitewolf_explode') {
-      txt += '\n' + _formatPublicWhitewolfExplodeEvent(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
 
     } else if (r.type === 'trial') {
-      txt += '\n' + _formatPublicTrialEvent(r) + '\n';
+      txt += '\n' + _formatChatSummaryEvent(r, auditMode) + '\n';
     }
   });
 
@@ -25362,10 +25519,10 @@ async function sendAsk() {
   $('ask-reply').style.display = 'block';
 
   const gameOver = S.gameOver;
-  const sys = buildSystemPrompt(p);
   const askPrompt = gameOver
     ? `【赛后复盘】游戏已经结束了。现在有观众想问你问题。请以你的角色身份、用你的真实想法来回答。不需要再伪装了，可以坦诚。\n观众问：${question}\n直接回答，不需要用<thinking><game><action>格式。`
     : `【观众提问】有一位上帝视角的观众想问你问题。请以你的角色身份来回答，但注意不要改变你在游戏中的策略。这只是一次旁白对话。\n观众问：${question}\n直接回答，不需要用<thinking><game><action>格式。`;
+  const sys = buildSystemPrompt(p, {prompt:askPrompt, opts:{plainResponse:true}});
 
   try {
     const askMemLimit = parseInt($('g-mem').value) || 20;
@@ -28489,8 +28646,8 @@ openPCfg = function(i) {
 
 // ── 拦截 buildSystemPrompt，注入永久记忆 ──
 const _origBuildSysPrompt = buildSystemPrompt;
-buildSystemPrompt = function(p) {
-  let base = _origBuildSysPrompt(p);
+buildSystemPrompt = function(p, taskContext) {
+  let base = _origBuildSysPrompt(p, taskContext);
   const memText = PermanentMemory.getMemoryText(p.name, p.id);
   if (memText) base += memText;
   return base;
@@ -28499,8 +28656,8 @@ buildSystemPrompt = function(p) {
 // 永久记忆注入完成后再做最终盲名封装：公共世界书/战报/旧记忆全部P化，
 // 只在最前面给当前AI一份“仅你可见”的自身Cosplay人格锚点。
 const _origBuildSysPromptBeforeBlindNames = buildSystemPrompt;
-buildSystemPrompt = function(p) {
-  const base = blindForAI(_origBuildSysPromptBeforeBlindNames(p), p);
+buildSystemPrompt = function(p, taskContext) {
+  const base = blindForAI(_origBuildSysPromptBeforeBlindNames(p, taskContext), p);
   if (window.WolfI18n && WolfI18n.isEnglish()) {
     return '【OUTPUT LANGUAGE: ENGLISH】\nSpeak and reason entirely in natural English. Chinese names may remain unchanged, but all narration, decisions, explanations, and in-character dialogue must be English. Treat any Chinese text below as source data, not as the required response language.\n\n' + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() + '\n\n' : '') + base;
   }
