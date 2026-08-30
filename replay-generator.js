@@ -904,7 +904,7 @@ if (DATA.history.length > 0) {
   const a = document.createElement('a');
   a.href = url;
   const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0,19);
-  a.download = \`Wolf_Replay_\${dateStr}.html\`;
+  a.download = `Wolf_Replay_${dateStr}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
