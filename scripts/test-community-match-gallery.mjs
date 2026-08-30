@@ -48,5 +48,15 @@ assert.match(js,/\.from\(TABLE\)\.select\([^\n]+\)\.eq\('status','published'\)/)
 assert.match(js,/\.from\(TABLE\)\.insert\(payload\)/);
 assert.match(js,/status:'pending'/);
 assert.doesNotMatch(js,/innerHTML\s*=\s*row\./);
+assert.match(js,/cm-theater-grid/,'观战详情仍不是沉浸式剧场布局');
+assert.match(js,/cm-stage-art/,'观战详情没有事件主视觉');
+assert.match(js,/progress\.type='range'/,'观战详情缺少进度条');
+assert.match(js,/function setTheatreIndex/,'观战详情缺少逐事件导航');
+assert.match(js,/function toggleTheatre/,'观战详情缺少自动播放');
+assert.match(js,/cm-chapter/,'观战详情缺少章节导航');
+assert.match(js,/cm-transcript/,'观战详情缺少可展开完整战报');
+assert.match(js,/assets\/action-cg\//,'观战剧场没有复用行动 CG');
+assert.match(js,/icons\/roles\//,'观战剧场没有复用角色立绘');
+assert.match(js,/classList\.remove\('theater-mode'\)/,'离开观战后没有恢复普通殿堂宽度');
 
 console.log('community match gallery: sanitized snapshots, moderated RLS and public UI passed');
