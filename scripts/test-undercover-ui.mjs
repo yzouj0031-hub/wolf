@@ -42,7 +42,8 @@ expect(!css.includes('#uc-view{position:fixed;inset:0;width:100%;height:100vh;he
 expect(js.includes('apiOf(pl.id).model'), '发言记录未显示玩家模型');
 expect(css.includes('.uc-seat-avatar') && css.includes('.uc-msg-avatar'), '席位或发言区缺少头像视觉');
 expect(build.includes("'undercover-ui.js'") && build.includes("'undercover-ui.css'"), 'APK 构建未包含卧底正式界面');
-expect(sw.includes("CACHE_NAME = 'wolf-pwa-v43-mixed-controllers'"), 'PWA 缓存版本未随混合控制升级');
+const cacheVersion = Number(sw.match(/CACHE_NAME = 'wolf-pwa-v(\d+)-/)?.[1]);
+expect(Number.isInteger(cacheVersion) && cacheVersion >= 43, 'PWA 缓存版本低于混合控制所需版本');
 expect(sw.includes("'./undercover-ui.js'") && sw.includes("'./undercover-ui.css'"), 'PWA 未缓存卧底界面资源');
 
 console.log('undercover UI: premium layout, independent custom API, per-seat overrides and PWA cache passed');
