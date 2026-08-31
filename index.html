@@ -9731,7 +9731,39 @@ function parseAI(c, opts) {
   const intMatch = c.match(/<interrupt>([\s\S]*?)<\/interrupt>/i);
   if (intMatch) interrupt = intMatch[1].replace(/<\/?(?:interrupt|game|action|thinking|strategy)[^>]*>/gi,'').trim();
 
+  // ★ 退化输出止损：不稳定渠道（逆向反代/量化/掉 stop token）会让模型说完正常发言后
+  //   不刹车，喷出成千上万字的词表接龙 + 多语言乱码（家具/超算/术语/人名…）。这类崩溃
+  //   的铁特征是"连续超长、没有任何句读的碎片串"——正常中英文发言都不会这样。检测到就
+  //   截到崩溃前最后一句正常的，把一整屏乱码收敛成一句干净发言。对任何渠道都有效，因为
+  //   它在客户端执行，不依赖服务端尊重 max_tokens。thinking 也一并清（同样会崩）。
+  game = stripDegenerateTail(game);
+  thinking = stripDegenerateTail(thinking);
+
   return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak };
+}
+
+/* 退化尾巴截断：正常发言里连续 200+ 字符不出现任何句读(。！？.!?;；换行)几乎不可能，
+ * 而词表喷吐/乱码一定是这样（空格分隔的长串、无中文标点）。一旦出现这种超长无句读段，
+ * 就从它之前最后一个句读处截断，丢掉后面的崩溃内容。中英文通用，误判率极低——因为它
+ * 只对"异常长且无断句"的文本动手，正常长发言（有正常标点密度）一点都不碰。 */
+function stripDegenerateTail(text) {
+  if (typeof text !== 'string' || text.length < 400) return text; // 短文本不查，正常发言零误伤
+  const PUNCT = /[。！？!?.；;\n]/;
+  const GAP = 200;                 // 连续多少字符无句读判定为崩溃段
+  let lastPunct = -1;
+  for (let i = 0; i < text.length; i++) {
+    if (PUNCT.test(text[i])) lastPunct = i;
+    if (i - lastPunct > GAP) {
+      // 从 lastPunct 之后开始就是退化，截到 lastPunct（含标点）
+      const kept = text.slice(0, lastPunct + 1).trim();
+      try {
+        Render && Render.devLog && Render.devLog('warn',
+          `[退化止损] 检测到崩溃输出，已截断 ${text.length - kept.length} 字（渠道疑似不稳定/逆向反代）`);
+      } catch (e) {}
+      return kept; // 若 kept 很短，交给上层的沉默/重试逻辑处理
+    }
+  }
+  return text;
 }
 
 // ★ 从 thinking 抢救发言：当 AI 不按格式输出，把发言写到 thinking 里时使用。
