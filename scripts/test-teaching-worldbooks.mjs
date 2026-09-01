@@ -144,7 +144,7 @@ if (!goodCounterclaimBook || !goodCounterclaimBook.content.includes('假身份�
 if (!source.includes('【假身份不等于狼人】') || !source.includes('假身份，狼与好人挡刀都要盘')) {
   throw new Error('built-in counterclaim teaching lacks the false-claim/alignment distinction');
 }
-if (!source.includes('行为预期，只能在完成内容核验后作为C级软先验') || !source.includes('无法提出具体反驳时，应承认该论证尚未被推翻') || !source.includes('不能因为没有100%验证就拒绝形成判断')) {
+if (!source.includes('行为预期，只能在完成内容核验后作为C级软先验') || !source.includes('无法提出具体反驳时，应承认该论证尚未被推翻') || !source.includes('不能因为没有100%验证就拒绝形成判断') || !source.includes('多人平民板没有“无人对跳即坐实平民”')) {
   throw new Error('built-in official teaching does not keep behavior models subordinate to speech analysis');
 }
 wb.load({mode:'custom',books:advancedPreset.worldbooks});

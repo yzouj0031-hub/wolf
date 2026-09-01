@@ -15,6 +15,9 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.match(source, /公开讨论的表达底线/, `${file}: structured-output completeness rule missing`);
   assert.match(source, /隐死亡的自然表达·不要复读规则/, `${file}: hidden-role disclaimer repetition guard missing`);
   assert.match(source, /暂认、偏信、待验、目前不信/, `${file}: actionable identity confidence vocabulary missing`);
+  assert.match(source, /身份声明同标尺·硬约束/, `${file}: symmetric role-claim evidence rule missing`);
+  assert.match(source, /多人平民板不存在“无人对跳即坐实平民”/, `${file}: villager claims can still receive automatic certification`);
+  assert.match(source, /只禁止默认接平民却单独惩罚暂认神职/, `${file}: villager/god claim double-standard correction missing`);
   assert.match(source, /否则不要主动说“死者身份不公开”或“跳了不等于真神”/, `${file}: public speech can still recite hidden-role disclaimers`);
   assert.doesNotMatch(source, /\$\{hdeath\?'死者身份不公开。'/, `${file}: blunt hidden-death reminder is still injected beside every prompt`);
   assert.doesNotMatch(source, /\? `💀 \$\{r\.name\} 出局 — \$\{deathDesc\}\$\{voteSuffix\}（死者身份不公开）`/, `${file}: exported battle report repeats hidden identity on every death`);
