@@ -39,6 +39,9 @@ assert.match(hiddenAnchor, /同标尺复核/);
 assert.match(hiddenAnchor, /陌生打法中立/);
 assert.match(hiddenAnchor, /实际行动与措辞强度分开/);
 assert.match(hiddenAnchor, /“偏信”说成“铁信”/);
+assert.match(hiddenAnchor, /身份声明对称复核/);
+assert.match(hiddenAnchor, /自报平民同样未经验证/);
+assert.match(hiddenAnchor, /不能只因另一人暂认神职较快而处罚他/);
 assert.match(hiddenAnchor, /信息时点/);
 assert.match(hiddenAnchor, /不要在公开发言中复读/);
 
