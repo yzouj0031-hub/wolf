@@ -6425,6 +6425,86 @@ function buildWolfKillRosterLine(activeRoleIds) {
  *    【公开声称】自曝身份、金水/查杀指认、对跳 —— 文本保守提取，宁漏不误，标注待判
  *    【残局骨架】存活数、配置狼数、已现身狼数 —— 纯客观公开信息，不泄底
  * ================================================================ */
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ★ 公开声称的唯一提取口。凡是"从发言文本推断出某人声称了什么"的地方都必须走这里，
+//   不许各自再写一套正则——曾经就是因为分散的宽松正则，把"我觉得他是好人"读成了
+//   预言家金水，再挂上"硬事实"的标题喂给全场好人。
+//   设计原则：宁可漏，绝不能造。漏一条真声称，AI 还能自己从发言记录里读到；
+//   造一条假声称，它会被当成系统认证的事实，没人有办法推翻。
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const CLAIM_ROLE_WORDS = ['预言家','女巫','守卫','猎人','骑士','摄梦人','狼美人','守墓人','石像鬼','净魂师','炼金魔女','魔术师','子狐','白猫','摹术师'];
+// 能产出"金水/查杀"的查验类身份。没跳过这些身份的人，说什么都不构成查验背书。
+const CLAIM_INSPECT_ROLES = new Set(['预言家', '子狐', '守墓人', '摹术师', '石像鬼']);
+// 主观/假设口吻：这类句子表达的是意见，不是查验结果。
+const CLAIM_HEDGE_RE = /觉得|认为|感觉|应该|可能|也许|大概|似乎|好像|看起来|倾向|怀疑|猜|如果|假设|要是|万一|除非|说不定|保不齐|难说/;
+// 名字附近的否定词：防止"他不是我的金水"被反读成正面背书。
+const CLAIM_NEAR_NEG_RE = /不是|不算|没有|没|并非|未|假|别|伪/;
+// 紧贴在"我是X"前面的这些词，说明这句不是本人的断言，而是转述、反问或假设：
+//   "他说我是预言家""别当我是预言家""如果我是预言家"。只认紧邻，
+//   避免"我第一个说，我是预言家"这种正常自曝被误杀。
+const CLAIM_SELF_PREFIX_BLOCK_RE = /(?:说|问|当|以为|认为|把|如果|假设|要是|万一|难道|像|不)$/;
+
+/**
+ * 从公开发言里提取"谁自曝了什么身份""谁给谁报了金水/查杀"。
+ * @param {Array}  alive      存活玩家对象数组（金水/查杀只在存活目标间建立）
+ * @param {Set}    aliveNames 存活玩家名集合（只采纳活人的发言）
+ * @returns {{selfClaims: Object, peekClaims: Array}}
+ */
+function extractPublicClaims(alive, aliveNames) {
+  const selfClaims = {};   // speaker -> Set(role)
+  const peekClaims = [];   // {by, target, verdict}
+  const history = (S.history || []).filter(h => h && h.text && h.name &&
+    (!aliveNames || aliveNames.has(h.name)));
+
+  // ── 第一遍：自曝身份。必须是本人第一人称断言，转述和假设都不算 ──
+  history.forEach(h => {
+    const speaker = h.name, txt = String(h.text);
+    CLAIM_ROLE_WORDS.forEach(rw => {
+      // 覆盖常见自曝/对跳措辞："我是X""我就是X""我才是X""我跳X""我是真X"
+      const re = new RegExp('我(?:就|才)?是(?:真)?' + rw + '|我跳' + rw, 'g');
+      let m;
+      while ((m = re.exec(txt)) !== null) {
+        const pre = txt.slice(Math.max(0, m.index - 4), m.index);
+        if (CLAIM_SELF_PREFIX_BLOCK_RE.test(pre)) continue;  // "他说我是…""如果我是…"
+        (selfClaims[speaker] = selfClaims[speaker] || new Set()).add(rw);
+        break;
+      }
+    });
+  });
+
+  // ── 第二遍：金水/查杀。三重门槛缺一不可 ──
+  //   ① 说话人必须先自曝过【能查验的身份】；
+  //   ② 句子里必须出现"金水/查杀"或"我验/我查"这种查验动作词，主观信任一律不算；
+  //   ③ 名字附近不能夹否定/假设/推测词。
+  history.forEach(h => {
+    const speaker = h.name, txt = String(h.text);
+    const claimed = selfClaims[speaker];
+    if (!claimed || ![...claimed].some(r => CLAIM_INSPECT_ROLES.has(r))) return;
+    txt.split(/[。！!？?；;\n]/).forEach(clause => {
+      if (!/金水|查杀|我(?:昨晚|昨夜|今晚|第.夜)?(?:验|查)/.test(clause)) return;
+      (alive || []).forEach(t => {
+        if (t.name === speaker) return;
+        const at = clause.indexOf(t.name);
+        if (at < 0) return;
+        // 只看名字紧邻的一小段：定性词、否定词、推测词都必须挨着名字才算数。
+        // 窗口开太大会把同句里无关的"我觉得…"吸进来，误杀真实的查验报点。
+        const win = clause.slice(Math.max(0, at - 10), at + t.name.length + 10);
+        if (CLAIM_NEAR_NEG_RE.test(win) || CLAIM_HEDGE_RE.test(win)) return;
+        if (/金水|验(?:了|的|到)?[^，,]{0,8}好人/.test(win)) peekClaims.push({ by: speaker, target: t.name, verdict: '金水' });
+        else if (/查杀|验(?:了|的|到)?[^，,]{0,8}是狼/.test(win)) peekClaims.push({ by: speaker, target: t.name, verdict: '查杀' });
+      });
+    });
+  });
+
+  // 同一组合可能在多句里重复命中，去重
+  const seen = new Set();
+  for (let i = peekClaims.length - 1; i >= 0; i--) {
+    const k = peekClaims[i].by + '|' + peekClaims[i].target + '|' + peekClaims[i].verdict;
+    if (seen.has(k)) peekClaims.splice(i, 1); else seen.add(k);
+  }
+  return { selfClaims, peekClaims };
+}
+
 function buildPublicClaimsBlock(p) {
   if (!p || !p.role || p.role.team !== 'good') return ''; // 狼有自己的盘点工具，且这套是好人逻辑
   const recs = (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord : [];
@@ -6453,33 +6533,7 @@ function buildPublicClaimsBlock(p) {
   });
 
   // ── 【公开声称】文本保守提取：自曝身份 / 金水查杀指认 / 对跳 ──
-  const ROLE_WORDS = ['预言家','女巫','守卫','猎人','骑士','摄梦人','狼美人','守墓人','石像鬼','净魂师','炼金魔女','魔术师','子狐','白猫','摹术师'];
-  const history = (S.history || []).filter(h => h && h.text && h.name && aliveNames.has(h.name));
-  const selfClaims = {};   // speaker -> Set(role)
-  const peekClaims = [];   // {by, target, verdict}
-  history.forEach(h => {
-    const speaker = h.name, txt = String(h.text);
-    // 自曝身份："我是X" / "我跳X"（保守：紧跟"我是/我就是/我跳"）
-    ROLE_WORDS.forEach(rw => {
-      // 覆盖常见自曝/对跳措辞："我是X""我就是X""我才是X""我跳X""我是真X"
-      if (new RegExp('我(?:就|才)?是(?:真)?' + rw + '|我跳' + rw).test(txt)) {
-        (selfClaims[speaker] = selfClaims[speaker] || new Set()).add(rw);
-      }
-    });
-    // 金水/查杀：按句切，若某句同时含另一存活玩家名 + 定性词，记一条声称
-    txt.split(/[。！!；;\n]/).forEach(clause => {
-      const gold = /金水|是好人|验.{0,4}好|背书/.test(clause);
-      const kill = /查杀|是狼|验.{0,4}狼|坏人/.test(clause);
-      if (!gold && !kill) return;
-      alive.forEach(t => {
-        if (t.name === speaker) return;
-        if (clause.includes(t.name)) {
-          if (gold) peekClaims.push({ by: speaker, target: t.name, verdict: '金水' });
-          else if (kill) peekClaims.push({ by: speaker, target: t.name, verdict: '查杀' });
-        }
-      });
-    });
-  });
+  const { selfClaims, peekClaims } = extractPublicClaims(alive, aliveNames);
   // 汇总每个目标收到的金水来源（用于突出"多人共同金水"）
   const goldByTarget = {};
   peekClaims.filter(c => c.verdict === '金水').forEach(c => {
@@ -6497,10 +6551,10 @@ function buildPublicClaimsBlock(p) {
     if (whos.length >= 2) claimLines.push(`⚔️ ${whos.join(' 与 ')} 对跳【${r}】——至少一份声明为假，但假声明不等于是狼`);
   });
   Object.entries(goldByTarget).forEach(([target, sources]) => {
-    if (sources.size >= 2) claimLines.push(`⭐ ${target} 同时被 ${[...sources].join('、')} 发金水（${sources.size} 个来源）——只要这些人里有一个真预言家，${target} 就是好人`);
-    else claimLines.push(`${[...sources][0]} 称 ${target} 金水`);
+    if (sources.size >= 2) claimLines.push(`⭐ ${target} 被 ${[...sources].join('、')} 都报过金水（${sources.size} 个自称查验身份的来源）——只要这些人里有一个是真的查验位，${target} 就是好人`);
+    else claimLines.push(`${[...sources][0]}（自称查验位）报 ${target} 金水`);
   });
-  peekClaims.filter(c => c.verdict === '查杀').forEach(c => claimLines.push(`${c.by} 称 ${c.target} 查杀`));
+  peekClaims.filter(c => c.verdict === '查杀').forEach(c => claimLines.push(`${c.by}（自称查验位）报 ${c.target} 查杀`));
 
   // ── 组装 ──
   // ★ 信任锚：模型天性是"想采纳一个连贯的叙事"，压不住。所以不叫它"别信"，而是
@@ -6508,7 +6562,7 @@ function buildPublicClaimsBlock(p) {
   //   事实拼出的残局"上。发言再动听自洽，也不如枯燥的事实值得当地基。
   let out = `\n\n【📌 本局硬事实·这是你推理的地基，不是谁的一张嘴】\n下面是系统记录和公开发生过的事，不受任何人怎么说而改变。你天然会想顺着一个连贯完整的故事往下推——那就顺着"这些事实拼出的残局"往下推，而不是顺着某个玩家讲给你听的版本。一段发言越动听、越自洽、越难反驳，越要提醒自己：那只是它讲得好，不代表它是真的。\n\n残局骨架（客观）：${skeleton}`;
   if (ironLines.length) out += `\n系统铁证（100%确定，直接当事实用）：\n· ` + ironLines.join('\n· ');
-  if (claimLines.length) out += `\n公开声称（"谁声称过什么"是事实，必须纳入；但声称的【内容】真假由你判——既别当没发生，也别照单全收）：\n· ` + claimLines.join('\n· ');
+  if (claimLines.length) out += `\n公开声称（由发言原文自动摘出，只保留明确的自曝/查验措辞；"谁声称过什么"是事实，必须纳入，但声称的【内容】真假由你判——既别当没发生，也别照单全收。若这里和你读到的发言记录对不上，以发言记录为准，别在发言里引用一条你没在原文里找到的声称）：\n· ` + claimLines.join('\n· ');
   else out += `\n公开声称：暂无明确的自曝/金水/查杀。`;
 
   // ── 决策默认立场（正向框架：先给一个愿意停留的默认，推翻默认才需举证）──
@@ -10426,17 +10480,22 @@ ${userPersona}
         '\n以上玩家跳出来的神职身份都是伪装，他们是你的人。公开场合按【识别队友的悍跳】的原则配合，不要拆台。';
     }
   }
-  // ★ 被查杀警报：如果本轮预言家公开查杀了当前玩家，强制注入提醒（防记忆截断丢失）
+  // ★ 被查杀警报：有人在台面上公开报了针对你的查杀时，强制注入提醒（防记忆截断丢失）
+  //   ⚠️ 这里必须以【公开发言】为准，绝不能读 S.seerLog：
+  //     ① S.seerLog 是预言家的私密夜间结果，预言家可能压根还没开口——
+  //        照它注入等于把预言家的私货直接送进狼的脑子，是穿透视角的作弊；
+  //     ② 旧代码写的是 entry.result.includes('坏人')，而 seerLog 里存的是
+  //        '🐺狼人显示'，这个分支从来没触发过，等于挂着一段死代码假装在工作。
+  //   改为只认"自称查验位的人公开报了你的查杀"，既准确又不越权。
   let seerKillAlertBlock = '';
-  if (p.role.team === 'bad' && S.seerLog) {
-    // 检查最新一轮是否有查杀指向当前玩家
-    const rounds = Object.keys(S.seerLog).map(Number).sort((a,b)=>b-a);
-    for (const r of rounds) {
-      const entry = S.seerLog[r];
-      if (entry.result.includes('坏人') && entry.target === p.name) {
-        seerKillAlertBlock = `\n\n【🚨 紧急：你已被预言家公开查杀！】\n第${r}夜查验结果已公布：预言家点名你是坏人。你现在是全场焦点，必须做出应对！\n在<thinking>里先判断：① 票型是否已锁死我（必死）？② 还是有机会翻盘（可洗）？\n可洗：强力反打，质疑对方是悍跳狼，拉队友站边，争取好人相信你。\n必死：触发【绝境战术】，最大化临死价值——拉人下水、供出队友、或死撑混淆，选最有利的。\n不管哪种情况，沉默和认命是最差的选择。`;
-        break;
-      }
+  if (p.role.team === 'bad') {
+    const _aliveForClaims = (S.players || []).filter(x => x.alive);
+    const _aliveNameSet = new Set(_aliveForClaims.map(x => x.name));
+    const _claims = extractPublicClaims(_aliveForClaims, _aliveNameSet).peekClaims
+      .filter(c => c.verdict === '查杀' && c.target === p.name);
+    if (_claims.length) {
+      const _by = [...new Set(_claims.map(c => c.by))].join('、');
+      seerKillAlertBlock = `\n\n【🚨 紧急：${_by} 已在台面上公开报你查杀！】\n你现在是全场焦点，必须做出应对！\n在<thinking>里先判断：① 票型是否已锁死我（必死）？② 还是有机会翻盘（可洗）？\n可洗：强力反打，质疑对方是悍跳狼，拉队友站边，争取好人相信你。\n必死：触发【绝境战术】，最大化临死价值——拉人下水、供出队友、或死撑混淆，选最有利的。\n不管哪种情况，沉默和认命是最差的选择。`;
     }
   }
 
@@ -10519,7 +10578,15 @@ ${userPersona}
   let hunterLogBlock = '';
   if (S.hunterLog && S.hunterLog.length > 0) {
     const entries = S.hunterLog.map(h => `第${h.round}天：${h.msg}`).join('\n');
-    hunterLogBlock = `\n\n【🏹 猎人开枪·铁证（必须记住）】\n${entries}\n⚠️ 猎人死亡时开枪是已公开发生的事实！已证实身份的猎人不是狼人，不要再质疑或庆祝"投出了狼人"！`;
+    // ⚠️ 机械狼习得猎人技能后同样会开枪。以前这里无条件补一句"已证实身份的猎人
+    //   不是狼人，不要庆祝投出了狼人"，等于把一只已翻牌的狼洗成好人——恰恰在
+    //   好人猜对的时候骗他们改口。开枪者是谁，必须按记录逐条说。
+    const hasHunterShot = S.hunterLog.some(h => !h.mech);
+    const hasMechShot   = S.hunterLog.some(h => h.mech);
+    let hunterFooter = '⚠️ 开枪这件事本身是已公开发生的事实，不容置疑。';
+    if (hasHunterShot) hunterFooter += '开枪者若记录为【猎人】，其好人身份已被证实，不要再质疑他是狼。';
+    if (hasMechShot)   hunterFooter += '⚠️ 但记录中标注为【机械狼】的开枪者属于狼人阵营，不是猎人、不是好人——把他投出去是抓对了，别因为"他开了枪"就反过来觉得推错了人。';
+    hunterLogBlock = `\n\n【🏹 开枪记录·铁证（必须记住）】\n${entries}\n${hunterFooter}`;
   }
 
   // ★ 白狼王决策数据块 v2：客观统计当前票型，避免 AI 凭感觉误判而错用/浪费自爆
@@ -12691,10 +12758,16 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
     // ★ v9.9.20 方案B：检测狼悍跳神职 → 记入 wolfClaimLog，供狼队友识别
     //   只对狼阵营生效（好人诈跳不记）；用名字做 key，同一只狼反复重申自然覆盖。
     if (player.role && isPackWolfRole(player.role)) {
-      const claimMatch = result.game.match(/我是(?:真)?(预言家|女巫|守卫|猎人|骑士)/);
-      if (claimMatch) {
+      // ⚠️ 这条会以【确凿事实】的名义注入给全体狼队友，所以宁可漏不可造：
+      //   "他说我是预言家""如果我是预言家"都不是悍跳，必须挡掉紧邻的转述/假设词。
+      const claimRe = /我是(?:真)?(预言家|女巫|守卫|猎人|骑士)/g;
+      let cm;
+      while ((cm = claimRe.exec(result.game)) !== null) {
+        const pre = result.game.slice(Math.max(0, cm.index - 4), cm.index);
+        if (CLAIM_SELF_PREFIX_BLOCK_RE.test(pre)) continue;
         if (!S.wolfClaimLog) S.wolfClaimLog = {};
-        S.wolfClaimLog[player.name] = {round: S.round, role: claimMatch[1]};
+        S.wolfClaimLog[player.name] = {round: S.round, role: cm[1]};
+        break;
       }
     }
     // 话多模式：每句公开发言都触发观众评论
@@ -15614,7 +15687,7 @@ async function shoot(p) {
       uiEnglish() ? `${p.name} takes aim at ${t.name}` : `${p.name} 将枪口对准 ${t.name}`,
       {team:_isMechShooter ? 'bad' : 'good', key:`shoot:${S.gameId}:${S.round}:${p.id}:${t.id}`});
     Render.log('death','🏹 '+p.name+'（'+_shooterTag+'）开枪带走了'+t.name);
-    S.hunterLog.push({round: S.round, hunter: p.name, target: t.name, msg: p.name+'（'+_shooterTag+'）死亡并开枪带走了'+t.name+'。开枪一事已公开证实，不容置疑！'});
+    S.hunterLog.push({round: S.round, hunter: p.name, target: t.name, mech: _isMechShooter, msg: p.name+'（'+_shooterTag+'）死亡并开枪带走了'+t.name+'。开枪一事已公开证实，不容置疑！'});
     S.players.filter(x=>x.alive && x.id!==t.id).forEach(x=>x.memory.push({role:'system',content:'【🏹 开枪铁证】'+p.name+'（'+_shooterTag+'）死亡时开枪带走了'+t.name+'。开枪一事已证实，不要质疑。'+(_isMechShooter?'（注意：'+p.name+'是机械狼，属狼人阵营，不是好人。）':'')}));
     gameRecord.push({type:'shoot', round:S.round, hunter:p.name, shooterRole:_shooterTag, target:t.name});
     callSpectator('death', p.name+'（'+_shooterTag+'）开枪带走了'+t.name);
@@ -15631,7 +15704,7 @@ async function shoot(p) {
     } else {
       const noShotText = shootActionStatus==='invalid' ? '行动技术解析失败，未能开枪（不是主动不开枪）' : '选择不开枪';
       Render.log('death','🏹 '+p.name+'（'+_shooterTag+'）'+noShotText);
-      S.hunterLog.push({round: S.round, hunter: p.name, target: null, technical:shootActionStatus==='invalid', msg: p.name+'（'+_shooterTag+'）死亡时'+noShotText+'。'});
+      S.hunterLog.push({round: S.round, hunter: p.name, target: null, mech: _isMechShooter, technical:shootActionStatus==='invalid', msg: p.name+'（'+_shooterTag+'）死亡时'+noShotText+'。'});
       S.players.filter(x=>x.alive).forEach(x=>x.memory.push({role:'system',content:'【🏹 开枪记录】'+p.name+'（'+_shooterTag+'）死亡时'+noShotText+'。'+(_isMechShooter?'（'+p.name+'是机械狼，属狼人阵营。）':p.name+'是好人阵营。')}));
       gameRecord.push({type:'shoot', round:S.round, hunter:p.name, shooterRole:_shooterTag, target:null, technical:shootActionStatus==='invalid'});
       callSpectator('death', p.name+'（猎人）'+noShotText+'后离场');
@@ -19494,7 +19567,9 @@ const PhaseHandlers = {
       S.players.filter(p=>p.alive).forEach(p=>p.memory.push({role:'system',content:duelRemind}));
     }
     if (S.hunterLog && S.hunterLog.length > 0) {
-      const hunterRemind = '【🏹 铁证提醒】'+S.hunterLog.map(h=>h.msg).join('；')+'已证实的猎人不是狼人！';
+      const hunterRemind = '【🏹 铁证提醒】'+S.hunterLog.map(h=>h.msg).join('；')
+        + (S.hunterLog.some(h=>!h.mech) ? '记录为【猎人】的开枪者已证实是好人，不要投他！' : '')
+        + (S.hunterLog.some(h=>h.mech) ? '⚠️ 记录为【机械狼】的开枪者属于狼人阵营，不是好人。' : '');
       S.players.filter(p=>p.alive).forEach(p=>p.memory.push({role:'system',content:hunterRemind}));
     }
     // ★ 单轮发言模式：发完这一轮直接进入投票（骑士仍有最后一次决斗机会），不跑第二轮
