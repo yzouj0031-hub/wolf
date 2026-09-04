@@ -4,12 +4,19 @@
  * 但全场根本没人跳过预言家、也没人发过金水——纯属文本提取误报。
  * 这里锁死：只有【自曝查验身份的人】用【明确查验措辞】说出的话才算金水/查杀。
  */
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import path from 'path';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-const url = 'file://' + path.resolve('index.html');
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const url = pathToFileURL(path.resolve('index.html')).href;
+// Optional browser integration suite (install Playwright separately). The default
+// test:public-claims suite runs offline without a platform-specific browser path.
+const browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+  ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {});
 const page = await browser.newPage();
+await page.route(/^https?:\/\//, route => route.abort());
 const pageErrors = [];
 page.on('pageerror', e => pageErrors.push(e.message));
 await page.goto(url);

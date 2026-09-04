@@ -7243,6 +7243,7 @@ function loadGame(slotArg, opts) {
     if (!raw) { alert('没有找到存档'); return; }
     const snap = JSON.parse(raw);
     if (!snap || !snap.S || !snap.S.players) { alert('存档格式无效'); return; }
+    assertRosterIdentity(snap.S.players);
 
     // 从「重回游戏」进来时已经确认过一次，这里不再二次确认（opts.skipConfirm）
     if (!opts.skipConfirm) {
@@ -9158,7 +9159,75 @@ function inspectPromptContradictions(systemPrompt, player, taskContext) {
   return issues;
 }
 
+// BEGIN PRIVATE INFORMATION BOUNDARY
+function assertRosterIdentity(players) {
+  if (!Array.isArray(players)) throw new Error('视角保护：玩家列表无效。');
+  const ids = new Set(), names = new Set();
+  players.forEach((p, index) => {
+    if (!p || !Number.isInteger(p.id) || p.id !== index || ids.has(p.id))
+      throw new Error('视角保护：玩家编号重复或与座位不一致，已停止读取。请恢复有效存档，不要自动重编号。');
+    if (typeof p.name !== 'string' || !p.name.trim() || names.has(p.name))
+      throw new Error('视角保护：玩家姓名缺失或重复，无法安全区分历史记录，请使用唯一姓名。');
+    ids.add(p.id); names.add(p.name);
+  });
+}
+function assertPrivateViewer(p) {
+  assertRosterIdentity(S.players);
+  if (!p || S.players[p.id] !== p || !p.role)
+    throw new Error('视角保护：请求玩家不属于当前对局。');
+  // These skills still use shared engine state. Reject ambiguous boards rather than
+  // sending another caster's potions, learning state or legacy logs.
+  const shared = ['seer','witch','guard','magician','mechwolf','wolfbeauty','cupid','knight','whitewolf'];
+  if (shared.includes(p.role.id) && S.players.filter(x => x.role && x.role.id === p.role.id).length !== 1)
+    throw new Error('视角保护：本局存在重复的共享状态技能角色，无法确定私密状态归属，已停止生成该玩家提示词。');
+}
+function privateActionBelongsTo(r, p) {
+  if (!r || !p || !p.role || r.type !== 'night_action' || r.godOnly || r.receiverOnly) return false;
+  if (r.role === 'wolf') return false; // pack record, never an individual skill
+  const owners = [r.casterId, r.playerId].filter(id => id != null);
+  if (owners.length) {
+    if (!owners.every(id => Number.isInteger(id) && id === p.id)) return false;
+    return r.name == null || r.name === p.name;
+  }
+  if (r.name != null) return r.name === p.name && S.players.filter(x => x.name === r.name).length === 1;
+  // Old saves did not store casterId. Only a unique role across the FULL roster
+  // (including dead players) can resolve ownership; never guess by alive role.
+  const family = String(r.role || '').startsWith('mechwolf') ? 'mechwolf'
+    : /^(alchemist|gargoyle|imitator)_/.test(r.role || '') ? r.role.split('_')[0] : r.role;
+  const matches = S.players.filter(x => x.role && x.role.id === family);
+  return matches.length === 1 && matches[0] === p;
+}
+function privateNightActionVisible(r, p) {
+  if (!r || r.godOnly) return false;
+  return r.role === 'wolf' ? isPackWolfRole(p.role) : privateActionBelongsTo(r, p);
+}
+function viewerEventRecords(p) {
+  assertPrivateViewer(p);
+  return (gameRecord || []).flatMap(r => {
+    if (!r || r.godOnly) return [];
+    if (r.wolfChat && !isPackWolfRole(p.role)) return [];
+    if (r.type !== 'night_action') return [r];
+    if (privateNightActionVisible(r, p)) return [r];
+    // Receiver feedback is explicitly redacted: never expose the caster or
+    // the other target's alignment through a charm notification.
+    if ((r.role === 'fox' || r.role === 'mechwolf_fox') && foxCharmActualTargetId(r) === p.id)
+      return [{type:r.type, role:r.role, round:r.round, targetId:p.id, actualTargetId:p.id,
+        result:r.result, receiverOnly:true}];
+    // Witch reconstruction uses the pack target only, and only for nights with
+    // her own recorded action while the antidote was still available.
+    if (p.role.id === 'witch' && r.role === 'wolf') {
+      const own = (gameRecord || []).filter(x => privateActionBelongsTo(x, p) && x.role === 'witch');
+      if (own.some(x => x.round === r.round) && !own.some(x => x.saved && x.round < r.round))
+        return [{type:r.type, role:r.role, round:r.round, target:r.target}];
+    }
+    return [];
+  });
+}
+// END PRIVATE INFORMATION BOUNDARY
+
 function buildSystemPrompt(p, taskContext) {
+  assertPrivateViewer(p);
+  const gameRecord = viewerEventRecords(p);
   const hdeath = $('m-hdeath').checked;
   const trialOn = $('m-trial').checked;
   const isHardcore = $('m-hardcore') && $('m-hardcore').checked;
@@ -9307,14 +9376,8 @@ ${userPersona}
     if (ph === 'vote' || (r && r.type === 'vote' && r.subtype === 'day')) return `第${rd}天·投票`;
     return `第${rd}天·白天`;
   };
-  const _wolfPackViewer = ['wolf','wolfking','wolfbeauty','whitewolf'].includes(p.role.id);
-  const _canSeePrivateNightAction = r => {
-    if (!r || r.type !== 'night_action') return false;
-    if (r.role === 'wolf') return _wolfPackViewer;
-    if (r.role === 'wolfbeauty') return p.role.id === 'wolfbeauty';
-    if (String(r.role || '').startsWith('mechwolf')) return p.role.id === 'mechwolf';
-    return r.role === p.role.id;
-  };
+  const _wolfPackViewer = isPackWolfRole(p.role);
+  const _canSeePrivateNightAction = r => privateNightActionVisible(r, p);
   const _privateNightActionText = r => {
     const roleNames = {
       seer:'预言家查验', witch:'女巫用药', guard:'守卫守护', magician:'魔术师交换',
@@ -9531,17 +9594,7 @@ ${userPersona}
   }
   // ★ 被查杀警报：如果本轮预言家公开查杀了当前玩家，强制注入提醒（防记忆截断丢失）
   let seerKillAlertBlock = '';
-  if (p.role.team === 'bad' && S.seerLog) {
-    // 检查最新一轮是否有查杀指向当前玩家
-    const rounds = Object.keys(S.seerLog).map(Number).sort((a,b)=>b-a);
-    for (const r of rounds) {
-      const entry = S.seerLog[r];
-      if (entry.result.includes('坏人') && entry.target === p.name) {
-        seerKillAlertBlock = `\n\n【🚨 紧急：你已被预言家公开查杀！】\n第${r}夜查验结果已公布：预言家点名你是坏人。你现在是全场焦点，必须做出应对！\n在<thinking>里先判断：① 票型是否已锁死我（必死）？② 还是有机会翻盘（可洗）？\n可洗：强力反打，质疑对方是悍跳狼，拉队友站边，争取好人相信你。\n必死：触发【绝境战术】，最大化临死价值——拉人下水、供出队友、或死撑混淆，选最有利的。\n不管哪种情况，沉默和认命是最差的选择。`;
-        break;
-      }
-    }
-  }
+  // Private seer results must never create a public accusation alert for wolves.
 
   // ★ 决斗记录：永久注入所有玩家的系统prompt，防止记忆截断后遗忘
   let duelLogBlock = '';
@@ -10206,6 +10259,7 @@ async function callAI(p, prompt, opts) {
   opts = opts || {};
   const _reasoningBase = resolveAIReasoning(p, prompt, opts);
   if (window.__DEMO__) return await demoResponder(p, prompt);   // 🎬 演示模式：本地脚本，无需 key
+  if (!opts.systemPromptOverride) assertPrivateViewer(p);
   const rationalCap = opts.skillConfirm ? 0.5 : Infinity;
   const myGid = S.gameId;
   const api = getAPI(p.id);
@@ -14867,7 +14921,7 @@ const NightActions = {
       recordTechnicalActionFailure(cupid, '丘比特连恋人', '两次格式纠正后仍无法解析；因该技能首夜强制发动，技术兜底随机补齐：'+pair.map(x=>x.name).join('、'));
     }
     _establishLovers(cupid, pair[0], pair[1]);
-    gameRecord.push({type:'night_action', role:'cupid', round:S.round, target:pair[0].name+' × '+pair[1].name, targets:[pair[0].name,pair[1].name]});
+    gameRecord.push({type:'night_action', role:'cupid', round:S.round, casterId:cupid.id, target:pair[0].name+' × '+pair[1].name, targets:[pair[0].name,pair[1].name]});
     if (!isAnon()) Render.log('night-result','💘 丘比特将'+pair[0].name+'与'+pair[1].name+'连为恋人');
     attachNightThinking(cupid.id);
     Render.setSpeaking(cupid.id, false);
@@ -14881,7 +14935,7 @@ const NightActions = {
     gk._gravekeeperSeen = exile.round + ':' + exile.name;
     const team = exile.team === 'bad' ? '狼人阵营' : exile.team === 'third' ? '第三方阵营' : '好人阵营';
     gk.memory.push({role:'system', content:'【守墓人私密结果】昨日日间被放逐的'+exile.name+'属于【'+team+'】。你只验证了阵营，不知道其具体身份。'});
-    gameRecord.push({type:'night_action', role:'gravekeeper', round:S.round, target:exile.name, result:team, team:exile.team});
+    gameRecord.push({type:'night_action', role:'gravekeeper', round:S.round, casterId:gk.id, target:exile.name, result:team, team:exile.team});
     if (gk.isPlayer || !isAnon()) Render.log('night-result','守墓人查得'+exile.name+'属于'+team);
   },
 
@@ -15060,7 +15114,7 @@ const NightActions = {
     dw.memory.push({role:'system',content:dreamReflected
       ? '【摄梦记录】第'+S.round+'夜你选择'+t.name+'时，梦境被反弹到你自己；原目标没有进入梦境。'+(nightmare?'这是你连续第二夜实际承受同一梦境，将触发致命噩梦。':'若你熬过本夜，你自己获得梦游保护。')
       : '【摄梦记录】第'+S.round+'夜你选择了'+t.name+'；'+(nightmare?'这是连续第二夜，同一目标将因噩梦死亡。':'若你熬过本夜，该目标免疫当夜伤害。')});
-    gameRecord.push({type:'night_action',role:'dreamwalker',round:S.round,target:t.name,actualTarget:actualDreamer.name,reflected:dreamReflected,result:nightmare?'nightmare':'protect'});
+    gameRecord.push({type:'night_action',role:'dreamwalker',round:S.round, casterId:dw.id,target:t.name,actualTarget:actualDreamer.name,reflected:dreamReflected,result:nightmare?'nightmare':'protect'});
     logPrivateNightResult(dw,dreamReflected?'摄梦指向'+t.name+'时被反弹到自己':('摄梦人选择了'+t.name+(nightmare?'，连续梦境将引发致命噩梦':'作为本夜梦游者')),dreamReflected?'The dream aimed at '+t.name+' was reflected onto the Dreamwalker':('The Dreamwalker chose '+t.name+(nightmare?' for a second consecutive dream, causing a lethal nightmare':' as tonight\'s dreamer')));
     Render.setSpeaking(dw.id,false);
   },
@@ -15105,14 +15159,14 @@ const NightActions = {
     if (mode === 'MIST' && mistTargets.length >= 2 && mistTargets.length <= 3) {
       al._mistUsed = true; S.nightData.alchemistMist = mistTargets.map(x=>x.id);
       al.memory.push({role:'system',content:'【炼金记录】本夜未明之雾已发动，狼刀只能落在：'+mistTargets.map(x=>x.name).join('、')+'。'});
-      gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:mistTargets.map(x=>x.name).join('、'),targets:mistTargets.map(x=>x.name),result:'mist'});
+      gameRecord.push({type:'night_action',role:'alchemist',round:S.round, casterId:al.id,target:mistTargets.map(x=>x.name).join('、'),targets:mistTargets.map(x=>x.name),result:'mist'});
       logPrivateNightResult(al,'炼金魔女发动未明之雾：'+mistTargets.map(x=>x.name).join('、'),'The Alchemist cast the Nameless Mist around: '+mistTargets.map(x=>x.name).join(', '));
     } else if (mode === 'SERPENT' && !al._serpentUsed) {
       S.nightData.alchemistMode='serpent';
       al.memory.push({role:'system',content:'【炼金记录】你已准备法老之蛇；实际狼刀确定后仍可选择不救，不选择不会消耗药剂。'});
       logPrivateNightResult(al,'炼金魔女准备了法老之蛇，等待实际刀口','The Alchemist prepared the Pharaoh\'s Serpent and awaits the final attack target');
     } else {
-      gameRecord.push({type:'night_action',role:'alchemist',round:S.round,target:null,result:'pass'});
+      gameRecord.push({type:'night_action',role:'alchemist',round:S.round, casterId:al.id,target:null,result:'pass'});
       al.memory.push({role:'system',content:'【炼金记录】第'+S.round+'夜你没有准备任何炼金术，本夜既没有开雾也没有准备蛇；两种药剂都原封不动。'});
       logPrivateNightResult(al,'炼金魔女本夜保留全部炼金术','The Alchemist held both formulas tonight');
     }
@@ -15126,7 +15180,7 @@ const NightActions = {
     if (S.nightData.witchSave) {
       const notice = '【炼金记录】法老之蛇看见实际狼刀落在'+victim.name+'，但该刀口已经被女巫解药救下；无需重复救援，法老之蛇未消耗。';
       al.memory.push({role:'system',content:notice});
-      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'covered_by_witch'});
+      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round, casterId:al.id,target:victim.name,result:'covered_by_witch'});
       logPrivateNightResult(al,'刀口'+victim.name+'已被女巫救下，法老之蛇未消耗','The Witch already saved '+victim.name+'; the Pharaoh\'s Serpent was not consumed');
       return;
     }
@@ -15142,11 +15196,11 @@ const NightActions = {
     if (save) {
       al._serpentUsed=true; S.nightData.alchemistSave=S.nightData.kill;
       al.memory.push({role:'system',content:'【炼金记录】你消耗法老之蛇，救下了实际刀口'+victim.name+'。'});
-      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'save'});
+      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round, casterId:al.id,target:victim.name,result:'save'});
       logPrivateNightResult(al,'法老之蛇救下了实际刀口'+victim.name,'The Pharaoh\'s Serpent saved '+victim.name+' from the final attack');
     } else {
       al.memory.push({role:'system',content:'【炼金记录】你看见实际狼刀落在'+victim.name+'，选择保留法老之蛇；药剂未消耗。'});
-      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round,target:victim.name,result:'hold'});
+      gameRecord.push({type:'night_action',role:'alchemist_rescue',round:S.round, casterId:al.id,target:victim.name,result:'hold'});
       logPrivateNightResult(al,'炼金魔女看见实际刀口'+victim.name+'后选择保留法老之蛇','The Alchemist saw the final attack target '+victim.name+' and held the Pharaoh\'s Serpent');
     }
     Render.setSpeaking(al.id,false);
@@ -15177,7 +15231,7 @@ const NightActions = {
     gg.memory.push({role:'system',content:scryReflected
       ? '【石像鬼私密结果】第'+S.round+'夜，你窥视'+t.name+'时明确感到石瞳被反弹，只看见了自己的身份【'+gg.role.name+'】；'+t.name+'没有被验证，今后仍可重新选择。'
       : '【石像鬼私密结果】第'+S.round+'夜，你窥见'+t.name+'的准确身份是【'+t.role.name+'】。不得在未建立公开信息来源时直接泄露。'});
-    gameRecord.push({type:'night_action',role:'gargoyle',round:S.round,target:t.name,actualTarget:actualScry.name,reflected:scryReflected,roleId:actualScry.role.id,roleName:actualScry.role.name,result:scryReflected?'rebounded':'exact'});
+    gameRecord.push({type:'night_action',role:'gargoyle',round:S.round, casterId:gg.id,target:t.name,actualTarget:actualScry.name,reflected:scryReflected,roleId:actualScry.role.id,roleName:actualScry.role.name,result:scryReflected?'rebounded':'exact'});
     logPrivateNightResult(gg,scryReflected?'石像鬼窥视'+t.name+'时被反弹，原目标未验证':'石像鬼窥视'+t.name+'，真实身份为【'+t.role.name+'】',scryReflected?'The Gargoyle\'s scry of '+t.name+' was reflected; the original target remains unverified':'The Gargoyle scrutinized '+t.name+': exact role ['+t.role.name+']');
     Render.setSpeaking(gg.id,false);
   },
@@ -15263,14 +15317,14 @@ const NightActions = {
       S.nightData.lastMagicPair = [a, b];
       const txt = '交换了'+S.players[a].name+'和'+S.players[b].name+'的号码';
       S.magicLog.push({round:S.round, text:txt, pair:S.players[a].name+'↔'+S.players[b].name});
-      gameRecord.push({type:'night_action', role:'magician', round:S.round, target:S.players[a].name+'↔'+S.players[b].name});
+      gameRecord.push({type:'night_action', role:'magician', round:S.round, casterId:mg.id, target:S.players[a].name+'↔'+S.players[b].name});
       if (!isAnon()) Render.log('night-result','🎩 魔术师'+txt);
     } else {
       S.nightData.magicSwap = null;
       S.nightData.lastMagicPair = null; // 空过后次晚不受"同一对"限制
       const magicNoActionText = magicActionStatus === 'invalid' ? '技术解析失败（未交换，不是主动空过）' : '主动空过（未交换）';
       S.magicLog.push({round:S.round, text:magicNoActionText, pair:null, technical:magicActionStatus==='invalid'});
-      gameRecord.push({type:'night_action', role:'magician', round:S.round, target:null, technical:magicActionStatus==='invalid'});
+      gameRecord.push({type:'night_action', role:'magician', round:S.round, casterId:mg.id, target:null, technical:magicActionStatus==='invalid'});
       if (!isAnon()) Render.log('night-result','🎩 魔术师'+magicNoActionText);
     }
     Render.setSpeaking(mg.id, false);
@@ -15338,7 +15392,7 @@ const NightActions = {
           ? '平民伪装从下一夜起生效；生效前预言家验你仍显示狼人。'
           : '你未获得平民伪装，预言家验你仍显示狼人。';
         mw.memory.push({role:'system', content:'【🤖 机械狼·学习结果】你在第'+S.round+'夜学习了'+picked.name+'，得知其真实身份是【'+picked.role.name+'】。'+skillDesc+seerMaskNote+'没跳身份前，学到的夜间情报是私有信息，不能公开说漏。'});
-        gameRecord.push({type:'night_action', role:'mechwolf', round:S.round, target:'学习'+picked.name+'('+picked.role.name+')'});
+        gameRecord.push({type:'night_action', role:'mechwolf', round:S.round, casterId:mw.id, target:'学习'+picked.name+'('+picked.role.name+')'});
         if (!isAnon()) Render.log('night-result','🤖 机械狼学习了'+picked.name+(isMC()||S.directorMode?'（'+picked.role.name+'）':''));
         if (isMC() && !mw.isPlayer) {
           await mcNightConfirm('🤖 机械狼·学习', mw.name, '学习了 <b style="color:#c83040">'+picked.name+'（'+picked.role.name+'）</b>，'+(ml.skill?'获得对应技能。':'该身份无技能。'), null, null);
@@ -15346,7 +15400,7 @@ const NightActions = {
       } else {
         const txt = learnActionStatus === 'invalid' ? '技术解析失败，学习机会仍保留（不是主动不学）' : '主动选择今晚不学习';
         if (!isAnon()) Render.log('night-result','🤖 机械狼'+txt);
-        gameRecord.push({type:'night_action', role:'mechwolf', round:S.round, target:null, technical:learnActionStatus==='invalid'});
+        gameRecord.push({type:'night_action', role:'mechwolf', round:S.round, casterId:mw.id, target:null, technical:learnActionStatus==='invalid'});
       }
     }
 
@@ -15395,7 +15449,7 @@ const NightActions = {
       S.mechSeerLog[S.round] = {target:t.name, actualTarget:actual.name, reflected, result:resultText, roleId:actual.role.id, roleName:actual.role.name, team:actual.role.team};
       mw.memory.push({role:'system',content:'【🤖🔮 机械狼查验结果】第'+S.round+'夜你尝试查验'+t.name+'→'+resultText+'。这是私有信息，没跳身份前不能公开。'});
       if (mw.isPlayer || !isAnon()) Render.log('night-result',reflected?'🤖🔮 机械狼查验'+t.name+'被反弹，原目标未验证':'🤖🔮 机械狼查验'+t.name+'→【'+actual.role.name+'】');
-      gameRecord.push({type:'night_action', role:'mechwolf_seer', round:S.round, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':'exact', roleId:actual.role.id, roleName:actual.role.name, team:actual.role.team});
+      gameRecord.push({type:'night_action', role:'mechwolf_seer', round:S.round, casterId:mw.id, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':'exact', roleId:actual.role.id, roleName:actual.role.name, team:actual.role.team});
     }
   },
 
@@ -15411,7 +15465,7 @@ const NightActions = {
       : '本夜魔术师空过，没有交换任何人。';
     mw.memory.push({role:'system',content:'【🤖🎩 机械狼·魔术情报】第'+S.round+'夜：'+intel+'这是私有信息，未跳身份前不能在白天直接泄露。'});
     if (mw.isPlayer || !isAnon()) Render.log('night-result','🤖🎩 '+intel);
-    gameRecord.push({type:'night_action', role:'mechwolf_magician', round:S.round, target});
+    gameRecord.push({type:'night_action', role:'mechwolf_magician', round:S.round, casterId:mw.id, target});
   },
 
   // 机械狼·学到守卫：每晚守护（不能连守同一人）
@@ -15449,12 +15503,12 @@ const NightActions = {
       S.nightData.mechGuard = t.id;
       S.mechGuardLast = t.id;
       if (!isAnon()) Render.log('night-result','🤖🛡️ 机械狼守护了'+t.name);
-      gameRecord.push({type:'night_action', role:'mechwolf_guard', round:S.round, target:t.name});
+      gameRecord.push({type:'night_action', role:'mechwolf_guard', round:S.round, casterId:mw.id, target:t.name});
       mw.memory.push({role:'system', content:'【🤖机械狼·守护记录·私密】第'+S.round+'夜你用学来的守护能力守了'+(t.id===mw.id?'你自己':t.name)+'。下一夜不能再守同一人。这是只有你知道的信息。'});
     } else {
       S.mechGuardLast = null;
       if (!isAnon()) Render.log('night-result', actionStatus==='invalid' ? '🤖🛡️ 机械狼守护技术解析失败（未守护，不是主动空守）' : '🤖🛡️ 机械狼主动空守');
-      gameRecord.push({type:'night_action', role:'mechwolf_guard', round:S.round, target:null, technical:actionStatus==='invalid'});
+      gameRecord.push({type:'night_action', role:'mechwolf_guard', round:S.round, casterId:mw.id, target:null, technical:actionStatus==='invalid'});
       mw.memory.push({role:'system', content:actionStatus==='invalid'
         ? '【🤖机械狼·守护记录·私密】第'+S.round+'夜你的守护没有成功执行，本夜没有任何人被你守到。不要把它当作成功行动或编造守护结果。'
         : '【🤖机械狼·守护记录·私密】第'+S.round+'夜你主动空守，没有守护任何人。'});
@@ -15492,11 +15546,11 @@ const NightActions = {
     if (t && t.id!==mw.id) {
       S.nightData.mechPoison = t.id;
       if (!isAnon()) Render.log('night-result','🤖☠️ 机械狼毒了'+t.name);
-      gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, target:t.name});
+      gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, casterId:mw.id, target:t.name});
       mw.memory.push({role:'system', content:'【🤖机械狼·毒药记录·私密】第'+S.round+'夜你用学来的毒药毒了'+t.name+'。学来的毒杀能力不会因此永久消失，下一夜仍可再次使用。这是只有你知道的信息，白天不得泄露。'});
     } else {
       if (!isAnon()) Render.log('night-result', actionStatus==='invalid' ? '🤖☠️ 机械狼毒药技术解析失败（未使用，不是主动保留）' : '🤖☠️ 机械狼主动保留毒药');
-      gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, target:null, technical:actionStatus==='invalid'});
+      gameRecord.push({type:'night_action', role:'mechwolf_poison', round:S.round, casterId:mw.id, target:null, technical:actionStatus==='invalid'});
       mw.memory.push({role:'system', content:actionStatus==='invalid'
         ? '【🤖机械狼·毒药记录·私密】第'+S.round+'夜你的毒药没有成功使用，毒药未消耗、仍在你手上。不要把它当作已经毒过人。'
         : '【🤖机械狼·毒药记录·私密】第'+S.round+'夜你主动保留了毒药，没有毒任何人；毒药仍在你手上。'});
@@ -15743,7 +15797,7 @@ const NightActions = {
         S.nightData.lastGuard = S.nightData.guard;
       }
     }
-    gameRecord.push({type:'night_action', role:'guard', round:S.round, target: submittedGuard!==null ? S.players[submittedGuard].name : null, actualTarget:S.nightData.guard!==null ? S.players[S.nightData.guard].name : null, reflected:submittedGuard!==S.nightData.guard});
+    gameRecord.push({type:'night_action', role:'guard', round:S.round, casterId:gu.id, target: submittedGuard!==null ? S.players[submittedGuard].name : null, actualTarget:S.nightData.guard!==null ? S.players[S.nightData.guard].name : null, reflected:submittedGuard!==S.nightData.guard});
     attachNightThinking(gu.id);
     // ★ 写入guardLog供强制重注入
     S.guardLog.push({round: S.round, target: submittedGuard !== null ? S.players[submittedGuard].name : '空守'});
@@ -16602,7 +16656,7 @@ ${mistDecisionHint}
       if (S.nightData.wolfBeautyCharm!==null) Render.log('night-result','🌹 狼美人魅惑了'+S.players[S.nightData.wolfBeautyCharm].name);
       else Render.log('night-result', charmTechnicalFailure ? '🌹 狼美人本夜因技术解析失败未能魅惑（不是主动跳过）' : '🌹 狼美人本夜未留下有效魅惑');
     }
-    gameRecord.push({type:'night_action', role:'wolfbeauty', round:S.round,
+    gameRecord.push({type:'night_action', role:'wolfbeauty', round:S.round, casterId:wb.id,
       target:S.nightData.wolfBeautyCharm!==null ? S.players[S.nightData.wolfBeautyCharm].name : null,
       attemptedTarget:attemptedCharm!==null ? S.players[attemptedCharm].name : null,
       technical:charmTechnicalFailure, blocked:sanctuaryBlocked});
@@ -16796,11 +16850,11 @@ ${mistDecisionHint}
         if (t) {
           S.nightData.skKill = t.id;
           Render.log('night','🔪 你袭击了 '+t.name);
-          gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:t.name});
+          gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, casterId:sk.id, target:t.name});
           sk.memory.push({role:'system', content:'【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你袭击了'+t.name+'。你的刀与狼刀彼此独立，白天不得泄露，也不要表现出提前知道谁会死。'});
         }
       } else {
-        gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:null});
+        gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, casterId:sk.id, target:null});
         sk.memory.push({role:'system', content:'【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你主动空刀，没有袭击任何人；本夜的死亡（如果有）与你无关。'});
       }
     } else {
@@ -16818,7 +16872,7 @@ ${mistDecisionHint}
       if (t) {
         S.nightData.skKill = t.id;
         if (!isAnon()) Render.log('night-result','🔪 连环杀手袭击了 '+t.name);
-        gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:t.name});
+        gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, casterId:sk.id, target:t.name});
         sk.memory.push({role:'system', content:'【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你袭击了'+t.name+'。你的刀与狼刀彼此独立，白天不得泄露，也不要表现出提前知道谁会死。'});
         attachNightThinking(sk.id);
       } else {
@@ -16826,7 +16880,7 @@ ${mistDecisionHint}
           recordTechnicalActionFailure(sk, '连环杀手袭击', '两次格式纠正后仍无法解析袭击目标');
           if (!isAnon()) Render.log('night-result','🔪 连环杀手本夜因技术解析失败未能袭击（不是主动空刀）');
         } else if (!isAnon()) Render.log('night-result','🔪 连环杀手今晚主动空刀');
-        gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, target:null, technical:decision.status==='invalid'});
+        gameRecord.push({type:'night_action', role:'serialkiller', round:S.round, casterId:sk.id, target:null, technical:decision.status==='invalid'});
         sk.memory.push({role:'system', content:decision.status==='invalid'
           ? '【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你的袭击没有成功执行，本夜你没有杀死任何人。不要把它当作成功行动或编造袭击结果。'
           : '【🔪连环杀手·袭击记录·私密】第'+S.round+'夜你主动空刀，没有袭击任何人；本夜的死亡（如果有）与你无关。'});
@@ -16863,7 +16917,7 @@ ${mistDecisionHint}
         se.memory.push({role:'system',content:'【查验结果·重要】你尝试查验'+t.name+'→'+resultText+'。'+(reflected?'不得把'+t.name+'当作已经验过的好人或狼人。':'这是你的核心信息，跳身份时必须如实报告。')});
         if (!S.seerLog) S.seerLog = {};
         S.seerLog[S.round] = {target:t.name, actualTarget:actual.name, reflected, result:reflected?'被反弹，原目标未验证':(iw?'🐺狼人显示':'✅好人显示')};
-        gameRecord.push({type:'night_action', role:'seer', round:S.round, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
+        gameRecord.push({type:'night_action', role:'seer', round:S.round, casterId:se.id, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
       }
     } else {
       // ★ v9.9.6: 同时显示 P编号 + 玩家名,避免 AI 在 thinking 和 action 之间混用编号导致查错人
@@ -16894,7 +16948,7 @@ ${mistDecisionHint}
         if (!S.seerLog) S.seerLog = {};
         S.seerLog[S.round] = {target:t.name, actualTarget:actual.name, reflected, result:reflected?'被反弹，原目标未验证':(iw?'🐺狼人显示':'✅好人显示')};
         if (!isAnon()) Render.log('night-result',reflected?'🔮 预言家查验'+t.name+'被反弹，原目标未验证':'🔮 预言家查验'+t.name+'→'+(iw?'🐺狼人':'✅好人'));
-        gameRecord.push({type:'night_action', role:'seer', round:S.round, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
+        gameRecord.push({type:'night_action', role:'seer', round:S.round, casterId:se.id, target:t.name, actualTarget:actual.name, reflected, result:reflected?'rebounded':(iw?'wolf':'good')});
         attachNightThinking(se.id);
         if (isMC()) {
           await mcNightConfirm('🔮 预言家查验结果', se.name,
@@ -17019,7 +17073,7 @@ ${mistDecisionHint}
       S.nightData.concubineGuard = t.id;
       wc.memory.push({role:'system', content:'【反弹·私密】你今晚锁定了'+(t.id===wc.id?'自己':t.name)+'：首个直接指向'+(t.id===wc.id?'你':'他')+'的单体查验、守护、毒杀、媚惑或摄梦会反弹到施术者本人；本夜仅一发，天亮后重置。⚠️只有你知道。'});
       if (!isAnon()) Render.log('night-result','🌒 蚀时狼妃锁定了'+(t.id===wc.id?'自己':t.name));
-      gameRecord.push({type:'night_action', role:'wolfconcubine', round:S.round, target:t.name});
+      gameRecord.push({type:'night_action', role:'wolfconcubine', round:S.round, casterId:wc.id, target:t.name});
     }
     Render.setSpeaking(wc.id, false);
   },
@@ -17092,7 +17146,7 @@ ${mistDecisionHint}
     if (t) {
       S.nightData.foolShield = t.id;
       if (!isAnon()) Render.log('night-result','🃏 愚者护住了'+(t.id===fl.id?'自己':t.name));
-      gameRecord.push({type:'night_action', role:'fool', round:S.round, target:t.name});
+      gameRecord.push({type:'night_action', role:'fool', round:S.round, casterId:fl.id, target:t.name});
       fl.memory.push({role:'system', content:'【🃏愚者·护盾记录·私密】第'+S.round+'夜你护住了'+(t.id===fl.id?'你自己':t.name)+'。这是只有你知道的信息，白天不得泄露。'});
     }
     Render.setSpeaking(fl.id, false);
@@ -22660,6 +22714,8 @@ function openChatSummary() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function _buildPrivateInfoLines(p) {
   if (!p || !p.role) return [];
+  assertPrivateViewer(p);
+  const gameRecord = viewerEventRecords(p);
   const lines = [];
 
   const foxTargetActs = (gameRecord || [])
@@ -22788,7 +22844,7 @@ function _buildPrivateInfoLines(p) {
     const scries=gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle').map(r=>{
       if(r.reflected||r.result==='rebounded') return '第'+r.round+'夜：窥视'+r.target+' → 被反弹，实际只看见自己【'+(r.roleName||p.role.name)+'】；'+r.target+'未被验证，之后仍可重新选择';
       const targetPlayer=S.players.find(x=>x.name===r.target);
-      return '第'+r.round+'夜：窥视'+r.target+' → 准确身份【'+(r.roleName||(targetPlayer&&targetPlayer.role&&targetPlayer.role.name)||'记录缺失')+'】';
+      return '第'+r.round+'夜：窥视'+r.target+' → 准确身份【'+(r.roleName||'记录缺失，不能补查身份')+'】';
     });
     if(scries.length) lines.push('石像鬼窥视记录（绝密，仅你可见）：\n  '+scries.join('\n  '));
     const attacks=gameRecord.filter(r=>r.type==='night_action'&&r.role==='gargoyle_kill').map(r=>'第'+r.round+'夜：'+(r.blocked?'受到禁刀':r.empty?'空刀':('刀'+r.target+(r.selfKill?'（自刀）':'')+'，'+(r.result==='success'?'目标已死亡':r.result==='failed'?'目标未死亡':'等待结算'))));
@@ -23374,6 +23430,7 @@ function _formatChatSummaryEvent(r, auditMode) {
 }
 
 function _buildChatSummary(viewerP, roundFilter, opts) {
+  if (viewerP) assertPrivateViewer(viewerP);
   // viewerP=null 表示上帝视角；roundFilter=null 表示全部轮次，否则是 [{round,phase,label}] 数组
   // opts.hideDeathRole=true 隐藏已出局玩家身份；opts.feedClaude=true 在前面加完整系统prompt
   opts = opts || {};
@@ -23621,7 +23678,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
         appendNightAction();
       } else {
         // 狼队刀口已在摘要顶部的“你的私密信息”完整列出，此处不再重复。
-        if (r.role !== 'wolf' && (r.role === roleId || isMechOwn || _isOwnNightAction(r, viewerP))) {
+        if (r.role !== 'wolf' && privateNightActionVisible(r, viewerP)) {
           if (r.role === 'witch') {
             // ★ 只有当夜仍持有救药时，女巫才能看到刀口。
             // 救药使用当夜仍可见；从下一夜起必须隐藏，避免导出记录泄露上帝视角。
@@ -27370,6 +27427,7 @@ if (_origEndingSpeeches) {
 
 // ── 生成适配网页端 Claude/ChatGPT 的对话式 prompt（按阶段动态生成）──
 function buildWebPrompt(p) {
+  assertPrivateViewer(p);
   if (!p) return '';
   const webRole = window.WolfI18n ? WolfI18n.role(p.role.id, p.role) : p.role;
 
