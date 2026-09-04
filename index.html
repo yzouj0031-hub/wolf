@@ -6465,20 +6465,45 @@ function buildPublicClaimsBlock(p) {
         (selfClaims[speaker] = selfClaims[speaker] || new Set()).add(rw);
       }
     });
-    // 金水/查杀：按句切，若某句同时含另一存活玩家名 + 定性词，记一条声称
-    txt.split(/[。！!；;\n]/).forEach(clause => {
-      const gold = /金水|是好人|验.{0,4}好|背书/.test(clause);
-      const kill = /查杀|是狼|验.{0,4}狼|坏人/.test(clause);
-      if (!gold && !kill) return;
+  });
+
+  // 金水/查杀提取（严格版）。这里宁可漏、绝不能造：一条假的"某某发过金水"会被
+  // 当成硬事实写进所有好人的脑子里，比不提取伤害大得多。三重门槛缺一不可：
+  //   ① 说话人必须先自曝过【能查验的身份】——没跳预言家的人，嘴里说什么都不算"发金水"；
+  //   ② 句子里必须出现"金水/查杀"或"我验/我查"这种查验动作词，主观信任（"我觉得他是好人"）一律不算；
+  //   ③ 名字附近不能夹否定/假设/推测词，否则"他不是我的金水""如果他是金水"会被反读成正面背书。
+  const INSPECT_ROLE_WORDS = new Set(['预言家', '子狐', '守墓人', '摹术师', '石像鬼']);
+  const HEDGE_RE = /觉得|认为|感觉|应该|可能|也许|大概|似乎|好像|看起来|倾向|怀疑|猜|如果|假设|要是|万一|除非|说不定|保不齐|难说/;
+  const NEAR_NEG_RE = /不是|不算|没有|没|并非|未|假|别|伪/;
+  history.forEach(h => {
+    const speaker = h.name, txt = String(h.text);
+    const claimed = selfClaims[speaker];
+    // ① 没跳过查验类身份 → 这个人根本没有"发金水"的资格，直接跳过
+    if (!claimed || ![...claimed].some(r => INSPECT_ROLE_WORDS.has(r))) return;
+    txt.split(/[。！!？?；;\n]/).forEach(clause => {
+      // ② 必须是查验类陈述，且不能是主观/假设口吻
+      if (!/金水|查杀|我(?:昨晚|昨夜|今晚|第.夜)?(?:验|查)/.test(clause)) return;
+      if (HEDGE_RE.test(clause)) return;
       alive.forEach(t => {
         if (t.name === speaker) return;
-        if (clause.includes(t.name)) {
-          if (gold) peekClaims.push({ by: speaker, target: t.name, verdict: '金水' });
-          else if (kill) peekClaims.push({ by: speaker, target: t.name, verdict: '查杀' });
-        }
+        const at = clause.indexOf(t.name);
+        if (at < 0) return;
+        // ③ 只认名字附近的定性词，且窗口内不能夹否定
+        const win = clause.slice(Math.max(0, at - 12), at + t.name.length + 14);
+        if (NEAR_NEG_RE.test(win)) return;
+        if (/金水|验(?:了|的|到)?[^，,]{0,8}好人/.test(win)) peekClaims.push({ by: speaker, target: t.name, verdict: '金水' });
+        else if (/查杀|验(?:了|的|到)?[^，,]{0,8}是狼/.test(win)) peekClaims.push({ by: speaker, target: t.name, verdict: '查杀' });
       });
     });
   });
+  // 同一组合可能在多句里重复命中，去重
+  {
+    const seen = new Set();
+    for (let i = peekClaims.length - 1; i >= 0; i--) {
+      const k = peekClaims[i].by + '|' + peekClaims[i].target + '|' + peekClaims[i].verdict;
+      if (seen.has(k)) peekClaims.splice(i, 1); else seen.add(k);
+    }
+  }
   // 汇总每个目标收到的金水来源（用于突出"多人共同金水"）
   const goldByTarget = {};
   peekClaims.filter(c => c.verdict === '金水').forEach(c => {
@@ -6496,10 +6521,10 @@ function buildPublicClaimsBlock(p) {
     if (whos.length >= 2) claimLines.push(`⚔️ ${whos.join(' 与 ')} 对跳【${r}】——至少一份声明为假，但假声明不等于是狼`);
   });
   Object.entries(goldByTarget).forEach(([target, sources]) => {
-    if (sources.size >= 2) claimLines.push(`⭐ ${target} 同时被 ${[...sources].join('、')} 发金水（${sources.size} 个来源）——只要这些人里有一个真预言家，${target} 就是好人`);
-    else claimLines.push(`${[...sources][0]} 称 ${target} 金水`);
+    if (sources.size >= 2) claimLines.push(`⭐ ${target} 被 ${[...sources].join('、')} 都报过金水（${sources.size} 个自称查验身份的来源）——只要这些人里有一个是真的查验位，${target} 就是好人`);
+    else claimLines.push(`${[...sources][0]}（自称查验位）报 ${target} 金水`);
   });
-  peekClaims.filter(c => c.verdict === '查杀').forEach(c => claimLines.push(`${c.by} 称 ${c.target} 查杀`));
+  peekClaims.filter(c => c.verdict === '查杀').forEach(c => claimLines.push(`${c.by}（自称查验位）报 ${c.target} 查杀`));
 
   // ── 组装 ──
   // ★ 信任锚：模型天性是"想采纳一个连贯的叙事"，压不住。所以不叫它"别信"，而是
@@ -6507,7 +6532,7 @@ function buildPublicClaimsBlock(p) {
   //   事实拼出的残局"上。发言再动听自洽，也不如枯燥的事实值得当地基。
   let out = `\n\n【📌 本局硬事实·这是你推理的地基，不是谁的一张嘴】\n下面是系统记录和公开发生过的事，不受任何人怎么说而改变。你天然会想顺着一个连贯完整的故事往下推——那就顺着"这些事实拼出的残局"往下推，而不是顺着某个玩家讲给你听的版本。一段发言越动听、越自洽、越难反驳，越要提醒自己：那只是它讲得好，不代表它是真的。\n\n残局骨架（客观）：${skeleton}`;
   if (ironLines.length) out += `\n系统铁证（100%确定，直接当事实用）：\n· ` + ironLines.join('\n· ');
-  if (claimLines.length) out += `\n公开声称（"谁声称过什么"是事实，必须纳入；但声称的【内容】真假由你判——既别当没发生，也别照单全收）：\n· ` + claimLines.join('\n· ');
+  if (claimLines.length) out += `\n公开声称（由发言原文自动摘出，只保留明确的自曝/查验措辞；"谁声称过什么"是事实，必须纳入，但声称的【内容】真假由你判——既别当没发生，也别照单全收。若这里和你读到的发言记录对不上，以发言记录为准，别在发言里引用一条你没在原文里找到的声称）：\n· ` + claimLines.join('\n· ');
   else out += `\n公开声称：暂无明确的自曝/金水/查杀。`;
 
   // ── 决策默认立场（正向框架：先给一个愿意停留的默认，推翻默认才需举证）──
