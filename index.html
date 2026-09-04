@@ -4875,6 +4875,18 @@ const CUSTOM_BLOCKS = {
   shield:       {emoji:'🛡️', label:'可转移护盾', g:'每晚指定一人（可含自己）挂护盾、替他挡一次夜间致命伤；若他今晚没挨刀则盾自动转护你自己；成功挡下一次即消耗（一次性）。'},
   grant:        {emoji:'🎁', label:'赐予', g:'每晚指定一名幸运儿赐予【盾/查验/毒】之一（查验/毒为次夜起的一次性技）。⚠️纯赌命：若幸运儿其实是狼→赐福被反噬、【你自己当场出局】（狼不死）！所以只赐给你真心信任是好人的对象，绝不能赐给可疑的人。'}
 };
+// ★ 阵营字面量的唯一出口。第三方（小丑、连环杀手）既不是狼也不是好人，
+//   任何"非狼即好人"的二分写法都会把第三方洗成好人——这是最难被发现的
+//   伪造事实：它不来自玩家发言，而是引擎亲口告诉某个神职的"私密查验结果"。
+function teamLabel(team) {
+  return team === 'bad' ? '狼人阵营' : team === 'third' ? '第三方阵营' : '好人阵营';
+}
+
+// 本局是否配置了第三方角色。用于判断"非狼"能不能等号推出"好人"。
+function gameHasThirdParty() {
+  return (S && S.players || []).some(x => x && x.role && x.role.team === 'third');
+}
+
 function buildCustomAbilityGuide(name, team, abilities){
   const teamTxt = team==='bad' ? '狼人阵营' : (team==='third' ? '第三方' : '好人阵营');
   let s = '\n\n【你的技能（自创·积木组合，全部真实生效）】你是' + name + '，属于' + teamTxt + '。你同时拥有以下技能：';
@@ -10555,7 +10567,9 @@ ${userPersona}
     const hasFail = S.duelLog.some(d => d.result==='good');
     let duelFooter = '⚠️ 以上是已公开发生的事实，不容置疑！';
     if (hasWin)  duelFooter += '骑士决斗胜利已证实其身份，绝对不能投票给已确认是好人的骑士！';
-    if (hasFail) duelFooter += '骑士决斗失败已证明对方不是狼人，不要再怀疑已被决斗排除的玩家！';
+    if (hasFail) duelFooter += gameHasThirdParty()
+      ? '骑士决斗失败只证明对方【不属于狼人阵营】，不等于他是好人——本局有第三方角色，第三方同样不是狼、同样会让骑士认错牺牲，他仍可能是场上对好人最危险的人。'
+      : '骑士决斗失败已证明对方不是狼人，不要再怀疑已被决斗排除的玩家！';
     duelLogBlock = `\n\n【⚔️ 决斗结果·铁证（必须记住）】\n${entries}\n${duelFooter}`;
   }
   // ★ 守卫专属记录：强制重注入（防止忘记"不能连续守同一人"规则）
@@ -13597,9 +13611,9 @@ async function resolveDuel(knight, t) {
     if (t.role.id==='wolfking') { Render.log('death','⚔️ 骑士决斗狼王，狼王无法触发咬人技能'); }
     await killPlayer(t, 'duel', {suffix:' [被骑士决斗斩杀]', customNotify:()=>{}});
   } else {
-    S.players.filter(p=>p.alive).forEach(p=>p.memory.push({role:'system',content:'【决斗结果】'+knight.name+'（骑士）向'+t.name+'发起决斗。'+knight.name+'认错了人，'+knight.name+'已死亡！'+t.name+'存活。这说明'+t.name+'不是狼。'}));
+    S.players.filter(p=>p.alive).forEach(p=>p.memory.push({role:'system',content:'【决斗结果】'+knight.name+'（骑士）向'+t.name+'发起决斗。'+knight.name+'认错了人，'+knight.name+'已死亡！'+t.name+'存活。这说明'+t.name+'不属于狼人阵营。'+(gameHasThirdParty()?'⚠️但本局有第三方角色，第三方也不是狼——所以这【不能】推出'+t.name+'是好人。':'')}));
     if (!S.duelLog) S.duelLog = [];
-    S.duelLog.push({round: S.round, knight: knight.name, target: t.name, result: 'good', msg: knight.name+'（骑士）决斗'+t.name+'，骑士认错牺牲，'+t.name+'已被证实不是狼人。'});
+    S.duelLog.push({round: S.round, knight: knight.name, target: t.name, result: 'good', msg: knight.name+'（骑士）决斗'+t.name+'，骑士认错牺牲，'+t.name+'已被证实不属于狼人阵营。'});
     gameRecord.push({type:'duel', round:S.round, knight:knight.name, target:t.name, result:'good'});
     callSpectator('duel', knight.name+'决斗'+t.name+'，认错了人，骑士牺牲。');
     await killPlayer(knight, 'duel', {suffix:' [决斗认错·骑士本人牺牲]', customNotify:()=>{}});
@@ -16248,7 +16262,7 @@ const NightActions = {
       const rebounded=reflectTargetedNightSkill(im,t.id,'charm')!==t.id;
       if(rebounded){im.memory.push({role:'system',content:'【临时媚惑·私密】你明确知道对'+t.name+'的媚惑被反弹，原目标没有被验证。'});status='rebounded';}
       else if(consumeSanctuaryMark(t.id,'imitator-charm')) status='blocked';
-      else {const wolf=t.role.team==='bad';if(wolf)S.nightData.foxBlockKill=true;else{if(!S.nightData.foxMuteIds.includes(t.id))S.nightData.foxMuteIds.push(t.id);S.nightData.skillMuteSources[t.id]='imitator';}t.memory.push({role:'system',content:'【临时媚惑·私密】第'+S.round+'夜你受到一次子狐类媚惑；你知道能力类型，但不知道施法玩家是谁。'});im.memory.push({role:'system',content:'【临时媚惑·私密】'+t.name+'属于【'+(wolf?'狼人阵营':'好人阵营')+'】。'+(wolf?'本夜全狼禁刀。':'其本夜主动技能会被封锁。')});status=wolf?'blockKill':'mute';}
+      else {const wolf=t.role.team==='bad';if(wolf)S.nightData.foxBlockKill=true;else{if(!S.nightData.foxMuteIds.includes(t.id))S.nightData.foxMuteIds.push(t.id);S.nightData.skillMuteSources[t.id]='imitator';}t.memory.push({role:'system',content:'【临时媚惑·私密】第'+S.round+'夜你受到一次子狐类媚惑；你知道能力类型，但不知道施法玩家是谁。'});im.memory.push({role:'system',content:'【临时媚惑·私密】'+t.name+'属于【'+teamLabel(t.role.team)+'】。'+(wolf?'本夜全狼禁刀。':'其本夜主动技能会被封锁。')});status=wolf?'blockKill':'mute';}
     }
     gameRecord.push({type:'night_action',role:'imitator_use',round:S.round,name:im.name,target:t.name,skill,result:status});
     logPrivateNightResult(im,'摹术师对'+t.name+'施放【'+IMITATOR_SKILL_LABELS[skill]+'】','The Imitator cast ['+IMITATOR_SKILL_LABELS[skill]+'] on '+t.name);
@@ -18229,7 +18243,7 @@ ${mistDecisionHint}
           S.nightData.skillMuteSources[t.id] = 'mechwolf_fox';
         }
         t.memory.push({role:'system', content:'【子狐类媚惑·私密】第'+S.round+'夜，你被媚惑了。'+(isWolf?'本夜狼人阵营的狼刀因此被禁止。':'如果你本夜发动夜间主动技能，该技能会被封锁、不会生效。')+'你知道能力类型，但不知道施法玩家是谁。'});
-        mw.memory.push({role:'system', content:'【🤖媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')});
+        mw.memory.push({role:'system', content:'【🤖媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':(t.role.team==='third'?'🃏 第三方阵营（既不是狼、也不是好人）':'✅ 好人阵营'))+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')});
         if (!isAnon()) Render.log('night-result','🤖🦊 机械狼媚惑了'+t.name+'（'+(isWolf?'狼·禁刀':'好人·封技')+'）');
         gameRecord.push({type:'night_action', role:'mechwolf_fox', round:S.round, casterId:mw.id, targetId:t.id, target:t.name, actualTargetId:t.id, actualTarget:t.name, result:isWolf?'blockKill':'mute'});
       }
@@ -18274,7 +18288,7 @@ ${mistDecisionHint}
           S.nightData.skillMuteSources[t.id] = 'fox';
         }
         t.memory.push({role:'system', content:'【子狐媚惑·私密】第'+S.round+'夜，你被子狐媚惑了。'+(isWolf?'本夜狼人阵营的狼刀因此被禁止。':'如果你本夜发动夜间主动技能，该技能会被封锁、不会生效。')+'你知道能力来源是子狐，但不知道哪名玩家是子狐。'});
-        fo.memory.push({role:'system', content:'【媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':'✅ 好人阵营')+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')+' ⚠️只有你知道这条信息。'});
+        fo.memory.push({role:'system', content:'【媚惑·私密】你媚惑了'+t.name+'——他是【'+(isWolf?'🐺 狼阵营':(t.role.team==='third'?'🃏 第三方阵营（既不是狼、也不是好人，有自己的独立胜利条件）':'✅ 好人阵营'))+'】。'+(isWolf?'今晚全体狼无法击杀。':'他今晚的夜间主动技能被你封掉了。')+' ⚠️只有你知道这条信息。'});
         if (!isAnon()) Render.log('night-result','🦊 子狐媚惑了'+t.name+'（'+(isWolf?'狼·禁刀':'好人·封技')+'）');
         gameRecord.push({type:'night_action', role:'fox', round:S.round, casterId:fo.id, targetId:t.id, target:t.name, actualTargetId:t.id, actualTarget:t.name, result:isWolf?'blockKill':'mute'});
       }
@@ -18424,7 +18438,7 @@ ${mistDecisionHint}
         gameRecord.push({type:'night_action', role:me.role.id, round:S.round, target:t.name, result:'backfire'});
       } else {
         t._giftPending = { giver: me.id, permanent: !!cfg.permanent, from: cfg.roleName };  // 待幸运儿自选
-        me.memory.push({role:'system',content:'【赐予·私密】你把礼物赐给了'+t.name+'（好人），礼物种类由 ta 自己挑。⚠️只有你知道。'});
+        me.memory.push({role:'system',content:'【赐予·私密】你把礼物赐给了'+t.name+'（'+(t.role.team==='third'?'⚠️第三方阵营——他不是狼所以没有反噬你，但他也不是好人，有自己的独立胜利条件':'好人')+'），礼物种类由 ta 自己挑。⚠️只有你知道。'});
         if (!isAnon()) Render.log('night-result', cfg.emoji+' '+cfg.roleName+'赐福给了'+t.name+'（由其自选礼物）');
         gameRecord.push({type:'night_action', role:me.role.id, round:S.round, target:t.name, result:'grant'});
       }
@@ -18721,7 +18735,7 @@ ${mistDecisionHint}
           else {
             if (gift === 'shield') t._grantShield = true; else t._grant = {type:gift, ready:S.round+1};
             const gt = gift==='shield'?'一块护盾(今晚免一次夜死)':(gift==='inspect'?'一次性查验(次夜起)':'一次性毒药(次夜起)');
-            p.memory.push({role:'system', content:'【赐予·私密】你赐给'+t.name+'(好人)'+gt+'。'});
+            p.memory.push({role:'system', content:'【赐予·私密】你赐给'+t.name+'('+(t.role.team==='third'?'⚠️第三方阵营，不是狼所以没反噬，但也不是好人':'好人')+')'+gt+'。'});
             t.memory.push({role:'system', content:'【神秘馈赠】今夜有神秘之力赐予你'+gt+'。'});
             if (!isAnon()) Render.log('night-result','🎁 '+p.name+'赐予'+t.name+gt);
             gameRecord.push({type:'night_action', role:'custom-grant', round:S.round, name:p.name, custom:p.role.name, target:t.name, result:'grant', gift:(gift==='shield'?'盾':gift==='inspect'?'查验':'毒')});
@@ -24445,7 +24459,11 @@ function _publiclyVerifiedAlignment(name) {
   for (const r of recs) {
     if (!r || r.type !== 'duel' || r.target !== name) continue;
     if (r.result === 'wolf') alignment = '狼人';
-    else if (r.result === 'good') alignment = '好人';
+    // ⚠️ 骑士决斗只证明"不属于狼人阵营"，不证明"是好人"：小丑、连环杀手这类
+    //   第三方同样不是狼，骑士照样会认错牺牲。本局配置里有第三方时，绝不能把
+    //   这条写成"好人"——那会给一个连环杀手发一张全场永久有效的免死金牌。
+    //   本局没有第三方时，非狼即好人，措辞保持原样。
+    else if (r.result === 'good') alignment = gameHasThirdParty() ? '非狼人阵营（本局有第三方，非狼≠好人）' : '好人';
     // 机械决斗不验阵营，绝不能在这里写入任何阵营结论。
   }
   return alignment;
