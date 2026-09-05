@@ -10493,19 +10493,43 @@ ${userPersona}
       wolfPrivateBlock = `\n\n【狼队专属记录·每次都要看】\n` + killEntries.join('\n') + `\n⚠️ 以上是你们狼队私密信息，白天绝对不能表现出知道这些！`;
     }
   }
-  // ★ 新增：狼队历史战略共识注入（跨轮持久，帮助狼人记住之前的协作策略）
+  // ★ 狼队历史战略注入（跨轮持久）。
+  //   ⚠️ 这块最容易帮倒忙：狼队第一夜定的方向会被逐轮重复喂回来，模型天生就
+  //   倾向于和自己先前的输出保持一致，再加上原来那句"不要自相矛盾"，等于明令
+  //   禁止改计划——狼于是抱着一个早就作废的剧本打到死。所以这里做三件事：
+  //     ① 保留每夜【最后】一条而不是第一条：第一条是开场提议，可能当场就被队友
+  //        否掉了，把一个被否决的方案当成"本夜策略"钉在 prompt 里是纯粹的污染；
+  //     ② 给每条标上距今多少轮、以及定这条时手上有多少信息；
+  //     ③ 把落款从"记住这些策略、不要自相矛盾"改成"这是记录不是承诺"。
   if (_isTeamWolf && S.wolfStrategyLog && S.wolfStrategyLog.length > 0) {
-    // 只保留每轮第一条（代表本轮策略方向），最多保留最近4轮
     const stratByRound = {};
-    S.wolfStrategyLog.forEach(entry => {
-      if (!stratByRound[entry.round]) stratByRound[entry.round] = entry;
+    S.wolfStrategyLog.forEach(entry => { stratByRound[entry.round] = entry; }); // 后写覆盖 → 取当夜收尾那条
+    const stratEntries = Object.entries(stratByRound).slice(-4).map(([round, entry]) => {
+      const age = (S.round || 0) - Number(round);
+      const ageTag = age <= 0 ? '（今夜）'
+        : age === 1 ? '（1 轮前）'
+        : `（${age} 轮前——那时你们手上的信息比现在少得多）`;
+      return `第${round}夜${ageTag}：${entry.name}——${entry.text}`;
     });
-    const stratEntries = Object.entries(stratByRound).slice(-4).map(([round, entry]) =>
-      `第${round}夜：${entry.name}提议——${entry.text}`
-    );
     if (stratEntries.length > 0) {
-      wolfPrivateBlock += `\n\n【狼队历史战略（跨轮协作备忘）】\n` + stratEntries.join('\n') + `\n⚠️ 记住这些策略，白天配合行动，不要自相矛盾！`;
+      wolfPrivateBlock += `\n\n【狼队过往商议记录（这是记录，不是承诺）】\n` + stratEntries.join('\n') +
+        `\n⚠️ 上面是你们【当时】怎么想的，不是你们【现在】必须怎么做。` +
+        `列出来是为了让你知道队友的意图和你们已经对外演过什么，避免白天说出和队友对不上的话——不是要你继续执行它。\n` +
+        `⚠️ 和昨天的自己保持一致，本身不加任何分。计划的前提（目标还没被洗白、队友还没被锁、你还没被架上抗推台）一旦变了，` +
+        `继续执行就是在按一份过期地图走路。狼是人数劣势方，输不起把牌打在一个已经失效的方向上。`;
     }
+  }
+
+  // ★ 强制重估打火（狼队专用）。好人那边有【四题】逼它独立推理，狼这边原本什么都没有——
+  //   而狼恰恰是最需要逐轮重估的一方：它有一份写下来的计划，而模型不被问就不会主动
+  //   推翻自己写过的东西。所以把"这计划还成立吗"做成必须先答的题。
+  //   只在第2轮起注入：第一夜刚定计划，没有可重估的东西。
+  if (_isTeamWolf && (S.round || 0) >= 2 && (S.wolfStrategy || (S.wolfStrategyLog && S.wolfStrategyLog.length))) {
+    wolfPrivateBlock += `\n\n【🔥 动手之前，先在 thinking 里答这三题】
+你手上有一份写下来的计划，而写下来的东西对你有黏性——你会不自觉地去执行它、去为它找理由，哪怕它已经不成立。这三题就是用来打断这个惯性的，一个都不许跳过：
+① 变了什么：从定下这个计划到现在，场上发生的最重要的三件事是什么？（谁死了、谁被金水/查杀、票型转向了谁、哪个神职跳出来了）
+② 前提还在吗：这个计划当初能成立，靠的是哪几个前提？逐条对照现在——还剩几条是真的？如果关键前提已经没了，这个计划现在的期望收益是正还是负？
+③ 从零再想一遍：假装你今天才醒过来，只看现在的场面、不知道有过任何计划，你会怎么打？——如果答案和计划不一样，那就按这个答案打，然后在 thinking 里写清楚你为什么改。改计划不需要向任何人交代，打输了才需要。`;
   }
   // ★ 狼盟密约·当前方案注入（每轮都强调，防止记忆截断丢失）
   if (_isTeamWolf && S.wolfStrategy && S.wolfStrategyName) {
