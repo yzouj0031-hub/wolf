@@ -105,6 +105,45 @@ const res = await page.evaluate(() => {
     };
   }
 
+  // ── 场景 G：第三方（连环杀手/小丑）绝不能被引擎认证成"好人" ──
+  {
+    build([]);
+    // 把 P8 换成连环杀手，让骑士对他决斗失败（骑士认错牺牲，杀手活下来）
+    S.players[7].role = R.serialkiller;
+    if (typeof gameRecord !== 'undefined') {
+      gameRecord.push({ type: 'duel', round: 1, knight: '白马探', target: '怪盗基德', result: 'good' });
+    }
+    S.duelLog = [{ round: 1, knight: '白马探', target: '怪盗基德', result: 'good',
+      msg: '白马探（骑士）决斗怪盗基德，骑士认错牺牲，怪盗基德已被证实不属于狼人阵营。' }];
+    const prompt3rd = buildSystemPrompt(S.players[5]);
+    const align3rd = _publiclyVerifiedAlignment('怪盗基德');
+    // 对照：同一局没有第三方时，措辞应保持"好人"不变
+    S.players[7].role = R.werewolf;
+    const alignPlain = _publiclyVerifiedAlignment('怪盗基德');
+    out.G = {
+      thirdNotCertifiedGood: !/怪盗基德 已被系统验证为【好人】/.test(prompt3rd),
+      thirdLabelledNotWolf: /非狼人阵营/.test(align3rd),
+      plainGameUnchanged: alignPlain === '好人',
+      footerWarnsThird: /第三方同样不是狼/.test(prompt3rd),
+    };
+    if (typeof gameRecord !== 'undefined') gameRecord.length = 0;
+    S.duelLog = [];
+  }
+
+  // ── 场景 H：子狐媚惑到第三方，私密结果不得写成"好人阵营" ──
+  {
+    build([]);
+    S.players[7].role = R.serialkiller;
+    out.H = {
+      labelThird: teamLabel('third') === '第三方阵营',
+      labelGood:  teamLabel('good')  === '好人阵营',
+      labelBad:   teamLabel('bad')   === '狼人阵营',
+      detectsThird: gameHasThirdParty() === true,
+    };
+    S.players[7].role = R.werewolf;
+    out.H.noThirdWhenAbsent = gameHasThirdParty() === false;
+  }
+
   return out;
 });
 
@@ -139,11 +178,17 @@ const checks = [
   ['E: 台面公开查杀仍触发警报', res.E.publicAlerts],
   ['F: 机械狼开枪不被洗成好人', res.F.mechNotWhitewashed],
   ['F: 真猎人开枪仍被背书', res.F.realHunterStillVouched],
+  ['G: 连环杀手不被系统认证为好人', res.G.thirdNotCertifiedGood],
+  ['G: 决斗只认证"非狼人阵营"', res.G.thirdLabelledNotWolf],
+  ['G: 无第三方的局措辞保持不变', res.G.plainGameUnchanged],
+  ['G: 决斗footer提醒第三方也不是狼', res.G.footerWarnsThird],
+  ['H: teamLabel 三分不塌成二分', res.H.labelThird && res.H.labelGood && res.H.labelBad],
+  ['H: gameHasThirdParty 正确识别', res.H.detectsThird && res.H.noThirdWhenAbsent],
 ];
 
 let bad = 0;
 for (const [name, ok] of checks) { console.log(ok ? `✅ ${name}` : `❌ ${name}`); if (!ok) bad++; }
 if (pageErrors.length) { console.error('页面错误:', pageErrors.slice(0, 5)); bad++; }
-if (bad) { console.error('\n--- A ---\n' + A + '\n--- B ---\n' + B + '\n--- C ---\n' + C + '\n--- D ---\n' + D + '\n--- E/F ---\n' + JSON.stringify(res.E) + JSON.stringify(res.F)); }
+if (bad) { console.error('\n--- A ---\n' + A + '\n--- B ---\n' + B + '\n--- C ---\n' + C + '\n--- D ---\n' + D + '\n--- E/F ---\n' + JSON.stringify(res.E) + JSON.stringify(res.F) + '\n--- G/H ---\n' + JSON.stringify(res.G) + JSON.stringify(res.H)); }
 await browser.close();
 process.exit(bad ? 1 : 0);
