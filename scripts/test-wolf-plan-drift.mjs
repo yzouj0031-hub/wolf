@@ -38,11 +38,18 @@ const res = await page.evaluate(() => {
 
   const r3 = buildSystemPrompt(setup(3));
   const r1 = buildSystemPrompt(setup(1));
-  return { r3, r1 };
+
+  // ── 导出摘要 / 网页端接力：这两条路径只有 _buildPrivateInfoLines 那一行密约 ──
+  const w3 = setup(3); S.wolfStrategyRound = 1;
+  const priv3 = (_buildPrivateInfoLines(w3) || []).join('\n');
+  const web3 = buildWebPrompt(w3, {});
+  const w1 = setup(1); S.wolfStrategyRound = 1;
+  const priv1 = (_buildPrivateInfoLines(w1) || []).join('\n');
+  return { r3, r1, priv3, web3, priv1 };
 });
 
 if (res.fatal) { console.error('❌', res.fatal); process.exit(1); }
-const { r3, r1 } = res;
+const { r3, r1, priv3, web3, priv1 } = res;
 
 const checks = [
   ['保留当夜收尾的共识而非开场提议', /否掉了，村甲还没发言压他太生硬/.test(r3)],
@@ -55,6 +62,13 @@ const checks = [
   ['重估题要求从零再想一遍', /假装你今天才醒过来/.test(r3)],
   ['第1夜不注入重估题（还没有可重估的东西）', !/动手之前，先在 thinking 里答这三题/.test(r1)],
   ['密约块的"该切就切"仍在', /该切就切/.test(r3)],
+  // 导出摘要 / 网页端接力：这两条路径原本只有一行光秃秃的"狼队密约：XXX"
+  ['摘要路径标出密约是第几夜定的', /第1夜定的开局预案/.test(priv3)],
+  ['摘要路径标出距今轮数', /距今 2 轮/.test(priv3)],
+  ['摘要路径写明不是行动纲领', /不是本局的行动纲领/.test(priv3)],
+  ['摘要路径写明第2天起由现在的场面决定', /由【现在的场面】决定/.test(priv3)],
+  ['网页端接力同样带上时效说明', /不是本局的行动纲领/.test(web3)],
+  ['第1夜当夜仍给"预案不是死命令"而非过期警告', /预案不是死命令/.test(priv1) && !/不是本局的行动纲领/.test(priv1)],
 ];
 
 let bad = 0;
@@ -63,6 +77,7 @@ if (pageErrors.length) { console.error('页面错误:', pageErrors.slice(0, 5));
 if (bad) {
   const i = r3.indexOf('【狼队过往商议记录');
   console.error('\n--- 第3轮狼 prompt 片段 ---\n' + r3.slice(i, i + 1600));
+  console.error('\n--- 摘要/网页端密约行 ---\n' + (priv3.split('\n').filter(l => /密约/.test(l)).join('\n') || '(无)'));
 }
 await browser.close();
 process.exit(bad ? 1 : 0);

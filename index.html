@@ -7719,7 +7719,7 @@ function saveGame(options = {}) {
       gameOver: S.gameOver, history: S.history, nightData: S.nightData,
       witchPotions: S.witchPotions, sheriff: S.sheriff,
       wolfKillLog: S.wolfKillLog, duelLog: S.duelLog, hunterLog: S.hunterLog,
-      wolfClaimLog: S.wolfClaimLog,
+      wolfClaimLog: S.wolfClaimLog, wolfStrategyRound: S.wolfStrategyRound,
       guardLog: S.guardLog, magicLog: S.magicLog, seerLog: S.seerLog, charmedPlayer: S.charmedPlayer,
       cupidActed: !!S.cupidActed, loverPair: S.loverPair, loverCrossTeam: !!S.loverCrossTeam,
       mechLearn: S.mechLearn, mechSeerLog: S.mechSeerLog, mechGuardLast: (S.mechGuardLast ?? null),
@@ -7881,7 +7881,7 @@ function loadGame(slotArg, opts) {
       gameOver: ss.gameOver, history: ss.history || [], nightData: ss.nightData || {},
       witchPotions: ss.witchPotions || {save:true,poison:true}, sheriff: ss.sheriff ?? -1,
       wolfKillLog: ss.wolfKillLog || {}, duelLog: ss.duelLog || [],
-      wolfClaimLog: ss.wolfClaimLog || {},
+      wolfClaimLog: ss.wolfClaimLog || {}, wolfStrategyRound: ss.wolfStrategyRound || 0,
       hunterLog: ss.hunterLog || [], guardLog: ss.guardLog || [], magicLog: ss.magicLog || [],
       seerLog: ss.seerLog || {}, charmedPlayer: ss.charmedPlayer ?? null,
       cupidActed: !!ss.cupidActed, loverPair: Array.isArray(ss.loverPair) ? ss.loverPair : null,
@@ -14438,7 +14438,7 @@ Render.showWolfStrategyResult = function(stratList, votes, winner) {
 // 主流程：独立提案 → 投票 → 出结果
 async function wolfStrategyDiscuss(wolves) {
   if (!wolves || wolves.length <= 1) {
-    S.wolfStrategy = ''; S.wolfStrategyName = '';
+    S.wolfStrategy = ''; S.wolfStrategyName = ''; S.wolfStrategyRound = 0;
     return;
   }
   Render.log('night-detail', '🐺 狼盟密约…');
@@ -14674,6 +14674,7 @@ async function wolfStrategyDiscuss(wolves) {
   if (!stratList.length) {
     S.wolfStrategy = '自由发挥（提案失败兜底）';
     S.wolfStrategyName = '自由发挥';
+    S.wolfStrategyRound = S.round;
     Render.log('night-detail', '⚠️ 狼盟密约：无有效提案，本局自由发挥');
     return;
   }
@@ -14682,6 +14683,7 @@ async function wolfStrategyDiscuss(wolves) {
   if (stratList.length === 1) {
     S.wolfStrategyName = stratList[0].name;
     S.wolfStrategy = stratList[0].content;
+    S.wolfStrategyRound = S.round;
     const singleVotes = {};
     singleVotes[stratList[0].name] = aliveWolves.map(w => w.name);
     Render.showWolfStrategyResult(stratList, singleVotes, stratList[0]);
@@ -14823,6 +14825,7 @@ async function wolfStrategyDiscuss(wolves) {
 
   S.wolfStrategyName = winner.name;
   S.wolfStrategy = winner.content;
+  S.wolfStrategyRound = S.round;
 
   // 渲染弹窗
   Render.showWolfStrategyResult(stratList, votes, winner);
@@ -24377,7 +24380,18 @@ function _buildPrivateInfoLines(p) {
         lines.push('狼队对跳核验（本局无魔术师）：判断任何女巫的刀口或救人声明前，必须按夜次把“她声称当夜看见或救了谁”与上方狼队刀口逐项对照。真女巫在解药尚在时看到的刀口、以及当夜若用解药所救的对象，都必须就是同夜刀口；报出的刀口或救人对象不同，是“该玩家不可能是真女巫”的身份级硬矛盾，“敢对跳、先跳后跳、语气坚定”都不能覆盖。反过来，报中刀口也不能单独自证真女巫。证伪女巫身份不等于证实狼人阵营，仍要区分狼人悍跳、好人挡刀或其他救场；刀口属于狼队绝密，公开发言不得无来源泄露。');
       }
     }
-    if (S.wolfStrategy) lines.push(`狼队密约：「${S.wolfStrategyName}」— ${S.wolfStrategy}`);
+    if (S.wolfStrategy) {
+      // ⚠️ 这一行同时供 API、导出聊天摘要、网页端接力三条路径使用。
+      //   API 路径旁边还有一整段"预案不是死命令"兜着，但摘要和网页端【只有这一行】——
+      //   一句光秃秃的"狼队密约：XXX"喂过去，网页端 AI 会当成本局的行动纲领照着打到死。
+      //   所以时效和定性必须写在这一行里，跟着它走到每一条路径。
+      const _sr = Number(S.wolfStrategyRound) || 1;
+      const _age = (Number(S.round) || 1) - _sr;
+      lines.push(`狼队密约（第${_sr}夜定的开局预案${_age >= 1 ? `，距今 ${_age} 轮` : ''}）：「${S.wolfStrategyName}」— ${S.wolfStrategy}`
+        + (_age >= 1
+          ? `\n  ⚠️ 这是【第${_sr}夜、信息几乎为零时】拟的开局方向，不是本局的行动纲领。列出来只为两件事：知道队友当初想干什么、别在白天说出和队友对不上的话。第2天起该怎么打由【现在的场面】决定：前提没了就换，目标死了就换，你被架上抗推台就先自保。照着一份过期方案打，是狼输掉残局最常见的死法。`
+          : `\n  ⚠️ 这是预案不是死命令：能配合就配合，局势偏离就在 thinking 里说明并切到当前最优。`));
+    }
   }
 
   // 🧩 自创/样板角色：从 gameRecord 重建本人的技能行动历史。
