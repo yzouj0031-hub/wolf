@@ -12188,7 +12188,7 @@ function buildHostContext() {
     const c = _formatPublicDeathCause(p, {compact:true, hiddenNight:hdeath, canSeePrivateNight:false});
     return p.name+'('+roleText+')·'+c;
   }).join(', ');
-  return `第${S.round}回合/${S.phase==='night'?'夜晚':'白天'}\n规则：${hdeath?'隐死亡（不得公开未由技能翻明的死者身份）':'死者身份公开'}\n存活：${alive}\n${dead?'已死：'+dead:''}\n配置：${getRoleList()}`;
+  return `${S.phase==='night'?`第${S.round}夜（夜晚进行中）`:`第${S.round}天（第${S.round}夜已结束）`}\n规则：${hdeath?'隐死亡（不得公开未由技能翻明的死者身份）':'死者身份公开'}\n存活：${alive}\n${dead?'已死：'+dead:''}\n配置：${getRoleList()}`;
 }
 function buildHostSys() {
   const v = $('host-verbosity') ? $('host-verbosity').value : 'normal';
@@ -19153,22 +19153,23 @@ const PhaseHandlers = {
       Render.log('sheriff','😅 无人参选，随机指定 ' + rp.name);
     }
     Render.log('sheriff','🎤 竞选者：' + candidates.map(p => p.name).join('、'));
+    // ★ 把"谁参选/谁没参选"作为系统事实同时写进 gameRecord 和所有存活AI的记忆。
+    //   之前只写进 p.memory，网页端导出的战报（只读 gameRecord/S.history）看不到未参选名单，
+    //   外部 AI 会把"没上警的人这阶段没发言"误读成"故意沉默/装死"而无端怀疑。
+    const candNames = candidates.map(p => p.name);
+    const nonCandNames = alive.filter(p => !candidates.some(c => c.id === p.id)).map(p => p.name);
+    const electFact = '【警长竞选·参选名单】本轮参选警长的是：' + (candNames.join('、') || '无')
+      + '。' + (nonCandNames.length ? '未参选的玩家是：' + nonCandNames.join('、') + '。' : '')
+      + '【重要规则】竞选演讲阶段只有参选者发言，未参选的玩家本来就不发言——这是正常的弃权选择，不是"沉默"或"装死"，绝对不能把"某人没在竞选环节发言"当作怀疑他的理由。';
     gameRecord.push({
       type:'sheriff_roster', stage:'signup', round:S.round,
-      candidates:candidates.map(p=>p.name),
-      text:'警长报名：' + candidates.map(p=>p.name).join('、')
+      candidates:candNames, nonCandidates:nonCandNames,
+      text:'警长报名：' + candNames.join('、')
+        + (nonCandNames.length ? '；未参选：' + nonCandNames.join('、') : '')
+        + '（未参选者在竞选环节本来就不发言，这是正常弃权，不能当作怀疑理由）'
     });
     S._sheriffCandidates = candidates;
-    // ★ 把"谁参选/谁没参选"作为系统事实写进所有存活AI的记忆，
-    //   否则 AI 会把"没上警的人这阶段没发言"误读成"故意沉默/装死"而无端怀疑。
-    {
-      const candNames = candidates.map(p => p.name);
-      const nonCandNames = alive.filter(p => !candidates.some(c => c.id === p.id)).map(p => p.name);
-      const electFact = '【警长竞选·参选名单】本轮参选警长的是：' + (candNames.join('、') || '无')
-        + '。' + (nonCandNames.length ? '未参选的玩家是：' + nonCandNames.join('、') + '。' : '')
-        + '【重要规则】竞选演讲阶段只有参选者发言，未参选的玩家本来就不发言——这是正常的弃权选择，不是"沉默"或"装死"，绝对不能把"某人没在竞选环节发言"当作怀疑他的理由。';
-      S.players.filter(p => p.alive).forEach(p => p.memory.push({ role: 'system', content: electFact }));
-    }
+    S.players.filter(p => p.alive).forEach(p => p.memory.push({ role: 'system', content: electFact }));
 
     // ★ 确认：看完报名再进入演讲
     if (alive.some(p => p.isPlayer)) {
@@ -29081,12 +29082,16 @@ function buildWebPrompt(p, opts) {
     // ── 判断某个 round 对应的"第几天"显示标签 ──
     // 本游戏 round 从 1 开始：round=1 的夜晚是开局首夜，round=1 的白天是第一个白天。
     // 为贴合直觉，夜晚记为「第N夜」，白天记为「第N天白天」，N 即 round。
-    const dayLabel  = (r) => `第${r}天 ☀️ 白天`;
-    const nightLabel= (r) => (r === 1 ? `第${r}夜 🌙（开局首夜）` : `第${r}夜 🌙`);
+    const dayLabel  = (r) => `第${r}天 ☀️ 白天讨论（发言 → 投票）`;
+    const nightLabel= (r) => (r === 1 ? `第${r}夜（开局首夜）` : `第${r}夜`);
 
-    // ── 把 gameRecord 拆进 (round, 段) 三个桶 ──
-    // 段 seg：'N'=夜晚(phase==='night')；'S'=警长竞选(phase==='sheriff')；'D'=白天讨论(其余)。
+    // ── 把 gameRecord 拆进 (round, 段) 四个桶 ──
+    // 段 seg：'N'=夜晚(phase==='night')；'S'=警长竞选(phase==='sheriff')；
+    //        'A'=天亮公布昨夜结果(夜间死亡)；'D'=白天讨论(其余)。
     // 这样竞选发言/退选/PK追加发言/竞选投票会独立成区，不和白天放逐讨论混在一起。
+    // 夜间死亡记录的 phase 是 'night'，但它是【天亮后（首日在警长竞选之后）】才公布的：
+    // 如果把它排进夜晚块，AI 会以为竞选时大家已经知道谁死了；所以单独归入 'A' 段，
+    // 放在第N天块里、竞选段之后、白天讨论之前——也就是它真正被公布的位置。
     // 没有 round 的系统条目（开局）单独处理。
     const buckets = {}; // key: `${round}|${seg}` -> 事件数组
     const roundsSeen = new Set();
@@ -29146,7 +29151,8 @@ function buildWebPrompt(p, opts) {
           const detail = hd
             ? `💀 ${r.name} 出局 — ${deathDesc}${voteSuffix}`
             : `💀 ${r.name}【${r.role || '?'}】— ${deathDesc}${voteSuffix}`;
-          pushBucket(round, seg, detail);
+          // 夜间死亡按"公布时刻"归入天亮公布段，而不是夜晚段
+          pushBucket(round, seg === 'N' ? 'A' : seg, detail);
           break;
         }
         case 'foolImmune':
@@ -29248,23 +29254,50 @@ function buildWebPrompt(p, opts) {
       emittedSpeechKeys.add(key);
     });
 
-    // ── 按 round 升序，每天 夜晚→警长竞选→白天 三段拼装输出 ──
+    // ── 按 round 升序拼装输出：每个 round = 「第N夜」块 → 「第N天」块，两块都是顶层 ──
+    // 以前把夜晚套在「第N天」大标题里面、和竞选/白天平级排列，AI 读起来像"第N天的一个环节"，
+    // 会把"竞选→狼刀"当成先后顺序（首夜没有夜间记录的玩家更是整块看不到夜晚）。
+    // 现在：① 夜晚永远独立成块、排在同一编号的白天之前；② 没有可见夜间记录也输出占位行，
+    // 明确"这一夜已经发生、结果未公布"；③ 夜间死亡放在第N天块的「天亮公布」段。
     const sortedRounds = [...roundsSeen].sort((a, b) => a - b);
     const out = [];
+    // 该 round 的昨夜结果是否已经（在游戏里）公布：过去的 round 一定公布了；当前 round 要看阶段。
+    const resultsAnnounced = (r) => (r < S.round) || (r === S.round && S.phase !== 'night' && S.phase !== 'sheriff');
+    const nightDeadOf = (r) => S.players.filter(x => !x.alive && x.deathRound === r && x.deathPhase === 'night');
     sortedRounds.forEach(r => {
-      const nightItems   = buckets[`${r}|N`] || [];
-      const sheriffItems = buckets[`${r}|S`] || [];
-      const dayItems     = buckets[`${r}|D`] || [];
-      if (!nightItems.length && !sheriffItems.length && !dayItems.length) return;
+      const nightItems    = buckets[`${r}|N`] || [];
+      const sheriffItems  = buckets[`${r}|S`] || [];
+      const announceItems = buckets[`${r}|A`] || [];
+      const dayItems      = buckets[`${r}|D`] || [];
+      if (!nightItems.length && !sheriffItems.length && !announceItems.length && !dayItems.length) return;
+      const dayStarted = resultsAnnounced(r) || sheriffItems.length > 0 || announceItems.length > 0 || dayItems.length > 0;
 
-      out.push(`\n╔══════ 第 ${r} 天 ══════╗`);
+      // ── 第N夜（独立顶层块，永远在第N天之前）──
+      out.push(`\n╔══════ 🌙 ${nightLabel(r)} ══════╗`);
       if (nightItems.length) {
-        out.push(`┈┈ ${nightLabel(r)} ┈┈`);
         nightItems.forEach(s => out.push(`  ${s}`));
+      } else if (isDelta) {
+        out.push(`  （本次同步没有新增的夜间记录；第${r}夜的夜间行动均已完成、已成定局）`);
+      } else {
+        out.push(`  （你在第${r}夜没有可见的夜间记录——不代表这一夜什么都没发生：狼刀、查验、用药、守护等夜间行动都在此时已经完成、已成定局，只是结果要到天亮后才公布。）`);
       }
+      if (!dayStarted) return; // 还没天亮：第N天块不存在
+
+      // ── 第N天（竞选 → 公布昨夜结果 → 白天讨论）──
+      out.push(`\n╔══════ ☀️ 第 ${r} 天 ══════╗`);
       if (sheriffItems.length) {
         out.push(`┈┈ 👑 警长竞选环节 ┈┈`);
+        out.push(`  （竞选发生在第${r}夜【之后】、昨夜死讯公布【之前】：此时所有人都还不知道昨晚谁死了、是不是平安夜；竞选里说的任何话都不可能影响或解释昨夜已经完成的行动。）`);
         sheriffItems.forEach(s => out.push(`  ${s}`));
+      }
+      if (announceItems.length) {
+        out.push(`┈┈ 🌅 天亮，公布第${r}夜结果 ┈┈`);
+        announceItems.forEach(s => out.push(`  ${s}`));
+      } else if (!isDelta && resultsAnnounced(r) && nightDeadOf(r).length === 0) {
+        out.push(`┈┈ 🌅 天亮，公布第${r}夜结果 ┈┈`);
+        out.push(`  第${r}夜平安夜，无人死亡`);
+      } else if (!isDelta && !resultsAnnounced(r)) {
+        out.push(`┈┈ 🌅 第${r}夜结果：尚未公布（要等警长竞选结束后才公布）┈┈`);
       }
       if (dayItems.length) {
         out.push(`┈┈ ${dayLabel(r)} ┈┈`);
@@ -29379,7 +29412,7 @@ function buildWebPrompt(p, opts) {
   } else if (S.phase === 'sheriff') {
     // 警长竞选
     const candidates = (S._sheriffCandidates||[]).map(c=>c.name).join('、') || '待定';
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是警长竞选阶段。\n当前候选人：${candidates}\n\n像真人一样竞选或表态。优先说你自己的一个观察、竞选动机和当前倾向；可以不确定，不要复述前置位的完整论证。`;
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是警长竞选阶段。\n【硬事实】第${S.round}夜已经结束：狼刀、守护、用药、查验均已发生、已成定局；结果要到竞选结束后才公布，此刻没有人知道昨晚谁死了、是不是平安夜。你在竞选里说什么、做什么，都不会影响、也不能用来解释昨夜的任何行动。\n当前候选人：${candidates}\n\n像真人一样竞选或表态。优先说你自己的一个观察、竞选动机和当前倾向；可以不确定，不要复述前置位的完整论证。`;
 
   } else if (S.phase === 'day') {
     // 白天发言
@@ -29409,7 +29442,7 @@ function buildWebPrompt(p, opts) {
       phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n${minimalNightTask}`;
     } else if (S.phase === 'sheriff') {
       const candidates = (S._sheriffCandidates||[]).map(c=>c.name).join('、') || '待定';
-      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是警长竞选阶段。当前候选人：${candidates}\n轮到你时，自行决定竞选陈词或表态内容。`;
+      phaseBlock = `━━━━ 当前阶段与操作要求 ━━━━\n现在是警长竞选阶段。第${S.round}夜已经结束、夜间行动已成定局，结果在竞选后公布，此刻无人知道昨晚谁死了。当前候选人：${candidates}\n轮到你时，自行决定竞选陈词或表态内容。`;
     } else if (S.phase === 'day') {
       const order = S._daySpeakOrder && S._daySpeakOrder.length
         ? `\n当前有效发言顺序：${S._daySpeakOrder.filter(pl=>pl && pl.alive).map((pl,i)=>`${i+1}.${pl.name}`).join('→')}` : '';
@@ -29466,12 +29499,13 @@ ${_rulesText}
 若下面的信息与上文冲突，一律【以本条为准】——上文是当时的旧快照，本条才是现在。
 
 ━━━━ 场上局势（当前，覆盖上文旧快照）━━━━
-第${S.round}轮 · 警长：${sheriff}
+${S.phase === 'night' ? `🌙 第${S.round}夜（夜晚进行中）` : `☀️ 第${S.round}天（第${S.round}夜已结束）`} · 警长：${sheriff}
 存活（${S.players.filter(x=>x.alive).length}人）：${aliveList}
 ${deadList ? `已出局：${deadList}` : '目前无人出局'}
 ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${secretBlock}
 
 ━━━━ 🆕 新增战报（自上次同步以来）━━━━
+（时间顺序：🌙第N夜 → ☀️第N天〔竞选 → 公布死讯 → 发言 → 投票〕→ 🌙第N+1夜；每个「第N夜」都在「第N天」之前）
 ${battleReport}${endingSpeechBlock}${wolfChatBlock}
 
 ${phaseBlock}
@@ -29509,7 +29543,7 @@ ${p.name}（P${p.id+1}）· ${p.role.emoji}${webRole.name} · ${teamLabel}
 ${secretBlock}
 
 ━━━━ 场上局势 ━━━━
-第${S.round}轮 · 警长：${sheriff}
+${S.phase === 'night' ? `🌙 第${S.round}夜（夜晚进行中）` : `☀️ 第${S.round}天（第${S.round}夜已结束）`} · 警长：${sheriff}
 存活（${S.players.filter(x=>x.alive).length}人）：${aliveList}
 ${deadList ? `已出局：${deadList}` : '目前无人出局'}
 ${charmPublicNote ? charmPublicNote + '\n' : ''}${loverPublicNote ? loverPublicNote + '\n' : ''}${_publicEventReadingNote()}
@@ -29517,6 +29551,7 @@ ${hdeathOn ? (opts.noTeaching ? '隐死亡模式：普通夜间死亡不翻身�
 ${_reasoningBlock}
 
 ━━━━ 本局战报（事实与玩家观点混合记录）━━━━
+时间顺序铁律：🌙第1夜 → ☀️第1天（警长竞选 → 公布昨夜死讯 → 发言 → 投票）→ 🌙第2夜 → ☀️第2天 …… 每个「第N夜」都发生在「第N天」之前；狼刀、查验、用药、守护全部在夜里完成，白天（包括警长竞选）说的任何话都不可能影响或解释同编号那一夜的行动。
 ${opts.noTeaching ? '以下按时间记录系统事件与玩家发言；系统事件按其公开范围生效，玩家发言只是玩家当时说过的话。' : '按时间阅读即可。系统事件是事实；玩家发言只是其当时的声明和判断。优先关注行动记录、公开验证、关键票型和持续行为，不必复述全部历史。'}
 ${battleReport}${endingSpeechBlock}${wolfChatBlock}${memoryBlock}
 
