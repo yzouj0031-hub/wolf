@@ -83,6 +83,8 @@ for (const file of ['index.html', 'en/index.html']) {
     const iDay = out.indexOf('╔══════ ☀️ 第 1 天');
     assert.match(out.slice(iNight, iDay), /🐺密谈 .*今晚刀P2号/, `${file}: 狼的密谈应在第1夜块里`);
     assert.doesNotMatch(out.slice(iNight, iDay), /没有可见的夜间记录/, `${file}: 有夜间记录时不应再输出占位`);
+    assert.match(out.slice(iNight, iDay), /其他角色的夜间行动同样已在此时完成/, `${file}: 有记录的玩家缺少“其他角色行动也已完成”尾注`);
+    assert.match(out.slice(iNight, iDay), /首夜没有任何白天信息/, `${file}: 首夜块缺少“无白天信息”说明`);
   }
 
   // ── 竞选进行中：死讯未公布，不能出现死亡、也不能暗示平安夜 ──
@@ -104,6 +106,26 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.ok(i2n > 0 && i2d > i2n, `${file}: 第2夜块应存在且在第2天块之前`);
     assert.match(out.slice(i2d), /第2夜平安夜，无人死亡/, `${file}: 第2天应公布第2夜平安`);
     assert.ok(out.indexOf('╔══════ ☀️ 第 1 天') < i2n, `${file}: 第1天块应在第2夜块之前`);
+    assert.match(out.slice(i2n, i2d), /第1天白天结束前已存在的信息；第2天白天的发言此时还没有发生/, `${file}: 第2夜块缺少“依据只能来自第1天”说明`);
+  }
+
+  // ── 发言顺序·系统事实：内置提示与导出共用的 buildSpeakOrderFact ──
+  {
+    const start = html.indexOf('function buildSpeakOrderFact(p) {');
+    const end = html.indexOf('\nfunction buildHostContext() {', start);
+    assert.ok(start >= 0 && end > start, `${file}: buildSpeakOrderFact 未找到`);
+    const order = [mk(0,'villager','good'), mk(1,'seer','good'), mk(2,'werewolf','werewolf')];
+    const fact = vm.runInNewContext(`${html.slice(start, end)}; buildSpeakOrderFact`, {S:{_daySpeakOrder:order}})(order[1]);
+    assert.match(fact, /你排在第2位/, `${file}: 发言顺序事实缺少本人位置`);
+    assert.match(fact, /排在你之后的 P3号 尚未发言/, `${file}: 发言顺序事实缺少“之后的人尚未发言”`);
+    assert.match(fact, /我的位置决定了我的发言顺序/, `${file}: 发言顺序事实缺少后跳神职的正确说法`);
+    assert.match(fact, /不要拿发言先后给对方安动机/, `${file}: 发言顺序事实缺少“不给对方安动机”`);
+    assert.equal(vm.runInNewContext(`${html.slice(start, end)}; buildSpeakOrderFact`, {S:{_daySpeakOrder:[]}})(order[0]), '', `${file}: 无顺序时应返回空串`);
+    for (const marker of [
+      '_r1Lead+buildSpeakOrderFact(p)+duelPendingNote+',
+      '${r1Echo}${buildSpeakOrderFact(p)}',
+      '${deathAnnounce}${round2hint}${buildSpeakOrderFact(p)}',
+    ]) assert.ok(html.includes(marker), `${file}: 发言提示缺少接入 ${marker}`);
   }
 
   // ── 源码标记：报名记录写入未参选名单；局势/竞选提示带“第N夜已结束”硬事实 ──
