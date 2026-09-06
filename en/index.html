@@ -6124,6 +6124,7 @@ function buildRulesExport() {
       ? '· 屠边局：狼人杀光本局全部神职、杀光本局全部民牌（若配置中存在），或存活狼数≥存活好人数即胜；好人需清除全部狼人。'
       : '· 屠城局：狼人仅在存活狼数≥存活好人数时获胜；杀光某一身份类别不会单独获胜；好人需清除全部狼人。',
     `· 流程：夜间行动 → ${S.round === 1 ? '首日警长竞选 → ' : ''}公布死讯 → 白天${S.singleRound ? '单轮' : '两轮'}发言 → 投票。只有系统明确宣布平票时才有PK追加发言；退选本身没有额外发言。`,
+    '· 发言制：所有发言阶段都按系统公布的顺序逐一轮流进行，每人一次，轮到你才能说，不能插话、抢先或等别人说完再补。竞选演讲按座位号顺序，白天发言按当天公布的顺序；顺序由座位或警长定序决定，不是玩家自己选的——谁先跳身份、谁后跳只反映他排在第几位，本身不是证据；排在你后面的人还没开口，那是还没轮到，不是沉默。',
     '· 阶段发言权限：只有系统明确标注为“发言、讨论、竞选陈词、PK自救或狼人密谈”的阶段才可对外说话。投票/警长投票、退选确认、夜间技能选择、警徽移交、死亡技能/决斗等技能确认及其他纯操作阶段，只向主持人提交选择，不追加公开发言，也不要向其他玩家提问；这些阶段无人会回应。',
     S.sheriffDailyOrderMode
       ? '· 警长存活时每天指定发言起点与方向；警长可选最后归票，也可选按座位顺序发言（放弃归票权），实际位置见当天发言顺序。'
@@ -8262,6 +8263,7 @@ function hasFirstPersonNightChronologyError(g) {
 }
 
 function parseAI(c, opts) {
+  let _monologueStripped = false;
   opts = opts || {};
   // 投票、退选、技能确认等纯操作阶段允许 game 为空；此时只解析 thinking/action，
   // 绝不能把 thinking 末尾“抢救”为一段并不存在的公开发言。
@@ -8271,6 +8273,32 @@ function parseAI(c, opts) {
   // 普通调用默认需要公开/对话文本；skillConfirm 默认是纯操作，只认 action。
   // 少数确实属于协商发言的技能节点，可显式传 requireGame:true（如狼人密谈）。
   const requireGame = opts.requireGame === true || (!isSkillConfirm && opts.requireGame !== false);
+  // ★ 内心独白 / 输出协议元语言剥离——只认"协议词"，不做语义猜测
+  //   历史教训（v9.9.15）：靠"我是狼/队友/我的策略"这类语义词拦截内心戏，会误伤跳神职，
+  //   而且一拦就是整段沉默，已经彻底禁用。这里换一条完全不同的路：
+  //   · 只认一类铁证——发言里出现了【输出协议本身】：<thinking>/<game>/<action> 标签、
+  //     "action None"、"填None"、"输出契约"、"任务说明"、"字数合适"、"写一版：" 这类词。
+  //     真人在牌桌上绝不会说这些；出现了就说明模型把草稿/思考当正文交了（典型：没打任何标签，
+  //     整段"我要表现得像…遵约填None…写一版：'…'"全部进了公开发言，顺手把队友名字也带出去）。
+  //   · 处理方式是"截"不是"吞"：取最后一个协议词之后的内容当发言（模型习惯先想后写，正文在最后）；
+  //     截完不成话（太短/没中文）才判沉默——沉默总比把"我别把队友卖了"念出来强。
+  //   · 不含任何身份/阵营词，跳神职、报查验、对跳都不会被碰。
+  function stripLeakedMonologue(game) {
+    const t = String(game || '');
+    if (!t) return { game: t, stripped: false };
+    const META = /(?:<\s*\/?\s*(?:thinking|game|action|interrupt|plan|strategy)\s*>|\baction\s*(?:None|填|写|里|标签|为|=)|\b(?:thinking|game)\s*(?:标签|里|写|填|部分)|输出契约|本轮输出|任务(?:说明|格式|要求)(?:里|中|就是|明确)?|填\s*None|写\s*None|遵(?:守)?契约|遵约|字数(?:合适|够了|限制|要求)|保持角色魅力|(?:写|来|出|给)一版[:：]?|最体面的写法|最终版[:：]|定稿[:：]|发言如下[:：]|遗言如下[:：])/gi;
+    let last = -1, lastLen = 0, m;
+    while ((m = META.exec(t))) { last = m.index; lastLen = m[0].length; }
+    if (last < 0) return { game: t, stripped: false };
+    let tail = t.slice(last + lastLen)
+      .replace(/^[\s:：,，。;；、"“”'‘’「」『』()（）\]】]+/, '')
+      .replace(/[\s"“”'‘’」』]+$/, '')
+      .trim();
+    const cjk = (tail.match(/[一-鿿]/g) || []).length;
+    if (tail.length >= 15 && (cjk >= 10 || /[a-zA-Z]{3,}\s+[a-zA-Z]{3,}/.test(tail))) return { game: tail, stripped: true };
+    return { game: '', stripped: true };
+  }
+
   // ── 预处理：统一各模型的标签格式 ──
   c = c.replace(/__LT__/g, '<').replace(/__GT__/g, '>');   // Grok转义
   c = c.replace(/&lt;/g, '<').replace(/&gt;/g, '>');        // HTML实体
@@ -8886,7 +8914,18 @@ function parseAI(c, opts) {
   const intMatch = c.match(/<interrupt>([\s\S]*?)<\/interrupt>/i);
   if (intMatch) interrupt = intMatch[1].replace(/<\/?(?:interrupt|game|action|thinking|strategy)[^>]*>/gi,'').trim();
 
-  return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak };
+  // ★ 协议元语言剥离：模型没打标签、把思考草稿当正文交了 → 只保留最后一个协议词之后的正文
+  {
+    const _ml = stripLeakedMonologue(game);
+    if (_ml.stripped) {
+      if (typeof Render !== 'undefined' && Render.devLog) {
+        Render.devLog('warn', `[parseAI] ✂️ 发言里混入输出协议元语言（thinking/action/写一版…），已截到正文：“${(_ml.game || '(截后为空，判沉默)').slice(0, 50)}…”`);
+      }
+      game = _ml.game || (requireGame ? '(沉默)' : '');
+      _monologueStripped = true;
+    }
+  }
+  return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak, _monologueStripped };
 }
 
 // ★ 从 thinking 抢救发言：当 AI 不按格式输出，把发言写到 thinking 里时使用。
@@ -11084,6 +11123,25 @@ function getHostAPI() {
   const m = ($('h-model')&&$('h-model').value.trim()) || ($('g-model').value.trim());
   return { url: u.replace(/\/$/,''), key: k, model: m };
 }
+// ── 发言顺序·系统事实（内置 API 与网页端导出共用）──
+// AI 高频误判：把"系统指定的发言顺序"读成"玩家的主动选择"——排在后面还没轮到的人被说成
+// "一直沉默"，先开口的神职被说成"抢跳包装队友"，后开口的被说成"看别人跳了才补跳"。
+// 顺序由座位/警长定序决定，先后本身零信息量。这段话放在发言提示里（犯错的位置），不放全局规则。
+function buildSpeakOrderFact(p) {
+  const order = (S._daySpeakOrder || []).filter(x => x && x.alive);
+  if (!order.length || !p) return '';
+  const idx = order.findIndex(x => x.id === p.id);
+  const after = idx >= 0 ? order.slice(idx + 1).map(x => x.name) : [];
+  const lines = ['【发言顺序·系统事实】今天的发言顺序由系统指定（座位/警长定序），不是任何人的主动选择：' + order.map((x, i) => `${i + 1}.${x.name}`).join('→') + '。'];
+  if (idx >= 0) {
+    lines.push(`你排在第${idx + 1}位。` + (after.length
+      ? `排在你之后的 ${after.join('、')} 尚未发言——他们此刻的沉默是顺序造成的，不是态度，不能当作"一直不表态/装死"的怀疑理由。`
+      : '你是本轮最后一个发言的人。'));
+  }
+  lines.push('谁先跳身份、谁后跳，同样是顺序决定的："抢跳"和"后跳"本身都不是证据。先开口的人不是"抢在真神之前包装队友"，后开口的人也不是"看到别人跳了才补跳"。如果你是后开口的神职，正确说法是"我的位置决定了我的发言顺序"，然后只谈信息：对跳真假只看对方报的内容是否与已知事实冲突、后续能否验证，不要拿发言先后给对方安动机。');
+  return '\n' + lines.join('\n');
+}
+
 function buildHostContext() {
   const hdeath = $('m-hdeath').checked;
   const alive = S.players.map(p=>`${p.name}[${p.alive?'活':'死'}]`).join(', ');
@@ -18327,9 +18385,9 @@ const PhaseHandlers = {
       // ★ v9.9.24 修复：接住 mcProcDay 的返回值——此前写死 result=null，
       //   导致主持人模式下白狼王自爆后主流程收不到 'whitewolf_explode'，
       //   不会直接入夜，发言面板还停在第二轮。
-      result = await mcProcDay(speakOrder, p => _r1Lead+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写过渡语或草稿。不得少于80字。', S.singleRound ? '发言' : '第一轮') || null;
+      result = await mcProcDay(speakOrder, p => _r1Lead+buildSpeakOrderFact(p)+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写过渡语或草稿。不得少于80字。', S.singleRound ? '发言' : '第一轮') || null;
     } else {
-      result = await proc(speakOrder, p => _r1Lead+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。发言必须包含：你对当前局势的判断、至少一个具体怀疑对象和理由。不得少于80字。', '发言');
+      result = await proc(speakOrder, p => _r1Lead+buildSpeakOrderFact(p)+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。发言必须包含：你对当前局势的判断、至少一个具体怀疑对象和理由。不得少于80字。', '发言');
     }
     if (result && result.startsWith('trial:') && result !== 'trial:tie') {
       if (!await checkEnd()) {
@@ -18385,7 +18443,7 @@ const PhaseHandlers = {
       const r1Echo = myR1
         ? `\n\n【你第一轮说过的话（仅供参照，禁止复读）】\n「${myR1.text.length > 200 ? myR1.text.slice(0, 200) + '…' : myR1.text}」`
         : '';
-      return `【白天发言·第二轮】第一轮所有人都说完了。这是投票前最后的发言机会。${r1Echo}
+      return `【白天发言·第二轮】第一轮所有人都说完了。这是投票前最后的发言机会。${r1Echo}${buildSpeakOrderFact(p)}
 
 【⚠️ 严禁复读第一轮】不要把第一轮的核心观点换个说法再说一遍。第二轮必须做以下三件事中至少一件：
 ① 针对某个具体玩家的具体一句话做正面反驳——点名+引用他的原话+你的反驳理由
@@ -27678,8 +27736,13 @@ function buildWebPrompt(p) {
 
       // ── 第N夜（独立顶层块，永远在第N天之前）──
       out.push(`\n╔══════ 🌙 ${nightLabel(r)} ══════╗`);
+      // 每个夜晚块都先钉死"这一夜能依据什么"：首夜没有任何白天信息；之后各夜只能依据前一天白天结束前的信息。
+      out.push(r === 1
+        ? `  （首夜没有任何白天信息：所有夜间目标只能出于座位、直觉、随机或预设，与之后发生的任何发言无关。）`
+        : `  （本夜所有行动的依据只能是第${r - 1}天白天结束前已存在的信息；第${r}天白天的发言此时还没有发生。）`);
       if (nightItems.length) {
         nightItems.forEach(s => out.push(`  ${s}`));
+        out.push(`  （以上是你可见的夜间记录；其他角色的夜间行动同样已在此时完成、已成定局，结果天亮后公布。）`);
       } else {
         out.push(`  （你在第${r}夜没有可见的夜间记录——不代表这一夜什么都没发生：狼刀、查验、用药、守护等夜间行动都在此时已经完成、已成定局，只是结果要到天亮后才公布。）`);
       }
@@ -27813,7 +27876,7 @@ function buildWebPrompt(p) {
     const deathAnnounce = S._lastNightDeaths && S._lastNightDeaths.length
       ? `\n昨晚死亡：${S._lastNightDeaths.map(id => S.players[id] ? S.players[id].name : '未知').join('、')}`
       : '\n昨晚：平安夜';
-    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}\n\n轮到你公开发言。这是影响别人判断与票型的正式机会，不要只给一两句结论。请完整说清：你的当前立场或票意；至少一个具体言行、票型、公开事实或合法行动记录作为依据；以及你对前置位最关键观点的回应。若被点名质疑、处在身份对跳或主要出局位，必须逐项反驳并给出替代判断。有身份信息就报清记录；不要把单次口误包装成唯一答案，也不要机械复读前置位的整套逻辑。`;
+    phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是白天讨论阶段（第${S.round}轮）。${deathAnnounce}${round2hint}${buildSpeakOrderFact(p)}\n\n轮到你公开发言。这是影响别人判断与票型的正式机会，不要只给一两句结论。请完整说清：你的当前立场或票意；至少一个具体言行、票型、公开事实或合法行动记录作为依据；以及你对前置位最关键观点的回应。若被点名质疑、处在身份对跳或主要出局位，必须逐项反驳并给出替代判断。有身份信息就报清记录；不要把单次口误包装成唯一答案，也不要机械复读前置位的整套逻辑。`;
 
   } else if (S.phase === 'vote') {
     phaseBlock = `━━━━ 现在要做什么 ━━━━\n现在是投票阶段，不是发言阶段。\n存活玩家：${aliveList}\n\n只向主持人提交一个投票目标，输出“投票：玩家名”。不要追加公开发言、解释理由或向其他玩家提问；本阶段无人会回应。`;
