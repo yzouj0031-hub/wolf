@@ -8263,6 +8263,7 @@ function hasFirstPersonNightChronologyError(g) {
 }
 
 function parseAI(c, opts) {
+  let _monologueStripped = false;
   opts = opts || {};
   // 投票、退选、技能确认等纯操作阶段允许 game 为空；此时只解析 thinking/action，
   // 绝不能把 thinking 末尾“抢救”为一段并不存在的公开发言。
@@ -8272,6 +8273,32 @@ function parseAI(c, opts) {
   // 普通调用默认需要公开/对话文本；skillConfirm 默认是纯操作，只认 action。
   // 少数确实属于协商发言的技能节点，可显式传 requireGame:true（如狼人密谈）。
   const requireGame = opts.requireGame === true || (!isSkillConfirm && opts.requireGame !== false);
+  // ★ 内心独白 / 输出协议元语言剥离——只认"协议词"，不做语义猜测
+  //   历史教训（v9.9.15）：靠"我是狼/队友/我的策略"这类语义词拦截内心戏，会误伤跳神职，
+  //   而且一拦就是整段沉默，已经彻底禁用。这里换一条完全不同的路：
+  //   · 只认一类铁证——发言里出现了【输出协议本身】：<thinking>/<game>/<action> 标签、
+  //     "action None"、"填None"、"输出契约"、"任务说明"、"字数合适"、"写一版：" 这类词。
+  //     真人在牌桌上绝不会说这些；出现了就说明模型把草稿/思考当正文交了（典型：没打任何标签，
+  //     整段"我要表现得像…遵约填None…写一版：'…'"全部进了公开发言，顺手把队友名字也带出去）。
+  //   · 处理方式是"截"不是"吞"：取最后一个协议词之后的内容当发言（模型习惯先想后写，正文在最后）；
+  //     截完不成话（太短/没中文）才判沉默——沉默总比把"我别把队友卖了"念出来强。
+  //   · 不含任何身份/阵营词，跳神职、报查验、对跳都不会被碰。
+  function stripLeakedMonologue(game) {
+    const t = String(game || '');
+    if (!t) return { game: t, stripped: false };
+    const META = /(?:<\s*\/?\s*(?:thinking|game|action|interrupt|plan|strategy)\s*>|\baction\s*(?:None|填|写|里|标签|为|=)|\b(?:thinking|game)\s*(?:标签|里|写|填|部分)|输出契约|本轮输出|任务(?:说明|格式|要求)(?:里|中|就是|明确)?|填\s*None|写\s*None|遵(?:守)?契约|遵约|字数(?:合适|够了|限制|要求)|保持角色魅力|(?:写|来|出|给)一版[:：]?|最体面的写法|最终版[:：]|定稿[:：]|发言如下[:：]|遗言如下[:：])/gi;
+    let last = -1, lastLen = 0, m;
+    while ((m = META.exec(t))) { last = m.index; lastLen = m[0].length; }
+    if (last < 0) return { game: t, stripped: false };
+    let tail = t.slice(last + lastLen)
+      .replace(/^[\s:：,，。;；、"“”'‘’「」『』()（）\]】]+/, '')
+      .replace(/[\s"“”'‘’」』]+$/, '')
+      .trim();
+    const cjk = (tail.match(/[一-鿿]/g) || []).length;
+    if (tail.length >= 15 && (cjk >= 10 || /[a-zA-Z]{3,}\s+[a-zA-Z]{3,}/.test(tail))) return { game: tail, stripped: true };
+    return { game: '', stripped: true };
+  }
+
   // ── 预处理：统一各模型的标签格式 ──
   c = c.replace(/__LT__/g, '<').replace(/__GT__/g, '>');   // Grok转义
   c = c.replace(/&lt;/g, '<').replace(/&gt;/g, '>');        // HTML实体
@@ -8887,7 +8914,18 @@ function parseAI(c, opts) {
   const intMatch = c.match(/<interrupt>([\s\S]*?)<\/interrupt>/i);
   if (intMatch) interrupt = intMatch[1].replace(/<\/?(?:interrupt|game|action|thinking|strategy)[^>]*>/gi,'').trim();
 
-  return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak };
+  // ★ 协议元语言剥离：模型没打标签、把思考草稿当正文交了 → 只保留最后一个协议词之后的正文
+  {
+    const _ml = stripLeakedMonologue(game);
+    if (_ml.stripped) {
+      if (typeof Render !== 'undefined' && Render.devLog) {
+        Render.devLog('warn', `[parseAI] ✂️ 发言里混入输出协议元语言（thinking/action/写一版…），已截到正文：“${(_ml.game || '(截后为空，判沉默)').slice(0, 50)}…”`);
+      }
+      game = _ml.game || (requireGame ? '(沉默)' : '');
+      _monologueStripped = true;
+    }
+  }
+  return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak, _monologueStripped };
 }
 
 // ★ 从 thinking 抢救发言：当 AI 不按格式输出，把发言写到 thinking 里时使用。
