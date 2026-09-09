@@ -34,7 +34,7 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.match(html, /name="_summary-mode" value="clean" checked/, `${file}: clean summary is not the default`);
   assert.match(html, /name="_summary-mode" value="audit"/, `${file}: audit summary option is missing`);
   assert.match(html, /detailMode: selectedSummaryMode\(\)/, `${file}: selected summary mode is not passed to the exporter`);
-  assert.match(html, /function _buildChatSummary\(viewerP, roundFilter, opts\)[\s\S]{0,350}?const auditMode = opts\.detailMode === 'audit'/, `${file}: exporter does not switch render modes`);
+  assert.match(html, /function _buildChatSummary\(viewerP, roundFilter, opts\)[\s\S]{0,800}?const auditMode = opts\.detailMode === 'audit'/, `${file}: exporter does not switch render modes`);
   assert.doesNotMatch(html, /function mechSkillTextForExport[\s\S]{0,180}?const auditMode/, `${file}: summary mode leaked into an unrelated role formatter`);
   assert.match(html, /同回合同名的技能结算与死亡记录属于同一次出局/, `${file}: clean summary lost the concise duplicate-event warning`);
 }

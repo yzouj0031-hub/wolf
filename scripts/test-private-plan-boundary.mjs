@@ -65,6 +65,7 @@ for (const file of ['index.html', 'en/index.html']) {
   const outputs = [];
   const element = () => ({appendChild(){}, style:{}});
   Object.assign(ctx, {
+    humanViewLocked:()=>false,
     S:{round:1,phase:'day',players:[actor,other],history:[]}, gameRecord:[],
     document:{createElement:element}, $:element,
     blindNamesOn:()=>false, markLogVisibility(){}, getEmoji:()=>'', isMC:()=>false,

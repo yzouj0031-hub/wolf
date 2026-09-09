@@ -5507,7 +5507,20 @@ const Audio = (() => {
 /* ================================================================
  *  § MC 主持人模式
  * ================================================================ */
-const isMC = () => $('m-mc') && $('m-mc').checked;
+// A live single-human game is a limited-view game, including after that human dies.
+function humanViewLocked() {
+  return !!(S && !S.gameOver && !S.pureAI && !S.directorMode &&
+    Number.isInteger(S.playerId) && S.playerId >= 0 && S.players && S.players.length);
+}
+function humanViewPlayer() {
+  return humanViewLocked() ? S.players.find(p => p.id === S.playerId) || null : null;
+}
+function humanViewDenied() {
+  alert(uiEnglish() ? 'Unavailable during a live human game. Only your own perspective is accessible until the match ends.'
+    : '真人对局进行中只能查看自己的视角。其他身份、私密推理和完整复盘将在整局结束后开放。');
+  return false;
+}
+const isMC = () => !humanViewLocked() && $('m-mc') && $('m-mc').checked;
 
 // 主持人确认弹窗：展示 AI 的意图，让主持人可以修改目标后确认
 // opts: [{label, value}] 供主持人选择目标
@@ -5638,7 +5651,7 @@ function pruneGL() {
   }
   folded.textContent = `▲ 已折叠 ${folded._hidden.length} 条早期发言（点击展开）`;
 }
-const isAnon   = () => $('m-anon').checked;
+const isAnon   = () => humanViewLocked() || $('m-anon').checked;
 const blindNamesOn = () => {
   const el = $('m-blindnames');
   return !!(el && el.checked);
@@ -6319,6 +6332,7 @@ function isPackWolfRole(role) {
   return !!(role && role.team === 'bad' && role.id !== 'mechwolf' && role.id !== 'gargoyle');
 }
 function getEmoji(p) {
+  if (humanViewLocked()) return observerPerspectiveCanSeeRole(p) ? p.role.emoji : '💬';
   if (S && S.pureAI && S.players && S.players.length) return observerPerspectiveCanSeeRole(p) ? p.role.emoji : '💬';
   if (!isAnon()) return p.role.emoji;
   if (p.isPlayer || canSee(p)) return p.role.emoji;
@@ -6810,8 +6824,15 @@ const SaveUI = (() => {
   }
 
   function exportSlot(slot) {
+    if (humanViewLocked()) return humanViewDenied();
     const raw = SaveStore.get(slot);
     if (!raw) return;
+    try {
+      const saved = JSON.parse(raw).S;
+      if (saved && !saved.gameOver && !saved.pureAI && !saved.directorMode &&
+          Number.isInteger(saved.playerId) && saved.playerId >= 0 && saved.players?.length)
+        return humanViewDenied();
+    } catch { return; }
     const blob = new Blob([raw], {type: 'application/json'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -8132,6 +8153,7 @@ function stripLogDecor(html) {
 }
 
 function observerPerspectivePlayer() {
+  if (humanViewLocked()) return humanViewPlayer();
   if (!S || !S.pureAI || !Array.isArray(S.players)) return null;
   const m = String(S.observerPerspective || 'god').match(/^player:(\d+)$/);
   return m ? S.players.find(p => p.id === Number(m[1])) || null : null;
@@ -8141,6 +8163,12 @@ function observerPerspectiveCanSeeRole(p) {
   const viewer = observerPerspectivePlayer();
   if (!viewer) return true;
   if (viewer.id === p.id) return true;
+  if (humanViewLocked()) {
+    if (_publiclyRevealedRoleName(p.name)) return true;
+    if (isPackWolfRole(viewer.role) && isPackWolfRole(p.role)) return true;
+    return gameRecord.some(r => r.type === 'night_action' && r.casterId === viewer.id &&
+      r.target === p.name && r.result === 'exact' && r.roleName === p.role.name && ['gargoyle','mechwolf_seer'].includes(r.role));
+  }
   if (isPackWolfRole(viewer.role) && isPackWolfRole(p.role)) return true;
   if (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) {
     if (viewer.role.id === 'gargoyle' && gameRecord.some(r => r.type==='night_action' && r.role==='gargoyle' && r.target===p.name && r.result==='exact')) return true;
@@ -8177,11 +8205,14 @@ function perspectiveLogNodes() {
   return [...new Set(nodes)];
 }
 function logVisibleToPerspective(node, viewer) {
-  const scope = node.dataset.visibility || 'public';
+  // Old saves predate visibility metadata. Never treat their private log types as public.
+  const scope = node.dataset.visibility || (
+    node.classList.contains('wolfchat') || node.classList.contains('meeting') ? 'pack' :
+    node.classList.contains('night-detail') || node.classList.contains('night-result') ? 'observer' : 'public');
   if (scope === 'public') return true;
   if (scope === 'pack') return !!(viewer && isPackWolfRole(viewer.role));
   if (scope === 'players') {
-    const ids = String(node.dataset.visiblePlayers || '').split(',').map(Number).filter(Number.isInteger);
+    const ids = String(node.dataset.visiblePlayers || '').split(',').filter(x => x.trim() !== '').map(Number).filter(Number.isInteger);
     return !!(viewer && ids.includes(viewer.id));
   }
   return false;
@@ -8199,9 +8230,28 @@ function refreshObserverPerspectiveControl() {
   if(!wanted.includes(S.observerPerspective))S.observerPerspective='god'; select.value=S.observerPerspective||'god';
 }
 function applyObserverPerspective(refreshCards=true){
-  refreshObserverPerspectiveControl(); const viewer=observerPerspectivePlayer(); const active=!!(S&&S.pureAI&&S.players&&S.players.length);
+  refreshObserverPerspectiveControl(); const viewer=observerPerspectivePlayer(); const active=humanViewLocked()||!!(S&&S.pureAI&&S.players&&S.players.length);
+  for (const id of ['m-anon','m-mc','m-trial','m-hdeath']) {
+    const el = $(id);
+    if (el && humanViewLocked()) {
+      el.disabled = true;
+      if (id === 'm-anon') el.checked = true;
+      if (id === 'm-mc' || id === 'm-trial') el.checked = false;
+    }
+  }
+  document.body.classList.toggle('human-private-view', humanViewLocked());
   document.body.classList.toggle('observer-ai-view',active&&!!viewer); document.body.classList.toggle('observer-god-view',active&&!viewer);
-  perspectiveLogNodes().forEach(node=>{const visible=!viewer||logVisibleToPerspective(node,viewer);node.classList.toggle('perspective-visible',!!viewer&&visible);node.classList.toggle('perspective-hidden',!!viewer&&!visible);node.querySelectorAll('.log-thought').forEach(t=>{t.style.display=!viewer||Number(node.dataset.actorId)===viewer.id?'':'none';});});
+  perspectiveLogNodes().forEach(node=>{const visible=!viewer||logVisibleToPerspective(node,viewer);
+    if (humanViewLocked() && !visible) {
+      node.remove();
+      const folded = $('gl').querySelector('.le-folded');
+      if (folded && Array.isArray(folded._hidden)) folded._hidden = folded._hidden.filter(n => n !== node);
+      return;
+    }
+    node.classList.toggle('perspective-visible',!!viewer&&visible);node.classList.toggle('perspective-hidden',!!viewer&&!visible);node.querySelectorAll('.log-thought').forEach(t=>{
+    if (humanViewLocked() && Number(node.dataset.actorId)!==S.playerId) t.remove();
+    else t.style.display=!viewer||Number(node.dataset.actorId)===viewer.id?'':'none';
+  });});
   const hint=$('observer-perspective-hint'); if(hint)hint.textContent=viewer?'Following '+viewer.name+' ['+viewer.role.name+']: only information actually available to this AI is shown':'God view: all roles, private meetings and night actions are visible';
   if(refreshCards&&S&&Array.isArray(S.players))S.players.forEach(p=>Render.card(p));
 }
@@ -8217,12 +8267,14 @@ const Render = {
     d.innerHTML = stripLogDecor(html);
     blindMaskElementText(d);
     markLogVisibility(d, type, visibility);
+    if (humanViewLocked() && !logVisibleToPerspective(d, humanViewPlayer())) return;
     $('gl').appendChild(d);
     applyObserverPerspective(false);
     scrollGL();
     pruneGL();
   },
   logSpeech(p, g, isWolfChat) {
+    if (humanViewLocked() && isWolfChat && !isPackWolfRole(humanViewPlayer()?.role)) return;
     const d = document.createElement('div');
     const publicGame = blindMaskPublic(g || '(沉默)');
     d.className = 'le speech';
@@ -8268,7 +8320,7 @@ const Render = {
     document.body.classList.toggle('hmbti', !$('m-mbti').checked);
     // ★ fix: 匿名模式狼人视角 — 玩家是狼队时加 is-wolf，让 CSS 显示密谈日志
     const me = S.players && S.playerId >= 0 ? S.players[S.playerId] : null;
-    const isWolfPlayer = me && me.role && me.role.team === 'bad';
+    const isWolfPlayer = me && isPackWolfRole(me.role);
     // 导演模式：只要导演控制了任意一只狼也算
     const isWolfDirector = S.directorMode && S.directorIds &&
       S.directorIds.some(id => S.players[id] && S.players[id].role && S.players[id].role.team === 'bad');
@@ -8298,7 +8350,7 @@ const Render = {
     const blindReview = !!(S && S.gameOver && S.blindReviewMode);
     const sd = !p.alive && p.revealed && !hd;
     const perspectiveViewer = observerPerspectivePlayer();
-    const perspectiveMode = !!(S && S.pureAI && S.players && S.players.length);
+    const perspectiveMode = humanViewLocked() || !!(S && S.pureAI && S.players && S.players.length);
     const perspectiveKnown = observerPerspectiveCanSeeRole(p);
     if (perspectiveViewer && !perspectiveKnown && !sd) c.classList.add('perspective-role-hidden');
     const show = !blindReview && (perspectiveMode ? (perspectiveKnown || sd) : (!ia || p.isPlayer || canSee(p) || sd));
@@ -8344,6 +8396,7 @@ const Render = {
     scrollGL();
   },
   devLog(t, msg) {
+    if (humanViewLocked()) return;
     const d = document.createElement('div');
     d.className = 'ent ' + t;
     d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -11522,7 +11575,7 @@ async function batchCall(items, concId, fn) {
 /* ================================================================
  *  AI 主持人模块
  * ================================================================ */
-function isHostEnabled() { const el = $('host-enable'); return el ? el.checked : false; }
+function isHostEnabled() { if (humanViewLocked()) return false; const el = $('host-enable'); return el ? el.checked : false; }
 function getHostAPI() {
   const u = ($('h-url')&&$('h-url').value.trim()) || ($('g-url').value.trim());
   const k = ($('h-key')&&$('h-key').value.trim()) || ($('g-key').value.trim());
@@ -11742,6 +11795,7 @@ function specShouldFire(eventType) {
 }
 
 async function callSpectator(eventType, context) {
+  if (humanViewLocked()) return;
   if (!isSpecEnabled()) return;
   if (!specShouldFire(eventType)) return;
   // 话多模式随机跳过30%防止发言刷屏
@@ -12057,6 +12111,7 @@ async function nightAtmo(count) {
 //       - 各种沉默占位都识别并提示
 let _reviewResolve = null;
 async function mcReviewSpeech(player, result, promptFn) {
+  if (humanViewLocked()) return result;
   if (!isMC()) return result;
   // 狼人密谈不审核（玩家本来就看不到公开日志）
   return new Promise(resolve => {
@@ -12203,7 +12258,7 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
     entry.addEventListener('mouseenter', () => { const b = entry.querySelector('.undo-speak-btn'); if (b) b.style.opacity = '1'; });
     entry.addEventListener('mouseleave', () => { const b = entry.querySelector('.undo-speak-btn'); if (b) b.style.opacity = '0'; });
   }
-  if (result.thinking) {
+  if (result.thinking && (!humanViewLocked() || player.id === S.playerId)) {
     const td = document.createElement('div');
     td.className = 'log-thought';
     td.textContent = '💭 ' + result.thinking;
@@ -12232,7 +12287,7 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
     entry.appendChild(diagBar);
   }
 
-  $('gl').appendChild(entry);
+  if (!humanViewLocked() || logVisibleToPerspective(entry, humanViewPlayer())) $('gl').appendChild(entry);
   applyObserverPerspective(false);
   scrollGL();
   // 🔊 朗读与打字机【同时】启动:先按句切分入队,首句音频到位即开口,不必等整段合成
@@ -12351,6 +12406,11 @@ function waitInput(ctx, hint, currentPlayer) {
 }
 
 function _openInputModal(ctx, hint, resolve, currentPlayer) {
+  if (humanViewLocked() && currentPlayer && currentPlayer.id !== S.playerId) {
+    S.auto = false;
+    humanViewDenied();
+    throw new Error('Private human game: another seat cannot be manually controlled.');
+  }
   piResolve = resolve;
   const isEndingInput = !!(S && S.gameOver && currentPlayer);
   const currentBadge = $('pi-current-player');
@@ -18163,6 +18223,7 @@ function nightStepLogVisibility(step) {
   if(step==='magic-swap')ids=(S.players||[]).filter(p=>['magician','imitator'].includes(p.role&&p.role.id)).map(p=>p.id);
   if(step==='pick-gift'||step==='granted-skill')ids=(S.players||[]).filter(p=>p._giftPending||p._grant||p._grantedSeer).map(p=>p.id);
   if(step==='custom-gods')ids=(S.players||[]).filter(p=>Array.isArray(p.role&&p.role.customAbilities)&&p.role.customAbilities.length).map(p=>p.id);
+  if (humanViewLocked() && ids.length > 1) return {scope:'observer'};
   return ids.length?{players:ids,actorId:ids.length===1?ids[0]:undefined}:null;
 }
 const PhaseHandlers = {
@@ -20459,6 +20520,7 @@ function toggleBlindReviewMode() {
 }
 
 function openPostGame() {
+  if (humanViewLocked()) return humanViewDenied();
   updateBlindReviewUI();
   const blind = blindReviewOn();
   const spk = $('pg-speaker');
@@ -21060,7 +21122,7 @@ function startGame() {
   const manualAssign = {}; // pid -> roleId
   for (const pidStr in playerConfigs) {
     const pc = playerConfigs[pidStr];
-    if (pc.role && ALL_ROLES[pc.role]) {
+    if (pc.role && ALL_ROLES[pc.role] && (S.pureAI || S.directorMode || Number(pidStr) === pid)) {
       const pidNum = parseInt(pidStr);
       if (pidNum >= 0 && pidNum < cfg.count) {
         // 从角色池中移除一个该角色
@@ -21162,6 +21224,10 @@ Render.stats(); Render.modes(); Render.phaseClass();
 window.WolfExitGuard?.refresh();
 // 运行时开关（隐死亡/审判/匿名/遗言等）整局保持可调：开局忘了开可中途补上，实时生效（不会追溯已公布的信息）
 ['m-anon','m-trial','m-hdeath','m-mbti','m-cosplay','m-blindnames','m-hardcore','m-lastwill','m-mc'].forEach(id => { const el=$(id); if(el) el.disabled = false; });
+applyObserverPerspective(false);
+if (humanViewLocked()) Render.log('system', uiEnglish()
+  ? 'Human private view: other seats are randomly assigned; only your own information is shown until the match ends.'
+  : '真人私密视角已开启：其他席位随机分配身份；整局结束前仅展示你有权知道的信息。');
 }
 
 async function nextStep() {
@@ -22498,6 +22564,7 @@ function renderDirectorGrid() {
 
 // 切换某角色的导演控制状态（游戏进行中随时可用）
 function toggleDirectorControl(pid) {
+  if (humanViewLocked()) return humanViewDenied();
   if (!S.directorMode) return;
   const p = S.players[pid];
   if (!p) return;
@@ -22571,6 +22638,7 @@ function applyAll() {
  *  § 复盘HTML生成
  * ================================================================ */
 function generateReplay() {
+  if (humanViewLocked()) return humanViewDenied();
   if (blindReviewOn()) {
     alert('终局盲复盘已开启：复盘HTML含头像、真实身份和私密事件，已阻止导出以免泄底。请使用“聊天摘要”导出公开战报盲推版；关闭盲复盘后可正常导出完整复盘HTML。');
     openChatSummary();
@@ -22802,6 +22870,7 @@ function openMVP() {
 // ★ 上帝视角战报：给 MVP 评委看的"完整录像回放"——所有身份、所有夜间行动、死亡、关键发言全公开，
 //   不隐藏任何阵营视角。目的：让狼评委和好人评委看到【同一份事实】，消除"我方视角"偏差，分数才可比。
 function _buildGodViewReport() {
+  if (humanViewLocked()) { humanViewDenied(); return ''; }
   const recs = (typeof gameRecord !== 'undefined' && Array.isArray(gameRecord)) ? gameRecord : [];
   const lines = [];
   const roleName = nm => { const pl = S.players.find(x => x.name === nm); return pl ? pl.role.emoji + pl.role.name : ''; };
@@ -23109,6 +23178,7 @@ ${godReport}
  *  § 23. 导出
  * ================================================================ */
 function openChatSummary() {
+  if (humanViewLocked()) return _buildChatSummary(humanViewPlayer(), null, {hideDeathRole:true});
   const alive = S.players;
   if (!alive.length) { alert('游戏尚未开始'); return; }
   _backfillGiftChoiceRecords();
@@ -23980,6 +24050,12 @@ function _formatChatSummaryEvent(r, auditMode) {
 
 function _buildChatSummary(viewerP, roundFilter, opts) {
   if (viewerP) assertPrivateViewer(viewerP);
+  if (humanViewLocked()) {
+    viewerP = humanViewPlayer();
+    if (!viewerP) return humanViewDenied();
+    opts = {...(opts || {}), feedClaude:false};
+  }
+  if (viewerP) assertPrivateViewer(viewerP);
   // viewerP=null 表示上帝视角；roundFilter=null 表示全部轮次，否则是 [{round,phase,label}] 数组
   // opts.hideDeathRole=true 隐藏已出局玩家身份；opts.feedClaude=true 在前面加完整系统prompt
   opts = opts || {};
@@ -24292,6 +24368,7 @@ function _buildChatSummary(viewerP, roundFilter, opts) {
 }
 
 function openExport() {
+  if (humanViewLocked()) return _buildChatSummary(humanViewPlayer(), null, {hideDeathRole:true});
   // 终局盲复盘下，“完整记录”也必须服从隐藏规则，避免从另一导出入口泄露答案。
   if (blindReviewOn()) {
     _buildChatSummary(null, null, {hideDeathRole:true, blindReview:true});
@@ -24768,6 +24845,7 @@ async function testAPI() {
  *  § 24. 观战提问系统
  * ================================================================ */
 function openAskDialog() {
+  if (humanViewLocked()) return humanViewDenied();
   if (!S.players || S.players.length === 0) { Render.log('system','⚠️ 请先开局'); return; }
   const sel = $('ask-target');
   sel.innerHTML = '';
@@ -24785,6 +24863,7 @@ function openAskDialog() {
 }
 
 async function sendAsk() {
+  if (humanViewLocked()) return humanViewDenied();
   const pid = parseInt($('ask-target').value);
   const question = $('ask-input').value.trim();
   if (!question) return;
@@ -27048,6 +27127,7 @@ WP.init();
   }
 
   function openGChat() {
+    if (humanViewLocked()) return humanViewDenied();
     gcLoad();
     gcSyncViewport();
     gcAutoFollow = true;
@@ -28612,6 +28692,12 @@ directorChoose = function(p, promptFn, opts) {
 
 // ── 网页端 prompt 弹窗：复制 prompt → 粘贴回复 → 智能解析 ──
 function _openWebPromptModal(p, promptFn, resolve) {
+  if (humanViewLocked() && p.id !== S.playerId) {
+    S.auto = false;
+    humanViewDenied();
+    throw new Error(uiEnglish() ? 'Live human games require API-controlled AI seats; web relay exposes private prompts.'
+      : '真人对战的 AI 席位请使用 API 模式；网页接力需要展示对方私密提示词，已阻止并暂停。');
+  }
   const webPrompt = buildWebPrompt(p);
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(4px);animation:vn-fadein 0.2s ease';

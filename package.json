@@ -23,7 +23,7 @@
     "test:custom-role-art": "node scripts/test-custom-role-art.mjs",
     "test:custom-role-edge-class": "node scripts/test-custom-role-edge-class.mjs",
     "test:role-overlap": "node scripts/test-role-overlap-hints.mjs",
-    "test:observer-perspective": "node scripts/test-observer-perspective.mjs",
+    "test:observer-perspective": "node scripts/test-observer-perspective.mjs && node scripts/test-human-private-view-browser.mjs",
     "test:sheriff-order": "node scripts/test-sheriff-order.mjs",
     "test:online-lobby": "node scripts/test-online-lobby.mjs",
     "test:feedback": "node scripts/test-match-feedback.mjs",

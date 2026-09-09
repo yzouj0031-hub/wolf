@@ -1,6 +1,7 @@
 // Premium Replay Generator
 
 function exportReplayHTML() {
+  if (typeof humanViewLocked === 'function' && humanViewLocked()) return humanViewDenied();
   if (!S || !S.players || S.players.length === 0) {
     alert(i18n('No game data to export.'));
     return;
