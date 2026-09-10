@@ -3227,6 +3227,7 @@ body.has-wp::after {
         <label class="mti" data-ui-icon="gavel"><input type="checkbox" id="m-mc">主持人</label>
         <label class="mti" data-ui-icon="gavel" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口。只控制一名狼或纯观战时直接覆盖AI决定；同时控制多名狼时，每名狼各投一票，空刀与具体刀口等权。关闭则全体狼队民主投票（默认）"><input type="checkbox" id="m-director-veto">导演刀口主控</label>
         <label class="mti" data-ui-icon="wrench" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>手动重试</label>
+        <label class="mti" data-ui-icon="wrench" title="AI 偶尔会把「等下该说什么」的内心盘算当成公开发言交上来，而这种散文用正则分不出来（词表放宽一点就会吞掉真神跳身份）。开启后，只有正则判不了的极少数发言会送去问一次便宜模型（用主持人API的模型，留空则用全局），只问一个二选一：这段话是对牌桌说的，还是自己盘算？判定为盘算才重新请求。每局最多问 8 次，超时或未配置一律原样放行。"><input type="checkbox" id="m-speech-judge" checked>发言分诊</label>
         <label class="mti" data-ui-icon="tag" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">模型标签</label>
         <label class="mti" data-ui-icon="tag" title="开启后模型标签显示完整模型名（如 Claude Opus 4.5、Gemini 3 Pro），关闭则只显示品牌简称（如 Claude、Gemini）。命牌上名字过长会截断，鼠标悬停可看完整模型 ID。"><input type="checkbox" id="m-modeltag-full" onchange="document.body.classList.toggle('show-modeltag-full', this.checked);S.players&&S.players.forEach(p=>Render.card(p))">完整模型名</label>
         </div>
@@ -8018,6 +8019,7 @@ function saveCfg() {
     reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
+    speechJudge:$('m-speech-judge')?$('m-speech-judge').checked:true,
     pconfigs:playerConfigs,
     promptLibrary,
     teachingWorldbooks:window.TeachingWorldbooks&&typeof window.TeachingWorldbooks.exportState==='function'?window.TeachingWorldbooks.exportState():null,
@@ -8089,6 +8091,7 @@ function loadCfg() {
     }
     if (d.freeOutput !== undefined && $('m-free-output')) $('m-free-output').checked = d.freeOutput;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
+    if (d.speechJudge !== undefined && $('m-speech-judge')) $('m-speech-judge').checked = d.speechJudge;
     if (d.cnames) $('cnames').value = d.cnames;
     if (d.pconfigs) {
       playerConfigs = purgeRemovedPronounConfigs(d.pconfigs);
@@ -8976,6 +8979,37 @@ function parseAI(c, opts) {
     }
   }
 
+  // ── ★ 窄拦截：推理摘要标题当成发言输出 ──
+  //   现象：会输出"推理摘要"的模型（GPT-5/6 系列尤为常见）偶尔把摘要标题直接塞进 content，
+  //   既没有 <thinking> 也没有 <game>：
+  //     **Assessing suspect 2 evidence** **我在核对查验线索** **权衡是否公开身份**
+  //   带 <thinking> 标签的和走 native thinking 字段的两条路已经堵上了，但"裸 content"
+  //   这条一直开着——实测这段会被原样当成公开发言念出去。危害不止是难看：后置位会拿
+  //   "我在整理刀药记录"反推他是女巫/神职，一次技术故障凭空制造了一张身份牌，
+  //   整局的身份推理都被污染。
+  //   特征又窄又准：整段【几乎全部】由 ** ** 粗体片段拼成。真实发言是散文，可以带一两处
+  //   粗体强调，但不会通篇只剩粗体片段。所以按"去掉粗体片段之后还剩多少实质内容"来判，
+  //   不认具体词——认词就会误伤真神跳身份。另外只在模型【完全没用协议】（没有 <game>
+  //   标签）时才启用，用了协议的一律放行。
+  //   处理：与上面的思维链泄漏一致——挪回 thinking，清空 game，交给下游请求正式发言。
+  if (game && game !== '(沉默)' && !/<game>[\s\S]*?<\/game>/i.test(String(c || ''))) {
+    const _sumSrc = String(c || '').replace(/<\s*thinking\s*>[\s\S]*?(?:<\s*\/\s*thinking\s*>|$)/gi, '').trim();
+    const _sumRe = /\*\*[^*\n]{2,80}\*\*/g;
+    const _sumRuns = _sumSrc.match(_sumRe) || [];
+    if (_sumRuns.length >= 2) {
+      const _sumRest = _sumSrc.replace(_sumRe, '').replace(/\s+/g, '');
+      const _sumTotal = _sumSrc.replace(/\s+/g, '').length;
+      // 去掉粗体片段后剩下的实质内容不到一成半 → 这不是发言，是推理摘要标题的堆叠
+      if (_sumRest.length <= Math.max(6, Math.round(_sumTotal * 0.15))) {
+        thinking = (thinking ? thinking + '\n\n' : '') + game;
+        if (typeof Render !== 'undefined' && Render.devLog) {
+          Render.devLog('warn', `[parseAI] 🧠 检测到推理摘要标题被当成发言输出（${_sumRuns.length} 段粗体、无实质正文），已挪回thinking并请求正式发言: "${game.slice(0, 50)}..."`);
+        }
+        game = '';
+      }
+    }
+  }
+
   if (!game && requireGame) game = '(沉默)';
 
   // ── 拒绝检测 ──
@@ -9059,7 +9093,9 @@ function parseAI(c, opts) {
       _monologueStripped = true;
     }
   }
-  return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak, _monologueStripped };
+  // 模型到底有没有按协议输出（发言分诊 Tier 1 只在「完全没用协议」时才启动）
+  const _noGameTag = !/<game>[\s\S]*?<\/game>/i.test(String(c || ''));
+  return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak, _monologueStripped, _noGameTag };
 }
 
 // Remove private plan blocks before speech/action fallback parsing.
@@ -11435,6 +11471,95 @@ function getHostAPI() {
   const m = ($('h-model')&&$('h-model').value.trim()) || ($('g-model').value.trim());
   return { url: u.replace(/\/$/,''), key: k, model: m };
 }
+
+/* ================================================================
+ *  发言分诊 Tier 1：正则判不了的那一小撮，交给便宜模型做一次二选一
+ * ================================================================
+ * 为什么需要这一层：坏发言分两类。
+ *   ① 协议/格式故障（推理摘要标题、整段粗体、截断、沉默）——确定性的，正则零成本judge
+ *      得了，已经在 parseAI 里判完了，不该花钱。
+ *   ② 语义歧义——"让我理一下局面……我作为真预言家，如果现在不跳，警徽流就没人认，
+ *      所以我应该公开身份。"这是私下盘算还是公开发言？审议散文和真发言都是中文散文，
+ *      没有任何结构信号能分开它们。正则只能靠认词，而词表扩宽一点就会吞掉真神跳身份
+ *      ——那是游戏级事故。这一类只有模型判得了。
+ *
+ * 三条设计约束，缺一条这层就会变成负资产：
+ *   · 【分诊不是全检】只有 needsSpeechJudge 认定"判不了"时才问。全检等于每局多 150 次
+ *     串行调用，钱是小事，游戏时长直接翻倍。
+ *   · 【问机械问题，不问好不好】让模型评价发言质量，它一定挑得出毛病，然后开始否掉大量
+ *     本来正常的发言、触发重 roll，付两倍的钱拿到更差的结果。所以只问"这段话的听众是谁"，
+ *     A/B 二选一，不给它发挥空间；拿不准一律答 A（放行）。
+ *   · 【fail-open】判官超时、没配、返回看不懂 —— 一律按原样放行。判官绝不能变成新的故障源。
+ */
+const SPEECH_JUDGE_MAX_PER_GAME = 8;   // 每局问诊上限，防止某个模型持续触发把成本拖上去
+
+// 审议前言的自我规划痕迹。这里【故意写得松】——它只负责决定"要不要问"，判断交给模型，
+// 所以误报只是多花一次极便宜的调用，不会吞掉任何发言。
+const _JUDGE_PLAN_MARKER = /(?:让我(?:先|再)?(?:想|理|捋|梳理|分析|盘)|我(?:需要|应该|得|要|先|来|打算|准备|决定)(?:先)?(?:想|理|捋|梳理|分析|思考|判断|考虑|说|讲|发言|公开|跳)|如果我(?:现在|今天|这轮|不跳|要跳)|那我(?:就|应该|可以)?(?:说|跳)|我这(?:轮|条|次)(?:的)?发言|接下来我(?:要|应该|得)|Let me (?:think|analyze|consider|review)|I (?:should|need to|will) (?:say|claim|reveal|argue))/;
+
+const SPEECH_JUDGE_SYS = `你在做一个机械的二分类，不是在评价质量。
+
+下面这段文字来自一局狼人杀。判断它是：
+A = 玩家【对着牌桌上其他人说的话】（公开发言、跳身份、报查验、拉票、质疑别人、留遗言）
+B = 玩家【自言自语在盘算等下该说什么】（内心推演、权衡要不要跳、给自己列步骤、复述任务格式要求）
+
+判据只有一条：这段话是写给谁看的。写给别人听的是 A，写给自己看的是 B。
+
+- 发言写得差、逻辑乱、太短、有错别字——仍然是 A。你不负责评价质量。
+- "我觉得我应该跳预言家了，昨晚我查了白马探是狼"——A，他在对大家说。
+- "我作为真预言家，如果现在不跳，警徽流就没人认，所以我应该公开身份"——B，他在对自己说。
+- 拿不准就答 A。
+
+只输出一个字母：A 或 B。不要解释。`;
+
+// 纯函数，便于测试：这条回复是不是"正则判不了、值得花一次调用"的那一小撮。
+function needsSpeechJudge(result, opts) {
+  if (!result) return false;
+  const o = opts || {};
+  if (o.wolfOnly || o.silent || o.skillConfirm) return false;   // 只管公开发言
+  if (result._noGameTag !== true) return false;                 // 用了协议的一律放行
+  const g = String(result.game || '').trim();
+  if (!g || g === '(沉默)') return false;                        // 已经是失败态，另有兜底
+  if (g.length < 30 || g.length > 1200) return false;           // 太短另有重写兜底；太长基本不是审议前言
+  // 审议前言长在【开头】。只看前 150 字，避免正文里"我应该没记错"这种偶然命中。
+  return _JUDGE_PLAN_MARKER.test(g.slice(0, 150));
+}
+
+// 返回 'A'(是公开发言) / 'B'(是私下盘算) / null(判不了 → 调用方一律放行)
+async function judgeSpeechIsPublic(text) {
+  const api = (typeof getHostAPI === 'function') ? getHostAPI() : null;
+  if (!api || !api.url || !api.key || !api.model) return null;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const res = await fetch(api.url + '/chat/completions', {
+      method: 'POST',
+      signal: ctl.signal,
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.key},
+      body: JSON.stringify({
+        model: api.model,
+        temperature: 0,
+        max_tokens: 32,
+        messages: [
+          {role: 'system', content: SPEECH_JUDGE_SYS},
+          // 只给候选文本，不给任何局面信息：省 token、防泄底，也防它对战术有意见
+          {role: 'user', content: '【待判断文本】\n' + String(text || '').slice(0, 1500)}
+        ]
+      })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = String((((data || {}).choices || [])[0] || {}).message?.content || '').trim().toUpperCase();
+    if (raw.startsWith('A')) return 'A';
+    if (raw.startsWith('B')) return 'B';
+    return null;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── 发言顺序·系统事实（内置 API 与网页端导出共用）──
 // AI 高频误判：把"系统指定的发言顺序"读成"玩家的主动选择"——排在后面还没轮到的人被说成
 // "一直沉默"，先开口的神职被说成"抢跳包装队友"，后开口的被说成"看别人跳了才补跳"。
@@ -13198,6 +13323,28 @@ async function proc(players, promptFn, label, opts) {
           } catch (expandErr) {
             // 扩写失败不能吞掉首份真实发言；后续仍可走备用 API，最终至少保留原文。
             Render.devLog('warn', `[P${p.id+1} ${p.name}] 短发言扩写请求失败，保留首份发言：${expandErr && expandErr.message || expandErr}`);
+          }
+        }
+        // ★ 发言分诊 Tier 1：正则判不了的，问一次便宜模型（见 needsSpeechJudge 上方的说明）
+        const _judgeOn = !S.debugDisableSpeechJudge && (!$('m-speech-judge') || $('m-speech-judge').checked);
+        if (_judgeOn && needsSpeechJudge(_r, opts)) {
+          const _js = S._judgeStats || (S._judgeStats = {asked: 0, passed: 0, rejected: 0, failed: 0, skipped: 0});
+          if (_js.asked >= SPEECH_JUDGE_MAX_PER_GAME) {
+            _js.skipped++;
+          } else {
+            _js.asked++;
+            const _verdict = await judgeSpeechIsPublic(_r.game);
+            if (_verdict === 'B') {
+              _js.rejected++;
+              Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊判定为私下盘算而非公开发言，已挪回thinking并请求正式发言："${String(_r.game).slice(0, 50)}…"`);
+              Render.log('system', `🧮 ${p.name} 交回的是内心盘算而不是发言，正在重新请求`);
+              _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
+            } else if (_verdict === null) {
+              _js.failed++;
+              Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊不可用（未配置/超时/返回无法识别），按原样放行`);
+            } else {
+              _js.passed++;
+            }
           }
         }
         // 只对白天非狼队发言做过短处理
