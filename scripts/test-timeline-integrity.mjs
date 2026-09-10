@@ -403,7 +403,7 @@ for (const file of FILES) {
 
   // 解析器侧：段落级剥离审议前言
   const a = src.indexOf('function parseAI(c, opts)');
-  const b = src.indexOf('// ★ 从 thinking 抢救发言', a);
+  const b = src.indexOf('// ★ v9.6 抽出全局 SSE', a);
   assert.ok(a >= 0 && b > a, `${file}: parseAI 无法隔离`);
   const sb = { console };
   vm.runInNewContext(`${src.slice(a, b)}\nthis.parseAI = parseAI;`, sb, { filename: file });
@@ -469,7 +469,7 @@ for (const file of FILES) {
 for (const file of FILES) {
   const src = read(file);
   const a = src.indexOf('function parseAI(c, opts)');
-  const b = src.indexOf('// ★ 从 thinking 抢救发言', a);
+  const b = src.indexOf('// ★ v9.6 抽出全局 SSE', a);
   const sb = { console };
   vm.runInNewContext(`${src.slice(a, b)}\nthis.parseAI = parseAI;`, sb, { filename: file });
 

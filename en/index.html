@@ -8618,46 +8618,6 @@ function parseAI(c, opts) {
     thinking = opts._nativeThinking.trim();
   }
 
-  // ★ 关键修复：处理"<thinking> 开了头但忘了写 </thinking> 闭合、后面也没写 <game> 标签"的情况。
-  //   现象：AI 输出 `<thinking>大段思考……接着直接写发言正文`，既无 </thinking> 也无 <game>。
-  //   后果：上面第二条容错正则会把"思考+发言"整段都吞进 thinking，game 提取为空 → 误判沉默。
-  //   （这正是 thinking 模型最高频的沉默成因——标签没闭合，真发言被当成内心戏吃掉。）
-  //   修法：当 <thinking> 无闭合、且通篇无 <game> 标签时，在被吞的整段里启发式找"思考→发言"的分界，
-  //         把后半段切出来交给 game，避免白白沉默。
-  let _splitGameFromThinking = '';
-  const hasThinkOpen  = /<\s*thinking\s*>/i.test(c);
-  const hasThinkClose = /<\s*\/\s*thinking\s*>/i.test(c);
-  const hasGameTag    = /<\s*game\s*>/i.test(c);
-  if (hasThinkOpen && !hasThinkClose && !hasGameTag && thinking && thinking.length >= 40) {
-    // thinking 此刻装的是"思考+发言"的混合体。尝试找分界：
-    //   优先级① 显式发言引导句（"所以我说""我的发言是""那我开口"…）——其后即为发言
-    //   优先级② 最后一个空行分段——很多模型思考与发言之间空一行
-    let cut = -1, lead = '';
-    const leadRe = /(所以我(?:就)?说[:：]?|我的发言(?:是|如下)?[:：]?|我要说[:：]?|那我(?:就)?(?:开口)?说[:：]?|对外我说[:：]?|我开口[:：]?|发言[:：])/g;
-    let m, last = null;
-    while ((m = leadRe.exec(thinking)) !== null) last = m;  // 取最后一个引导句
-    if (last) {
-      cut = last.index + last[0].length;
-    } else {
-      // 没有引导句 → 用最后一个"空行"作为思考/发言分界（思考通常在前、发言在后）
-      const nlIdx = thinking.lastIndexOf('\n\n');
-      // 分界点要足够靠后（发言一般是结尾一段），且后半段不能太短
-      if (nlIdx > 0 && thinking.length - nlIdx >= 14) cut = nlIdx + 2;
-    }
-    if (cut > 0) {
-      const after = thinking.slice(cut).trim();
-      const beforeLen = cut;
-      // 后半段要像一句发言（够长、以中文为主），且前面还得留有真正的思考（避免把纯发言全切走）
-      const cjkAfter = (after.match(/[\u4e00-\u9fff]/g) || []).length;
-      if (after.length >= 12 && cjkAfter >= 6 && beforeLen >= 20) {
-        _splitGameFromThinking = after;
-        thinking = thinking.slice(0, cut).trim();  // 思考只保留分界之前的部分
-        if (typeof Render !== 'undefined' && Render.devLog) {
-          Render.devLog('info', `[parseAI] 🔧 thinking标签未闭合，已切出被吞的发言：“${after.slice(0,50)}…”`);
-        }
-      }
-    }
-  }
 
   // ── 提取 action ──
   let action = '';
@@ -8667,11 +8627,6 @@ function parseAI(c, opts) {
 
   // ── 提取 game：优先级顺序 ──
   let game = '';
-
-  // 0. ★ 最高优先：若上游从"未闭合 thinking"里切出了被吞的发言，直接采用
-  if (_splitGameFromThinking) {
-    game = _splitGameFromThinking;
-  }
 
   // 1. 有 <game> 标签 → 直接用
   //    ★ fix: 如果 <game> 存在但内容过短（< 5字）且不是合法短回应（沉默/过/弃票等）
@@ -8741,6 +8696,8 @@ function parseAI(c, opts) {
   //     把 <action> 之前、<thinking> 之后的正文救回来当发言，避免明明说了一大段却判沉默。
   if (requireGame && !game) {
     let body = c;
+    // An unfinished thinking block is private through the end of the response.
+    body = body.replace(/<\s*thinking\s*>[\s\S]*?(?:<\s*\/\s*thinking\s*>|$)/gi, '');
     // 去掉 thinking 段（避免把内心戏当发言）
     body = body.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
     body = body.replace(/<\s*thinking\s*>[\s\S]*?<\s*\/\s*thinking\s*>/gi, '');
@@ -8760,39 +8717,7 @@ function parseAI(c, opts) {
     }
   }
 
-  // 4.6 ★ 兜底：game 仍为空，但 thinking 很长（AI 想完了却忘了写对外发言/被截断）
-  //     → 从 thinking 的结尾提取结论段当发言，避免"想了一大段却判沉默白扣钱"。
-  //     这是你遇到的高频沉默主因：thinking 模型(尤其Claude)在<thinking>里分析完就交卷，
-  //     </thinking>之后什么都没写，前面的标签容错救不到（没有正文可救）。
-  //     安全策略：只取结尾结论段；若结论段含明显身份泄漏词(自报阵营/策略元语言)则宁可沉默也不救，避免泄底。
-  if (requireGame && !game && thinking && thinking.length >= 80) {
-    // 取 thinking 末尾一段作为"结论"。优先找显式的发言引导句之后的内容。
-    let concl = '';
-    // a) 找"所以我说/我的发言/我要说/对外说/综上/那我就说"等引导词之后的内容
-    const leadMatch = thinking.match(/(?:所以我(?:就)?说|我的发言(?:是|:|：)?|我要说|对外(?:我)?说|综上[，,]?\s*我?|那我就说|发言如下|我开口说)[:：]?\s*([\s\S]{8,})$/);
-    if (leadMatch) {
-      concl = leadMatch[1];
-    } else {
-      // b) 没有引导词 → 取最后一个自然段（按换行或句号分段，取末尾一段够长的）
-      const paras = thinking.split(/\n{1,}/).map(s=>s.trim()).filter(s=>s.length>=12);
-      if (paras.length) concl = paras[paras.length - 1];
-    }
-    concl = (concl || '')
-      .replace(/<\/?(?:game|action|thinking|strategy)[^>]*>/gi, '')
-      .replace(/\*\*/g, '').trim();
-    // 安全闸：结论段若含自报阵营/策略元语言/英文策略 → 不救（宁可沉默不泄底）
-    const leakWords = /(?:我是[^\s,，。、]{0,8}[,，]?\s*(?:狼人|好人|狼王|白狼王|狼美人|隐狼)(?:阵营)?)|(?:我得伪装|我要装作|假装成|我的策略[:：]|我的目标是|队友|我方狼|我们狼队|^I am the (?:wolf|werewolf)|my strategy|my plan is)/i;
-    const cjk = (concl.match(/[\u4e00-\u9fff]/g) || []).length;
-    if (concl.length >= 12 && cjk >= 6 && !leakWords.test(concl)) {
-      // 结论段可能仍带点思考语气，但总比判沉默白扣钱强——救回当发言
-      game = concl;
-      if (typeof Render !== 'undefined' && Render.devLog) {
-        Render.devLog('info', `[parseAI] 🩹 从thinking结尾救回发言（AI漏写对外发言）：“${concl.slice(0,50)}…”`);
-      }
-    }
-  }
-
-  // Fallbacks may draw from native thinking; marked plans stay private there too.
+  // Private thinking never supplies public speech. Missing answers use the speech retry path.
   const recoveredParts = splitPrivatePlanBlocks(game);
   game = recoveredParts.visible;
   if (!plan) plan = recoveredParts.plan;
@@ -9024,9 +8949,7 @@ function parseAI(c, opts) {
   //   思维结构】整段当成发言输出。真实发言绝不会出现这些步骤标题词，所以这是个
   //   又窄又准的特征——只认这几个固定标题，真神跳身份("我是预言家+查验")不含这些
   //   词，绝不会被误伤（区别于上面那个被 false 关掉的强弱信号拦截器）。
-  //   处理：把漏出来的整段挪回 thinking，清空 game。清空后由下游"从 thinking 抢救
-  //   发言"的逻辑(rescueGameFromThinking)自动提取真正的结论句作为发言，既不浪费
-  //   模型那段好推理，又不让玩家看到内心戏。
+  //   处理：把漏出的内容挪回 thinking，清空 game，交给下游请求正式发言。
   if (game && game !== '(沉默)' && game.length > 80) {
     const cotLeakSignals = [
       /第一步[:：]\s*身份激活/,
@@ -9159,84 +9082,6 @@ function splitPrivatePlanBlocks(rawText) {
   return {visible:visible.join('\n').trim(), plan:plan.length >= 8 && !junk.test(plan) ? plan : ''};
 }
 
-// ★ 从 thinking 抢救发言：当 AI 不按格式输出，把发言写到 thinking 里时使用。
-//    返回 {rescued: 救援后的 game 字符串 | null, reason: 用于日志的原因说明}
-//    使用场景：白天公开发言，game 空或过短，thinking 较长。
-//    返回 null 表示无法救援（thinking 太短/全是元叙事/全是身份暴露）。
-function rescueGameFromThinking(thinking, isWolfChat) {
-  if (!thinking || thinking.length < 50) return {rescued: null, reason: 'thinking 太短'};
-  let t = thinking.trim();
-
-  // ★ v9.9.16 简化：原本的"危险词逐句删除"会把真神职报夜间信息的整句删掉
-  //   （比如真预言家说"我的查验结果是 P3 查杀" → 整句被删 → 抢救出来的发言完全没信息）
-  //   现在改为：直接用 thinking 内容，不做句子级删除
-  //   只做一个最低限度的整体检查：如果整段 thinking 看起来全是身份策略元层（罕见），整体放弃
-  //   原逐句过滤代码保留作参考：
-  //   const danger = [/(?:作为|身为)(?:狼人|狼|预言家|...)/, /我(?:是|的身份是)(?:狼|...)/, ...];
-  //   const safeSentences = sentences.filter(s => !danger.some(rx => rx.test(s)));
-
-  // 整体安全检查：thinking 里**绝大多数句子**都是元层策略才放弃（罕见情况）
-  //   现代模型几乎不会这样输出，这层保护极少触发
-  const obviousMetaCount = (t.match(/(?:装作|伪装|假装|表现得像)(?:好人|村民|预言家|神职|平民)/g) || []).length
-                         + (t.match(/我(?:应该|要|得|打算)(?:说|发言|表态|装|演)/g) || []).length;
-  // 如果元层标记 ≥ 3 个，说明可能是策略草稿被误塞进 thinking——整体放弃
-  if (obviousMetaCount >= 3) {
-    return {rescued: null, reason: '整段疑似策略草稿，放弃抢救'};
-  }
-
-  const cleaned = t;
-  if (cleaned.length < 15) return {rescued: null, reason: '清洗后剩余太少'};
-
-  // 第二步：尝试从 thinking 里精准提取"想说的话"
-  //   策略 A：匹配引号内的台词
-  const quote = cleaned.match(/[「『""](.{10,200}?)[」』""]/);
-  if (quote && quote[1].trim().length >= 10) {
-    return {rescued: quote[1].trim(), reason: '从引号内提取'};
-  }
-  //   策略 B：匹配"我说/我开口/我表态/那我说"等领导词后的句子
-  const lead = cleaned.match(/(?:我[就便]?(?:开口|表态|发言)?(?:说道?|表示)[:：，,]?\s*|那我说[:：，,]?\s*|我打算说[:：，,]?\s*|发言内容[:：]?\s*)([^。！？!?\n]{10,200}[。！？!?]?)/);
-  if (lead && lead[1].trim().length >= 10) {
-    return {rescued: lead[1].trim(), reason: '从"我说/那我说"等引导词后提取'};
-  }
-  //   策略 C：取末尾 1-2 句（thinking 末尾通常是结论"所以我说……"）
-  const sentences = t.split(/(?<=[。！？!?\n])/).map(s => s.trim()).filter(s => s);
-  if (sentences.length >= 2) {
-    const tail = sentences.slice(-2).join('').trim();
-    if (tail.length >= 15 && tail.length <= 300) {
-      return {rescued: tail, reason: '取末尾两句'};
-    }
-  }
-  if (sentences.length === 1 && sentences[0].length <= 250) {
-    return {rescued: sentences[0].trim(), reason: '只剩一句，整句使用'};
-  }
-  //   策略 D：兜底——取末尾 100 字
-  const last = cleaned.slice(-100).trim();
-  if (last.length >= 15) {
-    // ★ v9.4 质量检查:防止抢救出"Yagami Light"这种破戏内容
-    //   要求:① 至少含 5 个中文字符 ② 不是纯英文/纯名字
-    const chineseCount = (last.match(/[\u4e00-\u9fa5]/g) || []).length;
-    if (chineseCount >= 5) {
-      return {rescued: last, reason: '兜底取末尾100字'};
-    }
-  }
-
-  return {rescued: null, reason: '所有策略都未提取出合适内容'};
-}
-
-// ★ v9.4 新增:抢救结果质量检查——防止抢救出"破戏"内容
-//   例如 thinking 全是身份/视角分析被清洗后,只剩下一个英文名字、纯标点等
-//   传入抢救后的字符串,返回 true 表示质量合格可用,false 表示放弃
-function isRescuedContentSafe(text) {
-  if (!text) return false;
-  const t = String(text).trim();
-  if (t.length < 10) return false;
-  // 至少要有 5 个中文字符,否则可能是纯英文残留(如玩家名/技能名)
-  const chineseCount = (t.match(/[\u4e00-\u9fa5]/g) || []).length;
-  if (chineseCount < 5) return false;
-  // 不能全是动作描述(以 * 包裹的)
-  if (/^\*[^*]+\*$/.test(t)) return false;
-  return true;
-}
 
 // ★ v9.6 抽出全局 SSE 容错解析器
 //   背景:部分中转端点(codex/gpt-5.5 等)即使没要求 stream:true 也强制返回 SSE 流。
@@ -13350,23 +13195,11 @@ async function proc(players, promptFn, label, opts) {
         // 只对白天非狼队发言做过短处理
         // ★ 调试开关 S.debugDisableShortRetry: 在控制台执行 S.debugDisableShortRetry=true 可关闭重试,用于观察AI真实输出
         if (!opts.wolfOnly && !opts.silent && !_isValidShortGame(_r && _r.game) && !S.debugDisableShortRetry) {
-          // ★ 优先尝试从 thinking 抢救发言（成本为 0，比切备用 API 快）
-          //   只对"thinking 长 + game 短"这种典型的不按格式输出有效
-          //   ★ v9.4 增加质量检查:抢救出来的内容必须像"游戏发言",否则放弃
-          const rescue = rescueGameFromThinking(_r && _r.thinking, false);
-          if (rescue.rescued && isRescuedContentSafe(rescue.rescued)
-              && String(rescue.rescued).trim().length > String(_r && _r.game || '').trim().length) {
-            Render.devLog('warn', `[P${p.id+1} ${p.name}] 发言为空，从thinking抢救成功(${rescue.reason}): "${rescue.rescued.slice(0,60)}…"`);
-            Render.log('system', `🩹 ${p.name} 发言不规范，已从思考中提取救援`);
-            _r = factCheck(p, {..._r, game: rescue.rescued});
-          } else if (rescue.rescued && !isRescuedContentSafe(rescue.rescued)) {
-            // ★ v9.4: 抢救成功但内容质量太低(纯英文/动作描述/破戏)→ 放弃,让 AI 沉默更体面
-            Render.devLog('warn', `[P${p.id+1} ${p.name}] 抢救出来的内容质量不合格(可能是英文残留或动作描述),放弃抢救: "${rescue.rescued.slice(0,40)}"`);
-            // 不展示"🩹 已从思考中提取救援",直接接受空发言,前端显示"(沉默)"更体面
-          } else if (getFallbacks().length > 0 || isManualRetryEnabled()) {
+          // Never promote private reasoning to public speech; request a real answer instead.
+          if (getFallbacks().length > 0 || isManualRetryEnabled()) {
             // 抢救失败 + (有备用 API 或 开了手动重试) → 走 callAI 的 forceFallback
             // callAI 内部会根据 m-manual-retry 决定弹对话框还是直接走 fallback
-            Render.devLog('warn', `[P${p.id+1} ${p.name}] 发言过短(${String(_r&&_r.game||'').trim().length}字)，thinking抢救失败(${rescue.reason})`);
+            Render.devLog('warn', `[P${p.id+1} ${p.name}] 无有效正式发言，尝试备用或手动补发`);
             Render.log('system', `⚠️ ${p.name} 发言过短`);
             const fallbackSpeech = factCheck(p, await callAI(p, promptFn(p), {...opts, forceFallback: true}));
             if (String(fallbackSpeech && fallbackSpeech.game || '').trim().length > String(_r && _r.game || '').trim().length

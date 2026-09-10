@@ -35,7 +35,7 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.match(source, /\[计划\]目标；下一步；计划成立的前提；退出或改线条件\[\/计划\]/, `${file}: free output cannot leave a private cross-turn plan`);
 
   const parseStart = source.indexOf('function parseAI(c, opts)');
-  const parseEnd = source.indexOf('// ★ 从 thinking 抢救发言', parseStart);
+  const parseEnd = source.indexOf('// ★ v9.6 抽出全局 SSE', parseStart);
   assert.ok(parseStart >= 0 && parseEnd > parseStart, `${file}: parseAI source could not be isolated`);
   const sandbox = {console};
   vm.runInNewContext(source.slice(parseStart, parseEnd) + '\nthis.parseAI = parseAI;', sandbox, {filename:file});
