@@ -8976,6 +8976,37 @@ function parseAI(c, opts) {
     }
   }
 
+  // ── ★ 窄拦截：推理摘要标题当成发言输出 ──
+  //   现象：会输出"推理摘要"的模型（GPT-5/6 系列尤为常见）偶尔把摘要标题直接塞进 content，
+  //   既没有 <thinking> 也没有 <game>：
+  //     **Assessing suspect 2 evidence** **我在核对查验线索** **权衡是否公开身份**
+  //   带 <thinking> 标签的和走 native thinking 字段的两条路已经堵上了，但"裸 content"
+  //   这条一直开着——实测这段会被原样当成公开发言念出去。危害不止是难看：后置位会拿
+  //   "我在整理刀药记录"反推他是女巫/神职，一次技术故障凭空制造了一张身份牌，
+  //   整局的身份推理都被污染。
+  //   特征又窄又准：整段【几乎全部】由 ** ** 粗体片段拼成。真实发言是散文，可以带一两处
+  //   粗体强调，但不会通篇只剩粗体片段。所以按"去掉粗体片段之后还剩多少实质内容"来判，
+  //   不认具体词——认词就会误伤真神跳身份。另外只在模型【完全没用协议】（没有 <game>
+  //   标签）时才启用，用了协议的一律放行。
+  //   处理：与上面的思维链泄漏一致——挪回 thinking，清空 game，交给下游请求正式发言。
+  if (game && game !== '(沉默)' && !/<game>[\s\S]*?<\/game>/i.test(String(c || ''))) {
+    const _sumSrc = String(c || '').replace(/<\s*thinking\s*>[\s\S]*?(?:<\s*\/\s*thinking\s*>|$)/gi, '').trim();
+    const _sumRe = /\*\*[^*\n]{2,80}\*\*/g;
+    const _sumRuns = _sumSrc.match(_sumRe) || [];
+    if (_sumRuns.length >= 2) {
+      const _sumRest = _sumSrc.replace(_sumRe, '').replace(/\s+/g, '');
+      const _sumTotal = _sumSrc.replace(/\s+/g, '').length;
+      // 去掉粗体片段后剩下的实质内容不到一成半 → 这不是发言，是推理摘要标题的堆叠
+      if (_sumRest.length <= Math.max(6, Math.round(_sumTotal * 0.15))) {
+        thinking = (thinking ? thinking + '\n\n' : '') + game;
+        if (typeof Render !== 'undefined' && Render.devLog) {
+          Render.devLog('warn', `[parseAI] 🧠 检测到推理摘要标题被当成发言输出（${_sumRuns.length} 段粗体、无实质正文），已挪回thinking并请求正式发言: "${game.slice(0, 50)}..."`);
+        }
+        game = '';
+      }
+    }
+  }
+
   if (!game && requireGame) game = '(沉默)';
 
   // ── 拒绝检测 ──
