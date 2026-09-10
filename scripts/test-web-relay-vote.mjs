@@ -11,7 +11,7 @@ const parserEnd = html.indexOf('// ── 网页端 prompt 弹窗', parserStart)
 assert.ok(helperStart >= 0 && helperEnd > helperStart && pasteStart >= 0 && pasteEnd > pasteStart && parserStart >= 0 && parserEnd > parserStart, 'web relay vote parser is missing');
 
 const planStart = html.indexOf('function splitPrivatePlanBlocks(rawText)');
-const planEnd = html.indexOf('// ★ 从 thinking 抢救发言', planStart);
+const planEnd = html.indexOf('// ★ v9.6 抽出全局 SSE', planStart);
 assert.ok(planStart >= 0 && planEnd > planStart, 'private plan splitter is missing');
 const source = html.slice(planStart, planEnd) + '\n' + html.slice(helperStart, helperEnd) + '\n' + html.slice(pasteStart, pasteEnd) + '\n' + html.slice(parserStart, parserEnd);
 const parseAI = text => ({action:(text.match(/<action>([\s\S]*?)<\/action>/i)||[])[1] || ''});
@@ -73,7 +73,7 @@ assert.ok(html.includes("const action = parsed.action || _webAction;"), 'normal 
 assert.ok(html.includes("type:'web_choice_thinking'"), 'choice-only drafts are retained as private thinking records');
 
 assert.ok(html.includes('const requireGame = opts.requireGame === true || (!isSkillConfirm && opts.requireGame !== false);'), 'skill confirmations do not default to pure-operation mode');
-assert.ok(html.includes('if (requireGame && !game && thinking && thinking.length >= 80)'), 'thinking rescue still runs during pure operations');
+assert.ok(!html.includes('game = concl;') && !html.includes('rescueGameFromThinking'), 'private thinking must never supply public speech');
 assert.match(html, /【投票】投谁出局[\s\S]*?requireGame:false/, 'day vote still requires or rescues public speech');
 assert.match(html, /【选警长投票】[\s\S]*?requireGame:false/, 'sheriff vote still requires or rescues public speech');
 assert.match(html, /【PK投票 - 关键决战】[\s\S]*?requireGame:false/, 'runoff vote still requires or rescues public speech');

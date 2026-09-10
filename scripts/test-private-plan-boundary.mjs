@@ -7,7 +7,7 @@ import vm from 'node:vm';
 for (const file of ['index.html', 'en/index.html']) {
   const html = fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
   const start = html.indexOf('function parseAI(c, opts)');
-  const end = html.indexOf('// ★ 从 thinking 抢救发言', start);
+  const end = html.indexOf('// ★ v9.6 抽出全局 SSE', start);
   const ctx = vm.createContext({console});
   vm.runInContext(html.slice(start, end), ctx);
   const speech = '我是女巫，昨晚没有用药。今天我投快斗，请大家核对记录。';
@@ -65,6 +65,7 @@ for (const file of ['index.html', 'en/index.html']) {
   const outputs = [];
   const element = () => ({appendChild(){}, style:{}});
   Object.assign(ctx, {
+    humanViewLocked:()=>false,
     S:{round:1,phase:'day',players:[actor,other],history:[]}, gameRecord:[],
     document:{createElement:element}, $:element,
     blindNamesOn:()=>false, markLogVisibility(){}, getEmoji:()=>'', isMC:()=>false,
