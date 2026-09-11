@@ -11502,6 +11502,13 @@ function getHostAPI() {
 // 兜底，正常一局的公开发言远到不了 300。
 const SPEECH_JUDGE_CAP = Object.freeze({triage: 8, all: 300});
 
+// ★ 熔断：连续这么多次判官不可用就本局停手。
+//   为什么必须有：fail-open 单看一次很便宜（超时 8 秒后原样放行，不影响正确性），但公开发言
+//   是【串行】的——全检档下如果主持人 API 没配、配错、或指向了一个慢到 8 秒都回不来的推理
+//   模型，那就是每条发言白等 8 秒 × 上百条 ≈ 二十分钟，而且一条都没判成。这正好毁掉"全检
+//   几乎无感"的前提。判官连挂三次基本不可能是偶然，直接停掉本局剩下的分诊并告诉用户。
+const SPEECH_JUDGE_FAIL_STREAK = 3;
+
 // 审议前言的自我规划痕迹。这里【故意写得松】——它只负责决定"要不要问"，判断交给模型，
 // 所以误报只是多花一次极便宜的调用，不会吞掉任何发言。
 const _JUDGE_PLAN_MARKER = /(?:让我(?:先|再)?(?:想|理|捋|梳理|分析|盘)|我(?:需要|应该|得|要|先|来|打算|准备|决定)(?:先)?(?:想|理|捋|梳理|分析|思考|判断|考虑|说|讲|发言|公开|跳)|如果我(?:现在|今天|这轮|不跳|要跳)|那我(?:就|应该|可以)?(?:说|跳)|我这(?:轮|条|次)(?:的)?发言|接下来我(?:要|应该|得)|Let me (?:think|analyze|consider|review)|I (?:should|need to|will) (?:say|claim|reveal|argue))/;
@@ -13346,22 +13353,28 @@ async function proc(players, promptFn, label, opts) {
         const _judgeMode = S.debugDisableSpeechJudge ? 'off'
           : (($('m-speech-judge') && $('m-speech-judge').value) || 'triage');
         if (needsSpeechJudge(_r, opts, _judgeMode)) {
-          const _js = S._judgeStats || (S._judgeStats = {asked: 0, passed: 0, rejected: 0, failed: 0, skipped: 0});
-          if (_js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage)) {
+          const _js = S._judgeStats || (S._judgeStats = {asked: 0, passed: 0, rejected: 0, failed: 0, skipped: 0, streak: 0, tripped: false});
+          if (_js.tripped || _js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage)) {
             _js.skipped++;
           } else {
             _js.asked++;
             const _verdict = await judgeSpeechIsPublic(_r.game);
-            if (_verdict === 'B') {
-              _js.rejected++;
+            if (_verdict === null) {
+              // 判官不可用：原样放行（fail-open）。但连挂几次就别再挨个白等超时了。
+              _js.failed++;
+              _js.streak++;
+              Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊不可用（未配置/超时/返回无法识别），按原样放行`);
+              if (_js.streak >= SPEECH_JUDGE_FAIL_STREAK && !_js.tripped) {
+                _js.tripped = true;
+                Render.log('system', `⚠️ 发言分诊连续 ${_js.streak} 次没有回应，本局剩余发言不再分诊（检查主持人API：没配、配错，或指向了带思考的慢模型）`);
+              }
+            } else if (_verdict === 'B') {
+              _js.rejected++; _js.streak = 0;
               Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊判定为私下盘算而非公开发言，已挪回thinking并请求正式发言："${String(_r.game).slice(0, 50)}…"`);
               Render.log('system', `🧮 ${p.name} 交回的是内心盘算而不是发言，正在重新请求`);
               _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
-            } else if (_verdict === null) {
-              _js.failed++;
-              Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊不可用（未配置/超时/返回无法识别），按原样放行`);
             } else {
-              _js.passed++;
+              _js.passed++; _js.streak = 0;
             }
           }
         }
