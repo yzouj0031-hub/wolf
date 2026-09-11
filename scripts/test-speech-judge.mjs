@@ -23,10 +23,10 @@ function load(src, file) {
   let b = src.indexOf('// ★ v9.6 抽出全局 SSE', a);
   assert.ok(a >= 0 && b > a, `${file}: parseAI 未找到`);
   vm.runInContext(src.slice(a, b), ctx, { filename: `${file}:parseAI` });
-  a = src.indexOf('const SPEECH_JUDGE_MAX_PER_GAME');
+  a = src.indexOf('const SPEECH_JUDGE_CAP');
   b = src.indexOf('async function judgeSpeechIsPublic', a);
   assert.ok(a >= 0 && b > a, `${file}: 分诊闸门未找到`);
-  vm.runInContext(`${src.slice(a, b)}; this.gate = needsSpeechJudge; this.sys = SPEECH_JUDGE_SYS; this.cap = SPEECH_JUDGE_MAX_PER_GAME;`,
+  vm.runInContext(`${src.slice(a, b)}; this.gate = needsSpeechJudge; this.sys = SPEECH_JUDGE_SYS; this.cap = SPEECH_JUDGE_CAP;`,
     ctx, { filename: `${file}:judge` });
   return ctx;
 }
@@ -45,7 +45,7 @@ for (const file of FILES) {
   assert.equal(ctx.parseAI(`<thinking>想一想</thinking><game>${SPEECH}</game>`)._noGameTag, false,
     `${file}: 完整协议被标成没用`);
 
-  const ask = (text, opts = {}) => ctx.gate(ctx.parseAI(text, opts), opts);
+  const ask = (text, opts = {}, mode = 'triage') => ctx.gate(ctx.parseAI(text, opts), opts, mode);
 
   // ── 2. 该问的要问 ───────────────────────────────────────────────────────────
   assert.equal(ask(DELIB), true, `${file}: Claude 式审议前言没有被送去问诊`);
@@ -65,8 +65,24 @@ for (const file of FILES) {
     ['过短（另有重写兜底）', '让我想想。我投7号。', {}],
   ];
   for (const [name, text, opts] of MUST_NOT_ASK) {
-    assert.equal(ask(text, opts), false, `${file}: 「${name}」被送去问诊了，闸门太宽`);
+    assert.equal(ask(text, opts), false, `${file}: 分诊模式下「${name}」被送去问诊了，闸门太宽`);
   }
+
+  // ── 3b. 三档模式 ────────────────────────────────────────────────────────────
+  // 关闭：一条都不问，哪怕是最明显的审议前言
+  assert.equal(ask(DELIB, {}, 'off'), false, `${file}: 关闭档仍然在问诊`);
+  assert.equal(ask(SPEECH, {}, 'off'), false, `${file}: 关闭档仍然在问诊`);
+  // 全检：每条公开发言都过一遍，包括用了协议的、没有规划痕迹的
+  assert.equal(ask(SPEECH, {}, 'all'), true, `${file}: 全检档漏掉了普通发言`);
+  assert.equal(ask(`<game>${SPEECH}</game>`, {}, 'all'), true, `${file}: 全检档漏掉了用了协议的发言`);
+  assert.equal(ask(DELIB, {}, 'all'), true, `${file}: 全检档漏掉了审议前言`);
+  // 但全检也不是什么都问：非公开发言、失败态、过短，一律不花这个钱
+  assert.equal(ask(DELIB, {wolfOnly: true}, 'all'), false, `${file}: 全检档把狼队密谈也送去问了`);
+  assert.equal(ask(DELIB, {skillConfirm: true}, 'all'), false, `${file}: 全检档把技能确认也送去问了`);
+  assert.equal(ask('让我想想。我投7号。', {}, 'all'), false, `${file}: 全检档把过短发言也送去问了`);
+  assert.equal(ctx.gate({game: '(沉默)', _noGameTag: true}, {}, 'all'), false, `${file}: 全检档把沉默占位也送去问了`);
+  // 缺省参数等于分诊档，不能等于全检
+  assert.equal(ctx.gate(ctx.parseAI(SPEECH, {}), {}), false, `${file}: 默认档位不是分诊`);
   // 已经是失败态的不该再花钱
   assert.equal(ctx.gate({ game: '(沉默)', _noGameTag: true }, {}), false, `${file}: 沉默占位仍被送去问诊`);
   assert.equal(ctx.gate(null, {}), false, `${file}: 空结果没有被挡住`);
@@ -84,7 +100,8 @@ for (const file of FILES) {
   );
 
   // ── 5. ★ fail-open 与成本护栏 ───────────────────────────────────────────────
-  assert.equal(ctx.cap, 8, `${file}: 每局问诊上限被改动`);
+  assert.equal(ctx.cap.triage, 8, `${file}: 分诊档的每局上限被改动`);
+  assert.ok(ctx.cap.all >= 100, `${file}: 全检档的上限太低，正常一局就会被截断`);
   for (const [why, marker] of [
     ['没配主持人API', "if (!api || !api.url || !api.key || !api.model) return null;"],
     ['超时', 'setTimeout(() => ctl.abort(), 8000);'],
@@ -106,17 +123,24 @@ for (const file of FILES) {
     src.includes("_r = {..._r, thinking: (_r.thinking ? _r.thinking + '\\n\\n' : '') + _r.game, game: ''};"),
     `${file}: 被否决的内容没有挪回 thinking`,
   );
-  assert.ok(src.includes('if (_js.asked >= SPEECH_JUDGE_MAX_PER_GAME)'), `${file}: 每局上限没有生效`);
+  assert.ok(src.includes('if (_js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage))'), `${file}: 每局上限没有按档位生效`);
 
   // ── 6. 开关：UI 可关，控制台也可关 ──────────────────────────────────────────
-  assert.ok(src.includes('id="m-speech-judge" checked>发言分诊'), `${file}: 缺少「发言分诊」开关`);
+  for (const opt of ['<option value="off">关闭</option>', '<option value="triage" selected>分诊</option>', '<option value="all">全检</option>']) {
+    assert.ok(src.includes(opt), `${file}: 「发言分诊」缺少档位 → ${opt}`);
+  }
   assert.ok(
-    src.includes("const _judgeOn = !S.debugDisableSpeechJudge && (!$('m-speech-judge') || $('m-speech-judge').checked);"),
-    `${file}: 开关没有接上分诊调用点`,
+    src.includes("const _judgeMode = S.debugDisableSpeechJudge ? 'off'")
+    && src.includes("if (needsSpeechJudge(_r, opts, _judgeMode)) {"),
+    `${file}: 档位没有接上分诊调用点`,
   );
-  assert.ok(src.includes("speechJudge:$('m-speech-judge')?$('m-speech-judge').checked:true,"), `${file}: 开关没有存档`);
-  assert.ok(src.includes("if (d.speechJudge !== undefined && $('m-speech-judge')) $('m-speech-judge').checked = d.speechJudge;"),
-    `${file}: 开关没有读档`);
+  assert.ok(src.includes("speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'triage',"), `${file}: 档位没有存档`);
+  // 旧存档里这里是布尔（复选框时代），不能因为换成下拉就把用户的设置读丢
+  assert.ok(
+    src.includes("const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'triage' : 'off') : d.speechJudge;"),
+    `${file}: 旧存档的布尔值没有迁移`,
+  );
+  assert.ok(src.includes("if (['off','triage','all'].includes(_sj)) $('m-speech-judge').value = _sj;"), `${file}: 档位没有读档`);
 }
 
-console.log('speech judge: narrow triage gate, mechanical A/B prompt, fail-open + per-game cap and switch wiring passed');
+console.log('speech judge: off/triage/all modes, mechanical A/B prompt, fail-open + per-game cap and switch wiring passed');
