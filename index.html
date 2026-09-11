@@ -14511,6 +14511,13 @@ async function proc(players, promptFn, label, opts) {
             _js.skipped++;
           } else {
             _js.asked++;
+            // 判官【放行】时是完全静默的，所以正常工作起来界面上一点动静都没有。
+            // 第一次真正开工时报一声，否则用户（尤其在手机上，够不着控制台）无从判断
+            // 这个开关到底有没有生效、用的是哪个模型。
+            if (_js.asked === 1) {
+              const _jm = (typeof getHostAPI === 'function' && getHostAPI().model) || '(未配置)';
+              Render.log('system', `🧮 发言分诊已启用（${_judgeMode === 'all' ? '全检' : '分诊'} · ${_jm}）`);
+            }
             const _verdict = await judgeSpeechIsPublic(_r.game);
             if (_verdict === null) {
               // 判官不可用：原样放行（fail-open）。但连挂几次就别再挨个白等超时了。
@@ -21616,7 +21623,21 @@ function logGameMetrics(winType) {
   }
 }
 
+// 局终把分诊的成绩单写进系统日志。此前这些数字只存在 S._judgeStats 里，
+// 而这个应用的主要使用场景是平板和手机——那里根本打不开控制台，等于没有。
+function logSpeechJudgeSummary() {
+  const js = S && S._judgeStats;
+  if (!js || !js.asked) return;
+  const bits = [`问诊 ${js.asked} 次`, `放行 ${js.passed}`];
+  if (js.rejected) bits.push(`打回重发 ${js.rejected}`);
+  if (js.failed) bits.push(`判官无响应 ${js.failed}`);
+  if (js.skipped) bits.push(`跳过 ${js.skipped}`);
+  Render.log('system', `🧮 发言分诊本局成绩：${bits.join('，')}`
+    + (js.tripped ? '（已熔断，检查主持人API）' : (js.rejected ? '' : '——没有发现问题，可以考虑关掉这一档')));
+}
+
 function recordLeaderboard(winType) {
+  logSpeechJudgeSummary();
   try {
     const lb = JSON.parse(localStorage.getItem('wg_leaderboard') || '{}');
     // 总局数计数器

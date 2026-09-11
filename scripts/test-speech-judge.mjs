@@ -164,4 +164,22 @@ for (const file of FILES) {
   assert.ok(src.includes("if (['off','triage','all'].includes(_sj)) $('m-speech-judge').value = _sj;"), `${file}: 档位没有读档`);
 }
 
-console.log('speech judge: off/triage/all modes, mechanical A/B prompt, fail-open + per-game cap and switch wiring passed');
+// ── 7. ★ 可见反馈：判官放行时静默，用户必须有别的办法确认它在工作 ──────────────
+// 这个应用主要跑在平板和手机上，控制台够不着，所以 S._judgeStats 不能是唯一的验证手段。
+for (const file of FILES) {
+  const src = read(file);
+  // 第一次真正开工要报一声，并说明用的是哪个模型
+  assert.ok(src.includes('if (_js.asked === 1) {'), `${file}: 判官启用时没有任何提示`);
+  assert.match(src, /发言分诊已启用（\$\{_judgeMode === 'all' \? '全检' : '分诊'\} · \$\{_jm\}）/,
+    `${file}: 启用提示没有说清档位和模型`);
+  // 局终要有成绩单，而且必须挂在所有结局路径都会过的地方
+  assert.ok(src.includes('function logSpeechJudgeSummary()'), `${file}: 缺少局终成绩单`);
+  assert.ok(src.includes('function recordLeaderboard(winType) {\n  logSpeechJudgeSummary();'),
+    `${file}: 成绩单没有挂在每条结局路径都会经过的地方`);
+  // 一次都没问过就不该刷屏
+  assert.ok(src.includes('if (!js || !js.asked) return;'), `${file}: 没问过也会打印成绩单`);
+  // 熔断过要在成绩单里点出来，否则用户只会看到"判官无响应 N"却不知道它已经停了
+  assert.ok(src.includes("js.tripped ? '（已熔断，检查主持人API）'"), `${file}: 成绩单没有反映熔断`);
+}
+
+console.log('speech judge: off/triage/all modes, mechanical A/B prompt, fail-open + breaker, switch wiring and visible feedback passed');
