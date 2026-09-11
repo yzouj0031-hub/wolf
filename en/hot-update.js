@@ -356,6 +356,12 @@
       const version = document.createElement('div');
       version.id = 'wolf-update-version';
       version.style.cssText = 'color:#cbbd9f;margin-bottom:16px;font-size:14px;';
+      // 「这次改了什么」。内容来自网络上的 version.json，所以【只能】用 textContent 逐条塞，
+      // 绝不能拼 innerHTML——那等于把发布清单变成一个 XSS 入口。
+      const notes = document.createElement('ul');
+      notes.id = 'wolf-update-notes';
+      notes.style.cssText = 'margin:0 0 16px;padding:0 0 0 18px;max-height:180px;overflow:auto;' +
+        'line-height:1.6;font-size:13px;color:#dcd0b8;overflow-wrap:anywhere;';
       const status = document.createElement('div');
       status.id = 'wolf-update-message';
       status.setAttribute('role','status');
@@ -390,7 +396,7 @@
           else if (!event.shiftKey && document.activeElement === buttons[buttons.length-1]) { event.preventDefault(); buttons[0].focus(); }
         }
       });
-      card.append(title, version, status, progress, primary, later);
+      card.append(title, version, notes, status, progress, primary, later);
       dialog.appendChild(card);
       document.body.appendChild(dialog);
     }
@@ -400,11 +406,36 @@
     const primary = document.getElementById('wolf-update-primary');
     (primary && !primary.hidden && !primary.disabled ? primary : document.getElementById('wolf-update-later'))?.focus();
   }
+  // 最多列 8 条，剩下的折成一行计数——弹窗是给人扫一眼决定要不要更新的，不是发布公告。
+  const NOTES_SHOWN = 8;
+  function renderNotes() {
+    const ul = document.getElementById('wolf-update-notes');
+    if (!ul) return;
+    while (ul.firstChild) ul.removeChild(ul.firstChild);
+    const list = (targetMeta && Array.isArray(targetMeta.notes) ? targetMeta.notes : [])
+      .map(n => String(n == null ? '' : n).trim().slice(0, 200))
+      .filter(Boolean);
+    ul.hidden = !list.length;
+    if (!list.length) return;
+    for (const text of list.slice(0, NOTES_SHOWN)) {
+      const li = document.createElement('li');
+      li.textContent = text;               // 只用 textContent：清单来自网络，不可信
+      ul.appendChild(li);
+    }
+    if (list.length > NOTES_SHOWN) {
+      const more = document.createElement('li');
+      more.textContent = EN ? ('and ' + (list.length - NOTES_SHOWN) + ' more changes')
+        : ('另有 ' + (list.length - NOTES_SHOWN) + ' 项改动');
+      more.style.cssText = 'list-style:none;margin-left:-18px;color:#a2967f;';
+      ul.appendChild(more);
+    }
+  }
   function renderDialog() {
     if (!dialog) return;
     const busy = !!inFlight || applying;
     document.getElementById('wolf-update-version').textContent = (EN ? 'Running ' : '当前 ') + APP_VERSION +
       (targetMeta ? ' → ' + targetMeta.version : '');
+    renderNotes();
     document.getElementById('wolf-update-message').textContent = uiState.text;
     const bar = document.getElementById('wolf-update-bar');
     bar.hidden = !['downloading','preparing','applying','staged','success'].includes(uiState.phase);
