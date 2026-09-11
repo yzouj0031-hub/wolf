@@ -3280,7 +3280,10 @@ body.has-wp::after {
         <label class="mti" data-ui-icon="gavel"><input type="checkbox" id="m-mc">主持人</label>
         <label class="mti" data-ui-icon="gavel" title="开启后，每晚狼队刀人时会弹框让你（导演）亲自决定刀口。只控制一名狼或纯观战时直接覆盖AI决定；同时控制多名狼时，每名狼各投一票，空刀与具体刀口等权。关闭则全体狼队民主投票（默认）"><input type="checkbox" id="m-director-veto">导演刀口主控</label>
         <label class="mti" data-ui-icon="wrench" title="开启后AI异常（失败/过短/过滤/复读/元指令）时弹出三选一对话框：手写代替 / 备用API / 重试主API。关闭则自动切备用API（原行为）。"><input type="checkbox" id="m-manual-retry" checked>手动重试</label>
-        <label class="mti" data-ui-icon="wrench" title="AI 偶尔会把「等下该说什么」的内心盘算当成公开发言交上来，而这种散文用正则分不出来（词表放宽一点就会吞掉真神跳身份）。开启后，只有正则判不了的极少数发言会送去问一次便宜模型（用主持人API的模型，留空则用全局），只问一个二选一：这段话是对牌桌说的，还是自己盘算？判定为盘算才重新请求。每局最多问 8 次，超时或未配置一律原样放行。"><input type="checkbox" id="m-speech-judge" checked>发言分诊</label>
+        <label class="mti" data-ui-icon="wrench" title="AI 偶尔会把「等下该说什么」的内心盘算当成公开发言交上来，这种散文用正则分不出来（词表放宽一点就会吞掉真神跳身份）。送去问一次便宜模型（用主持人API的模型，留空则用全局），只问一个机械的二选一：这段话是对牌桌说的，还是自己盘算？判定为盘算才重新请求。判官被明确要求「发言写得差也仍然放行」「拿不准就放行」，超时或未配置一律原样放行。
+关闭=完全不问。
+分诊=只问正则判不了的那一小撮（模型没用协议+开头有自我规划痕迹），一局大约几次，成本可忽略。
+全检=每条公开发言都过一遍。用 Flash 这类快模型时每条只多约半秒，相对 30-180 秒的主发言几乎无感；代价是判官有更多次机会误判，建议只在主模型格式不稳时开。"><span style="font-size:0.8em;color:#d8d0e8">发言分诊</span><select id="m-speech-judge" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="off">关闭</option><option value="triage" selected>分诊</option><option value="all">全检</option></select></label>
         <label class="mti" data-ui-icon="tag" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">模型标签</label>
         <label class="mti" data-ui-icon="tag" title="开启后模型标签显示完整模型名（如 Claude Opus 4.5、Gemini 3 Pro），关闭则只显示品牌简称（如 Claude、Gemini）。命牌上名字过长会截断，鼠标悬停可看完整模型 ID。"><input type="checkbox" id="m-modeltag-full" onchange="document.body.classList.toggle('show-modeltag-full', this.checked);S.players&&S.players.forEach(p=>Render.card(p))">完整模型名</label>
         </div>
@@ -8866,7 +8869,7 @@ function saveCfg() {
     reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
-    speechJudge:$('m-speech-judge')?$('m-speech-judge').checked:true,
+    speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'triage',
     pconfigs:playerConfigs,
     promptLibrary,
     teachingWorldbooks:window.TeachingWorldbooks&&typeof window.TeachingWorldbooks.exportState==='function'?window.TeachingWorldbooks.exportState():null,
@@ -8939,7 +8942,11 @@ function loadCfg() {
     }
     if (d.freeOutput !== undefined && $('m-free-output')) $('m-free-output').checked = d.freeOutput;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
-    if (d.speechJudge !== undefined && $('m-speech-judge')) $('m-speech-judge').checked = d.speechJudge;
+    // 旧存档里这里是布尔（复选框时代）：true→分诊，false→关闭
+    if (d.speechJudge !== undefined && $('m-speech-judge')) {
+      const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'triage' : 'off') : d.speechJudge;
+      if (['off','triage','all'].includes(_sj)) $('m-speech-judge').value = _sj;
+    }
     if (d.cnames) $('cnames').value = d.cnames;
     if (d.pconfigs) {
       playerConfigs = purgeRemovedPronounConfigs(d.pconfigs);
@@ -12547,7 +12554,9 @@ function getHostAPI() {
  *     A/B 二选一，不给它发挥空间；拿不准一律答 A（放行）。
  *   · 【fail-open】判官超时、没配、返回看不懂 —— 一律按原样放行。判官绝不能变成新的故障源。
  */
-const SPEECH_JUDGE_MAX_PER_GAME = 8;   // 每局问诊上限，防止某个模型持续触发把成本拖上去
+// 每局问诊上限，防止某个模型持续触发把成本拖上去。全检模式下这个数只是「别失控」的
+// 兜底，正常一局的公开发言远到不了 300。
+const SPEECH_JUDGE_CAP = Object.freeze({triage: 8, all: 300});
 
 // 审议前言的自我规划痕迹。这里【故意写得松】——它只负责决定"要不要问"，判断交给模型，
 // 所以误报只是多花一次极便宜的调用，不会吞掉任何发言。
@@ -12568,15 +12577,23 @@ B = 玩家【自言自语在盘算等下该说什么】（内心推演、权衡�
 
 只输出一个字母：A 或 B。不要解释。`;
 
-// 纯函数，便于测试：这条回复是不是"正则判不了、值得花一次调用"的那一小撮。
-function needsSpeechJudge(result, opts) {
-  if (!result) return false;
+// 纯函数，便于测试：这条回复要不要送去问判官。
+//   'off'    完全不问
+//   'triage' 只问正则判不了的那一小撮（默认）
+//   'all'    每条公开发言都过一遍。Flash 级模型每条只多约半秒，相对 30-180 秒的主发言
+//            几乎无感；代价是判官多了上百次误判机会，所以提示词必须一直偏向放行。
+function needsSpeechJudge(result, opts, mode) {
+  const m = mode || 'triage';
+  if (m === 'off' || !result) return false;
   const o = opts || {};
   if (o.wolfOnly || o.silent || o.skillConfirm) return false;   // 只管公开发言
-  if (result._noGameTag !== true) return false;                 // 用了协议的一律放行
   const g = String(result.game || '').trim();
   if (!g || g === '(沉默)') return false;                        // 已经是失败态，另有兜底
-  if (g.length < 30 || g.length > 1200) return false;           // 太短另有重写兜底；太长基本不是审议前言
+  if (g.length < 30) return false;                              // 太短另有重写兜底，不必花这一次
+  if (m === 'all') return g.length <= 3000;
+  // ── 以下是分诊模式独有的收窄条件 ──
+  if (result._noGameTag !== true) return false;                 // 用了协议的一律放行
+  if (g.length > 1200) return false;                            // 太长基本不是审议前言
   // 审议前言长在【开头】。只看前 150 字，避免正文里"我应该没记错"这种偶然命中。
   return _JUDGE_PLAN_MARKER.test(g.slice(0, 150));
 }
@@ -14479,10 +14496,11 @@ async function proc(players, promptFn, label, opts) {
           }
         }
         // ★ 发言分诊 Tier 1：正则判不了的，问一次便宜模型（见 needsSpeechJudge 上方的说明）
-        const _judgeOn = !S.debugDisableSpeechJudge && (!$('m-speech-judge') || $('m-speech-judge').checked);
-        if (_judgeOn && needsSpeechJudge(_r, opts)) {
+        const _judgeMode = S.debugDisableSpeechJudge ? 'off'
+          : (($('m-speech-judge') && $('m-speech-judge').value) || 'triage');
+        if (needsSpeechJudge(_r, opts, _judgeMode)) {
           const _js = S._judgeStats || (S._judgeStats = {asked: 0, passed: 0, rejected: 0, failed: 0, skipped: 0});
-          if (_js.asked >= SPEECH_JUDGE_MAX_PER_GAME) {
+          if (_js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage)) {
             _js.skipped++;
           } else {
             _js.asked++;
