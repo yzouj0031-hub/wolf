@@ -3127,7 +3127,7 @@ body.has-wp::after {
       <div class="cr"><label>Typing speed</label><select id="g-spd"><option value="0.5">Slow</option><option value="1" selected>Normal</option><option value="2">Fast</option><option value="3">Very fast</option></select><label>Response limit</label><select id="g-maxtk" onchange="this.nextElementSibling.style.display=this.value==='custom'?'inline-block':'none'"><option value="4096">4K</option><option value="8192">8K</option><option value="16384">16K</option><option value="32768">32K</option><option value="65536">64K</option><option value="131072" selected>128K</option><option value="custom">Custom…</option></select><input type="number" id="g-maxtk-custom" min="512" max="200000" step="512" placeholder="e.g. 32768" style="display:none;width:72px;margin-left:4px"><label>Memory</label><select id="g-mem"><option value="16">16 entries</option><option value="30">30 entries</option><option value="40" selected>40 entries</option><option value="0">Unlimited</option></select></div>
       <details class="conc-det" id="host-det"><summary>🎙️ AI host</summary>
         <div style="padding:6px 0;display:flex;flex-direction:column;gap:5px;">
-          <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="host-enable" checked style="width:auto;min-width:auto">Enable AI host</label>
+          <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="host-enable" style="width:auto;min-width:auto">Enable AI host (off by default: 30-50 extra calls per match)</label>
           <div class="cr" style="align-items:center">
             <label style="font-size:0.7em;color:#a0e8d0;white-space:nowrap">Host mode</label>
             <select id="host-mode" style="font-size:0.75em;flex:1">
@@ -8050,7 +8050,7 @@ function saveCfg() {
     pconfigs:playerConfigs,
     promptLibrary,
     teachingWorldbooks:window.TeachingWorldbooks&&typeof window.TeachingWorldbooks.exportState==='function'?window.TeachingWorldbooks.exportState():null,
-    hostEnable:$('host-enable')?$('host-enable').checked:true, hostMode:$('host-mode')?$('host-mode').value:'emcee', hostUrl:$('h-url')?$('h-url').value:'', hostKey:$('h-key')?$('h-key').value:'', hostModel:$('h-model')?$('h-model').value:'', judgeUrl:$('j-url')?$('j-url').value:'', judgeKey:$('j-key')?$('j-key').value:'', judgeModel:$('j-model')?$('j-model').value:'', hostVerbosity:$('host-verbosity')?$('host-verbosity').value:'normal',
+    hostEnable:$('host-enable')?$('host-enable').checked:false, hostDefaultOffV2:true, hostMode:$('host-mode')?$('host-mode').value:'emcee', hostUrl:$('h-url')?$('h-url').value:'', hostKey:$('h-key')?$('h-key').value:'', hostModel:$('h-model')?$('h-model').value:'', judgeUrl:$('j-url')?$('j-url').value:'', judgeKey:$('j-key')?$('j-key').value:'', judgeModel:$('j-model')?$('j-model').value:'', hostVerbosity:$('host-verbosity')?$('host-verbosity').value:'normal',
     spectatorList, specEnable:$('spec-enable')?$('spec-enable').checked:false, specFreq:$('spec-freq')?$('spec-freq').value:'mid',
     conc:{speak:getC('c-speak'),vote:getC('c-vote'),wolf:getC('c-wolf'),wvote:getC('c-wvote'),trial:getC('c-trial'),end:getC('c-end')},
     customRolesDefs: window._customRolesDefs || [],
@@ -8135,7 +8135,15 @@ function loadCfg() {
     }
     if (d.promptLibrary && typeof d.promptLibrary === 'object') promptLibrary = d.promptLibrary;
     if (window.TeachingWorldbooks && typeof window.TeachingWorldbooks.load === 'function') window.TeachingWorldbooks.load(d.teachingWorldbooks || null);
-    if (d.hostEnable!==undefined&&$('host-enable')) $('host-enable').checked=d.hostEnable;
+    // ★ 一次性迁移：「启用AI主持人」此前是默认勾选的，而它和设置面板里那个「主持人」chip
+    //   是两个不同的开关——面板上看起来主持人关着，这个却在后台每局多烧 30-50 次调用。
+    //   光改默认值救不了老用户：他们的存档里早就写着 hostEnable:true（那是当初的默认值
+    //   被 saveCfg 顺手存下来的，不是他们主动选的）。所以没有 hostDefaultOffV2 标记的
+    //   存档一律关掉一次，并在日志里说明——之后用户再手动打开就会一直记住。
+    if (d.hostDefaultOffV2 === undefined && $('host-enable')) {
+      $('host-enable').checked = false;
+      try { Render.log('system', '🎙️ 「启用AI主持人」已默认关闭（此前是默认开启，每局多 30-50 次 API 调用）。需要的话在「主持与调试 → 主持人」里重新打开，之后会一直记住。'); } catch (e) {}
+    } else if (d.hostEnable!==undefined&&$('host-enable')) $('host-enable').checked=d.hostEnable;
     if (d.hostMode&&$('host-mode')) $('host-mode').value=d.hostMode;
     if (d.judgeUrl&&$('j-url')) $('j-url').value=d.judgeUrl;
     if (d.judgeKey&&$('j-key')) $('j-key').value=d.judgeKey;
