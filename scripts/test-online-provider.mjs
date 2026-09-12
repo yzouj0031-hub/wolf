@@ -232,6 +232,20 @@ const src = fs.readFileSync(new URL('../multiplayer.js', import.meta.url), 'utf8
     assert.ok(html.includes('WolfOnlineGame.seatTagText(p.id)'), `${file}: 命牌标签没有接上联机语义`);
     // 单机行为不能被改坏：没有 S.online 时仍然是「真人不显示标签」
     assert.ok(html.includes("  if (p.isPlayer) return ''; // 单机：真人玩家不显示"), `${file}: 单机的真人标签行为被改坏了`);
+
+    // ★ 隐私：每台设备只能看见自己那张牌。桥接必须把自己的席位设成 S.playerId 并走
+    //   「入局」通道（p-sel=-2），这样 humanViewLocked() 才会把整个界面锁到本人视角。
+    //   桥接自己【绝不能】去碰 observerPerspective——那是全知视角的开关，
+    //   一旦在联机里被设成 god，这台设备就能看见全场身份，整局直接废掉。
+    assert.ok(html.includes("$('p-sel').value = String(selfSeat ? -2 : -1);"), `${file}: 自己的席位没有走入局通道`);
+    assert.ok(html.includes('if (selfSeat) S.playerId = selfSeat.index;'), `${file}: 自己的席位没有绑到 S.playerId`);
+    const bridgeStart = html.indexOf('window.WolfOnlineGame = (function () {');
+    const bridgeEnd = html.indexOf('const _origStartGame = startGame;', bridgeStart);
+    const bridge = html.slice(bridgeStart, bridgeEnd);
+    assert.ok(!/observerPerspective/.test(bridge), `${file}: 联机桥接动了全知视角开关，会泄露全场身份`);
+    assert.ok(!/directorMode\s*=/.test(bridge), `${file}: 联机桥接开了导演模式，会绕过 humanViewLocked 的视角锁`);
+    // 桥接也不能把别人的席位标成 isPlayer——那会让本机弹出别人的操作框
+    assert.ok(html.includes("if (seat) p.isPlayer = seat.kind === 'self';"), `${file}: 只有自己的席位才该标成 isPlayer`);
   }
 
   // pickMode 是纯逻辑，抽出来直接验
