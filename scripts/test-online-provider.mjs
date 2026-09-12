@@ -206,4 +206,48 @@ const src = fs.readFileSync(new URL('../multiplayer.js', import.meta.url), 'utf8
   assert.ok(src.includes('isHost: state.room.host_id === state.user.id'), '交付时没有标明谁是主机');
 }
 
-console.log('online provider: real local model required, key never uploaded, UI gated, roster validated before lock');
+
+// ── 7. ★ 联机就用单机那张对局画面 ────────────────────────────────────────────
+// 另起一套联机界面等于把三万行引擎和教学层重写一遍，而且两套 UI 必然漂移。
+// 房主跑的就是现有引擎，所以命牌、左右席、模型标签、发言流、继续/自动/存档全都原样在。
+{
+  for (const file of ['index.html', 'en/index.html']) {
+    const html = fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+    assert.ok(html.includes('window.WolfOnlineGame = (function () {'), `${file}: 缺少联机对局桥接`);
+    // 桥接必须复用引擎既有的入口，而不是自己复制一份开局逻辑
+    for (const reused of ['selectMode(mode, false);', 'initPanels(roster.count);', 'startGame();']) {
+      assert.ok(html.includes('    ' + reused) || html.includes('  ' + reused), `${file}: 桥接没有复用 ${reused}`);
+    }
+    // S.online 必须在 selectMode 之后设置——selectMode 里有 forceReset()，会重建 S
+    const beginIdx = html.indexOf('  function begin(payload) {');
+    const modeIdx = html.indexOf('selectMode(mode, false);', beginIdx);
+    const onlineIdx = html.indexOf('S.online = {', beginIdx);
+    assert.ok(modeIdx > 0 && onlineIdx > modeIdx, `${file}: S.online 在 selectMode 之前设置，会被 forceReset 清掉`);
+    // 花名册无效时必须抛错，不能静默开一个人数不符的局
+    assert.ok(html.includes("throw new Error('联机花名册无效，已取消开局')"), `${file}: 花名册无效时没有拦住`);
+    assert.ok(html.includes("' 人没有对应的板子，无法开局'"), `${file}: 人数没有板子时没有拦住`);
+    // 席位标签要分清「别的设备上的真人」和「别人托管的 AI」
+    assert.ok(html.includes("if (seat.kind === 'remote') return { text: '真人'"), `${file}: 远程真人席位没有标签`);
+    assert.ok(html.includes("return { text: seat.modelLabel || 'AI', color: null };"), `${file}: 托管 AI 席位没有沿用模型品牌色`);
+    assert.ok(html.includes('WolfOnlineGame.seatTagText(p.id)'), `${file}: 命牌标签没有接上联机语义`);
+    // 单机行为不能被改坏：没有 S.online 时仍然是「真人不显示标签」
+    assert.ok(html.includes("  if (p.isPlayer) return ''; // 单机：真人玩家不显示"), `${file}: 单机的真人标签行为被改坏了`);
+  }
+
+  // pickMode 是纯逻辑，抽出来直接验
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const a = html.indexOf('  function pickMode(count) {');
+  const b = html.indexOf('  function begin(payload) {', a);
+  assert.ok(a >= 0 && b > a, 'pickMode 未找到');
+  const ctx = { MODE_CONFIGS: { standard:{count:10}, super:{count:12}, mega:{count:14}, chaos12:{count:12} }, Object, Number };
+  vm.createContext(ctx);
+  vm.runInContext(html.slice(a, b) + '\nthis.pick = pickMode;', ctx, { filename: 'index.html:pickMode' });
+  assert.equal(ctx.pick(10), 'standard', '10 人没有挑到板子');
+  assert.equal(ctx.pick(12), 'super', '同人数多个板子时没有取第一个');
+  assert.equal(ctx.pick(14), 'mega', '14 人没有挑到板子');
+  for (const bad of [9, 11, 0, -1, 16, null, undefined, 'x']) {
+    assert.equal(ctx.pick(bad), null, `${bad} 人竟然挑到了板子——角色数和座位数会对不上，夜晚一结算就崩`);
+  }
+}
+
+console.log('online provider: real local model required, key never uploaded, UI gated, roster validated, engine bridge reuses the single-player board');

@@ -6589,7 +6589,20 @@ function getModelTagHtml(p, opts) {
   // 开关：如果用户关闭显示，返回空
   const enableEl = document.getElementById('m-modeltag');
   if (enableEl && !enableEl.checked) return '';
-  if (!p || p.isPlayer) return ''; // 真人玩家不显示
+  if (!p) return '';
+  // 联机：先问桥接层。单机只分「AI 显示模型 / 真人不显示」，联机还要分清「别的设备上的
+  // 真人」和「别人托管的 AI」——否则房主看自己这张桌子，分不出哪几个位子是活人、
+  // 哪几个位子在烧别人的额度。
+  const _seatTag = (window.WolfOnlineGame && typeof WolfOnlineGame.seatTagText === 'function')
+    ? WolfOnlineGame.seatTagText(p.id) : null;
+  if (_seatTag && _seatTag.color) {
+    const _fs = (opts.size === 'small') ? '0.55em' : '0.65em';
+    const _pad = (opts.size === 'small') ? '0 4px' : '1px 5px';
+    const _hex = _seatTag.color.replace('#','');
+    const _r = parseInt(_hex.substr(0,2),16), _g = parseInt(_hex.substr(2,2),16), _b = parseInt(_hex.substr(4,2),16);
+    return `<span class="model-tag" style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:${_fs};padding:${_pad};margin-left:4px;border-radius:3px;background:rgba(${_r},${_g},${_b},0.18);color:${_seatTag.color};border:1px solid rgba(${_r},${_g},${_b},0.35);vertical-align:middle;font-weight:500;white-space:nowrap">${escapeHtml(_seatTag.text)}</span>`;
+  }
+  if (p.isPlayer) return ''; // 单机：真人玩家不显示
   const api = getAPI(p.id);
   const tag = getModelTag(api.model);
   if (!tag) return '';
@@ -28875,6 +28888,87 @@ function _openWebPromptModal(p, promptFn, resolve) {
 }
 
 // ── 在游戏开始/结束时初始化/清理状态横幅 ──
+/* ================================================================
+ *  § 联机对局桥接：把大厅的花名册变成一局真正的游戏
+ * ================================================================
+ * 设计取舍：联机【不另做一套界面】。房主设备跑的就是下面这一整套引擎，所以联机的对局
+ * 画面就是单机那张画面——命牌、左右席、模型标签、发言流、继续/自动/提问/朗读/存档，
+ * 全都原样在。另起一套联机界面等于把三万行引擎和教学层重写一遍，而且两套 UI 必然漂移。
+ *
+ * 这里只做三件事：挑板子、填名字、记下每个席位归谁管。
+ * 真正「谁去调 API、谁去等远程输入」由 S.online.seats 决定，在各自的执行点分叉。
+ */
+window.WolfOnlineGame = (function () {
+  'use strict';
+
+  // 花名册人数 → 板子。房间座位数在大厅已经校验过，这里再兜一次底：宁可明确报错，
+  // 也不要静默挑一个人数不符的板子——那会让角色数和座位数对不上，夜晚一结算就崩。
+  function pickMode(count) {
+    const exact = Object.keys(MODE_CONFIGS).filter(k => Number(MODE_CONFIGS[k].count) === Number(count));
+    if (!exact.length) return null;
+    // 同人数有多个板子时取第一个（standard/super/mega 在前，特殊板在后）
+    return exact[0];
+  }
+
+  function begin(payload) {
+    const roster = payload && payload.roster;
+    if (!roster || !roster.ok || !Array.isArray(roster.seats) || !roster.seats.length) {
+      throw new Error('联机花名册无效，已取消开局');
+    }
+    const mode = pickMode(roster.count);
+    if (!mode) throw new Error(roster.count + ' 人没有对应的板子，无法开局');
+
+    // selectMode 里有 forceReset()，会重建 S——所以 S.online 必须放在它【之后】设置。
+    selectMode(mode, false);
+    curNames = roster.seats.map((seat, i) => seat.name || ('P' + (i + 1)));
+    initPanels(roster.count);
+
+    const seats = roster.seats.map((seat, i) => ({
+      index: i, seatNo: seat.seatNo, kind: seat.kind,
+      userId: seat.userId || '', name: curNames[i], modelLabel: seat.modelLabel || ''
+    }));
+    S.online = {
+      roomId: payload.roomId || '', code: payload.code || '',
+      isHost: !!payload.isHost, selfUserId: (seats.find(s => s.kind === 'self') || {}).userId || '',
+      seats
+    };
+
+    // 自己的席位用引擎既有的「入局」通道；其余席位这一轮先由房主设备代跑，
+    // 远程输入通道在下一步接上（接上之前绝不假装它已经能远程操作）。
+    const selfSeat = seats.find(seat => seat.kind === 'self');
+    S.pureAI = !selfSeat;
+    $('p-sel').value = String(selfSeat ? -2 : -1);
+    if (selfSeat) S.playerId = selfSeat.index;
+
+    startGame();
+    if (selfSeat) S.playerId = selfSeat.index;
+    S.players.forEach(p => {
+      const seat = seats[p.id];
+      if (seat) p.isPlayer = seat.kind === 'self';
+      Render.card(p);
+    });
+    Render.log('system', '🌐 联机对局开始 · 房间 ' + (payload.code || '') + ' · '
+      + seats.filter(s => s.kind !== 'ai').length + ' 名真人 / '
+      + seats.filter(s => s.kind === 'ai').length + ' 个 AI 席位');
+    return true;
+  }
+
+  // 席位标签：单机只有「AI 显示模型、真人不显示」两种；联机还要分清
+  // 「别的设备上的真人」和「别人托管的 AI」——否则房主看自己这张桌子，
+  // 完全分不出哪几个位子是活人、哪几个位子在烧别人的额度。
+  function seatTagText(playerId) {
+    const online = S.online;
+    if (!online || !Array.isArray(online.seats)) return null;
+    const seat = online.seats[playerId];
+    if (!seat) return null;
+    if (seat.kind === 'self') return { text: '你', color: '#f5a0b8' };
+    if (seat.kind === 'remote') return { text: '真人', color: '#7ec8a0' };
+    return { text: seat.modelLabel || 'AI', color: null };   // null = 沿用模型品牌色
+  }
+
+  return { begin, pickMode, seatTagText };
+})();
+
 const _origStartGame = startGame;
 startGame = function() {
   _dirStatusBanner = null; // 重置，下次会重建
