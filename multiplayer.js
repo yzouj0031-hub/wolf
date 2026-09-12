@@ -40,6 +40,7 @@
     fillTitle:'Empty-seat strategy', fillMode:'How to fill empty seats', wait:'Wait for players', hostFill:'Host model fills all',
     balanced:'Distribute across opted-in players', applyFill:'Apply seat allocation', aiSeat:'AI seat', providedBy:'Provided by',
     providerHint:'The API key stays on this device. Only the provider assignment and public model name are synced.',
+    localReady:'This device will use', localMissing:'No model is configured on this device yet. Fill in the API settings on the main screen before offering AI seats.',
     fillHint:'Host fill uses the host key for every empty seat. Balanced mode shares seats among players who opted in.',
     fullRequired:'Fill every configured seat and wait for every human member to be ready before locking the lineup.',
     serial:'queued', concurrent:'parallel', capacityLabel:'AI capacity'
@@ -49,6 +50,7 @@
     fillTitle:'空位处理策略', fillMode:'空位如何补齐', wait:'等待真人或自带模型', hostFill:'房主模型全部补齐',
     balanced:'在自愿玩家之间平均分配', applyFill:'应用席位分配', aiSeat:'AI 席位', providedBy:'提供者',
     providerHint:'API Key 始终留在这台设备，只同步席位负责者和公开模型名称。',
+    localReady:'这台设备将使用', localMissing:'这台设备还没有配置模型。请先在主界面填好 API 设置，再提供 AI 席位。',
     fillHint:'房主补齐会让房主的 Key 承担所有空位；平均分配只使用主动开启托管的玩家。',
     fullRequired:'必须补满房间配置的全部席位，且所有真人成员准备后才能锁定阵容。',
     serial:'排队', concurrent:'并发', capacityLabel:'AI 容量'
@@ -354,11 +356,33 @@
       +(aiSeat.model_label?' · '+esc(aiSeat.model_label):'')+' · '+scheduling+'</div></div>';
   }
 
+  // ── 本机模型配置：联机大厅唯一该碰 API 的地方 ──────────────────────────────────
+  //   安全边界不变：Key 永远不离开这台设备，也永远不进联机表。这里只读取本机【已经配好】
+  //   的全局 API 设置，用来回答一个此前完全没人问过的问题——「这台设备到底供不供得上」。
+  //   此前「允许这台设备提供 AI 席位」是个纯粹的自我声明：不检查本机配没配 API，旁边那个
+  //   模型名还是手打的展示字符串。结果「平均分配」可以把席位分给一台根本没有 API 的设备，
+  //   而且要等到对局真的跑起来才会发现。
+  function localModel() {
+    const pick = id => { const el = $(id); return el && typeof el.value === 'string' ? el.value.trim() : ''; };
+    return { url: pick('g-url'), key: pick('g-key'), model: pick('g-model') };
+  }
+  function localModelReady() {
+    const cfg = localModel();
+    return !!(cfg.url && cfg.key && cfg.model);
+  }
+
   function providerHTML(mine) {
     const capacityOptions = Array.from({length:15},(_,i) => i+1)
       .map(n => '<option value="'+n+'"'+(Number(mine.max_ai_seats||0)===n?' selected':'')+'>'+n+'</option>').join('');
+    const cfg = localModel();
+    const ready = localModelReady();
+    // 本机配置一律【只显示模型名】。URL 可能带私有中转域名，Key 一个字符都不显示。
+    const localLine = ready
+      ? '<div class="wg-online-note wg-local-model ok">' + MT.localReady + '：' + esc(cfg.model) + '</div>'
+      : '<div class="wg-online-error wg-local-model">' + MT.localMissing + '</div>';
     return '<section class="wg-online-card wg-room-settings"><h4>'+MT.provider+'</h4>'
-      + '<label class="wg-provider-toggle"><input type="checkbox" id="wg-can-host-ai"'+(mine.can_host_ai?' checked':'')+'><span>'+MT.contribute+'</span></label>'
+      + localLine
+      + '<label class="wg-provider-toggle"><input type="checkbox" id="wg-can-host-ai"'+(mine.can_host_ai?' checked':'')+(ready?'':' disabled')+'><span>'+MT.contribute+'</span></label>'
       + '<div class="wg-online-grid">'
       + field(MT.capacity,'<select id="wg-ai-capacity">'+capacityOptions+'</select>')
       + field(MT.requestMode,'<select id="wg-request-mode"><option value="queue"'+(mine.request_mode!=='parallel'?' selected':'')+'>'+MT.queue+'</option><option value="parallel"'+(mine.request_mode==='parallel'?' selected':'')+'>'+MT.parallel+'</option></select>')
@@ -380,9 +404,14 @@
   }
 
   function syncProviderControls() {
-    const enabled = !!$('wg-can-host-ai')?.checked;
+    const ready = localModelReady();
+    const box = $('wg-can-host-ai');
+    // 本机没配 API 就不让勾——声明自己能供 AI 席位，却一个模型都调不动，是最难排查的一种坏。
+    if (box) { box.disabled = !ready; if (!ready) box.checked = false; }
+    const enabled = ready && !!box?.checked;
     if ($('wg-ai-capacity')) $('wg-ai-capacity').disabled = !enabled;
     if ($('wg-request-mode')) $('wg-request-mode').disabled = !enabled;
+    if ($('wg-save-provider')) $('wg-save-provider').disabled = !ready;
   }
 
   function chatHTML() {
@@ -399,7 +428,9 @@
   async function updateSeat(ready) {
     const displayName = cleanName($('wg-seat-name').value);
     const controller = $('wg-seat-controller').value;
-    const modelLabel = cleanName($('wg-model-label').value).slice(0, 40);
+    // 公开模型名留空就用本机真实模型名兜底：此前它是个纯手打字符串，和真实配置毫无关系，
+    // 别人在座位上看到的「GPT-5」可能背后一个 API 都没配。
+    const modelLabel = (cleanName($('wg-model-label').value) || cleanName(localModel().model)).slice(0, 40);
     if (!displayName) return;
     setBusy(true);
     try {
@@ -411,7 +442,11 @@
   }
 
   async function updateProvider() {
-    const enabled = !!$('wg-can-host-ai')?.checked;
+    // 再确认一次：勾选框可能在打开面板之后才被清空配置（设置面板就在同一页上）
+    if (!localModelReady() && $('wg-can-host-ai')?.checked) {
+      state.error = MT.localMissing; renderRoom(); return;
+    }
+    const enabled = localModelReady() && !!$('wg-can-host-ai')?.checked;
     const capacity = enabled ? Number($('wg-ai-capacity')?.value || 1) : 0;
     const requestMode = $('wg-request-mode')?.value || 'queue';
     setBusy(true);
