@@ -65,6 +65,10 @@ jobs:
         run: node scripts/stamp-build.mjs "${{ steps.ver.outputs.build }}" "${{ steps.ver.outputs.version }}"
 
       - name: Build hot-update bundle
+        # github.event.before 正好是"上次发布到这次"的起点，更新说明就从这个区间的提交标题取。
+        # 首次发布 / force push 时它可能是全零或本地不存在，make-hot-bundle 会自动退回最近 10 条。
+        env:
+          HOT_NOTES_SINCE: ${{ github.event.before }}
         run: node scripts/make-hot-bundle.mjs "${{ steps.ver.outputs.build }}" "${{ steps.ver.outputs.version }}"
 
       - name: Verify bundle integrity

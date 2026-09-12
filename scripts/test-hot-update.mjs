@@ -29,6 +29,10 @@ function run({build=700,native=true,hasPlugin=true,remote=meta(),ls=storage(),pl
 }
 eq(SRC.match(/const APP_BUILD = (\d+);/)[1],'0','release-only stamping');
 eq(SRC,readFileSync('en/hot-update.js','utf8'),'bilingual parity');
+// 更新说明来自网络上的 version.json：只能 textContent 逐条塞，拼 innerHTML 等于开一个 XSS 入口
+ok(/li\.textContent = text;/.test(SRC),'release notes are injected as text');
+ok(!/wolf-update-notes[\s\S]{0,400}innerHTML/.test(SRC),'release notes never touch innerHTML');
+ok(/Array\.isArray\(targetMeta\.notes\)/.test(SRC),'malformed notes cannot crash the dialog');
 ok(!run({native:false}).api,'no native updater on web');ok(!run({hasPlugin:false}).api,'missing plugin harmless');
 {
  const r=run({remote:meta(700)});eq((await r.api.check({manual:true})).status,'current');eq(r.calls.download.length,0);

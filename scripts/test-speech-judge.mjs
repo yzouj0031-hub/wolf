@@ -26,7 +26,7 @@ function load(src, file) {
   a = src.indexOf('const SPEECH_JUDGE_CAP');
   b = src.indexOf('async function judgeSpeechIsPublic', a);
   assert.ok(a >= 0 && b > a, `${file}: 分诊闸门未找到`);
-  vm.runInContext(`${src.slice(a, b)}; this.gate = needsSpeechJudge; this.sys = SPEECH_JUDGE_SYS; this.cap = SPEECH_JUDGE_CAP;`,
+  vm.runInContext(`${src.slice(a, b)}; this.gate = needsSpeechJudge; this.sys = SPEECH_JUDGE_SYS; this.cap = SPEECH_JUDGE_CAP; this.streak = SPEECH_JUDGE_FAIL_STREAK;`,
     ctx, { filename: `${file}:judge` });
   return ctx;
 }
@@ -113,9 +113,9 @@ for (const file of FILES) {
   // 温度必须为 0：这是分类，不是创作
   assert.ok(src.includes('temperature: 0,\n        max_tokens: 32,'), `${file}: 判官不是确定性调用`);
   // 只有明确判定为 B 才动发言；null 一律放行
-  assert.ok(src.includes("if (_verdict === 'B') {"), `${file}: 调用点没有只认明确的 B 判定`);
+  assert.ok(src.includes("} else if (_verdict === 'B') {"), `${file}: 调用点没有只认明确的 B 判定`);
   assert.ok(
-    src.includes("} else if (_verdict === null) {\n              _js.failed++;"),
+    src.includes("if (_verdict === null) {") && src.includes("              _js.failed++;"),
     `${file}: 判官不可用时没有单独计数`,
   );
   // 被否决的发言挪回 thinking，绝不丢——与 parseAI 里两处泄漏拦截的处理一致
@@ -123,7 +123,28 @@ for (const file of FILES) {
     src.includes("_r = {..._r, thinking: (_r.thinking ? _r.thinking + '\\n\\n' : '') + _r.game, game: ''};"),
     `${file}: 被否决的内容没有挪回 thinking`,
   );
-  assert.ok(src.includes('if (_js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage))'), `${file}: 每局上限没有按档位生效`);
+  assert.ok(
+    src.includes('if (_js.tripped || _js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage))'),
+    `${file}: 每局上限没有按档位生效，或熔断没有接上`,
+  );
+
+  // ── 5b. ★ 熔断：fail-open 单次便宜，但公开发言是串行的 ────────────────────────
+  // 全检档下判官若配错或指向慢模型，就是每条白等 8 秒 × 上百条 ≈ 二十分钟，
+  // 而且一条都没判成——正好毁掉"全检几乎无感"的前提。连挂几次必须本局停手。
+  assert.ok(ctx.streak >= 2 && ctx.streak <= 5, `${file}: 熔断阈值 ${ctx.streak} 不合理`);
+  assert.ok(src.includes('_js.failed++;\n              _js.streak++;'), `${file}: 判官不可用时没有累计连续失败`);
+  assert.ok(
+    src.includes('if (_js.streak >= SPEECH_JUDGE_FAIL_STREAK && !_js.tripped) {')
+    && src.includes('_js.tripped = true;'),
+    `${file}: 连续失败没有触发熔断`,
+  );
+  // 熔断只提示一次，不能每条发言刷一行
+  assert.equal((src.match(/_js\.tripped = true;/g) || []).length, 1, `${file}: 熔断被重复触发`);
+  // 成功一次就把连败清零，避免零星超时攒够三次误熔断
+  assert.ok(src.includes("_js.rejected++; _js.streak = 0;"), `${file}: 判定为 B 之后没有清零连败`);
+  assert.ok(src.includes("_js.passed++; _js.streak = 0;"), `${file}: 判定为 A 之后没有清零连败`);
+  // 统计必须随每局重建（freshState 不带 _judgeStats），否则上限和熔断会跨局累积
+  assert.ok(!/freshState\([\s\S]{0,2000}_judgeStats/.test(src), `${file}: _judgeStats 被带进了 freshState，会跨局累积`);
 
   // ── 6. 开关：UI 可关，控制台也可关 ──────────────────────────────────────────
   for (const opt of ['<option value="off">关闭</option>', '<option value="triage" selected>分诊</option>', '<option value="all">全检</option>']) {
@@ -143,4 +164,22 @@ for (const file of FILES) {
   assert.ok(src.includes("if (['off','triage','all'].includes(_sj)) $('m-speech-judge').value = _sj;"), `${file}: 档位没有读档`);
 }
 
-console.log('speech judge: off/triage/all modes, mechanical A/B prompt, fail-open + per-game cap and switch wiring passed');
+// ── 7. ★ 可见反馈：判官放行时静默，用户必须有别的办法确认它在工作 ──────────────
+// 这个应用主要跑在平板和手机上，控制台够不着，所以 S._judgeStats 不能是唯一的验证手段。
+for (const file of FILES) {
+  const src = read(file);
+  // 第一次真正开工要报一声，并说明用的是哪个模型
+  assert.ok(src.includes('if (_js.asked === 1) {'), `${file}: 判官启用时没有任何提示`);
+  assert.match(src, /发言分诊已启用（\$\{_judgeMode === 'all' \? '全检' : '分诊'\} · \$\{_jm\}）/,
+    `${file}: 启用提示没有说清档位和模型`);
+  // 局终要有成绩单，而且必须挂在所有结局路径都会过的地方
+  assert.ok(src.includes('function logSpeechJudgeSummary()'), `${file}: 缺少局终成绩单`);
+  assert.ok(src.includes('function recordLeaderboard(winType) {\n  logSpeechJudgeSummary();'),
+    `${file}: 成绩单没有挂在每条结局路径都会经过的地方`);
+  // 一次都没问过就不该刷屏
+  assert.ok(src.includes('if (!js || !js.asked) return;'), `${file}: 没问过也会打印成绩单`);
+  // 熔断过要在成绩单里点出来，否则用户只会看到"判官无响应 N"却不知道它已经停了
+  assert.ok(src.includes("js.tripped ? '（已熔断，检查主持人API）'"), `${file}: 成绩单没有反映熔断`);
+}
+
+console.log('speech judge: off/triage/all modes, mechanical A/B prompt, fail-open + breaker, switch wiring and visible feedback passed');
