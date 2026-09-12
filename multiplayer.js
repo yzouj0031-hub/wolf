@@ -40,6 +40,15 @@
     fillTitle:'Empty-seat strategy', fillMode:'How to fill empty seats', wait:'Wait for players', hostFill:'Host model fills all',
     balanced:'Distribute across opted-in players', applyFill:'Apply seat allocation', aiSeat:'AI seat', providedBy:'Provided by',
     providerHint:'The API key stays on this device. Only the provider assignment and public model name are synced.',
+    rosterNoBridge:'The lineup is locked, but this build cannot start an online match yet. Update the app.',
+    rosterSeatCount:'A {n}-seat room has no matching board. Supported sizes: {list}.',
+    rosterEmptySeat:'Seat {seat} is still open.',
+    rosterDoubleBooked:'Seat {seat} holds both a player and an AI seat.',
+    rosterProviderGone:'The device hosting seat {seat} has left the room.',
+    rosterProviderOff:'{name} stopped offering AI seats, so seat {seat} has nobody to run it.',
+    rosterOverCapacity:'{name} is assigned {n} AI seats but allows only {cap}.',
+    rosterDupName:'Two seats are both called "{name}"; seat numbers were appended so players stay distinguishable.',
+    localReady:'This device will use', localMissing:'No model is configured on this device yet. Fill in the API settings on the main screen before offering AI seats.',
     fillHint:'Host fill uses the host key for every empty seat. Balanced mode shares seats among players who opted in.',
     fullRequired:'Fill every configured seat and wait for every human member to be ready before locking the lineup.',
     serial:'queued', concurrent:'parallel', capacityLabel:'AI capacity'
@@ -49,6 +58,15 @@
     fillTitle:'空位处理策略', fillMode:'空位如何补齐', wait:'等待真人或自带模型', hostFill:'房主模型全部补齐',
     balanced:'在自愿玩家之间平均分配', applyFill:'应用席位分配', aiSeat:'AI 席位', providedBy:'提供者',
     providerHint:'API Key 始终留在这台设备，只同步席位负责者和公开模型名称。',
+    rosterNoBridge:'阵容已锁定，但当前版本还不能真正开局，请更新应用。',
+    rosterSeatCount:'{n} 座的房间没有对应的板子，目前支持 {list} 人。',
+    rosterEmptySeat:'{seat} 号位还空着。',
+    rosterDoubleBooked:'{seat} 号位同时坐了玩家和 AI 席位。',
+    rosterProviderGone:'负责 {seat} 号位的设备已经离开房间。',
+    rosterProviderOff:'{name} 关掉了 AI 席位托管，{seat} 号位没有设备可以跑。',
+    rosterOverCapacity:'{name} 被分到 {n} 个 AI 席位，但只允许 {cap} 个。',
+    rosterDupName:'有两个席位都叫「{name}」，已在重名的那个后面加上座位号，否则所有靠名字的推理都会失效。',
+    localReady:'这台设备将使用', localMissing:'这台设备还没有配置模型。请先在主界面填好 API 设置，再提供 AI 席位。',
     fillHint:'房主补齐会让房主的 Key 承担所有空位；平均分配只使用主动开启托管的玩家。',
     fullRequired:'必须补满房间配置的全部席位，且所有真人成员准备后才能锁定阵容。',
     serial:'排队', concurrent:'并发', capacityLabel:'AI 容量'
@@ -354,11 +372,118 @@
       +(aiSeat.model_label?' · '+esc(aiSeat.model_label):'')+' · '+scheduling+'</div></div>';
   }
 
+  // ── 本机模型配置：联机大厅唯一该碰 API 的地方 ──────────────────────────────────
+  //   安全边界不变：Key 永远不离开这台设备，也永远不进联机表。这里只读取本机【已经配好】
+  //   的全局 API 设置，用来回答一个此前完全没人问过的问题——「这台设备到底供不供得上」。
+  //   此前「允许这台设备提供 AI 席位」是个纯粹的自我声明：不检查本机配没配 API，旁边那个
+  //   模型名还是手打的展示字符串。结果「平均分配」可以把席位分给一台根本没有 API 的设备，
+  //   而且要等到对局真的跑起来才会发现。
+  //   席位 API 走【游戏自己的那一套】：getAPI(i) = 本席位独立配置 → 全局配置回落。
+  //   联机不另起炉灶，否则同一台设备在单机和联机里会用上不同的模型，排查起来毫无头绪。
+  //   seatIndex 传 -1 表示"只问全局配置"（大厅阶段还不知道会分到哪些席位）。
+  function seatApi(seatIndex) {
+    if (typeof window.getAPI === 'function') {
+      try {
+        const api = window.getAPI(seatIndex);
+        if (api) return { url: String(api.url || '').trim(), key: String(api.key || '').trim(), model: String(api.model || '').trim() };
+      } catch (error) { /* 主脚本还没就绪就退回直接读输入框 */ }
+    }
+    const pick = id => { const el = $(id); return el && typeof el.value === 'string' ? el.value.trim() : ''; };
+    return { url: pick('g-url'), key: pick('g-key'), model: pick('g-model') };
+  }
+  function seatApiReady(seatIndex) {
+    const cfg = seatApi(seatIndex);
+    return !!(cfg.url && cfg.key && cfg.model);
+  }
+  function localModel() { return seatApi(-1); }
+  function localModelReady() { return seatApiReady(-1); }
+
+  /* ── 房间快照 → 开局花名册 ────────────────────────────────────────────────────
+   * 纯函数，不碰 DOM，也不发请求：这里是整个联机对局唯一「谁坐哪、谁来操作」的判定点，
+   * 必须能脱离网络逐条测。
+   *
+   * 此前锁定阵容只是把房间状态改成 playing，然后界面上写一句「下一阶段会接入」。
+   * 真要开局，先得回答四个问题，而且任何一个答错都只会在对局中途暴露：
+   *   ① 房间座位数对不对得上板子（板子只有 10/12/14 人，房间却能开 1~16 座）；
+   *   ② 有没有空位（空位在引擎里没有对应玩家，夜晚一结算就崩）；
+   *   ③ 每个 AI 席位的提供者还在不在房间里、有没有开托管（提供者中途退了，
+   *      这些席位就没有任何设备会去跑，对局会停在等它发言的地方）；
+   *   ④ 有没有人被分超了容量。
+   * 所以这里【宁可开不了局，也不开一个注定卡住的局】：errors 非空就不放行。
+   */
+  function buildRoster(room, members, aiSeats, selfUserId, allowedCounts) {
+    const errors = [], warnings = [], seats = [];
+    const counts = Array.isArray(allowedCounts) && allowedCounts.length ? allowedCounts : [10, 12, 14];
+    const max = Number(room && room.max_seats) || 0;
+    const memberList = Array.isArray(members) ? members : [];
+    const aiList = Array.isArray(aiSeats) ? aiSeats : [];
+
+    if (!counts.includes(max)) {
+      errors.push(MT.rosterSeatCount.replace('{n}', String(max)).replace('{list}', counts.join(' / ')));
+    }
+
+    const byUser = new Map(memberList.map(m => [m.user_id, m]));
+    const hosted = new Map();
+    const used = new Set();
+
+    for (let seatNo = 1; seatNo <= max; seatNo++) {
+      const member = memberList.find(m => Number(m.seat_no) === seatNo);
+      const ai = aiList.find(a => Number(a.seat_no) === seatNo);
+      if (member && ai) { errors.push(MT.rosterDoubleBooked.replace('{seat}', String(seatNo))); continue; }
+      if (member) {
+        seats.push({ seatNo, name: String(member.display_name || '').trim() || ('P' + seatNo),
+          kind: member.user_id === selfUserId ? 'self' : 'remote',
+          userId: member.user_id, modelLabel: '' });
+        continue;
+      }
+      if (ai) {
+        const provider = byUser.get(ai.provider_user_id);
+        if (!provider) { errors.push(MT.rosterProviderGone.replace('{seat}', String(seatNo))); continue; }
+        if (!provider.can_host_ai) { errors.push(MT.rosterProviderOff.replace('{seat}', String(seatNo)).replace('{name}', String(provider.display_name || ''))); continue; }
+        hosted.set(ai.provider_user_id, (hosted.get(ai.provider_user_id) || 0) + 1);
+        seats.push({ seatNo, name: String(ai.display_name || '').trim() || ('AI' + seatNo),
+          kind: 'ai', userId: ai.provider_user_id,
+          modelLabel: String(ai.model_label || '').trim() });
+        continue;
+      }
+      errors.push(MT.rosterEmptySeat.replace('{seat}', String(seatNo)));
+    }
+
+    for (const [userId, n] of hosted) {
+      const provider = byUser.get(userId);
+      const cap = Number(provider && provider.max_ai_seats || 0);
+      if (n > cap) {
+        errors.push(MT.rosterOverCapacity.replace('{name}', String(provider.display_name || ''))
+          .replace('{n}', String(n)).replace('{cap}', String(cap)));
+      }
+    }
+
+    // 重名会让所有靠名字对话的推理彻底失效（"我投白马探"指向谁？），所以必须消歧。
+    const seen = new Map();
+    for (const seat of seats) {
+      const key = seat.name.toLowerCase();
+      if (seen.has(key)) {
+        seat.name = seat.name + '·' + seat.seatNo;
+        if (!used.has(key)) { warnings.push(MT.rosterDupName.replace('{name}', seen.get(key))); used.add(key); }
+      } else seen.set(key, seat.name);
+    }
+
+    return { ok: errors.length === 0 && seats.length === max && max > 0, count: max, seats, errors, warnings };
+  }
+
+
   function providerHTML(mine) {
     const capacityOptions = Array.from({length:15},(_,i) => i+1)
       .map(n => '<option value="'+n+'"'+(Number(mine.max_ai_seats||0)===n?' selected':'')+'>'+n+'</option>').join('');
+    const cfg = localModel();
+    const ready = localModelReady();
+    // 本机配置一律【只显示模型名】。URL 可能带私有中转域名，Key 一个字符都不显示。
+    const localLine = ready
+      ? '<div class="wg-online-note wg-local-model ok">' + MT.localReady + '：' + esc(cfg.model) + '</div>'
+      : '<div class="wg-online-error wg-local-model">' + MT.localMissing + '</div>';
     return '<section class="wg-online-card wg-room-settings"><h4>'+MT.provider+'</h4>'
-      + '<label class="wg-provider-toggle"><input type="checkbox" id="wg-can-host-ai"'+(mine.can_host_ai?' checked':'')+'><span>'+MT.contribute+'</span></label>'
+      + localLine
+      + '<label class="wg-provider-toggle"><input type="checkbox" id="wg-can-host-ai"'+(mine.can_host_ai?' checked':'')+(ready?'':' disabled')+'><span>'+MT.contribute+'</span></label>'
       + '<div class="wg-online-grid">'
       + field(MT.capacity,'<select id="wg-ai-capacity">'+capacityOptions+'</select>')
       + field(MT.requestMode,'<select id="wg-request-mode"><option value="queue"'+(mine.request_mode!=='parallel'?' selected':'')+'>'+MT.queue+'</option><option value="parallel"'+(mine.request_mode==='parallel'?' selected':'')+'>'+MT.parallel+'</option></select>')
@@ -380,9 +505,14 @@
   }
 
   function syncProviderControls() {
-    const enabled = !!$('wg-can-host-ai')?.checked;
+    const ready = localModelReady();
+    const box = $('wg-can-host-ai');
+    // 本机没配 API 就不让勾——声明自己能供 AI 席位，却一个模型都调不动，是最难排查的一种坏。
+    if (box) { box.disabled = !ready; if (!ready) box.checked = false; }
+    const enabled = ready && !!box?.checked;
     if ($('wg-ai-capacity')) $('wg-ai-capacity').disabled = !enabled;
     if ($('wg-request-mode')) $('wg-request-mode').disabled = !enabled;
+    if ($('wg-save-provider')) $('wg-save-provider').disabled = !ready;
   }
 
   function chatHTML() {
@@ -399,7 +529,9 @@
   async function updateSeat(ready) {
     const displayName = cleanName($('wg-seat-name').value);
     const controller = $('wg-seat-controller').value;
-    const modelLabel = cleanName($('wg-model-label').value).slice(0, 40);
+    // 公开模型名留空就用本机真实模型名兜底：此前它是个纯手打字符串，和真实配置毫无关系，
+    // 别人在座位上看到的「GPT-5」可能背后一个 API 都没配。
+    const modelLabel = (cleanName($('wg-model-label').value) || cleanName(localModel().model)).slice(0, 40);
     if (!displayName) return;
     setBusy(true);
     try {
@@ -411,7 +543,11 @@
   }
 
   async function updateProvider() {
-    const enabled = !!$('wg-can-host-ai')?.checked;
+    // 再确认一次：勾选框可能在打开面板之后才被清空配置（设置面板就在同一页上）
+    if (!localModelReady() && $('wg-can-host-ai')?.checked) {
+      state.error = MT.localMissing; renderRoom(); return;
+    }
+    const enabled = localModelReady() && !!$('wg-can-host-ai')?.checked;
     const capacity = enabled ? Number($('wg-ai-capacity')?.value || 1) : 0;
     const requestMode = $('wg-request-mode')?.value || 'queue';
     setBusy(true);
@@ -434,11 +570,47 @@
     finally { setBusy(false); }
   }
 
+  // 板子人数取自主脚本，而不是在这里再抄一份——抄一份就一定会和 MODE_CONFIGS 漂移。
+  function boardCounts() {
+    try {
+      const modes = window.MODE_CONFIGS;
+      if (modes) {
+        const list = [...new Set(Object.keys(modes).map(k => Number(modes[k] && modes[k].count)).filter(n => n > 0))];
+        if (list.length) return list.sort((a, b) => a - b);
+      }
+    } catch (error) { /* 主脚本没就绪就用下面的兜底 */ }
+    return [10, 12, 14];
+  }
+
+  function currentRoster() {
+    return buildRoster(state.room, state.members, state.aiSeats, state.user && state.user.id, boardCounts());
+  }
+
   async function lockRoom() {
+    // 先体检再锁。锁完才发现有空位 / 提供者跑了 / 分超容量，那时候房间已经是 playing，
+    // 只能整个房间解散重来——所以宁可现在开不了局，也不开一个注定卡在半路的局。
+    const roster = currentRoster();
+    if (!roster.ok) { state.error = roster.errors.join('\n'); renderRoom(); return; }
     setBusy(true);
-    try { await rpc('online_start_room',{p_room_id:state.room.id}); await refreshRoom(state.room.id); renderRoom(); }
+    try {
+      await rpc('online_start_room',{p_room_id:state.room.id});
+      await refreshRoom(state.room.id);
+      renderRoom();
+      handOffToGame(roster);
+    }
     catch (error) { state.error = error.message; renderRoom(); }
     finally { setBusy(false); }
+  }
+
+  // 把花名册交给游戏引擎。引擎那边是否已经接好由主脚本决定；大厅只负责交付和兜底提示，
+  // 绝不自己复制一份开局逻辑。
+  function handOffToGame(roster) {
+    const bridge = window.WolfOnlineGame;
+    if (!bridge || typeof bridge.begin !== 'function') {
+      state.error = MT.rosterNoBridge; renderRoom(); return;
+    }
+    try { bridge.begin({ roomId: state.room.id, code: state.room.code, isHost: state.room.host_id === state.user.id, roster }); }
+    catch (error) { state.error = String(error && error.message || error); renderRoom(); }
   }
 
   async function leaveRoom() {

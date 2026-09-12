@@ -103,7 +103,7 @@ for (const file of FILES) {
   assert.equal(ctx.cap.triage, 8, `${file}: 分诊档的每局上限被改动`);
   assert.ok(ctx.cap.all >= 100, `${file}: 全检档的上限太低，正常一局就会被截断`);
   for (const [why, marker] of [
-    ['没配主持人API', "if (!api || !api.url || !api.key || !api.model) return null;"],
+    ['判官/主持人/全局都没配', "if (!api.url || !api.key || !api.model) return null;"],
     ['超时', 'setTimeout(() => ctl.abort(), 8000);'],
     ['HTTP 失败', 'if (!res.ok) return null;'],
     ['返回看不懂', "    return null;\n  } catch (e) {\n    return null;"],
@@ -162,6 +162,46 @@ for (const file of FILES) {
     `${file}: 旧存档的布尔值没有迁移`,
   );
   assert.ok(src.includes("if (['off','triage','all'].includes(_sj)) $('m-speech-judge').value = _sj;"), `${file}: 档位没有读档`);
+}
+
+// ── 6b. ★ 判官可以单独指定模型，而且多档开关要能看出自己是开着的 ────────────────
+// 用户反馈：截图里下拉已经选了「全检」，可 chip 不亮、「已开启 N/M」也不算它，
+// 完全无法确认这个开关到底生效没有。原因是计数和亮起只认 input[type=checkbox]，
+// CSS 的 :has() 判不了 select 的 value。
+for (const file of FILES) {
+  const src = read(file);
+
+  // 判官有自己的三个输入框，回落顺序：专用 → 主持人 → 全局
+  for (const id of ['j-url', 'j-key', 'j-model']) {
+    assert.ok(src.includes(`id="${id}"`), `${file}: 缺少判官专用配置输入框 ${id}`);
+  }
+  assert.ok(src.includes('function getJudgeAPI() {'), `${file}: 判官没有独立的配置读取`);
+  assert.ok(src.includes("url: (own.url || host.url || '').replace(/\\/$/, ''),"), `${file}: 判官地址没有回落到主持人`);
+  assert.ok(src.includes("key: own.key || host.key || '',"), `${file}: 判官密钥没有回落`);
+  assert.ok(src.includes("model: own.model || host.model || ''"), `${file}: 判官模型没有回落`);
+  assert.ok(src.includes('  const api = getJudgeAPI();'), `${file}: 判官调用没有改用独立配置`);
+  assert.ok(!src.includes("const api = (typeof getHostAPI === 'function') ? getHostAPI() : null;"),
+    `${file}: 判官仍然绑死在主持人配置上`);
+  // 启用提示报的模型名要跟着判官配置走，否则用户看到的是主持人的模型，误以为配错了
+  assert.ok(src.includes("getJudgeAPI().model"), `${file}: 启用提示报的不是判官实际用的模型`);
+  // 判官密钥不能存成明文可见的 text 框
+  assert.match(src, /<input type="password" id="j-key"/, `${file}: 判官密钥输入框不是密码框`);
+  // 三个字段都要能存档读档，否则每次开应用都得重填
+  for (const [key, id] of [['judgeUrl', 'j-url'], ['judgeKey', 'j-key'], ['judgeModel', 'j-model']]) {
+    assert.ok(src.includes(`${key}:$('${id}')?$('${id}').value:''`), `${file}: ${key} 没有存档`);
+    assert.ok(src.includes(`if (d.${key}&&$('${id}')) $('${id}').value=d.${key};`), `${file}: ${key} 没有读档`);
+  }
+  assert.ok(src.includes("'j-url','j-key','j-model'].forEach"), `${file}: 判官配置改动后没有自动存档`);
+
+  // 多档开关的状态：chip 要亮、要计数、改档要立刻重算
+  assert.ok(src.includes('data-on-values="triage all"'), `${file}: 「发言分诊」没有声明哪些档位算开着`);
+  assert.ok(src.includes('function selectChipOn(lab){'), `${file}: 计数逻辑不认多档开关`);
+  assert.ok(src.includes('var total = boxes.length + chips.length;'), `${file}: 总数没有把多档开关算进去`);
+  assert.ok(src.includes("e.target.tagName === 'SELECT'"), `${file}: 改档之后没有重算 chip 状态`);
+  // 状态点此前被显式隐藏，导致这种开关连「有没有生效」都看不出来
+  assert.ok(src.includes('.mti[data-on-values]::after { display:block; }'), `${file}: 多档开关没有状态点`);
+  assert.ok(src.includes('.mti:not(:has(input[type="checkbox"])):not([data-on-values])::after'),
+    `${file}: 隐藏状态点的规则没有排除多档开关`);
 }
 
 // ── 7. ★ 可见反馈：判官放行时静默，用户必须有别的办法确认它在工作 ──────────────

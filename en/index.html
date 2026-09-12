@@ -674,7 +674,10 @@ body.fx-lite *, body.fx-lite *::before, body.fx-lite *::after {
 .mti.ui-iconized::before { width:13px; height:13px; opacity:.72; }
 .mti input[type="checkbox"] { position:absolute; width:1px; height:1px; min-width:0; opacity:0; pointer-events:none; }
 .mti::after { content:''; width:5px; height:5px; margin-left:1px; border-radius:50%; background:#4d465b; box-shadow:0 0 0 3px rgba(77,70,91,.12); transition:all .2s; }
-.mti:not(:has(input[type="checkbox"]))::after { display:none; }
+.mti:not(:has(input[type="checkbox"])):not([data-on-values])::after { display:none; }
+/* 多档开关（如「发言分诊」）没有 checkbox，状态只能由 JS 写 .on；圆点要留着，
+   否则这种开关连「有没有生效」都看不出来。 */
+.mti[data-on-values]::after { display:block; }
 .mti:hover { color:#c8bfd7; border-color:rgba(190,166,220,.3); background:linear-gradient(180deg,rgba(39,34,55,.92),rgba(19,17,32,.96)); transform:translateY(-1px); }
 .mti:focus-within { outline:1px solid rgba(229,190,118,.55); outline-offset:2px; }
 /* 设置面板分组：22 个开关平铺时既扫不出分类、也看不出哪些开着 */
@@ -3135,6 +3138,14 @@ body.has-wp::after {
           <div style="font-size:0.67em;color:#508878;" id="host-hint">Emcee mode adds dramatic pauses to key announcements and uses roughly 30–50 extra API calls per game.</div>
           <div class="cr"><input type="text" id="h-url" placeholder="Host API URL (blank = global)"><input type="password" id="h-key" placeholder="Host API key (blank = global)"></div>
           <div class="cr"><input type="text" id="h-model" placeholder="Host model (blank = global)" style="flex:2"><select id="host-verbosity" style="flex:1;min-width:60px"><option value="brief">Brief</option><option value="normal" selected>Balanced</option><option value="vivid">Detailed</option></select></div>
+          <!-- The speech-triage judge only answers one A/B, so a Flash / Haiku class model fits
+               best. It used to borrow the host config above, but the two jobs want completely
+               different models: the host writes dramatic narration, the judge only needs to be
+               fast and cheap - and plenty of people never enable the host yet want triage.
+               Blank falls back to the host config, then to the global one. -->
+          <div style="font-size:0.67em;color:#508878;margin-top:6px">🧮 Speech-triage judge (optional) — answers a single A/B, so faster is better. Blank falls back to the host config above, then to the global one. A reasoning model with thinking on will simply time out and be logged as "no response"; use a Flash / Haiku class model.</div>
+          <div class="cr"><input type="text" id="j-url" placeholder="Judge API URL (blank = host)"><input type="password" id="j-key" placeholder="Judge key (blank = host)"></div>
+          <div class="cr"><input type="text" id="j-model" placeholder="Judge model, e.g. gemini-3-flash / claude-haiku-4-5"></div>
         </div>
       </details>
       <details class="conc-det"><summary>⚡ Concurrency</summary>
@@ -3230,7 +3241,7 @@ body.has-wp::after {
         <label class="mti" data-ui-icon="wrench" title="AI 偶尔会把「等下该说什么」的内心盘算当成公开发言交上来，这种散文用正则分不出来（词表放宽一点就会吞掉真神跳身份）。送去问一次便宜模型（用主持人API的模型，留空则用全局），只问一个机械的二选一：这段话是对牌桌说的，还是自己盘算？判定为盘算才重新请求。判官被明确要求「发言写得差也仍然放行」「拿不准就放行」，超时或未配置一律原样放行。
 关闭=完全不问。
 分诊=只问正则判不了的那一小撮（模型没用协议+开头有自我规划痕迹），一局大约几次，成本可忽略。
-全检=每条公开发言都过一遍。用 Flash 这类快模型时每条只多约半秒，相对 30-180 秒的主发言几乎无感；代价是判官有更多次机会误判，建议只在主模型格式不稳时开。"><span style="font-size:0.8em;color:#d8d0e8">发言分诊</span><select id="m-speech-judge" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="off">关闭</option><option value="triage" selected>分诊</option><option value="all">全检</option></select></label>
+全检=每条公开发言都过一遍。用 Flash 这类快模型时每条只多约半秒，相对 30-180 秒的主发言几乎无感；代价是判官有更多次机会误判，建议只在主模型格式不稳时开。" data-on-values="triage all"><span style="font-size:0.8em;color:#d8d0e8">发言分诊</span><select id="m-speech-judge" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="off">关闭</option><option value="triage" selected>分诊</option><option value="all">全检</option></select></label>
         <label class="mti" data-ui-icon="tag" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">模型标签</label>
         <label class="mti" data-ui-icon="tag" title="开启后模型标签显示完整模型名（如 Claude Opus 4.5、Gemini 3 Pro），关闭则只显示品牌简称（如 Claude、Gemini）。命牌上名字过长会截断，鼠标悬停可看完整模型 ID。"><input type="checkbox" id="m-modeltag-full" onchange="document.body.classList.toggle('show-modeltag-full', this.checked);S.players&&S.players.forEach(p=>Render.card(p))">完整模型名</label>
         </div>
@@ -6589,7 +6600,20 @@ function getModelTagHtml(p, opts) {
   // 开关：如果用户关闭显示，返回空
   const enableEl = document.getElementById('m-modeltag');
   if (enableEl && !enableEl.checked) return '';
-  if (!p || p.isPlayer) return ''; // 真人玩家不显示
+  if (!p) return '';
+  // 联机：先问桥接层。单机只分「AI 显示模型 / 真人不显示」，联机还要分清「别的设备上的
+  // 真人」和「别人托管的 AI」——否则房主看自己这张桌子，分不出哪几个位子是活人、
+  // 哪几个位子在烧别人的额度。
+  const _seatTag = (window.WolfOnlineGame && typeof WolfOnlineGame.seatTagText === 'function')
+    ? WolfOnlineGame.seatTagText(p.id) : null;
+  if (_seatTag && _seatTag.color) {
+    const _fs = (opts.size === 'small') ? '0.55em' : '0.65em';
+    const _pad = (opts.size === 'small') ? '0 4px' : '1px 5px';
+    const _hex = _seatTag.color.replace('#','');
+    const _r = parseInt(_hex.substr(0,2),16), _g = parseInt(_hex.substr(2,2),16), _b = parseInt(_hex.substr(4,2),16);
+    return `<span class="model-tag" style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:${_fs};padding:${_pad};margin-left:4px;border-radius:3px;background:rgba(${_r},${_g},${_b},0.18);color:${_seatTag.color};border:1px solid rgba(${_r},${_g},${_b},0.35);vertical-align:middle;font-weight:500;white-space:nowrap">${escapeHtml(_seatTag.text)}</span>`;
+  }
+  if (p.isPlayer) return ''; // 单机：真人玩家不显示
   const api = getAPI(p.id);
   const tag = getModelTag(api.model);
   if (!tag) return '';
@@ -8026,7 +8050,7 @@ function saveCfg() {
     pconfigs:playerConfigs,
     promptLibrary,
     teachingWorldbooks:window.TeachingWorldbooks&&typeof window.TeachingWorldbooks.exportState==='function'?window.TeachingWorldbooks.exportState():null,
-    hostEnable:$('host-enable')?$('host-enable').checked:true, hostMode:$('host-mode')?$('host-mode').value:'emcee', hostUrl:$('h-url')?$('h-url').value:'', hostKey:$('h-key')?$('h-key').value:'', hostModel:$('h-model')?$('h-model').value:'', hostVerbosity:$('host-verbosity')?$('host-verbosity').value:'normal',
+    hostEnable:$('host-enable')?$('host-enable').checked:true, hostMode:$('host-mode')?$('host-mode').value:'emcee', hostUrl:$('h-url')?$('h-url').value:'', hostKey:$('h-key')?$('h-key').value:'', hostModel:$('h-model')?$('h-model').value:'', judgeUrl:$('j-url')?$('j-url').value:'', judgeKey:$('j-key')?$('j-key').value:'', judgeModel:$('j-model')?$('j-model').value:'', hostVerbosity:$('host-verbosity')?$('host-verbosity').value:'normal',
     spectatorList, specEnable:$('spec-enable')?$('spec-enable').checked:false, specFreq:$('spec-freq')?$('spec-freq').value:'mid',
     conc:{speak:getC('c-speak'),vote:getC('c-vote'),wolf:getC('c-wolf'),wvote:getC('c-wvote'),trial:getC('c-trial'),end:getC('c-end')},
     customRolesDefs: window._customRolesDefs || [],
@@ -8113,6 +8137,9 @@ function loadCfg() {
     if (window.TeachingWorldbooks && typeof window.TeachingWorldbooks.load === 'function') window.TeachingWorldbooks.load(d.teachingWorldbooks || null);
     if (d.hostEnable!==undefined&&$('host-enable')) $('host-enable').checked=d.hostEnable;
     if (d.hostMode&&$('host-mode')) $('host-mode').value=d.hostMode;
+    if (d.judgeUrl&&$('j-url')) $('j-url').value=d.judgeUrl;
+    if (d.judgeKey&&$('j-key')) $('j-key').value=d.judgeKey;
+    if (d.judgeModel&&$('j-model')) $('j-model').value=d.judgeModel;
     if (d.hostUrl&&$('h-url')) $('h-url').value=d.hostUrl;
     if (d.hostKey&&$('h-key')) $('h-key').value=d.hostKey;
     if (d.hostModel&&$('h-model')) $('h-model').value=d.hostModel;
@@ -11550,9 +11577,23 @@ function needsSpeechJudge(result, opts, mode) {
 }
 
 // 返回 'A'(是公开发言) / 'B'(是私下盘算) / null(判不了 → 调用方一律放行)
+// 判官配置：专用 → 主持人 → 全局。三段回落，任一段填齐就用它。
+// 单独给判官一个槽位是因为这两件事要的模型根本不同：主持人要会写戏剧化旁白，判官只需要
+// 快和便宜；而且很多人不开主持人，却想开分诊。此前借用主持人配置，等于把两件事绑死了。
+function getJudgeAPI() {
+  const pick = id => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+  const own = { url: pick('j-url'), key: pick('j-key'), model: pick('j-model') };
+  const host = (typeof getHostAPI === 'function') ? getHostAPI() : { url:'', key:'', model:'' };
+  return {
+    url: (own.url || host.url || '').replace(/\/$/, ''),
+    key: own.key || host.key || '',
+    model: own.model || host.model || ''
+  };
+}
+
 async function judgeSpeechIsPublic(text) {
-  const api = (typeof getHostAPI === 'function') ? getHostAPI() : null;
-  if (!api || !api.url || !api.key || !api.model) return null;
+  const api = getJudgeAPI();
+  if (!api.url || !api.key || !api.model) return null;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 8000);
   try {
@@ -13362,7 +13403,7 @@ async function proc(players, promptFn, label, opts) {
             // 第一次真正开工时报一声，否则用户（尤其在手机上，够不着控制台）无从判断
             // 这个开关到底有没有生效、用的是哪个模型。
             if (_js.asked === 1) {
-              const _jm = (typeof getHostAPI === 'function' && getHostAPI().model) || '(未配置)';
+              const _jm = (typeof getJudgeAPI === 'function' && getJudgeAPI().model) || '(未配置)';
               Render.log('system', `🧮 发言分诊已启用（${_judgeMode === 'all' ? '全检' : '分诊'} · ${_jm}）`);
             }
             const _verdict = await judgeSpeechIsPublic(_r.game);
@@ -25405,7 +25446,7 @@ function bindEvents() {
   ['g-url','g-key','g-spd','cnames','g-model'].forEach(id => {
     $(id).addEventListener('change', saveCfg);
   });
-  ['h-url','h-key','h-model','host-verbosity'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',saveCfg);});
+  ['h-url','h-key','h-model','host-verbosity','j-url','j-key','j-model'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',saveCfg);});
   {const he=$('host-enable');if(he)he.addEventListener('change',saveCfg);}
   // 观众席：启用开关 + 频率
   {const se=$('spec-enable');if(se)se.addEventListener('change',saveCfg);}
@@ -28875,6 +28916,87 @@ function _openWebPromptModal(p, promptFn, resolve) {
 }
 
 // ── 在游戏开始/结束时初始化/清理状态横幅 ──
+/* ================================================================
+ *  § 联机对局桥接：把大厅的花名册变成一局真正的游戏
+ * ================================================================
+ * 设计取舍：联机【不另做一套界面】。房主设备跑的就是下面这一整套引擎，所以联机的对局
+ * 画面就是单机那张画面——命牌、左右席、模型标签、发言流、继续/自动/提问/朗读/存档，
+ * 全都原样在。另起一套联机界面等于把三万行引擎和教学层重写一遍，而且两套 UI 必然漂移。
+ *
+ * 这里只做三件事：挑板子、填名字、记下每个席位归谁管。
+ * 真正「谁去调 API、谁去等远程输入」由 S.online.seats 决定，在各自的执行点分叉。
+ */
+window.WolfOnlineGame = (function () {
+  'use strict';
+
+  // 花名册人数 → 板子。房间座位数在大厅已经校验过，这里再兜一次底：宁可明确报错，
+  // 也不要静默挑一个人数不符的板子——那会让角色数和座位数对不上，夜晚一结算就崩。
+  function pickMode(count) {
+    const exact = Object.keys(MODE_CONFIGS).filter(k => Number(MODE_CONFIGS[k].count) === Number(count));
+    if (!exact.length) return null;
+    // 同人数有多个板子时取第一个（standard/super/mega 在前，特殊板在后）
+    return exact[0];
+  }
+
+  function begin(payload) {
+    const roster = payload && payload.roster;
+    if (!roster || !roster.ok || !Array.isArray(roster.seats) || !roster.seats.length) {
+      throw new Error('联机花名册无效，已取消开局');
+    }
+    const mode = pickMode(roster.count);
+    if (!mode) throw new Error(roster.count + ' 人没有对应的板子，无法开局');
+
+    // selectMode 里有 forceReset()，会重建 S——所以 S.online 必须放在它【之后】设置。
+    selectMode(mode, false);
+    curNames = roster.seats.map((seat, i) => seat.name || ('P' + (i + 1)));
+    initPanels(roster.count);
+
+    const seats = roster.seats.map((seat, i) => ({
+      index: i, seatNo: seat.seatNo, kind: seat.kind,
+      userId: seat.userId || '', name: curNames[i], modelLabel: seat.modelLabel || ''
+    }));
+    S.online = {
+      roomId: payload.roomId || '', code: payload.code || '',
+      isHost: !!payload.isHost, selfUserId: (seats.find(s => s.kind === 'self') || {}).userId || '',
+      seats
+    };
+
+    // 自己的席位用引擎既有的「入局」通道；其余席位这一轮先由房主设备代跑，
+    // 远程输入通道在下一步接上（接上之前绝不假装它已经能远程操作）。
+    const selfSeat = seats.find(seat => seat.kind === 'self');
+    S.pureAI = !selfSeat;
+    $('p-sel').value = String(selfSeat ? -2 : -1);
+    if (selfSeat) S.playerId = selfSeat.index;
+
+    startGame();
+    if (selfSeat) S.playerId = selfSeat.index;
+    S.players.forEach(p => {
+      const seat = seats[p.id];
+      if (seat) p.isPlayer = seat.kind === 'self';
+      Render.card(p);
+    });
+    Render.log('system', '🌐 联机对局开始 · 房间 ' + (payload.code || '') + ' · '
+      + seats.filter(s => s.kind !== 'ai').length + ' 名真人 / '
+      + seats.filter(s => s.kind === 'ai').length + ' 个 AI 席位');
+    return true;
+  }
+
+  // 席位标签：单机只有「AI 显示模型、真人不显示」两种；联机还要分清
+  // 「别的设备上的真人」和「别人托管的 AI」——否则房主看自己这张桌子，
+  // 完全分不出哪几个位子是活人、哪几个位子在烧别人的额度。
+  function seatTagText(playerId) {
+    const online = S.online;
+    if (!online || !Array.isArray(online.seats)) return null;
+    const seat = online.seats[playerId];
+    if (!seat) return null;
+    if (seat.kind === 'self') return { text: '你', color: '#f5a0b8' };
+    if (seat.kind === 'remote') return { text: '真人', color: '#7ec8a0' };
+    return { text: seat.modelLabel || 'AI', color: null };   // null = 沿用模型品牌色
+  }
+
+  return { begin, pickMode, seatTagText };
+})();
+
 const _origStartGame = startGame;
 startGame = function() {
   _dirStatusBanner = null; // 重置，下次会重建
@@ -29017,6 +29139,18 @@ if ('serviceWorker' in navigator &&
   'use strict';
   // 这行文字是在 i18n 扫完 DOM 之后才插进去的，拿不到运行时翻译，只能自己判语言
   var EN = /\/en(?:\/|$)/.test(location.pathname);
+  // 下拉型开关：CSS 的 :has() 只能判 checkbox 的 checked，判不了 select 的 value，
+  // 所以「发言分诊」这种多档开关此前永远显示成关着的——选了「全检」，chip 不亮、
+  // 也不计入「已开启 N/M」，用户完全无法确认它到底生效没有。
+  // 标记方式：在 .mti 上写 data-on-values="triage all"，列出算「开着」的那些值。
+  function selectChips(){
+    return Array.prototype.slice.call(document.querySelectorAll('.mset-groups .mti[data-on-values]'));
+  }
+  function selectChipOn(lab){
+    var sel = lab.querySelector('select');
+    if (!sel) return false;
+    return (' ' + (lab.getAttribute('data-on-values') || '') + ' ').indexOf(' ' + sel.value + ' ') >= 0;
+  }
   function sync(){
     var boxes = document.querySelectorAll('.mset-groups .mti input[type="checkbox"]');
     var on = 0;
@@ -29025,14 +29159,22 @@ if ('serviceWorker' in navigator &&
       if (lab) lab.classList.toggle('on', b.checked);
       if (b.checked) on++;
     });
+    var chips = selectChips();
+    chips.forEach(function(lab){
+      var isOn = selectChipOn(lab);
+      lab.classList.toggle('on', isOn);
+      if (isOn) on++;
+    });
+    var total = boxes.length + chips.length;
     document.querySelectorAll('.mset-g[data-grp]').forEach(function(g){
-      var all = g.querySelectorAll('input[type="checkbox"]');
-      var hit = g.querySelectorAll('input[type="checkbox"]:checked');
+      var all = g.querySelectorAll('input[type="checkbox"]').length + g.querySelectorAll('.mti[data-on-values]').length;
+      var hit = g.querySelectorAll('input[type="checkbox"]:checked').length
+        + Array.prototype.slice.call(g.querySelectorAll('.mti[data-on-values]')).filter(selectChipOn).length;
       var el = g.querySelector('.mset-n');
-      if (el) el.textContent = all.length ? (hit.length + '/' + all.length) : '';
+      if (el) el.textContent = all ? (hit + '/' + all) : '';
     });
     var sum = document.getElementById('mset-summary');
-    if (sum) sum.textContent = boxes.length ? ((EN ? 'On ' : '已开启 ') + on + ' / ' + boxes.length) : '';
+    if (sum) sum.textContent = total ? ((EN ? 'On ' : '已开启 ') + on + ' / ' + total) : '';
     // 命牌里那一行模型标签只在开关打开时占位，否则每张卡白多一行高度
     var mt = document.getElementById('m-modeltag');
     document.body.classList.toggle('show-modeltag', !!(mt && mt.checked));
@@ -29043,7 +29185,9 @@ if ('serviceWorker' in navigator &&
   function bind(){
     sync();
     document.addEventListener('change', function(e){
-      if (e.target && e.target.type === 'checkbox' && e.target.closest('.mset-groups')) sync();
+      if (!e.target || !e.target.closest || !e.target.closest('.mset-groups')) return;
+      // 下拉型开关改档也要立刻重算，否则「全检」选完 chip 还是暗的
+      if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') sync();
     });
     // details 的 toggle 事件不冒泡，只能逐个挂
     document.querySelectorAll('.mset-g, #mobile-secondary').forEach(function(d){
