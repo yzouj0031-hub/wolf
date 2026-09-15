@@ -169,16 +169,31 @@
       try { data = JSON.parse(data); } catch (_) {}
     }
 
+    const signal = options.signal || (typeof input === 'object' && input.signal);
+    const abortError = () => new DOMException('Request aborted', 'AbortError');
+    if (signal && signal.aborted) throw abortError();
+    const uiSeconds = Number(document.getElementById('t-single')?.value);
+    const configuredMs = uiSeconds > 0 ? uiSeconds * 1000 : Number(window.AI_TIMEOUT_MS);
+    const readTimeout = Number.isFinite(configuredMs) && configuredMs > 0 ? configuredMs : 600000;
+    let onAbort;
+    const started = Date.now();
     try {
-      const result = await nativeHttp.request({
+      // Register before starting native I/O. Capacitor has no cancellation handle:
+      // abort stops the JS wait and discards late results, not the upstream work.
+      const aborted = new Promise((_, reject) => {
+        onAbort = () => reject(abortError());
+        if (signal) signal.addEventListener('abort', onAbort, {once:true});
+      });
+      const request = nativeHttp.request({
         url: url.href,
         method: String(options.method || (typeof input === 'object' && input.method) || 'GET').toUpperCase(),
         headers,
         data,
         responseType: 'text',
         connectTimeout: 30000,
-        readTimeout: 180000
+        readTimeout
       });
+      const result = await Promise.race([request, aborted]);
 
       const body = typeof result.data === 'string' ? result.data : JSON.stringify(result.data == null ? '' : result.data);
       return new Response(body, {
@@ -186,8 +201,12 @@
         headers: result.headers || {}
       });
     } catch (error) {
-      console.error('[Native HTTP]', url.host, error);
+      console.error('[Native HTTP]', url.host,
+        'elapsedSeconds=' + Math.round((Date.now() - started) / 1000),
+        'readTimeoutSeconds=' + readTimeout / 1000, error);
       throw error;
+    } finally {
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
     }
   };
 
