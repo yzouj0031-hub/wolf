@@ -42,7 +42,7 @@
     "test:wolf-pact-blind": "node scripts/test-wolf-pact-blind.mjs",
     "test:monologue-leak": "node scripts/test-monologue-leak.mjs",
     "test:thinking-speech-boundary": "node scripts/test-thinking-speech-boundary.mjs",
-    "test:speech-judge": "node scripts/test-speech-judge.mjs",
+    "test:speech-judge": "node scripts/test-speech-judge.mjs && node scripts/test-speech-judge-final.mjs",
     "test:host-default-off": "node scripts/test-host-default-off.mjs",
     "test:decision-anchors": "node scripts/test-decision-anchors.mjs",
     "test:prompt-sanity": "node scripts/test-prompt-sanity.mjs",
