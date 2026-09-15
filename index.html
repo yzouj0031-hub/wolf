@@ -12671,15 +12671,16 @@ async function judgeSpeechIsPublic(text) {
         messages: [
           {role: 'system', content: SPEECH_JUDGE_SYS},
           // 只给候选文本，不给任何局面信息：省 token、防泄底，也防它对战术有意见
-          {role: 'user', content: '【待判断文本】\n' + String(text || '').slice(0, 1500)}
+          {role: 'user', content: '【待判断文本】\n' + String(text || '').slice(0, 3000)}
         ]
       })
     });
     if (!res.ok) return null;
-    const data = await res.json();
-    const raw = String((((data || {}).choices || [])[0] || {}).message?.content || '').trim().toUpperCase();
-    if (raw.startsWith('A')) return 'A';
-    if (raw.startsWith('B')) return 'B';
+    const data = await parseAPIResponseWithSSEFallback(res, {tag: '[发言分诊]'});
+    const content = (((data || {}).choices || [])[0] || {}).message?.content;
+    const raw = (Array.isArray(content) ? content.map(part => typeof part === 'string' ? part : part.text || '').join('') : String(content || '')).trim().toUpperCase();
+    if (raw === 'A') return 'A';
+    if (raw === 'B') return 'B';
     return null;
   } catch (e) {
     return null;
@@ -14529,8 +14530,10 @@ async function proc(players, promptFn, label, opts) {
       };
       {
         // ★ 抢先朗读只在"发言并发=1的公开发言"时开启:并发>1会造成多人同时开口、乱序
-        const _liveOK = batch.length === 1 && !opts.wolfOnly && !opts.silent;
-        let _r = factCheck(p, await callAI(p, promptFn(p), _liveOK ? {...opts, liveTTS:true} : opts));
+        const _judgeMode = S.debugDisableSpeechJudge ? 'off'
+          : (($('m-speech-judge') && $('m-speech-judge').value) || 'triage');
+        const _liveOK = _judgeMode === 'off' && batch.length === 1 && !opts.wolfOnly && !opts.silent;
+        let _r = factCheck(p, await callAI(p, promptFn(p), {...opts, liveTTS:_liveOK}));
         // 非空但过短时，先让同一模型重写扩充。思考强度控制内部推理，不能替代公开表达完整度。
         const _firstSpeech = String(_r && _r.game || '').trim();
         if (!opts.wolfOnly && !opts.silent && !isAISilentFailure(_firstSpeech)
@@ -14550,9 +14553,39 @@ async function proc(players, promptFn, label, opts) {
             Render.devLog('warn', `[P${p.id+1} ${p.name}] 短发言扩写请求失败，保留首份发言：${expandErr && expandErr.message || expandErr}`);
           }
         }
-        // ★ 发言分诊 Tier 1：正则判不了的，问一次便宜模型（见 needsSpeechJudge 上方的说明）
-        const _judgeMode = S.debugDisableSpeechJudge ? 'off'
-          : (($('m-speech-judge') && $('m-speech-judge').value) || 'triage');
+        // 只对白天非狼队发言做过短处理
+        // ★ 调试开关 S.debugDisableShortRetry: 在控制台执行 S.debugDisableShortRetry=true 可关闭重试,用于观察AI真实输出
+        if (!opts.wolfOnly && !opts.silent && !_isValidShortGame(_r && _r.game) && !S.debugDisableShortRetry) {
+          // Never promote private reasoning to public speech; request a real answer instead.
+          if (getFallbacks().length > 0 || isManualRetryEnabled()) {
+            // 抢救失败 + (有备用 API 或 开了手动重试) → 走 callAI 的 forceFallback
+            // callAI 内部会根据 m-manual-retry 决定弹对话框还是直接走 fallback
+            Render.devLog('warn', `[P${p.id+1} ${p.name}] 无有效正式发言，尝试备用或手动补发`);
+            Render.log('system', `⚠️ ${p.name} 发言过短`);
+            const fallbackSpeech = factCheck(p, await callAI(p, promptFn(p), {...opts, liveTTS:false, forceFallback: true}));
+            if (String(fallbackSpeech && fallbackSpeech.game || '').trim().length > String(_r && _r.game || '').trim().length
+                || isAISilentFailure(_r && _r.game)) _r = fallbackSpeech;
+          } else {
+            // 抢救失败 + 没备用 API + 没开手动重试：用同一 API 做一次“无草稿短格式”补发。
+            // 旧逻辑直接接受空发言，会把技术故障伪装成玩家突然沉默，严重污染身份推理。
+            Render.devLog('warn', `[P${p.id+1} ${p.name}] 发言为空且无备用API，执行一次无草稿补发`);
+            const recoveryPrompt = promptFn(p)
+              + '\n\n【系统技术补发】上一份回复因格式/截断问题未能形成公开发言。'
+              + '这次不要写草稿、思考过程、XML标签或开场说明，直接以玩家第一人称说出正式发言。'
+              + '控制在120至300字，保留核心判断、具体理由和投票倾向。';
+            const recoveredSpeech = factCheck(p, await callAI(p, recoveryPrompt, {
+              ...opts, noMemory:true, liveTTS:false, forceFallback:false, maxRetries:1
+            }));
+            if (String(recoveredSpeech && recoveredSpeech.game || '').trim().length > String(_r && _r.game || '').trim().length
+                || isAISilentFailure(_r && _r.game)) _r = recoveredSpeech;
+          }
+        } else if (S.debugDisableShortRetry && !_isValidShortGame(_r && _r.game)) {
+          // 调试模式:不重试但记录原始过短输出,供你观察
+          Render.devLog('warn', `[P${p.id+1} ${p.name}] [调试模式]发言过短(${String(_r&&_r.game||'').trim().length}字),不重试,原样保留供观察`);
+        }
+        // 最终候选统一检查；被拒绝后最多重写两次，每次仍需检查。
+        for (let judgeRetry = 0; judgeRetry <= 2; judgeRetry++) {
+          let _judgeRejected = false;
         if (needsSpeechJudge(_r, opts, _judgeMode)) {
           const _js = S._judgeStats || (S._judgeStats = {asked: 0, passed: 0, rejected: 0, failed: 0, skipped: 0, streak: 0, tripped: false});
           if (_js.tripped || _js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage)) {
@@ -14578,6 +14611,7 @@ async function proc(players, promptFn, label, opts) {
               }
             } else if (_verdict === 'B') {
               _js.rejected++; _js.streak = 0;
+              _judgeRejected = true;
               Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊判定为私下盘算而非公开发言，已挪回thinking并请求正式发言："${String(_r.game).slice(0, 50)}…"`);
               Render.log('system', `🧮 ${p.name} 交回的是内心盘算而不是发言，正在重新请求`);
               _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
@@ -14586,35 +14620,15 @@ async function proc(players, promptFn, label, opts) {
             }
           }
         }
-        // 只对白天非狼队发言做过短处理
-        // ★ 调试开关 S.debugDisableShortRetry: 在控制台执行 S.debugDisableShortRetry=true 可关闭重试,用于观察AI真实输出
-        if (!opts.wolfOnly && !opts.silent && !_isValidShortGame(_r && _r.game) && !S.debugDisableShortRetry) {
-          // Never promote private reasoning to public speech; request a real answer instead.
-          if (getFallbacks().length > 0 || isManualRetryEnabled()) {
-            // 抢救失败 + (有备用 API 或 开了手动重试) → 走 callAI 的 forceFallback
-            // callAI 内部会根据 m-manual-retry 决定弹对话框还是直接走 fallback
-            Render.devLog('warn', `[P${p.id+1} ${p.name}] 无有效正式发言，尝试备用或手动补发`);
-            Render.log('system', `⚠️ ${p.name} 发言过短`);
-            const fallbackSpeech = factCheck(p, await callAI(p, promptFn(p), {...opts, forceFallback: true}));
-            if (String(fallbackSpeech && fallbackSpeech.game || '').trim().length > String(_r && _r.game || '').trim().length
-                || isAISilentFailure(_r && _r.game)) _r = fallbackSpeech;
-          } else {
-            // 抢救失败 + 没备用 API + 没开手动重试：用同一 API 做一次“无草稿短格式”补发。
-            // 旧逻辑直接接受空发言，会把技术故障伪装成玩家突然沉默，严重污染身份推理。
-            Render.devLog('warn', `[P${p.id+1} ${p.name}] 发言为空且无备用API，执行一次无草稿补发`);
-            const recoveryPrompt = promptFn(p)
-              + '\n\n【系统技术补发】上一份回复因格式/截断问题未能形成公开发言。'
-              + '这次不要写草稿、思考过程、XML标签或开场说明，直接以玩家第一人称说出正式发言。'
-              + '控制在120至300字，保留核心判断、具体理由和投票倾向。';
-            const recoveredSpeech = factCheck(p, await callAI(p, recoveryPrompt, {
-              ...opts, noMemory:true, forceFallback:false, maxRetries:1
-            }));
-            if (String(recoveredSpeech && recoveredSpeech.game || '').trim().length > String(_r && _r.game || '').trim().length
-                || isAISilentFailure(_r && _r.game)) _r = recoveredSpeech;
+          if (!_judgeRejected || judgeRetry === 2 || (S.abortCtrl && S.abortCtrl.signal.aborted)) break;
+          try {
+            _r = factCheck(p, await callAI(p, promptFn(p)
+              + '\n\n【系统技术补发】请直接输出对其他玩家说的正式发言，不要输出内心草稿。',
+              {...opts, noMemory:true, liveTTS:false, maxRetries:1}));
+          } catch (e) {
+            Render.devLog('warn', '正式发言补发失败：' + (e && e.message || e));
+            break;
           }
-        } else if (S.debugDisableShortRetry && !_isValidShortGame(_r && _r.game)) {
-          // 调试模式:不重试但记录原始过短输出,供你观察
-          Render.devLog('warn', `[P${p.id+1} ${p.name}] [调试模式]发言过短(${String(_r&&_r.game||'').trim().length}字),不重试,原样保留供观察`);
         }
         // 所有抢救/备用路径结束后仍无有效 game：标记为“技术性发言失败”。
         // 这个标记会让展示层跳过玩家沉默节点，改写一条中立系统说明；绝不让后置位

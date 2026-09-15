@@ -62,6 +62,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Override v3's default "tools platform-tools": sdkmanager no longer finds "tools".
+          # Command-line tools are installed by the action; API 35 is installed below.
+          packages: 'platform-tools'
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund

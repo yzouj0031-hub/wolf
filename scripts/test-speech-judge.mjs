@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const FILES = ['index.html', 'en/index.html'];
-const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 function load(src, file) {
   const ctx = vm.createContext({ console });
@@ -95,7 +95,7 @@ for (const file of FILES) {
   // 判官只看候选文本，不给局面信息：省钱、防泄底，也防它对战术有意见
   assert.ok(!/存活玩家|本局配置|身份分配/.test(ctx.sys), `${file}: 判官提示词里混进了局面信息`);
   assert.ok(
-    src.includes("{role: 'user', content: '【待判断文本】\\n' + String(text || '').slice(0, 1500)}"),
+    src.includes("{role: 'user', content: '【待判断文本】\\n' + String(text || '').slice(0, 3000)}"),
     `${file}: 判官请求体里带了候选文本以外的东西`,
   );
 

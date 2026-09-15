@@ -44,6 +44,6 @@ for (const file of ['index.html', 'en/index.html']) {
 
   // ── parseAI 已接入，且截空时转沉默 ──
   assert.ok(html.includes("game = _ml.game || (requireGame ? '(沉默)' : '');"), `${file}: parseAI 未接入 stripLeakedMonologue`);
-  assert.ok(html.includes('_monologueStripped };'), `${file}: parseAI 返回值缺少 _monologueStripped`);
+  assert.match(html, /return \{[^{}]*\b_monologueStripped\b[^{}]*\};/, `${file}: parseAI 返回值缺少 _monologueStripped`);
 }
 console.log('monologue leak test passed');
