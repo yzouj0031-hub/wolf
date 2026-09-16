@@ -12654,9 +12654,38 @@ function getJudgeAPI() {
   };
 }
 
+// ★ 限流是【暂时】的，不是配置错误——必须和「判官不可用」分开。
+//   Flash 这类便宜模型的 RPM 配额往往只有 20 上下，而配额一旦不够，429 天然成串出现：
+//   一轮发言连着几条都被挡。如果按「判官不可用」计数，连续三条就触发熔断，整局分诊
+//   全部停摆——等于配额抖一下，这个功能就没了。
+//   所以单独返回 'busy'：本次放行（和 fail-open 一样不影响正确性），但【不累计连败】。
+const JUDGE_BUSY = 'busy';
+const JUDGE_BUSY_STATUS = [429, 500, 502, 503, 504, 529];
+
 async function judgeSpeechIsPublic(text) {
   const api = getJudgeAPI();
   if (!api.url || !api.key || !api.model) return null;
+  const payload = JSON.stringify({
+    model: api.model,
+    temperature: 0,
+    max_tokens: 32,
+    messages: [
+      {role: 'system', content: SPEECH_JUDGE_SYS},
+      // 只给候选文本，不给任何局面信息：省 token、防泄底，也防它对战术有意见
+      {role: 'user', content: '【待判断文本】\n' + String(text || '').slice(0, 3000)}
+    ]
+  });
+  // 撞到限流就退避重试一次：判官本来只有一次往返，多等 1.5 秒换回一条判词是划算的；
+  // 再撞就放行，别把一局的节奏拖在配额上。
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const verdict = await judgeOnce(api, payload);
+    if (verdict !== JUDGE_BUSY) return verdict;
+    if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+  return JUDGE_BUSY;
+}
+
+async function judgeOnce(api, payload) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 8000);
   try {
@@ -12664,17 +12693,9 @@ async function judgeSpeechIsPublic(text) {
       method: 'POST',
       signal: ctl.signal,
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + api.key},
-      body: JSON.stringify({
-        model: api.model,
-        temperature: 0,
-        max_tokens: 32,
-        messages: [
-          {role: 'system', content: SPEECH_JUDGE_SYS},
-          // 只给候选文本，不给任何局面信息：省 token、防泄底，也防它对战术有意见
-          {role: 'user', content: '【待判断文本】\n' + String(text || '').slice(0, 3000)}
-        ]
-      })
+      body: payload
     });
+    if (JUDGE_BUSY_STATUS.includes(res.status)) return JUDGE_BUSY;
     if (!res.ok) return null;
     const data = await parseAPIResponseWithSSEFallback(res, {tag: '[发言分诊]'});
     const content = (((data || {}).choices || [])[0] || {}).message?.content;
@@ -14607,7 +14628,12 @@ async function proc(players, promptFn, label, opts) {
               Render.log('system', `🧮 发言分诊已启用（${_judgeMode === 'all' ? '全检' : '分诊'} · ${_jm}）`);
             }
             const _verdict = await judgeSpeechIsPublic(_r.game);
-            if (_verdict === null) {
+            if (_verdict === JUDGE_BUSY) {
+              // 限流/过载：本次放行，但【不算】判官不可用——否则配额抖一下就连续三次熔断，
+              // 整局分诊停摆。限流会恢复，配置错误不会，这是两件事。
+              _js.busy = (_js.busy || 0) + 1;
+              Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊被限流（判官配额不足），本次原样放行，不计入连败`);
+            } else if (_verdict === null) {
               // 判官不可用：原样放行（fail-open）。但连挂几次就别再挨个白等超时了。
               _js.failed++;
               _js.streak++;
@@ -21700,6 +21726,7 @@ function logSpeechJudgeSummary() {
   const bits = [`问诊 ${js.asked} 次`, `放行 ${js.passed}`];
   if (js.rejected) bits.push(`打回重发 ${js.rejected}`);
   if (js.failed) bits.push(`判官无响应 ${js.failed}`);
+  if (js.busy) bits.push(`被限流放行 ${js.busy}`);
   if (js.skipped) bits.push(`跳过 ${js.skipped}`);
   Render.log('system', `🧮 发言分诊本局成绩：${bits.join('，')}`
     + (js.tripped ? '（已熔断，检查主持人API）' : (js.rejected ? '' : '——没有发现问题，可以考虑关掉这一档')));

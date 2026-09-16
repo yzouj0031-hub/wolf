@@ -111,7 +111,27 @@ for (const file of FILES) {
     assert.ok(src.includes(marker), `${file}: 判官在「${why}」时没有 fail-open`);
   }
   // 温度必须为 0：这是分类，不是创作
-  assert.ok(src.includes('temperature: 0,\n        max_tokens: 32,'), `${file}: 判官不是确定性调用`);
+  assert.ok(src.includes('temperature: 0,\n    max_tokens: 32,'), `${file}: 判官不是确定性调用`);
+
+  // ★ 限流必须和「判官不可用」分开：Flash 这类模型 RPM 常常只有 20 上下，配额不够时
+  //   429 天然成串出现。若按不可用计数，连续三条就熔断，整局分诊停摆——配额抖一下，
+  //   功能就没了。限流会恢复，配置错误不会，这是两件事。
+  assert.ok(src.includes('const JUDGE_BUSY_STATUS = [429, 500, 502, 503, 504, 529];'), `${file}: 没有识别限流/过载状态码`);
+  assert.ok(src.includes('if (JUDGE_BUSY_STATUS.includes(res.status)) return JUDGE_BUSY;'), `${file}: 限流没有被单独区分`);
+  assert.ok(src.includes('if (_verdict === JUDGE_BUSY) {'), `${file}: 调用点没有单独处理限流`);
+  assert.ok(src.includes('_js.busy = (_js.busy || 0) + 1;'), `${file}: 限流没有单独计数`);
+  // 限流分支绝不能碰连败计数，否则熔断照样会被触发
+  const busyStart = src.indexOf('if (_verdict === JUDGE_BUSY) {');
+  const busyEnd = src.indexOf('} else if (_verdict === null) {', busyStart);
+  assert.ok(busyStart > 0 && busyEnd > busyStart, `${file}: 找不到限流分支`);
+  const busyBranch = src.slice(busyStart, busyEnd);
+  assert.ok(!/_js\.streak/.test(busyBranch), `${file}: 限流分支动了连败计数，配额抖动会误触熔断`);
+  assert.ok(!/_js\.failed/.test(busyBranch), `${file}: 限流被计成了判官不可用`);
+  // 撞限流要退避重试一次再放行
+  assert.ok(src.includes('for (let attempt = 0; attempt < 2; attempt++) {'), `${file}: 撞限流后没有退避重试`);
+  assert.ok(src.includes('await new Promise(resolve => setTimeout(resolve, 1500));'), `${file}: 退避没有间隔`);
+  // 成绩单要把「被限流放行」单列，否则用户会以为分诊全程在工作
+  assert.ok(src.includes('if (js.busy) bits.push(`被限流放行 ${js.busy}`);'), `${file}: 成绩单没有反映限流`);
   // 只有明确判定为 B 才动发言；null 一律放行
   assert.ok(src.includes("} else if (_verdict === 'B') {"), `${file}: 调用点没有只认明确的 B 判定`);
   assert.ok(
