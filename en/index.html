@@ -11624,8 +11624,15 @@ async function judgeSpeechIsPublic(text) {
     const data = await parseAPIResponseWithSSEFallback(res, {tag: '[发言分诊]'});
     const content = (((data || {}).choices || [])[0] || {}).message?.content;
     const raw = (Array.isArray(content) ? content.map(part => typeof part === 'string' ? part : part.text || '').join('') : String(content || '')).trim().toUpperCase();
-    if (raw === 'A') return 'A';
-    if (raw === 'B') return 'B';
+    // 判词解析要「严」，但不能严到把标点也算错。即便提示词写死了「只输出一个字母」，
+    // 模型照样经常交回 "A."、"B。"、"**A**"、"A）"、"「A」" 这些——严格等值会把它们全判成
+    // 无法识别，于是记 failed、fail-open 放行；连续三条就触发熔断，整局分诊直接停摆。
+    // 规则：跳过开头的非字母，取第一个 A/B，并要求它后面不再跟字母（这样 "ANSWER: A" 这种
+    // 以字母开头的整句仍然不算数）。太长的回复一律不认——那已经不是在答这道二选一了。
+    if (raw.length <= 200) {
+      const m = raw.match(/^[^A-Z]*([AB])(?![A-Z])/);
+      if (m) return m[1];
+    }
     return null;
   } catch (e) {
     return null;

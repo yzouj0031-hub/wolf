@@ -34,7 +34,16 @@ for (const file of ['index.html', 'en/index.html']) {
   }
   const a = src.indexOf('async function judgeSpeechIsPublic');
   const b = src.indexOf('// ── 发言顺序', a);
-  for (const [content, expected] of [['A', 'A'], ['B', 'B'], ['Because it is private', null], [[{text: 'A'}], 'A']]) {
+  // 判词解析：严格到不认标点，会把 "A." 这类极常见的回复记成 failed —— 连续三条就熔断，
+  // 整局分诊停摆。所以要容忍包裹字母的标点/markdown，但仍拒绝整句作答。
+  const VERDICTS = [
+    ['A', 'A'], ['B', 'B'], [[{text: 'A'}], 'A'],
+    ['A.', 'A'], ['B。', 'B'], ['**A**', 'A'], ['A）', 'A'], ['「B」', 'B'], [' a \n', 'A'],
+    ['A - public speech', 'A'], ['B — 内心盘算', 'B'],
+    ['Because it is private', null], ['Answer: A', null], ['CANNOT DETERMINE', null],
+    ['这是公开发言', null], ['', null], [null, null], ['A'.repeat(300), null],
+  ];
+  for (const [content, expected] of VERDICTS) {
     const ctx = vm.createContext({
       getJudgeAPI: () => ({url: 'https://mock.invalid/v1', key: 'mock', model: 'mock'}),
       AbortController, setTimeout, clearTimeout, SPEECH_JUDGE_SYS: 'classification',
@@ -45,4 +54,4 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.equal(await ctx.judgeSpeechIsPublic('speech'), expected);
   }
 }
-console.log('final speech judge: rechecks, bounded retries, fail-open, strict verdicts and shared parser passed');
+console.log('final speech judge: rechecks, bounded retries, fail-open, punctuation-tolerant verdicts and shared parser passed');
