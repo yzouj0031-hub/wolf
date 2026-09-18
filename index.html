@@ -3293,7 +3293,7 @@ body.has-wp::after {
         <label class="mti" data-ui-icon="wrench" title="AI 偶尔会把「等下该说什么」的内心盘算当成公开发言交上来，这种散文用正则分不出来（词表放宽一点就会吞掉真神跳身份）。送去问一次便宜模型（用主持人API的模型，留空则用全局），只问一个机械的二选一：这段话是对牌桌说的，还是自己盘算？判定为盘算才重新请求。判官被明确要求「发言写得差也仍然放行」「拿不准就放行」，超时或未配置一律原样放行。
 关闭=完全不问。
 分诊=只问正则判不了的那一小撮（模型没用协议+开头有自我规划痕迹），一局大约几次，成本可忽略。
-全检=每条公开发言都过一遍。用 Flash 这类快模型时每条只多约半秒，相对 30-180 秒的主发言几乎无感；代价是判官有更多次机会误判，建议只在主模型格式不稳时开。" data-on-values="triage all"><span style="font-size:0.8em;color:#d8d0e8">发言分诊</span><select id="m-speech-judge" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="off">关闭</option><option value="triage" selected>分诊</option><option value="all">全检</option></select></label>
+全检（默认）=每条公开发言都过一遍。实测一局约 5 万 input token——用 Flash 这类模型连一毛钱都花不到，每条只多约半秒，相对 30-180 秒的主发言几乎无感。\n⚠️ 判官没单独配模型时会回落到全局模型。如果你的全局是贵模型，请在下面给判官单独填一个 Flash / Haiku，否则全检会拿贵模型跑 60 次。" data-on-values="triage all"><span style="font-size:0.8em;color:#d8d0e8">发言分诊</span><select id="m-speech-judge" style="margin-left:4px;font-size:0.75em;padding:2px 4px;background:rgba(245,160,184,0.06);border:1px solid rgba(245,160,184,0.15);color:#d8d0e8;border-radius:var(--r)"><option value="off">关闭</option><option value="triage">分诊</option><option value="all" selected>全检</option></select></label>
         <label class="mti" data-ui-icon="tag" title="在命牌和发言旁显示AI模型标签，方便录屏辨识"><input type="checkbox" id="m-modeltag" checked onchange="S.players&&S.players.forEach(p=>Render.card(p))">模型标签</label>
         <label class="mti" data-ui-icon="tag" title="开启后模型标签显示完整模型名（如 Claude Opus 4.5、Gemini 3 Pro），关闭则只显示品牌简称（如 Claude、Gemini）。命牌上名字过长会截断，鼠标悬停可看完整模型 ID。"><input type="checkbox" id="m-modeltag-full" onchange="document.body.classList.toggle('show-modeltag-full', this.checked);S.players&&S.players.forEach(p=>Render.card(p))">完整模型名</label>
         </div>
@@ -8892,7 +8892,7 @@ function saveCfg() {
     reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
-    speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'triage',
+    speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'all',
     pconfigs:playerConfigs,
     promptLibrary,
     teachingWorldbooks:window.TeachingWorldbooks&&typeof window.TeachingWorldbooks.exportState==='function'?window.TeachingWorldbooks.exportState():null,
@@ -8967,7 +8967,7 @@ function loadCfg() {
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
     // 旧存档里这里是布尔（复选框时代）：true→分诊，false→关闭
     if (d.speechJudge !== undefined && $('m-speech-judge')) {
-      const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'triage' : 'off') : d.speechJudge;
+      const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'all' : 'off') : d.speechJudge;
       if (['off','triage','all'].includes(_sj)) $('m-speech-judge').value = _sj;
     }
     if (d.cnames) $('cnames').value = d.cnames;
@@ -12588,9 +12588,12 @@ function getHostAPI() {
  *     A/B 二选一，不给它发挥空间；拿不准一律答 A（放行）。
  *   · 【fail-open】判官超时、没配、返回看不懂 —— 一律按原样放行。判官绝不能变成新的故障源。
  */
-// 每局问诊上限，防止某个模型持续触发把成本拖上去。全检模式下这个数只是「别失控」的
-// 兜底，正常一局的公开发言远到不了 300。
-const SPEECH_JUDGE_CAP = Object.freeze({triage: 8, all: 300});
+// 每局问诊上限。这【不是】成本护栏——实测全检一局约 5 万 input token，Flash 级模型
+// 连一毛钱都花不到。它只是防止某个异常循环把调用打爆的最后兜底，所以定得足够宽：
+// 正常一局的公开发言（竞选 12 + 白天约 42 + 遗言几条）到不了 60 次。
+// 以前 triage 定 8、all 定 300，前者一局中段就会撞上——而撞上是【静默】跳过，
+// 最该查的后期发言反而查不到。为省几分钱换来漏检，是笔亏本买卖。
+const SPEECH_JUDGE_CAP = Object.freeze({triage: 200, all: 400});
 
 // ★ 熔断：连续这么多次判官不可用就本局停手。
 //   为什么必须有：fail-open 单看一次很便宜（超时 8 秒后原样放行，不影响正确性），但公开发言
@@ -12663,7 +12666,7 @@ function looksLikeThinkingDump(text) {
 //   'all'    每条公开发言都过一遍。Flash 级模型每条只多约半秒，相对 30-180 秒的主发言
 //            几乎无感；代价是判官多了上百次误判机会，所以提示词必须一直偏向放行。
 function needsSpeechJudge(result, opts, mode) {
-  const m = mode || 'triage';
+  const m = mode || 'all';
   if (m === 'off' || !result) return false;
   const o = opts || {};
   if (o.wolfOnly || o.silent || o.skillConfirm) return false;   // 只管公开发言
@@ -12715,7 +12718,9 @@ async function judgeSpeechIsPublic(text) {
     messages: [
       {role: 'system', content: SPEECH_JUDGE_SYS},
       // 只给候选文本，不给任何局面信息：省 token、防泄底，也防它对战术有意见
-      {role: 'user', content: '【待判断文本】\n' + String(text || '').slice(0, 3000)}
+      // 截断上限放宽到 8000：倾倒出来的思维链动辄好几千字，而多传几千 token 的代价
+      // 是几分之一分钱。此前的 3000 是纯成本考虑，没必要。
+      {role: 'user', content: '【待判断文本】\n' + String(text || '').slice(0, 8000)}
     ]
   });
   // 撞到限流就退避重试一次：判官本来只有一次往返，多等 1.5 秒换回一条判词是划算的；
@@ -14602,7 +14607,7 @@ async function proc(players, promptFn, label, opts) {
       {
         // ★ 抢先朗读只在"发言并发=1的公开发言"时开启:并发>1会造成多人同时开口、乱序
         const _judgeMode = S.debugDisableSpeechJudge ? 'off'
-          : (($('m-speech-judge') && $('m-speech-judge').value) || 'triage');
+          : (($('m-speech-judge') && $('m-speech-judge').value) || 'all');
         const _liveOK = _judgeMode === 'off' && batch.length === 1 && !opts.wolfOnly && !opts.silent;
         let _r = factCheck(p, await callAI(p, promptFn(p), {...opts, liveTTS:_liveOK}));
         // 非空但过短时，先让同一模型重写扩充。思考强度控制内部推理，不能替代公开表达完整度。
@@ -14685,6 +14690,14 @@ async function proc(players, promptFn, label, opts) {
             if (_js.asked === 1) {
               const _jm = (typeof getJudgeAPI === 'function' && getJudgeAPI().model) || '(未配置)';
               Render.log('system', `🧮 发言分诊已启用（${_judgeMode === 'all' ? '全检' : '分诊'} · ${_jm}）`);
+              // 判官没单独配、主持人也没配时，getJudgeAPI 会一路回落到全局模型。
+              // 全检默认开着，这意味着可能拿主力大模型跑几十次——成本差两三个数量级，
+              // 而且用户完全看不出来。所以这一条必须说出口。
+              const _jOwn = $('j-model') && $('j-model').value.trim();
+              const _jHost = $('h-model') && $('h-model').value.trim();
+              if (!_jOwn && !_jHost) {
+                Render.log('system', `⚠️ 判官没有单独配置模型，正在使用全局的 ${_jm}。全检一局要问几十次——请在「主持与调试 → 判官」里填一个 Flash / Haiku 这类快模型。`);
+              }
             }
             const _verdict = await judgeSpeechIsPublic(_r.game);
             if (_verdict === JUDGE_BUSY) {

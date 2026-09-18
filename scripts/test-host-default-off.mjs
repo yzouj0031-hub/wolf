@@ -57,7 +57,7 @@ for (const file of ['index.html', 'en/index.html']) {
   // ── 5. 不能误伤「发言分诊」——它是另一件事，而且很多人不开主持人只想要它 ────────
   const judge = src.match(/<select id="m-speech-judge"[\s\S]*?<\/select>/);
   assert.ok(judge, `${file}: 找不到发言分诊开关`);
-  assert.match(judge[0], /<option value="triage" selected>/, `${file}: 发言分诊的默认档位被改动了`);
+  assert.match(judge[0], /<option value="all" selected>/, `${file}: 发言分诊的默认档位被改动了`);
   // 判官有自己的配置，主持人关着也要能用
   assert.ok(src.includes('function getJudgeAPI() {'), `${file}: 判官仍然没有独立配置`);
   assert.ok(src.includes("model: own.model || host.model || ''"), `${file}: 判官配置没有回落链`);

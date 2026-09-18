@@ -94,8 +94,10 @@ for (const file of FILES) {
   assert.equal(ask(DELIB, {skillConfirm: true}, 'all'), false, `${file}: 全检档把技能确认也送去问了`);
   assert.equal(ask('让我想想。我投7号。', {}, 'all'), false, `${file}: 全检档把过短发言也送去问了`);
   assert.equal(ctx.gate({game: '(沉默)', _noGameTag: true}, {}, 'all'), false, `${file}: 全检档把沉默占位也送去问了`);
-  // 缺省参数等于分诊档，不能等于全检
-  assert.equal(ctx.gate(ctx.parseAI(SPEECH, {}), {}), false, `${file}: 默认档位不是分诊`);
+  // ★ 缺省参数等于全检。成本从来不是拦着不查的理由——实测全检一局约 5 万 input token，
+  // Flash 级模型连一毛钱都花不到。此前默认分诊、并为「省钱」加了一串收窄条件，
+  // 而那些条件恰好就是后来每一个漏检的洞。
+  assert.equal(ctx.gate(ctx.parseAI(SPEECH, {}), {}), true, `${file}: 默认档位不是全检`);
   // 已经是失败态的不该再花钱
   assert.equal(ctx.gate({ game: '(沉默)', _noGameTag: true }, {}), false, `${file}: 沉默占位仍被送去问诊`);
   assert.equal(ctx.gate(null, {}), false, `${file}: 空结果没有被挡住`);
@@ -108,12 +110,14 @@ for (const file of FILES) {
   // 判官只看候选文本，不给局面信息：省钱、防泄底，也防它对战术有意见
   assert.ok(!/存活玩家|本局配置|身份分配/.test(ctx.sys), `${file}: 判官提示词里混进了局面信息`);
   assert.ok(
-    src.includes("{role: 'user', content: '【待判断文本】\\n' + String(text || '').slice(0, 3000)}"),
+    src.includes("{role: 'user', content: '【待判断文本】\\n' + String(text || '').slice(0, 8000)}"),
     `${file}: 判官请求体里带了候选文本以外的东西`,
   );
 
   // ── 5. ★ fail-open 与成本护栏 ───────────────────────────────────────────────
-  assert.equal(ctx.cap.triage, 8, `${file}: 分诊档的每局上限被改动`);
+  // 上限只是「防异常循环」的兜底，不是成本护栏：撞上是【静默】跳过，最该查的后期发言
+  // 反而查不到。正常一局的公开发言约 60 次，两档都必须远高于它。
+  assert.ok(ctx.cap.triage >= 100, `${file}: 分诊档上限 ${ctx.cap.triage} 太低，一局中段就会撞上并静默停检`);
   assert.ok(ctx.cap.all >= 100, `${file}: 全检档的上限太低，正常一局就会被截断`);
   for (const [why, marker] of [
     ['判官/主持人/全局都没配', "if (!api.url || !api.key || !api.model) return null;"],
@@ -180,7 +184,7 @@ for (const file of FILES) {
   assert.ok(!/freshState\([\s\S]{0,2000}_judgeStats/.test(src), `${file}: _judgeStats 被带进了 freshState，会跨局累积`);
 
   // ── 6. 开关：UI 可关，控制台也可关 ──────────────────────────────────────────
-  for (const opt of ['<option value="off">关闭</option>', '<option value="triage" selected>分诊</option>', '<option value="all">全检</option>']) {
+  for (const opt of ['<option value="off">关闭</option>', '<option value="triage">分诊</option>', '<option value="all" selected>全检</option>']) {
     assert.ok(src.includes(opt), `${file}: 「发言分诊」缺少档位 → ${opt}`);
   }
   assert.ok(
@@ -188,10 +192,10 @@ for (const file of FILES) {
     && src.includes("if (!_judgeRejected && needsSpeechJudge(_r, opts, _judgeMode)) {"),
     `${file}: 档位没有接上分诊调用点`,
   );
-  assert.ok(src.includes("speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'triage',"), `${file}: 档位没有存档`);
+  assert.ok(src.includes("speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'all',"), `${file}: 档位没有存档`);
   // 旧存档里这里是布尔（复选框时代），不能因为换成下拉就把用户的设置读丢
   assert.ok(
-    src.includes("const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'triage' : 'off') : d.speechJudge;"),
+    src.includes("const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'all' : 'off') : d.speechJudge;"),
     `${file}: 旧存档的布尔值没有迁移`,
   );
   assert.ok(src.includes("if (['off','triage','all'].includes(_sj)) $('m-speech-judge').value = _sj;"), `${file}: 档位没有读档`);
@@ -289,6 +293,19 @@ for (const file of FILES) {
   assert.equal(ctx.f('我投7号。'), null, '过短的发言不该在这一层判');
   assert.equal(ctx.f(''), null, '空串不该命中');
   assert.equal(ctx.f(null), null, 'null 不该命中');
+}
+
+// ── 6d. ★ 全检默认开着，唯一真实的成本风险是判官回落到主力大模型 ────────────────
+// getJudgeAPI 的回落链是 判官专用 → 主持人 → 全局。两个都没填时它会拿全局那个模型
+// 跑几十次——成本可能差两三个数量级，而用户完全看不出来。所以必须说出口。
+for (const file of FILES) {
+  const src = read(file);
+  assert.ok(src.includes("const _jOwn = $('j-model') && $('j-model').value.trim();"), `${file}: 没有检查判官是否单独配了模型`);
+  assert.ok(src.includes("if (!_jOwn && !_jHost) {"), `${file}: 判官回落到全局模型时没有警告`);
+  assert.match(src, /判官没有单独配置模型，正在使用全局的/, `${file}: 警告没有点明正在用的是全局模型`);
+  assert.match(src, /请在「主持与调试 → 判官」里填一个 Flash \/ Haiku 这类快模型/, `${file}: 警告没有给出补救办法`);
+  // 提示文字里要把真实成本写出来，否则用户只能靠猜
+  assert.match(src, /一局约 5 万 input token/, `${file}: 开关说明没有写出真实成本`);
 }
 
 // ── 7. ★ 可见反馈：判官放行时静默，用户必须有别的办法确认它在工作 ──────────────
