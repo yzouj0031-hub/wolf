@@ -16,7 +16,11 @@ for (const file of ['index.html', 'en/index.html']) {
       _r: {game: 'candidate'}, _judgeMode: 'all',
       SPEECH_JUDGE_CAP: {all: 300}, SPEECH_JUDGE_FAIL_STREAK: 3, JUDGE_BUSY: 'busy',
       needsSpeechJudge: r => !!r.game,
+      // 'candidate' / 'replacement' 都不像思维链倾倒，这里只验判官路径
+      looksLikeThinkingDump: () => null,
       getJudgeAPI: () => ({model: 'mock'}),
+      $: () => ({value: 'mock-flash'}),   // 判官单独配了模型，不触发「回落到全局」的警告
+
       judgeSpeechIsPublic: async () => verdicts[checks++],
       Render: {log() {}, devLog() {}},
       factCheck: (_, r) => r, promptFn: () => 'original',
