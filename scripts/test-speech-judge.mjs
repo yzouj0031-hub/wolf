@@ -58,7 +58,6 @@ for (const file of FILES) {
     // 闸门只看前 150 字（审议前言长在开头），正文中段的自我表述不触发
     ['公开宣布要跳身份',
       '我觉得我现在应该跳了：我是预言家，昨晚查验白马探是狼人。警徽流我给宫野志保。请大家核对7号昨天的票型。', {}],
-    ['用了 <game> 协议', `<game>${DELIB}</game>`, {}],
     ['狼队密谈', DELIB, { wolfOnly: true }],
     ['技能确认', DELIB, { skillConfirm: true }],
     ['静默调用', DELIB, { silent: true }],
@@ -67,6 +66,20 @@ for (const file of FILES) {
   for (const [name, text, opts] of MUST_NOT_ASK) {
     assert.equal(ask(text, opts), false, `${file}: 分诊模式下「${name}」被送去问诊了，闸门太宽`);
   }
+
+  // ── 3a. ★ 两个曾经「压根不判」的洞 ──────────────────────────────────────────
+  // 都是同一类失败：不是判官判错了，而是这条发言根本没被送去判——日志上什么都看不到。
+  // 洞一：全检档按长度设上限，>3000 字直接跳过。而被倾倒出来的思维链恰恰最容易超长，
+  //       最该拦的那一类反而是唯一漏过去的。
+  const LONG_DELIB = '让我理一下现在的局面。' + 'P7昨天跳了预言家但票投给P3，这和他的查验矛盾；我如果现在跳守卫女巫可能信我。'.repeat(120);
+  assert.ok(ctx.parseAI(LONG_DELIB, {}).game.length > 3000, '用例本身不够长，测不到这个洞');
+  assert.equal(ask(LONG_DELIB, {}, 'all'), true, `${file}: 全检档仍然按长度放过超长发言`);
+  // 洞二：分诊档要求「没用协议」，于是模型规规矩矩打了 <game> 标签、里面装思维链时，
+  //       分诊对它完全失明。
+  assert.equal(ask(`<game>${DELIB}</game>`, {}, 'triage'), true,
+    `${file}: 分诊档对「打了 <game> 标签但装着思维链」仍然失明`);
+  // 但协议正确、内容也确实是发言的，不该被这个放宽卷进来
+  assert.equal(ask(`<game>${SPEECH}</game>`, {}, 'triage'), false, `${file}: 放宽之后误伤了正常的带协议发言`);
 
   // ── 3b. 三档模式 ────────────────────────────────────────────────────────────
   // 关闭：一条都不问，哪怕是最明显的审议前言
@@ -172,7 +185,7 @@ for (const file of FILES) {
   }
   assert.ok(
     src.includes("const _judgeMode = S.debugDisableSpeechJudge ? 'off'")
-    && src.includes("if (needsSpeechJudge(_r, opts, _judgeMode)) {"),
+    && src.includes("if (!_judgeRejected && needsSpeechJudge(_r, opts, _judgeMode)) {"),
     `${file}: 档位没有接上分诊调用点`,
   );
   assert.ok(src.includes("speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'triage',"), `${file}: 档位没有存档`);
@@ -224,6 +237,60 @@ for (const file of FILES) {
     `${file}: 隐藏状态点的规则没有排除多档开关`);
 }
 
+// ── 6c. ★ 第 0 层：明显的思维链倾倒，正则直接拦，不必花判官那一次 ────────────────
+// 判官会漏——泄漏的思维链大量提到玩家和票型，读起来很像在分析局面；限流或超时也会让
+// 整条直接放行。这些信号是结构性的，正则比模型更可靠，而且零成本、零延迟。
+{
+  for (const file of FILES) {
+    const src = read(file);
+    assert.ok(src.includes('const _COT_DUMP_SIGNALS = ['), `${file}: 缺少思维链倾倒的确定性信号表`);
+    assert.ok(src.includes('function looksLikeThinkingDump(text) {'), `${file}: 缺少确定性前置检查`);
+    assert.ok(src.includes('const _dump = looksLikeThinkingDump(_r.game);'), `${file}: 前置检查没有接进发言流程`);
+    // 必须走和判官判 B 完全相同的重写路径，而不是另起一套
+    assert.ok(src.includes("_r = {..._r, thinking: (_r.thinking ? _r.thinking + '\\n\\n' : '') + _r.game, game: ''};"),
+      `${file}: 前置检查没有复用判 B 的重写路径`);
+    assert.ok(src.includes('_judgeRejected = true;'), `${file}: 前置检查命中后没有触发重写`);
+    // 分诊关掉时完全不介入
+    assert.ok(src.includes("if (_judgeMode !== 'off' && needsSpeechJudge(_r, opts, _judgeMode)) {"),
+      `${file}: 关掉分诊后前置检查仍在介入`);
+    // 成绩单要单列，否则用户会以为是判官抓到的
+    assert.ok(src.includes('if (js.caught) bits.push(`正则直接拦下 ${js.caught}`);'), `${file}: 成绩单没有反映正则拦截`);
+    assert.ok(src.includes('if (!js || (!js.asked && !js.caught)) return;'), `${file}: 只被正则拦下时不打印成绩单`);
+  }
+
+  // 功能测试：该抓的要抓，真发言一条都不能误伤
+  const src = read('index.html');
+  const a = src.indexOf('const _COT_DUMP_SIGNALS'); const b = src.indexOf('// 纯函数，便于测试', a);
+  const ctx = vm.createContext({String});
+  vm.runInContext(src.slice(a, b) + '; this.f = looksLikeThinkingDump;', ctx, {filename: 'index.html:dump'});
+
+  for (const t of [
+    '让我先理一下当前局面。P7昨天跳了预言家但票投给P3，这和他的查验矛盾，我应该先不跳等P9表态。',
+    '我需要先分析一下场上的情况。目前看P3和P7的说法对不上，我倾向于认为P3是狼。今天我投P3。',
+    '第一步：确认身份。第二步：分析票型。第三步：决定投谁。综上我投P7。',
+    '方案A是直接跳预言家把查验报出来，方案B是先压一手看看别人怎么说，我选方案B。',
+    'Let me think about this. P7 claimed seer yesterday but his vote went to P3.',
+    '**Assessing the vote** **Weighing the claim** **Deciding the target** 我投P7。',
+    '按照 thinking 字段的要求我先分析，然后在 game 字段里写发言。我投P3。',
+    '我是预言家，昨晚查验白马探。<action>白马探</action>',
+  ]) assert.ok(ctx.f(t), `没抓到明显的思维链倾倒：${t.slice(0, 40)}`);
+
+  // ★ 误伤一条真发言的代价远大于漏掉一条倾倒：漏了还有判官兜底，误伤则是把好发言扔掉重写
+  for (const t of [
+    '我是预言家，昨晚查验白马探，结果是狼人。今天我的票给他，请大家跟一下，顺便核对昨天7号的改口。',
+    '我先说结论：我投白马探。理由有三条，第一他昨天的票型对不上，第二他今天改口了，第三他一直在替7号说话。',
+    '我觉得我现在应该跳了：我是预言家，昨晚查验白马探是狼人。警徽流我给宫野志保。',
+    '我应该没记错的话，7号昨天投的是白马探，今天却说自己一直站边我。这两句对不上，请他解释。',
+    'P3说的那个方案A我不认同，我们还是按原计划走。我今天投P7。',
+    '昨晚我守了白马探。今天天亮之前系统明确告诉我一件事——他同时受到了守护。我是守卫。',
+    '我是**女巫**。昨晚我救了自己，毒药还在手上。今天我投白马探。',
+  ]) assert.equal(ctx.f(t), null, `误伤了真发言：${t.slice(0, 40)}`);
+
+  assert.equal(ctx.f('我投7号。'), null, '过短的发言不该在这一层判');
+  assert.equal(ctx.f(''), null, '空串不该命中');
+  assert.equal(ctx.f(null), null, 'null 不该命中');
+}
+
 // ── 7. ★ 可见反馈：判官放行时静默，用户必须有别的办法确认它在工作 ──────────────
 // 这个应用主要跑在平板和手机上，控制台够不着，所以 S._judgeStats 不能是唯一的验证手段。
 for (const file of FILES) {
@@ -237,7 +304,7 @@ for (const file of FILES) {
   assert.ok(src.includes('function recordLeaderboard(winType) {\n  logSpeechJudgeSummary();'),
     `${file}: 成绩单没有挂在每条结局路径都会经过的地方`);
   // 一次都没问过就不该刷屏
-  assert.ok(src.includes('if (!js || !js.asked) return;'), `${file}: 没问过也会打印成绩单`);
+  assert.ok(src.includes('if (!js || (!js.asked && !js.caught)) return;'), `${file}: 没问过也会打印成绩单`);
   // 熔断过要在成绩单里点出来，否则用户只会看到"判官无响应 N"却不知道它已经停了
   assert.ok(src.includes("js.tripped ? '（已熔断，检查主持人API）'"), `${file}: 成绩单没有反映熔断`);
 }

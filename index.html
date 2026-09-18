@@ -12614,9 +12614,48 @@ B = 玩家【自言自语在盘算等下该说什么】（内心推演、权衡�
 - 发言写得差、逻辑乱、太短、有错别字——仍然是 A。你不负责评价质量。
 - "我觉得我应该跳预言家了，昨晚我查了白马探是狼"——A，他在对大家说。
 - "我作为真预言家，如果现在不跳，警徽流就没人认，所以我应该公开身份"——B，他在对自己说。
-- 拿不准就答 A。
+
+⚠️ 最容易判错的一类：整段思考被原样交了上来。它【会大量提到场上玩家和票型】，读起来
+很像在分析局面，但它是写给自己看的。认准这些特征，命中任意一条就是 B：
+- 在权衡自己要不要做某件事："如果我现在跳…但如果他也跳…那我就…"、"先不跳，等他表态"
+- 在给自己排步骤或列方案："第一步…第二步…"、"方案A…方案B…"、"综上，我决定…"
+- 在复述任务或格式要求：提到 thinking / game / action 这些字段名，或"按要求输出"
+- 在对自己下指令："让我理一下"、"我需要先分析"、"接下来我要说"
+- 混着英文的推理片段（Let me、I should、First…Second…），或一串 **加粗的小标题**
+判断口诀：它在【说给别人听】，还是在【想给自己看】？谈论别人不等于说给别人听。
+
+- 除上述情形外，拿不准就答 A。
 
 只输出一个字母：A 或 B。不要解释。`;
+
+// ★ 明显的思维链倾倒：不必花判官那一次调用，正则就能确定。
+//   为什么要这一层：判官会漏（泄漏的思维链大量提到玩家和票型，读起来很像在分析局面），
+//   限流/超时也会让它整条放行。而下面这些信号是【结构性】的——真发言绝不会出现协议字段名，
+//   也不会以"让我先理一下"开场后再自己排步骤。用正则先把最明显的一档收掉，既省钱，
+//   也让判官只去处理真正模棱两可的那些。
+//   命中即判为「不是公开发言」，走和判官判 B 完全相同的重写路径。
+const _COT_DUMP_SIGNALS = [
+  // 协议字段名漏进正文。真发言不会谈论 thinking / game / action 这些字段。
+  /<\s*\/?\s*(?:thinking|game|action|interrupt|strategy|plan)\s*>/i,
+  /(?:^|[\s，。；、])(?:thinking|game|action)\s*(?:字段|标签|里|部分)/i,
+  /【?(?:输出|回复)(?:格式|契约|要求)】?[:：]/,
+  // 给自己排步骤 / 列方案
+  /第一步[:：][\s\S]{0,80}第二步[:：]/,
+  /方案\s*[A1一][\s\S]{0,120}方案\s*[B2二]/,
+  // 对自己下指令开场
+  /^[\s*（(]*(?:让我(?:先|再)?(?:想|理|捋|梳理|分析|盘)|我(?:需要|先|来|应该)(?:先)?(?:想|理|捋|梳理|分析|思考)一?下)/,
+  // 英文推理片段混进中文发言
+  /\b(?:Let me (?:think|analyze|consider|start|first)|I (?:should|need to|will) (?:say|claim|reveal|vote|analyze))\b/i,
+  /\bFirst[,，][\s\S]{0,120}\bSecond[,，]/i,
+  // 一串加粗小标题（推理摘要的典型形态）
+  /(?:\*\*[^*\n]{2,60}\*\*[\s　]*){3,}/,
+];
+function looksLikeThinkingDump(text) {
+  const t = String(text || '').trim();
+  if (t.length < 30) return null;              // 太短另有兜底，不在这里判
+  for (const re of _COT_DUMP_SIGNALS) if (re.test(t)) return re;
+  return null;
+}
 
 // 纯函数，便于测试：这条回复要不要送去问判官。
 //   'off'    完全不问
@@ -12631,11 +12670,15 @@ function needsSpeechJudge(result, opts, mode) {
   const g = String(result.game || '').trim();
   if (!g || g === '(沉默)') return false;                        // 已经是失败态，另有兜底
   if (g.length < 30) return false;                              // 太短另有重写兜底，不必花这一次
-  if (m === 'all') return g.length <= 3000;
+  // ★ 全检就是全检：不再按长度设上限。此前 >3000 字直接跳过不判，而【被倾倒出来的思维链
+  //   恰恰最容易超长】——最该拦的那一类反而是唯一漏过去的。判官侧本来就会截前 3000 字，
+  //   判「这段话写给谁看」根本不需要读完。
+  if (m === 'all') return true;
   // ── 以下是分诊模式独有的收窄条件 ──
-  if (result._noGameTag !== true) return false;                 // 用了协议的一律放行
-  if (g.length > 1200) return false;                            // 太长基本不是审议前言
-  // 审议前言长在【开头】。只看前 150 字，避免正文里"我应该没记错"这种偶然命中。
+  // 前 150 字有自我规划痕迹才问：审议前言长在开头，这样正文里偶然出现的"我应该没记错"
+  // 不会触发。命中之后不再看长度，也不再要求"没用协议"——
+  // ★ 模型完全可能规规矩矩打了 <game> 标签，而标签里面装的是思维链。此前
+  //   `_noGameTag !== true` 一条就把这种情况整个放过了，等于分诊对它完全失明。
   return _JUDGE_PLAN_MARKER.test(g.slice(0, 150));
 }
 
@@ -14614,7 +14657,23 @@ async function proc(players, promptFn, label, opts) {
         // 最终候选统一检查；被拒绝后最多重写两次，每次仍需检查。
         for (let judgeRetry = 0; judgeRetry <= 2; judgeRetry++) {
           let _judgeRejected = false;
-        if (needsSpeechJudge(_r, opts, _judgeMode)) {
+        // ★ 第 0 层：明显的思维链倾倒，正则就能定，不必花判官那一次。
+        //   这一层存在的理由是判官【会漏】——泄漏的思维链大量提到玩家和票型，读起来很像
+        //   在分析局面；限流或超时也会让整条直接放行。而这些信号是结构性的：真发言不会
+        //   谈论 thinking/game/action 这些字段名，也不会"让我先理一下"开场再自己排步骤。
+        //   只在分诊/全检开着时生效，关掉分诊就完全不介入。
+        if (_judgeMode !== 'off' && needsSpeechJudge(_r, opts, _judgeMode)) {
+          const _dump = looksLikeThinkingDump(_r.game);
+          if (_dump) {
+            const _js0 = S._judgeStats || (S._judgeStats = {asked: 0, passed: 0, rejected: 0, failed: 0, skipped: 0, streak: 0, tripped: false});
+            _js0.caught = (_js0.caught || 0) + 1;
+            _judgeRejected = true;
+            Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 正则直接判定为思维链倾倒（${_dump.source.slice(0, 40)}），不必问判官："${String(_r.game).slice(0, 50)}…"`);
+            Render.log('system', `🧮 ${p.name} 交回的是思考过程而不是发言，正在重新请求`);
+            _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
+          }
+        }
+        if (!_judgeRejected && needsSpeechJudge(_r, opts, _judgeMode)) {
           const _js = S._judgeStats || (S._judgeStats = {asked: 0, passed: 0, rejected: 0, failed: 0, skipped: 0, streak: 0, tripped: false});
           if (_js.tripped || _js.asked >= (SPEECH_JUDGE_CAP[_judgeMode] || SPEECH_JUDGE_CAP.triage)) {
             _js.skipped++;
@@ -21722,11 +21781,12 @@ function logGameMetrics(winType) {
 // 而这个应用的主要使用场景是平板和手机——那里根本打不开控制台，等于没有。
 function logSpeechJudgeSummary() {
   const js = S && S._judgeStats;
-  if (!js || !js.asked) return;
+  if (!js || (!js.asked && !js.caught)) return;
   const bits = [`问诊 ${js.asked} 次`, `放行 ${js.passed}`];
   if (js.rejected) bits.push(`打回重发 ${js.rejected}`);
   if (js.failed) bits.push(`判官无响应 ${js.failed}`);
   if (js.busy) bits.push(`被限流放行 ${js.busy}`);
+  if (js.caught) bits.push(`正则直接拦下 ${js.caught}`);
   if (js.skipped) bits.push(`跳过 ${js.skipped}`);
   Render.log('system', `🧮 发言分诊本局成绩：${bits.join('，')}`
     + (js.tripped ? '（已熔断，检查主持人API）' : (js.rejected ? '' : '——没有发现问题，可以考虑关掉这一档')));
