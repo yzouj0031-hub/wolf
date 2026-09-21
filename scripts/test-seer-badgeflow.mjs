@@ -15,6 +15,14 @@ import fs from 'node:fs';
 
 const FILES = ['index.html', 'en/index.html'];
 
+function core(file) {
+  const src = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  const a = src.indexOf('const WB_CORE_COMPACT = `');
+  const b = src.indexOf('\n\nconst WB_RULES_COMPACT', a);
+  assert.ok(a >= 0 && b > a, `${file}: WB_CORE_COMPACT 未找到`);
+  return src.slice(a, b);
+}
+
 function seerGuide(file) {
   const src = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
   const a = src.indexOf("id:'seer'");
@@ -25,6 +33,35 @@ function seerGuide(file) {
 
 for (const file of FILES) {
   const g = seerGuide(file);
+  const c = core(file);
+
+  // ── 0. ★ 症状修复：警上跳又不跳、攥着查杀不发 ──────────────────────────────
+  // 起因是我把对跳那段写到 930 字，占了整份 guide 一半以上，把「要么跳要么闭嘴」
+  // 的规则（当时只有 184 字）彻底淹没，模型读完的印象变成「对跳很复杂很危险」→ 在
+  // 跳不跳这一步畏手畏脚。所以除了压缩对跳段，还要把「有查杀就发」钉成硬规则。
+  assert.ok(g.includes('【⚠️ 手里有查杀就发，别攥着】'), `${file}: 缺少"有查杀就发"的硬规则`);
+  // 判据是【价值会归零】，不是"要果断"——查杀今天能执行，而你今晚可能就死了
+  assert.match(g, /它是【今天就能执行】的东西/, `${file}: 没说明查杀为什么不能攥着`);
+  assert.match(g, /攥着它死，等于把它带进棺材/, `${file}: 没写出攥着查杀的真实代价`);
+  assert.match(g, /越晚发越要解释"为什么当时不说"/, `${file}: 没写出拖延的额外代价`);
+  // 金水/查杀的不对称要讲清楚，否则会变成"什么都立刻发"
+  assert.match(g, /金水可以留/, `${file}: 没有区分金水和查杀`);
+  // 不跳仍然合法，但要收紧到唯一的成立条件
+  assert.match(g, /「不跳」只在一种情况下成立/, `${file}: 把"不跳"整个否掉了，这是过度修正`);
+  assert.match(g, /有查杀却不跳，不是策略，是浪费/, `${file}: 没有直接点名这个症状`);
+  // 警长竞选是第一个时机，症状正是发生在这里
+  assert.match(g, /警长竞选就是第一个时机，别在台上含糊其辞留半句/, `${file}: 没有点名竞选阶段`);
+
+  // ── 0b. ★ 比例：对跳段不能再压过"跳不跳"的规则 ─────────────────────────────
+  const iJump = g.indexOf('【跳与不跳是你的策略选择】');
+  const iTiming = g.indexOf('【⚠️ 报查验理由时的时序铁律');
+  const iDual = g.indexOf('【验对跳你的人');
+  const iSpeak = g.indexOf('【跳出来后,发言重点是什么】');
+  assert.ok(iJump >= 0 && iTiming > iJump && iDual > iTiming && iSpeak > iDual, `${file}: guide 段落顺序被打乱`);
+  const jumpRules = iTiming - iJump;            // 跳/不跳 + 禁止中间状态 + 有查杀就发
+  const dualClaim = iSpeak - iDual;             // 对跳相关
+  assert.ok(jumpRules >= 380, `${file}: 管"跳不跳"的规则只有 ${jumpRules} 字，太容易被别的段落淹没`);
+  assert.ok(dualClaim < jumpRules * 1.6, `${file}: 对跳段 ${dualClaim} 字 vs 跳不跳规则 ${jumpRules} 字，比例失衡`);
 
   // ── 1. ★ 必须先给出「用不出去」这一层，它才是能压住冲动的那条 ────────────────
   assert.match(g, /就算验出狼，你也【用不出去】/, `${file}: 缺少"验出来也用不出去"这一层`);
@@ -39,22 +76,27 @@ for (const file of FILES) {
   // 「悍跳狼 or 挡刀好人」这个区分本身是对的，保留；但必须明说别用查验去买答案。
   assert.match(g, /别用查验去买这个答案/, `${file}: 没有堵住"用查验解决这个不确定性"`);
   assert.match(g, /用他后续的行为去分辨/, `${file}: 没有给出分辨的替代手段`);
+  // 「怎么分辨对跳者」是所有人都要做的判断，不该只塞在预言家 guide 里——那既挤爆了
+  // 这份 guide 的比例，也让别的角色读不到。所以内容放核心层，guide 只留指路。
+  assert.ok(c.includes('【对跳者是悍跳狼还是挡刀好人：算他付了什么代价】'), `${file}: 核心层缺少对跳者的分辨方法`);
+  assert.match(c, /好人假跳身份替真神挡刀是正当打法/, `${file}: 核心层没有先声明假跳不定罪`);
+  assert.match(g, /怎么分辨见通用教学里的【对跳者是悍跳狼还是挡刀好人】/, `${file}: 预言家 guide 没有指向通用教学`);
 
   // ★ 三条信号必须带上「为什么是这三条」。只列信号不给理由，读的人会自然翻译成
   //   「看他诚不诚恳」——这正是【零成本行为不分阵营】点名禁止的那类判据。
-  assert.ok(g.includes('是否编造污染性假信息'), `${file}: 行为分辨线索被删了`);
-  assert.ok(g.includes('是否抢归票'), `${file}: 行为分辨线索被删了`);
-  assert.match(g, /只有狼需要污染场上信息，挡刀的好人污染了等于害自己队/, `${file}: 没说明"污染信息"为什么能用`);
-  assert.match(g, /只有狼需要定义权/, `${file}: 没说明"抢归票"为什么能用`);
+  assert.ok(c.includes('是否编造污染性假信息'), `${file}: 行为分辨线索被删了`);
+  assert.ok(c.includes('是否抢归票'), `${file}: 行为分辨线索被删了`);
+  assert.match(c, /只有狼需要污染场上信息，挡刀的好人污染了等于害自己队/, `${file}: 没说明"污染信息"为什么能用`);
+  assert.match(c, /只有狼需要定义权/, `${file}: 没说明"抢归票"为什么能用`);
   // 退水的分量来自价格差，不是来自"显得干脆"
-  assert.match(g, /退水对悍跳狼【极贵】/, `${file}: 没写出退水对狼的代价`);
-  assert.match(g, /对挡刀好人却很便宜/, `${file}: 没写出退水对挡刀好人的代价`);
+  assert.match(c, /退水对悍跳狼【极贵】/, `${file}: 没写出退水对狼的代价`);
+  assert.match(c, /对挡刀好人却很便宜/, `${file}: 没写出退水对挡刀好人的代价`);
   // 统一判据：贵不贵，不是像不像
-  assert.match(g, /衡量【这个动作对狼来说贵不贵】，不是【他像不像好人】/, `${file}: 三条信号缺少统一判据`);
-  assert.match(g, /他显得诚恳、解释得通顺、动机讲得感人，全都零成本/, `${file}: 没有排除零成本信号`);
+  assert.match(c, /衡量【这个动作对狼来说贵不贵】，不是【他像不像好人】/, `${file}: 三条信号缺少统一判据`);
+  assert.match(c, /他显得诚恳、解释得通顺、动机讲得感人，全都零成本/, `${file}: 没有排除零成本信号`);
   // 动机解释同样要按"有没有把自己绑进去"算
-  assert.match(g, /事后无法核对，是便宜话/, `${file}: 没有区分便宜的动机解释`);
-  assert.match(g, /把自己未来的行动锁死了，说错要付代价——这才算/, `${file}: 没有给出有分量的动机解释长什么样`);
+  assert.match(c, /事后无法核对，是便宜话/, `${file}: 没有区分便宜的动机解释`);
+  assert.match(c, /把自己未来的行动锁死了，说错要付代价——这才算/, `${file}: 没有给出有分量的动机解释长什么样`);
   assert.ok(g.includes('别把他默认成铁狼去推'), `${file}: 原有的"别默认成铁狼"提醒被删了`);
 
   // ── 3. ★ 反向武器：这条也是识别悍跳狼的结构性破绽 ──────────────────────────
