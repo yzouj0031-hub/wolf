@@ -50,5 +50,24 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.equal(ctx.parseAI('<thinking>' + thoughts + '</thinking><game>' + speech + '</game>').game, speech);
   assert.equal(ctx.parseAI('<thinking>' + thoughts + '</thinking>' + speech).game, speech);
   assert.ok(!html.includes('rescueGameFromThinking'), file + ': secondary publisher still recovers private thinking');
+
+  // ── 行动占位符漏进公开发言 ──────────────────────────────────────────────────
+  // 实战：警长两天的发言末尾都挂着一行孤零零的 "None"，战报里单独成行。模型把
+  // <action>None</action> 的占位符写进了 <game>，或者干脆没用标签。
+  const tail = '今天票落在五号，理由是他的发言太圆，这一点必须解释清楚，剩下的账明天接着算。';
+  for (const raw of [
+    '<thinking>t</thinking><game>' + tail + '\n\nNone</game>',
+    '<thinking>t</thinking>' + tail + '\n\nNone',
+    '<thinking>t</thinking><game>' + tail + '\nnull</game>',
+  ]) {
+    const r = ctx.parseAI(raw, {});
+    assert.equal(r.game, tail, file + ': action placeholder leaked into public speech: ' + JSON.stringify(r.game.slice(-12)));
+    assert.equal(r.action, 'None', file + ': stripped placeholder was not kept as the action');
+  }
+  // 不能误伤：正文里正常提到 None / 无 的句子，以及已有的真 action
+  const mention = '他说他的警徽流是None，这种写法我没见过，今天先记账，票还是落在五号身上。';
+  assert.equal(ctx.parseAI('<game>' + mention + '</game>').game, mention, file + ': a sentence mentioning None was mangled');
+  const withVote = ctx.parseAI('<game>' + tail + '\nNone</game><action>白马探</action>');
+  assert.equal(withVote.action, '白马探', file + ': stripping the placeholder overwrote a real action');
 }
 console.log('thinking/public speech boundary passed');
