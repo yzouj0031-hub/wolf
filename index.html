@@ -10008,6 +10008,19 @@ function parseAI(c, opts) {
     }
   }
 
+  // ★ 行动占位符漏进公开发言：模型把本该写在 <action>None</action> 里的占位符写进了
+  //   <game>（或干脆没用标签），发言末尾就挂着一行孤零零的 "None"，被原样念给全场，
+  //   战报里也会单独出现一行 None。只剥【末尾整行】恰好是占位符的情况——
+  //   句子里正常提到 None/无 的不动。剥下来的若本来没有 action，就补成 action，
+  //   语义上它原本就是"本回合不行动"。
+  if (game && game !== '(沉默)') {
+    const _placeholderTail = /(?:^|\n)[ \t]*(?:None|null|undefined)[ \t]*$/i;
+    if (_placeholderTail.test(game)) {
+      game = game.replace(_placeholderTail, '').trimEnd();
+      if (!action) action = 'None';
+    }
+  }
+
   if (!game && requireGame) game = '(沉默)';
 
   // ── 拒绝检测 ──
