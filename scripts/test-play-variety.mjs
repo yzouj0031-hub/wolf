@@ -49,7 +49,7 @@ for (const file of FILES) {
   // ── 2. ★ 首夜战术点：在 vm 里实际渲染各分支 ───────────────────────────────
   const block = between(src, "      let tacticsHint = '';", '      const isSingleWolf');
   const render = (isFirstNight, has, S) => {
-    const ctx = vm.createContext({ isFirstNight, S, ...has });
+    const ctx = vm.createContext({ isFirstNight, S, mistLocked: false, ...has });
     vm.runInContext(block + '\nglobalThis.__out = tacticsHint;', ctx);
     return ctx.__out;
   };
@@ -68,6 +68,10 @@ for (const file of FILES) {
   const freePlay = render(true, allHas, { round: 1, wolfStrategy: 'x', wolfStrategyName: '自由发挥', wolfStrategyRound: 1 });
   assert.ok(!freePlay.includes('今晚刚定的密约'), `${file}: 兜底的"自由发挥"不该被当成密约保护`);
   const stale = render(true, allHas, { round: 2, wolfStrategy: 'x', wolfStrategyName: '银水冲锋', wolfStrategyRound: 1 });
+  // 未明之雾在定密约和夜刀之间结算：刀口被锁定后"没有新信息"不成立，不能再护着密约
+  const ctxMist = vm.createContext({ isFirstNight: true, S: { round: 1, wolfStrategy: 'x', wolfStrategyName: '银水冲锋', wolfStrategyRound: 1 }, mistLocked: true, ...allHas });
+  vm.runInContext(block + '\nglobalThis.__out = tacticsHint;', ctxMist);
+  assert.ok(!ctxMist.__out.includes('今晚刚定的密约'), `${file}: 未明之雾锁刀后仍在说"到现在没有新信息"`);
   assert.ok(!stale.includes('今晚刚定的密约'), `${file}: 往夜的密约不该被当成"今晚刚定"`);
   assert.equal(render(true, noHas, S0), '', `${file}: 板子上没有相关角色时首夜战术点应为空`);
   assert.match(render(false, allHas, { ...S0, round: 3 }), /刀口也是明天的剧本/, `${file}: 第二夜起没有"刀口也是明天的剧本"`);
@@ -97,7 +101,9 @@ for (const file of FILES) {
 
   // ── 5. 狼人 / 狼美人 guide ─────────────────────────────────────────────────
   const wolf = between(src, "id:'werewolf'", 'reg({');
-  assert.match(wolf, /被救不只是扑空/, `${file}: 狼人 guide 仍只把被救当扑空`);
+  assert.match(wolf, /被女巫救不只是扑空/, `${file}: 狼人 guide 仍只把被救当扑空`);
+  assert.match(wolf, /被守卫挡下只是扑空、解药还在/, `${file}: 狼人 guide 把守卫挡刀也当成了银水/耗解药`);
+  assert.match(hint, /她不救（且没被守卫等其他保护挡下）/, `${file}: 自刀账漏了守卫挡下的那一支`);
   assert.match(wolf, /再起一个身份（比如假女巫\/假守卫）/, `${file}: 狼人 guide 没有双起身份的队形`);
   for (const kept of ['不要列招式名词、不要套模板', '是最差的一种', '狼队至少要有两个人在场上干活']) {
     assert.ok(wolf.includes(kept), `${file}: 狼人 guide 原有锚点「${kept}」被删了`);
@@ -108,6 +114,7 @@ for (const file of FILES) {
     assert.ok(!beauty.includes(gone), `${file}: 狼美人 guide 里的「${gone}」回流了`);
   }
   assert.match(beauty, /红线不顶替夜刀，自刀另算/, `${file}: 狼美人自刀没有另记一笔账`);
+  assert.match(beauty, /被守下就是平安夜，没有银水、解药还在/, `${file}: 狼美人自刀账漏了守卫那一支`);
   assert.match(beauty, /你是全队最耐用的消耗品/, `${file}: 狼美人的消耗品定位缺失`);
   // 改前 21 处「悍跳」（一整段重复的「天选玩法」又推了一遍悍跳），改后 15 处；护栏防止再堆回去
   assert.ok((beauty.match(/悍跳/g) || []).length <= 15, `${file}: 狼美人 guide 里"悍跳"又堆起来了，比例会重新失衡`);
