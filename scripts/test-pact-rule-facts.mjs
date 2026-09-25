@@ -16,7 +16,7 @@ for (const file of ['index.html', 'en/index.html']) {
 
   // 注入点：AI 提案、网页 AI 提案（中/英）、AI 投票（BLIND_NOTE）、真人投票复制（中/英）、真人手写提示
   for (const [needle, label] of [
-    ["mechPactNote + pactRuleFacts.zh + '\\n\\n【方案要求】", 'AI 提案'],
+    ["mechPactNote + pactRuleFacts.zh + pactAngleBlock(w) + '\\n\\n【方案要求】", 'AI 提案'],
     ["localizedTargets + mechPactNote + pactRuleFacts.zh + '\\n\\n'", '网页 AI 提案（中）'],
     ["localizedTargets + pactRuleFacts.en + '\\n\\n'", '网页 AI 提案（英）'],
     ['两头一起比，最稳的那条不自动赢。写得最像口号的那条通常最不能用。\' + pactRuleFacts.zh;', 'AI 投票'],
