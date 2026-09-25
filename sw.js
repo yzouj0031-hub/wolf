@@ -14,6 +14,7 @@ const APP_SHELL = [
   './action-cg.js',
   './ui-icons.js',
   './teaching-worldbooks.js',
+  './demo-match.js',
   './reasoning-context.js',
   './community-matches.js',
   './mystery.js',
