@@ -140,4 +140,12 @@ for (const file of FILES) {
   assert.ok(!src.includes('交出一条明天能验证的东西'), `${file}: 被搁置的"改票条件"那条混进来了`);
 }
 
+// 狼美人「残血铁律」：原来写"2狼做一次1换1=变1狼=基本输，这笔账永远不划算"。胜负看好人数≤狼数，
+// 2狼对3好人时1换1变1狼对2好人、当晚再刀一个就是1对1——"永远"是算错的。改为先数人数。
+for (const file of ['index.html', 'en/index.html']) {
+  const src = fs.readFileSync(file, 'utf8');
+  assert.ok(!src.includes('这笔账永远不划算'), `${file}: 狼美人残血期"1换1永远不划算"的绝对句回流了`);
+  assert.ok(src.includes('唯一的例外要靠数人数确认'), `${file}: 狼美人残血期没有改成先数人数`);
+}
+
 console.log('play variety: symmetric self-knife ledger, open pact slots, night-1 tactics rendered, wolfbeauty mechanics fixed, good-side counterweight');
