@@ -20103,17 +20103,21 @@ const PhaseHandlers = {
           }
         }
       }
-      if (remaining.length > 0) candidates = remaining;
+      // ★ 全员退选时退选作废、所有人留在候选名单里。记录必须如实写成"退选作废"，
+      //   不能同时写"X、Y退选"又把X、Y列为最终候选——AI 会按"退选者有票"去算票权。
+      const _allWithdrew = remaining.length === 0;
+      if (!_allWithdrew) candidates = remaining;
       gameRecord.push({
         type:'sheriff_roster', stage:'withdrawal', round:S.round,
-        withdrawn:withdrawn.map(p=>p.name),
+        withdrawn:_allWithdrew ? [] : withdrawn.map(p=>p.name),
         candidates:candidates.map(p=>p.name),
-        text:'警长退选：' + (withdrawn.length ? withdrawn.map(p=>p.name).join('、') : '无')
+        text:'警长退选：' + (_allWithdrew ? '全部候选人都选择退选，退选作废，全员保留候选资格'
+            : (withdrawn.length ? withdrawn.map(p=>p.name).join('、') : '无'))
           + '；最终候选：' + candidates.map(p=>p.name).join('、') + `（共${candidates.length}人）`
       });
       Render.log('sheriff', '📋 最终候选：' + candidates.map(p=>p.name).join('、') + `（共${candidates.length}人）`);
-    }
-    if (candidates.length === 1) {
+    } else if (candidates.length === 1) {
+      // 只有一名候选人时没有退选环节；多人退选到只剩一人的情况已在上面记录过，不能再补一条"退选：无"。
       gameRecord.push({
         type:'sheriff_roster', stage:'withdrawal', round:S.round,
         withdrawn:[], candidates:candidates.map(p=>p.name),
