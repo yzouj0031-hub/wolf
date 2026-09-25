@@ -17,6 +17,10 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      # 页面加载的所有根目录脚本/样式和 js/ 共用模块：只改它们也要发热更新
+      - '*.js'
+      - '*.css'
+      - 'js/**'
       - 'i18n.js'
       - 'hot-update.js'
       - 'native-http.js'

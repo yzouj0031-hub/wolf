@@ -1,7 +1,8 @@
 import fs from 'node:fs';
+import {readPageSource} from './lib/page-source.mjs';
 
-const root = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const english = fs.readFileSync(new URL('../en/index.html', import.meta.url), 'utf8');
+const root = readPageSource(new URL('../index.html', import.meta.url).pathname);
+const english = readPageSource(new URL('../en/index.html', import.meta.url).pathname);
 const i18n = fs.readFileSync(new URL('../en/i18n.js', import.meta.url), 'utf8');
 const sigils = fs.readFileSync(new URL('../role-sigils.js', import.meta.url), 'utf8');
 const actionCG = fs.readFileSync(new URL('../action-cg.js', import.meta.url), 'utf8');

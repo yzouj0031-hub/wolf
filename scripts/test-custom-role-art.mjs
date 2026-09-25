@@ -1,11 +1,12 @@
 import fs from 'node:fs';
+import {readPageSource} from './lib/page-source.mjs';
 
 const clients = ['index.html', 'en/index.html'];
 const failures = [];
 const expect = (ok, msg) => { if (!ok) failures.push(msg); };
 
 for (const file of clients) {
-  const src = fs.readFileSync(file, 'utf8');
+  const src = readPageSource(file);
   for (const id of ['cr-portrait-file','cr-cg-file','cr-portrait-preview','cr-cg-preview']) {
     expect(src.includes(`id="${id}"`), `${file}: missing ${id}`);
   }

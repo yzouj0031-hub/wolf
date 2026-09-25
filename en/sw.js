@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-en-pwa-v22-mystery-extract';
+const CACHE_NAME = 'wolf-en-pwa-v23-shared-js';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,6 +7,17 @@ const APP_SHELL = [
   './manifest.webmanifest',
   './tablet.css',
   '../ui-icons.js',
+  '../js/audio.js',
+  '../js/api-config.js',
+  '../js/autosave.js',
+  '../js/audience.js',
+  '../js/match-review.js',
+  '../js/characters.js',
+  '../js/name-pool.js',
+  '../js/api-vault.js',
+  '../js/character-generator.js',
+  '../js/permanent-memory.js',
+  '../js/demo-match.js',
   './mystery.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

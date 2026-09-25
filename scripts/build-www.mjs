@@ -23,6 +23,7 @@ const FILES = [
   'ui-icons.js',
   'teaching-worldbooks.js',
   'reasoning-context.js',
+  'replay-generator.js',
   'community-matches.js',
   'native-http.js',
   'reasoning-control.js',
@@ -37,7 +38,7 @@ const FILES = [
   'style-preview.html'
 ];
 // 目录资源
-const DIRS = ['icons', 'en'];
+const DIRS = ['icons', 'en', 'js'];
 
 let n = 0;
 for (const f of FILES) {

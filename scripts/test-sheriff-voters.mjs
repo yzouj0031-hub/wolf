@@ -31,7 +31,15 @@ for (const file of ['index.html', 'en/index.html']) {
 
   // ── 3. ★ 规则文本必须和实际结算一致 ─────────────────────────────────────────
   // 退选后候选名单被替换为留下的人 → 退选者不在 candIds 里 → 他们是投票者
-  assert.ok(src.includes('if (remaining.length > 0) candidates = remaining;'), `${file}: 退选后候选名单的更新方式变了，请同步规则文本`);
+  assert.ok(src.includes('if (!_allWithdrew) candidates = remaining;'), `${file}: 退选后候选名单的更新方式变了，请同步规则文本`);
+
+  // ── 4. 退选记录不能自相矛盾 ────────────────────────────────────────────────────
+  // 多人退选到只剩一人时，曾经会再补一条"警长退选：无；最终候选：X（共1人）"，
+  // 权威时间轴里同时出现"A、B退选"和"退选：无"。单人补记只能在没有退选环节时发生。
+  const w = src.indexOf('if (!_allWithdrew) candidates = remaining;');
+  const single = src.indexOf("text:'警长退选：无；最终候选：'", w);
+  assert.ok(w >= 0 && single > w, `${file}: 退选记录段未找到`);
+  assert.match(src.slice(w, single), /\} else if \(candidates\.length === 1\) \{/, `${file}: 单人"退选：无"补记必须是多人退选分支的 else，否则会和真实退选记录重复`);
   assert.ok(src.includes('const candIds = new Set(candidates.map(c => c.id));'), `${file}: 投票者判定变了，请同步规则文本`);
   assert.ok(src.includes('const voters = alive.filter(p => !candIds.has(p.id));'), `${file}: 投票者判定变了，请同步规则文本`);
 }
