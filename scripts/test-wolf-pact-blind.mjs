@@ -131,6 +131,7 @@ for (const file of FILES) {
   const decl = slice(src, file, '  const blindDisplayFor = ', '\n  const voteResults = {};', '盲化显示函数');
   vm.runInContext(
     `const shuffle = a => a.slice().reverse();
+     const pactRuleFacts = {zh:'', en:''};
      const stratList = [
        {name:'冷焰交叉', content:'A 方案内容', proposer:'安室透', proposerId:3},
        {name:'暗夜执笔', content:'B 方案内容', proposer:'Light Yagami', proposerId:10},

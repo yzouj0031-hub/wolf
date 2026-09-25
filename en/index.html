@@ -13192,13 +13192,34 @@ async function wolfStrategyDiscuss(wolves) {
   const mechPactNote = _mechInGamePact
     ? '\n\n【⚠️ 本局有机械狼——它是你们的暗牌队友，同阵营共胜负，只是互不相认（你们不知道它是谁、它也混在场上装好人）。方案里【绝对禁止】出现"找出/刀/推/毒机械狼"这类内容——那是杀自己人。它是狼队押在残局的底牌：其他狼全出局后它才继承狼刀翻盘。】'
     : '';
+  // ★ 对今晚战术有影响的硬规则：提案和投票的 AI 都要看得到。
+  //   实测：真人提了"自刀队友、女巫不救他也照样上警起跳"的方案，方案本身成立（第一夜死者
+  //   在警长竞选阶段仍被当作在场，死讯竞选后才公布），但投票的 AI 手里的规则说明里
+  //   【一次都没提到警长竞选的时序】，于是把"死了还能上警"当成方案漏洞，没人投。
+  //   只写本局真实生效的规则，不生效的一律不提。
+  const pactRuleFacts = (() => {
+    const zh = [], en = [];
+    const hd = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
+    if (S.round === 1 && (S.players || []).length >= 12) {
+      zh.push('今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。所以今晚刀口死不死，都不影响他明天上警起跳。');
+      en.push('The Sheriff election happens after tonight and before tonight\'s deaths are announced: a player killed tonight (and not saved) still counts as present during the election — they can run, give a campaign speech, and vote. Whether tonight\'s target dies does not stop them from running and claiming tomorrow.');
+    }
+    if (hd) {
+      zh.push('本局开启隐死亡：出局者不翻牌、不公布身份。');
+      en.push('Hidden deaths are on: eliminated players\' roles are not revealed.');
+    }
+    return {
+      zh: zh.length ? '\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· ' + zh.join('\n· ') : '',
+      en: en.length ? '\n\n[HARD RULES THAT AFFECT TONIGHT\'S PLAN — system facts]\n• ' + en.join('\n• ') : '',
+    };
+  })();
   const proposalPrompt = (w) => {
     const mates = aliveWolves.filter(x => x.id !== w.id).map(x => x.name + '(' + x.role.name + ')').join('、');
     const targetCandidates = pactTargetCandidates(w, false);
     const mateSkills = aliveWolves
       .filter(x => x.id !== w.id && x.role && x.role.id !== 'werewolf' && x.role.desc)
       .map(x => '\n· ' + x.name + '（' + x.role.name + '）：' + x.role.desc).join('');
-    return '【狼盟密约·独立提案】\n你是狼队一员，要提出一个完整的本局战术方案。其他队友也在同时独立提出，互相不知道对方写了什么。“一狼悍跳、其余深水、刀最像神的位置”谁都写得出来——写它可以，但要说清这局凭什么它比别的线好；更值得写的是从你这张牌、你的座位和这几只狼的技能出发才打得出的线。\n\n队友：' + mates + (mateSkills ? '\n队友技能（方案可以围绕它来打）：' + mateSkills : '') + '\n可讨论名义刀口（所有存活玩家，含已知狼队成员）：' + targetCandidates + mechPactNote + '\n\n【方案要求】\n· 给方案起一个独特的名字（4-8字，比如「明暗双线」「深海潜航」「核爆带歪」）\n· 今晚刀谁：刀好人、自刀、刀队友、空刀都能选；本局有女巫就把她救/不救两支各写一句\n· 白天怎么打：起不起身份、起几个、起什么、谁来起；其他狼各做什么（站边、倒钩、深水都行，写清换来什么）\n· 这条线成了能拿到什么别的线拿不到的（骗掉解药、银水、警徽、多几票），失败亏多少、怎么退\n· 150-250 字，紧凑、不要凑字数\n· 必须基于本局具体号位/玩家来想，不是套模板\n\n【⚠️ 输出格式 - 必须严格遵守，否则方案会被丢弃】\n你必须严格按照以下格式输出，<strategy> 标签里的"方案名|方案内容"格式不能省略：\n<thinking>先把两三条候选线各算一遍成与败，再挑本局最值的</thinking>\n<strategy>方案名|方案详细内容</strategy>\n<game>对队友简短说明你的方案（一两句话）</game>\n<action>None</action>\n\n例如（只示范格式，内容按本局自己想）：\n<strategy>方案名|今晚刀……（救了会怎样／没救会怎样）。明天……起……身份，……站边，……倒钩或深水。成了能拿到……；失败亏……，退路是……</strategy>';
+    return '【狼盟密约·独立提案】\n你是狼队一员，要提出一个完整的本局战术方案。其他队友也在同时独立提出，互相不知道对方写了什么。“一狼悍跳、其余深水、刀最像神的位置”谁都写得出来——写它可以，但要说清这局凭什么它比别的线好；更值得写的是从你这张牌、你的座位和这几只狼的技能出发才打得出的线。\n\n队友：' + mates + (mateSkills ? '\n队友技能（方案可以围绕它来打）：' + mateSkills : '') + '\n可讨论名义刀口（所有存活玩家，含已知狼队成员）：' + targetCandidates + mechPactNote + pactRuleFacts.zh + '\n\n【方案要求】\n· 给方案起一个独特的名字（4-8字，比如「明暗双线」「深海潜航」「核爆带歪」）\n· 今晚刀谁：刀好人、自刀、刀队友、空刀都能选；本局有女巫就把她救/不救两支各写一句\n· 白天怎么打：起不起身份、起几个、起什么、谁来起；其他狼各做什么（站边、倒钩、深水都行，写清换来什么）\n· 这条线成了能拿到什么别的线拿不到的（骗掉解药、银水、警徽、多几票），失败亏多少、怎么退\n· 150-250 字，紧凑、不要凑字数\n· 必须基于本局具体号位/玩家来想，不是套模板\n\n【⚠️ 输出格式 - 必须严格遵守，否则方案会被丢弃】\n你必须严格按照以下格式输出，<strategy> 标签里的"方案名|方案内容"格式不能省略：\n<thinking>先把两三条候选线各算一遍成与败，再挑本局最值的</thinking>\n<strategy>方案名|方案详细内容</strategy>\n<game>对队友简短说明你的方案（一两句话）</game>\n<action>None</action>\n\n例如（只示范格式，内容按本局自己想）：\n<strategy>方案名|今晚刀……（救了会怎样／没救会怎样）。明天……起……身份，……站边，……倒钩或深水。成了能拿到……；失败亏……，退路是……</strategy>';
   };
 
   // 并发执行提案（整体最长等 90 秒，超时则跳过未完成的）
@@ -13241,7 +13262,7 @@ async function wolfStrategyDiscuss(wolves) {
     const localizedTargets = pactTargetCandidates(w, pactEnglish);
     const ctxMsg = pactEnglish
       ? '🐺 Wolf Pact — You are ' + w.name + ' [' + w.role.emoji + ' ' + pactRoleName(w) + ']\n\n'
-        + 'Teammates: ' + mates + '\nDiscussable nominal kill targets (all living players): ' + localizedTargets + '\n\n'
+        + 'Teammates: ' + mates + '\nDiscussable nominal kill targets (all living players): ' + localizedTargets + pactRuleFacts.en + '\n\n'
         + 'Would you like to propose a match-specific wolf strategy?\n(The pack will vote on all independently submitted proposals.)'
       : '🐺 狼盟密约 — 你是 ' + w.name + '【' + w.role.emoji + w.role.name + '】\n\n'
         + '队友：' + mates + '\n可讨论名义刀口（所有存活玩家）：' + localizedTargets + '\n\n'
@@ -13261,7 +13282,7 @@ async function wolfStrategyDiscuss(wolves) {
         + 'Example (format only): Plan name|Tonight kill ... (if saved: ...; if not: ...). Tomorrow ... claims ..., the other wolves ... Wins: ...; if it fails: ..., fallback: ...';
       return '【AI狼人杀·狼盟密约提案】\n'
         + '你在一局狼人杀中扮演狼人阵营的玩家「' + w.name + '」（身份：' + w.role.name + '）。现在是夜晚，狼队每人独立提出一个本局战术方案，之后队友投票选出胜出方案作为狼队行动纲领。\n\n'
-        + '【狼队信息】\n队友：' + mates + '\n可讨论名义刀口（所有存活玩家）：' + localizedTargets + mechPactNote + '\n\n'
+        + '【狼队信息】\n队友：' + mates + '\n可讨论名义刀口（所有存活玩家）：' + localizedTargets + mechPactNote + pactRuleFacts.zh + '\n\n'
         + '【场上局势】\n存活：' + alive + (dead ? '\n出局：' + dead : '') + '\n\n'
         + '【近期发言】\n' + (recentHistory || '（第一夜，还没有发言）') + '\n\n'
         + '【方案要求】\n· 方案名 4-8 字（比如「明暗双线」「深海潜航」）\n· 今晚刀谁：刀好人、自刀、刀队友、空刀都能选；本局有女巫就把她救/不救两支各写一句\n· 白天怎么打：起不起身份、起几个、起什么、谁来起；其他狼各做什么、换来什么\n· 这条线成了能拿到什么别的线拿不到的，失败亏多少、怎么退\n· 150-250 字，必须基于本局具体玩家来想；“一狼悍跳、其余深水”谁都写得出，写它就说清这局凭什么它更好\n\n'
@@ -13321,9 +13342,9 @@ async function wolfStrategyDiscuss(wolves) {
     } else if (choice === 'write') {
       const inputCtx = '为狼队写一个战术方案。\n\n'
         + '【格式建议】方案名（4-8字）|方案内容（今晚刀谁、白天怎么打、为什么）\n'
-        + '例：明暗双线|让 P3 前排带节奏装鲁莽好人吸引神职，我和 P7 中立观察找机会刀神，今晚先刀 P5\n\n'
+        + '例（只示范格式）：方案名|今晚刀……（救了会怎样／没救会怎样）；明天谁起什么身份、其他狼各做什么；成了能拿到……，失败亏……\n\n'
         + '【你这张牌】' + w.role.name + '——队友：' + mates + '\n'
-        + '【可讨论名义刀口】' + pactTargetCandidates(w, false) + '\n\n'
+        + '【可讨论名义刀口】' + pactTargetCandidates(w, false) + pactRuleFacts.zh + '\n\n'
         + '直接写方案，留空则跳过：';
       const userInput = await waitInput(inputCtx, '🐺 ' + w.name + ' 写方案', w);
       if (userInput && userInput.trim()) {
@@ -13445,7 +13466,7 @@ async function wolfStrategyDiscuss(wolves) {
     .map((s, i) => (i + 1) + '. 「' + s.name + '」：' + s.content).join('\n');
   const BLIND_NOTE = '⚠️ 提案人已隐去，候选顺序也是打乱的——其中可能有你自己写的那条，但不要去猜是哪条，猜中了也不加分。'
     + '只比较方案本身：条件分支是否完整（对方跳身份/出平安夜/有人对跳时分别怎么办）、身份分工有没有落实到具体的人、'
-    + '有没有写错技能规则、成了能拿到什么别的方案拿不到的、败了亏多少有没有退路——按你估的概率两头一起比，最稳的那条不自动赢。写得最像口号的那条通常最不能用。';
+    + '有没有写错技能规则、成了能拿到什么别的方案拿不到的、败了亏多少有没有退路——按你估的概率两头一起比，最稳的那条不自动赢。写得最像口号的那条通常最不能用。' + pactRuleFacts.zh;
 
   const voteResults = {};
   // ★ AI 狼并发投票
@@ -13508,12 +13529,12 @@ async function wolfStrategyDiscuss(wolves) {
       const rawVotePrompt = voteEnglish ? '[AI WEREWOLF · WOLF PACT VOTE]\n'
         + 'You are playing ' + w.name + ' as ' + voteRoleName + ' on the wolf team. Each wolf independently proposed a strategy. Choose the plan that gives the pack the best overall chance.\n\n'
         + '[CANDIDATE PLANS] (proposers hidden, order shuffled — judge the plan, not the author)\n'
-        + _humanBlind.map((s, i) => (i+1) + '. “' + s.name + '”: ' + s.content).join('\n') + '\n\n'
+        + _humanBlind.map((s, i) => (i+1) + '. “' + s.name + '”: ' + s.content).join('\n') + pactRuleFacts.en + '\n\n'
         + '[OUTPUT]\nOn the first line, write only the exact plan name (not its number). Starting on line two, briefly explain your choice in natural English.'
         : '【AI狼人杀·狼盟密约投票】\n'
         + '你在一局狼人杀中扮演狼人阵营的玩家「' + w.name + '」（身份：' + w.role.name + '）。狼队每人独立提了战术方案，现在要投票选出一个作为狼队行动纲领。\n\n'
         + '【候选方案】（提案人已隐去、顺序已打乱）\n'
-        + _humanBlind.map((s, i) => (i+1) + '. 「' + s.name + '」：' + s.content).join('\n') + '\n\n'
+        + _humanBlind.map((s, i) => (i+1) + '. 「' + s.name + '」：' + s.content).join('\n') + pactRuleFacts.zh + '\n\n'
         + '【要求】比较各方案对狼队整体的利弊，告诉我你会投哪个方案、为什么。第一行只写你投的【方案名】（精确照抄，不要写编号），从第二行开始写理由。';
       const votePrompt = blindForAI(rawVotePrompt, w);
       try { await navigator.clipboard.writeText(votePrompt); Render.log('system', '📋 投票提示词已复制，去网页端 AI 问完再回来点选方案'); }
