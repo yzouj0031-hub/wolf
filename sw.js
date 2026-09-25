@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v45-reasoning-context';
+const CACHE_NAME = 'wolf-pwa-v46-shared-js';
 const APP_SHELL = [
   './',
   './index.html',
@@ -14,7 +14,17 @@ const APP_SHELL = [
   './action-cg.js',
   './ui-icons.js',
   './teaching-worldbooks.js',
-  './demo-match.js',
+  './js/audio.js',
+  './js/api-config.js',
+  './js/autosave.js',
+  './js/audience.js',
+  './js/match-review.js',
+  './js/characters.js',
+  './js/name-pool.js',
+  './js/api-vault.js',
+  './js/character-generator.js',
+  './js/permanent-memory.js',
+  './js/demo-match.js',
   './reasoning-context.js',
   './community-matches.js',
   './mystery.js',

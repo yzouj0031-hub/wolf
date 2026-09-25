@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {readPageSource} from './lib/page-source.mjs';
 
 for (const file of ['index.html', 'en/index.html']) {
-  const src = fs.readFileSync(file, 'utf8');
+  const src = readPageSource(file);
   const start = src.indexOf('function normalizeGoodRoleClass');
   const end = src.indexOf('function buildRulesExport()', start);
   assert.ok(start >= 0 && end > start, `${file}: cannot locate good-role classification helpers`);

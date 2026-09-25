@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {readPageSource} from './lib/page-source.mjs';
 
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = readPageSource(new URL('../index.html', import.meta.url).pathname);
 const start = html.indexOf('function buildAbsentClassicRoleRule(');
 const end = html.indexOf('\nfunction buildSystemPrompt(', start);
 assert.ok(start >= 0 && end > start, 'prompt sanity helpers are missing');
@@ -85,7 +86,7 @@ assert.doesNotMatch(html, /_origBuildSysPromptBeforeBlindNames\(p\), p/,
 assert.match(html, /buildSystemPrompt\(p, \{prompt:askPrompt, opts:\{plainResponse:true\}\}\)/,
   'audience Q&A still receives the table-speech output contract');
 
-const englishHtml = fs.readFileSync(new URL('../en/index.html', import.meta.url), 'utf8');
+const englishHtml = readPageSource(new URL('../en/index.html', import.meta.url).pathname);
 const englishStart = englishHtml.indexOf('function buildAbsentClassicRoleRule(');
 const englishEnd = englishHtml.indexOf('\nfunction buildSystemPrompt(', englishStart);
 assert.ok(englishStart >= 0 && englishEnd > englishStart, 'English prompt sanity helpers are missing');
