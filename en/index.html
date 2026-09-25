@@ -10232,7 +10232,9 @@ async function _callAIImpl(p, prompt, opts) {
   const _reasoningBase = resolveAIReasoning(p, prompt, opts);
   if (window.__DEMO__) return await demoResponder(p, prompt);   // 🎬 演示模式：本地脚本，无需 key
   if (!opts.systemPromptOverride) assertPrivateViewer(p);
-  const rationalCap = opts.skillConfirm ? 0.5 : Infinity;
+  // 技能确认（投票、选刀等只选一个选项的动作）压低随机性，保证格式和选择稳定；
+  // 但写战术方案需要创意（opts.creative），不压——压低后每只狼写出的方案趋同、偏保守。
+  const rationalCap = (opts.skillConfirm && !opts.creative) ? 0.5 : Infinity;
   const myGid = S.gameId;
   const api = getAPI(p.id);
   if (!api.key) return {thinking:'', game:'(未配置API)', action:''};
@@ -13336,13 +13338,38 @@ async function wolfStrategyDiscuss(wolves) {
       en: en.length ? '\n\n[HARD RULES THAT AFFECT TONIGHT\'S PLAN — system facts]\n• ' + en.join('\n• ') : '',
     };
   })();
+  // ★ 每只狼一个不同的出发点：大家读的是同一份教学、常常还是同一个模型，各自独立提案也会
+  //   写出差不多的方案，投票再从里面挑最稳的——候选池本身就不够多样。这里只保证候选里有
+  //   真正不同的线：一只狼从常规打法出发（常规线同样要交账），其余各从一个非常规方向出发。
+  //   选哪条仍由投票按成败账决定，不预设哪条赢。只有一只狼时不分配（它的方案会直接通过）。
+  //   分配顺序每局打乱，不绑定座位或角色。
+  const PACT_ANGLES = [
+    {key:'conventional', text:'从常规打法出发（刀最像神的位置、一狼起身份、其余隐藏），但要写清这局它凭什么比别的线好、弱点在哪——常规线同样要交账，不能靠"稳"自动胜出。'},
+    {key:'knife', text:'从非常规的刀法出发：自刀、名义刀队友、空刀，或刀一个"看起来不值得刀"的位置来配合明天的剧本。写清女巫救/不救（以及被守护挡下）各会怎样。'},
+    {key:'claim', text:'从非常规的身份安排出发：不起身份、两只狼同时起身份、起预言家以外的身份，或安排一只狼倒钩站到对面换信用。写清谁起什么、其余狼怎么配合、票数上是几打几。'},
+    {key:'deck', text:'从本局这几只狼的技能组合和座位出发，设计一条只有这副牌才能打的线（比如让技能狼当消耗品冲锋、利用发言先后抢定义权）。'},
+  ];
+  const pactAngleOf = (() => {
+    const byId = new Map();
+    if (aliveWolves.length >= 2) {
+      const order = shuffle(aliveWolves.slice());
+      const unconventional = shuffle(PACT_ANGLES.slice(1));
+      order.forEach((w, i) => byId.set(w.id, i === 0 ? PACT_ANGLES[0] : unconventional[(i - 1) % unconventional.length]));
+    }
+    return w => byId.get(w.id) || null;
+  })();
+  const pactAngleBlock = w => {
+    const a = pactAngleOf(w);
+    return a ? '\n\n【你这次的出发点】' + a.text
+      + '\n出发点只是保证狼队的候选方案里有真正不同的线，不是要你硬写一条注定失败的方案：从这个方向出发，找本局能成立的最好版本，成与败都照实写。投票会把所有方案放在同一张账上比，哪条都不预设赢。' : '';
+  };
   const proposalPrompt = (w) => {
     const mates = aliveWolves.filter(x => x.id !== w.id).map(x => x.name + '(' + x.role.name + ')').join('、');
     const targetCandidates = pactTargetCandidates(w, false);
     const mateSkills = aliveWolves
       .filter(x => x.id !== w.id && x.role && x.role.id !== 'werewolf' && x.role.desc)
       .map(x => '\n· ' + x.name + '（' + x.role.name + '）：' + x.role.desc).join('');
-    return '【狼盟密约·独立提案】\n你是狼队一员，要提出一个完整的本局战术方案。其他队友也在同时独立提出，互相不知道对方写了什么。“一狼悍跳、其余深水、刀最像神的位置”谁都写得出来——写它可以，但要说清这局凭什么它比别的线好；更值得写的是从你这张牌、你的座位和这几只狼的技能出发才打得出的线。\n\n队友：' + mates + (mateSkills ? '\n队友技能（方案可以围绕它来打）：' + mateSkills : '') + '\n可讨论名义刀口（所有存活玩家，含已知狼队成员）：' + targetCandidates + mechPactNote + pactRuleFacts.zh + '\n\n【方案要求】\n· 给方案起一个独特的名字（4-8字，比如「明暗双线」「深海潜航」「核爆带歪」）\n· 今晚刀谁：刀好人、自刀、刀队友、空刀都能选；本局有女巫就把她救/不救两支各写一句\n· 白天怎么打：起不起身份、起几个、起什么、谁来起；其他狼各做什么（站边、倒钩、深水都行，写清换来什么）\n· 这条线成了能拿到什么别的线拿不到的（骗掉解药、银水、警徽、多几票），失败亏多少、怎么退\n· 150-250 字，紧凑、不要凑字数\n· 必须基于本局具体号位/玩家来想，不是套模板\n\n【⚠️ 输出格式 - 必须严格遵守，否则方案会被丢弃】\n你必须严格按照以下格式输出，<strategy> 标签里的"方案名|方案内容"格式不能省略：\n<thinking>先把两三条候选线各算一遍成与败，再挑本局最值的</thinking>\n<strategy>方案名|方案详细内容</strategy>\n<game>对队友简短说明你的方案（一两句话）</game>\n<action>None</action>\n\n例如（只示范格式，内容按本局自己想）：\n<strategy>方案名|今晚刀……（救了会怎样／没救会怎样）。明天……起……身份，……站边，……倒钩或深水。成了能拿到……；失败亏……，退路是……</strategy>';
+    return '【狼盟密约·独立提案】\n你是狼队一员，要提出一个完整的本局战术方案。其他队友也在同时独立提出，互相不知道对方写了什么。“一狼悍跳、其余深水、刀最像神的位置”谁都写得出来——写它可以，但要说清这局凭什么它比别的线好；更值得写的是从你这张牌、你的座位和这几只狼的技能出发才打得出的线。\n\n队友：' + mates + (mateSkills ? '\n队友技能（方案可以围绕它来打）：' + mateSkills : '') + '\n可讨论名义刀口（所有存活玩家，含已知狼队成员）：' + targetCandidates + mechPactNote + pactRuleFacts.zh + pactAngleBlock(w) + '\n\n【方案要求】\n· 给方案起一个独特的名字（4-8字，比如「明暗双线」「深海潜航」「核爆带歪」）\n· 今晚刀谁：刀好人、自刀、刀队友、空刀都能选；本局有女巫就把她救/不救两支各写一句\n· 白天怎么打：起不起身份、起几个、起什么、谁来起；其他狼各做什么（站边、倒钩、深水都行，写清换来什么）\n· 这条线成了能拿到什么别的线拿不到的（骗掉解药、银水、警徽、多几票），失败亏多少、怎么退\n· 150-250 字，紧凑、不要凑字数\n· 必须基于本局具体号位/玩家来想，不是套模板\n\n【⚠️ 输出格式 - 必须严格遵守，否则方案会被丢弃】\n你必须严格按照以下格式输出，<strategy> 标签里的"方案名|方案内容"格式不能省略：\n<thinking>先把两三条候选线各算一遍成与败，再挑本局最值的</thinking>\n<strategy>方案名|方案详细内容</strategy>\n<game>对队友简短说明你的方案（一两句话）</game>\n<action>None</action>\n\n例如（只示范格式，内容按本局自己想）：\n<strategy>方案名|今晚刀……（救了会怎样／没救会怎样）。明天……起……身份，……站边，……倒钩或深水。成了能拿到……；失败亏……，退路是……</strategy>';
   };
 
   // 并发执行提案（整体最长等 90 秒，超时则跳过未完成的）
@@ -13353,7 +13380,7 @@ async function wolfStrategyDiscuss(wolves) {
   // 1. AI 狼并发提案
   const proposalPromises = aiWolves.map(async (w) => {
     try {
-      const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2});
+      const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, creative: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2});
       proposals[w.id] = r;
     } catch(e) {
       proposals[w.id] = null;
@@ -13494,7 +13521,7 @@ async function wolfStrategyDiscuss(wolves) {
     } else if (choice === 'ai') {
       // AI 代写：和 AI 狼走同样流程
       try {
-        const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2});
+        const r = await callAI(w, proposalPrompt(w), {noMemory: true, skillConfirm: true, creative: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2});
         proposals[w.id] = r;
       } catch(e) {
         proposals[w.id] = null;
