@@ -542,6 +542,10 @@ body.fx-lite .role-cinema-panel { animation:none; }
 .av { margin-top: 1px; }
 .rt { min-width: 46px; text-align: center; }   /* 身份固定宽度，性情标签才能对齐成一列 */
 .mbtitag:empty { display: none; }         /* 空的性情标签原来会渲染出一个小色块 */
+.seer-tag { font-size: 0.5em; padding: 1px 5px; border-radius: 3px; display: inline-block; letter-spacing: .08em; margin-top: 1px; font-weight: 600; }
+.seer-tag:empty { display: none; }
+.seer-tag.seer-good { background: rgba(90,180,140,0.18); color: #7ad0a8; border: 1px solid rgba(90,180,140,0.42); }
+.seer-tag.seer-bad  { background: rgba(210,80,80,0.18);  color: #e08888; border: 1px solid rgba(210,80,80,0.42); }
 /* 开着「模型标签」时才给那一行留位：关掉时全场都没有，留了就是白占高度 */
 body.show-modeltag .modeltag-slot:empty { display: block; }
 /* 固定高度而不是 min-height：空槽和有内容的槽在行盒计算上会差 0.1~0.2px 的亚像素，
@@ -5273,6 +5277,25 @@ function humanViewLocked() {
 function humanViewPlayer() {
   return humanViewLocked() ? S.players.find(p => p.id === S.playerId) || null : null;
 }
+// ★ 预言家查验标记：真人自己是预言家时，把验过的人直接标在命牌上（好人 / 坏人）。
+//   只读真人自己的查验记录（S.seerLog）——别人报的查验一律不标，那是声称不是事实；
+//   被反弹的那一次不出结论，因为原目标根本没被验到。移植自 claude/strict-no-peek（bb4e1e1）。
+function humanSeerMark(p) {
+  if (!p || !S || !S.seerLog || !Array.isArray(S.players)) return null;
+  const me = S.players.find(v => v && v.isPlayer && v.role && v.role.id === 'seer');
+  if (!me || me.id === p.id) return null;
+  let mark = null;
+  Object.keys(S.seerLog).forEach(r => {
+    const rec = S.seerLog[r];
+    if (!rec || rec.reflected) return;
+    if ((rec.actualTarget || rec.target) !== p.name) return;
+    const res = String(rec.result || '');
+    if (res.includes('反弹')) return;
+    if (res.includes('狼')) mark = {text:uiEnglish() ? 'Wolf' : '坏人', cls:'seer-bad'};
+    else if (res.includes('好人')) mark = {text:uiEnglish() ? 'Good' : '好人', cls:'seer-good'};
+  });
+  return mark;
+}
 function humanViewDenied() {
   alert(uiEnglish() ? 'Unavailable during a live human game. Only your own perspective is accessible until the match ends.'
     : '真人对局进行中只能查看自己的视角。其他身份、私密推理和完整复盘将在整局结束后开放。');
@@ -8704,6 +8727,13 @@ const Render = {
     if (pn) pn.textContent = publicPlayerLabel(p);
     const mt = $('mbt-'+p.id);
     if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbtiKey : '';
+    // 预言家查验标记：只有真人自己是预言家、且验过这个人时才出现
+    const stg = $('stg-'+p.id);
+    if (stg) {
+      const seerMark = humanSeerMark(p);
+      stg.className = 'seer-tag' + (seerMark ? ' ' + seerMark.cls : '');
+      stg.textContent = seerMark ? seerMark.text : '';
+    }
     // ★ 模型标签（小号，放在命牌里）
     const mts = $('mts-'+p.id);
     if (mts) mts.innerHTML = getModelTagHtml(p, {size:'small'});
@@ -22458,7 +22488,7 @@ function mkCard(i) {
   d.className = 'pc'; d.id = 'p-'+i;
   d.dataset.pid = i;
   d.style.position = 'relative';
-  d.innerHTML = `<div class="ch"><div class="av" id="av-${i}">？</div><div class="pif"><div class="pn" id="pn-${i}">${blindNamesOn()?'P'+(i+1):(curNames[i]||'P'+(i+1))}</div><div class="ptag">P${i+1}</div><div class="modeltag-slot" id="mts-${i}"></div><div class="rt" id="rt-${i}">未知</div><div class="mbtitag" id="mbt-${i}"></div></div></div><button class="dir-btn" id="dir-${i}" style="display:none" title="导演控制">🎬</button>`;
+  d.innerHTML = `<div class="ch"><div class="av" id="av-${i}">？</div><div class="pif"><div class="pn" id="pn-${i}">${blindNamesOn()?'P'+(i+1):(curNames[i]||'P'+(i+1))}</div><div class="ptag">P${i+1}</div><div class="modeltag-slot" id="mts-${i}"></div><div class="rt" id="rt-${i}">未知</div><div class="seer-tag" id="stg-${i}"></div><div class="mbtitag" id="mbt-${i}"></div></div></div><button class="dir-btn" id="dir-${i}" style="display:none" title="导演控制">🎬</button>`;
   // 导演按钮点击：切换该角色是否由导演控制
   const btn = d.querySelector('.dir-btn');
   btn.addEventListener('click', e => {
