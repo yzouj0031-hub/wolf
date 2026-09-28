@@ -12,7 +12,7 @@ for (const file of ['index.html', 'en/index.html']) {
     `${file}: 全力推理没有把思考档接管为最高`);
   assert.ok(src.includes('const reasoning = (!fullReasoningOn() && att > 1 && _degradeReasoning('), `${file}: 全力推理下重试仍会降档`);
   assert.ok(src.includes('Math.max(opts.timeoutMs || 0, defaultTimeout, FULL_REASONING_TIMEOUT_MS)'), `${file}: 单次请求超时没有放大`);
-  assert.equal((src.match(/fullReasoningOn\(\) \? FULL_REASONING_TIMEOUT_MS : (?:240000|90000)/g) || []).length, 2, `${file}: 狼盟提案/投票整体等待没有放大`);
+  assert.equal((src.match(/fullReasoningOn\(\) \? FULL_REASONING_TIMEOUT_MS : PACT_CALL_TIMEOUT_MS/g) || []).length, 2, `${file}: 狼盟提案/投票整体等待没有放大`);
   assert.ok(src.includes('maxTk = Math.max(maxTk, FULL_REASONING_MAX_TOKENS);'), `${file}: 输出上限没有放大`);
   assert.ok(src.includes("fullReasoning:$('g-full-reasoning')?$('g-full-reasoning').checked:false,"), `${file}: 开关没有随配置保存`);
 }

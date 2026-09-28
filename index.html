@@ -14449,7 +14449,7 @@ async function proc(players, promptFn, label, opts) {
 // 计票"正"字函数 toZheng 已在 §6 工具函数处定义，此处不再重复
 
 // 渲染狼盟密约弹窗
-Render.showWolfStrategyResult = function(stratList, votes, winner) {
+Render.showWolfStrategyResult = function(stratList, votes, winner, missing) {
   // 匿名模式且观察者非狼，不展示（避免泄露狼队信息）
   try {
     if (typeof isAnon === 'function' && isAnon()) {
@@ -14479,6 +14479,15 @@ Render.showWolfStrategyResult = function(stratList, votes, winner) {
       (isW ? '<div class="ws-stamp">准</div>' : '');
     cont.appendChild(item);
   });
+  // 没计上的票也要显示出来：之前超时、请求失败、对不上方案名的票只在开发日志里留一行，
+  // 弹窗里 4 只狼只看得到 2 票，像是票丢了。
+  if (Array.isArray(missing) && missing.length) {
+    const m = document.createElement('div');
+    m.className = 'ws-missing';
+    m.style.cssText = 'margin-top:8px;padding:6px 8px;font-size:.78em;color:#e0b080;border:1px dashed rgba(224,176,128,.4);border-radius:6px;line-height:1.6';
+    m.innerHTML = (uiEnglish() ? 'Not counted: ' : '未计票：') + missing.map(x => escapeHtml(x.name + '（' + x.reason + '）')).join('、');
+    cont.appendChild(m);
+  }
   $('wsOverlay').classList.add('show');
 };
 
@@ -14492,6 +14501,10 @@ function logWolfStrategyEntry(label, name, content, open) {
 }
 
 // 主流程：独立提案 → 投票 → 出结果
+// 狼盟提案 / 投票的整体等待不能短于单次请求自己的等待（两处都是 360 秒）：
+// 以前整体只等 240 秒 / 90 秒，投票提到 deep 思考档后，想得久的票在 90 秒被整体截掉、记成弃权，
+// 结果 4 只狼只显示 2 票。
+const PACT_CALL_TIMEOUT_MS = 360000;
 async function wolfStrategyDiscuss(wolves) {
   if (!wolves || wolves.length <= 1) {
     S.wolfStrategy = ''; S.wolfStrategyName = ''; S.wolfStrategyRound = 0;
@@ -14595,9 +14608,9 @@ async function wolfStrategyDiscuss(wolves) {
   const _wpropMs = (() => {
     if (typeof document !== 'undefined') {
       const el = document.getElementById('t-wprop');
-      if (el && parseInt(el.value) > 0) return Math.max(parseInt(el.value) * 1000, fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 0);
+      if (el && parseInt(el.value) > 0) return Math.max(parseInt(el.value) * 1000, PACT_CALL_TIMEOUT_MS, fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 0);
     }
-    return fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 240000;
+    return fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : PACT_CALL_TIMEOUT_MS;
   })();
   await Promise.race([
     Promise.all(proposalPromises),
@@ -14817,35 +14830,45 @@ async function wolfStrategyDiscuss(wolves) {
   //   按"这是谁提的"投票，而不是按"方案好不好"投票。实测一局 4 票里 3 票自投、剩下 1 票
   //   投给同家族模型，结果最弱的方案（零条件分支、写错技能规则、悍跳位留空）赢了。
   //   现在：提案人隐去，候选顺序按每个投票人各自打乱，谁也认不出哪条是自己写的。
-  const blindDisplayFor = () => shuffle(stratList.slice())
-    .map((s, i) => (i + 1) + '. 「' + s.name + '」：' + s.content).join('\n');
+  // 记下每只狼看到的顺序：AI 偶尔只写编号（"2"、"方案2"），按它自己看到的顺序对回方案，
+  // 不再当成对不上而记弃权。
+  const voteOrders = {};
+  const blindDisplayFor = (w) => {
+    const order = shuffle(stratList.slice());
+    if (w) voteOrders[w.id] = order;
+    return order.map((s, i) => (i + 1) + '. 「' + s.name + '」：' + s.content).join('\n');
+  };
   const BLIND_NOTE = '⚠️ 提案人已隐去，候选顺序也是打乱的——其中可能有你自己写的那条，但不要去猜是哪条，猜中了也不加分。'
     + '只比较方案本身：条件分支是否完整（对方跳身份/出平安夜/有人对跳时分别怎么办）、身份分工有没有落实到具体的人、'
     + '有没有写错技能规则、成了能拿到什么别的方案拿不到的、败了亏多少有没有退路——按你估的概率两头一起比，最稳的那条不自动赢。写得最像口号的那条通常最不能用。' + pactRuleFacts.zh;
 
   const voteResults = {};
+  const voteStatus = {};   // w.id → 'pending' | 'done' | 'error'：没计上票时要说得出原因
   // ★ AI 狼并发投票
   const votePromises = aiWolves.filter(w => aliveWolves.some(x => x.id === w.id)).map(async (w) => {
+    voteStatus[w.id] = 'pending';
     try {
       const r = await callAI(w,
         '【狼盟密约·投票】队友们各自提出了战术方案。从下列方案中选一个你认为最好的：\n\n' +
-        blindDisplayFor() + '\n\n' + BLIND_NOTE + '\n\n' +
+        blindDisplayFor(w) + '\n\n' + BLIND_NOTE + '\n\n' +
         '<thinking>哪个方案对狼队整体最有利？为什么？</thinking>\n' +
         '<game>简短说你投谁、为什么</game>\n' +
         '<action>方案名称（必须从上面方案名中精确选一个，不要写编号）</action>',
         {noMemory: true, skillConfirm: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2}
       );
       voteResults[w.id] = r;
+      voteStatus[w.id] = 'done';
     } catch(e) {
       voteResults[w.id] = null;
+      voteStatus[w.id] = 'error';
     }
   });
   const _wvoteMs = (() => {
     if (typeof document !== 'undefined') {
       const el = document.getElementById('t-wvote');
-      if (el && parseInt(el.value) > 0) return Math.max(parseInt(el.value) * 1000, fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 0);
+      if (el && parseInt(el.value) > 0) return Math.max(parseInt(el.value) * 1000, PACT_CALL_TIMEOUT_MS, fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 0);
     }
-    return fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 90000;
+    return fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : PACT_CALL_TIMEOUT_MS;
   })();
   await Promise.race([
     Promise.all(votePromises),
@@ -14899,7 +14922,7 @@ async function wolfStrategyDiscuss(wolves) {
       try {
         const r = await callAI(w,
           '【狼盟密约·投票】队友们各自提出了战术方案。从下列方案中选一个你认为最好的：\n\n' +
-          blindDisplayFor() + '\n\n' + BLIND_NOTE + '\n\n' +
+          blindDisplayFor(w) + '\n\n' + BLIND_NOTE + '\n\n' +
           '<thinking>哪个方案对狼队整体最有利？为什么？</thinking>\n' +
           '<game>简短说你投谁、为什么</game>\n' +
           '<action>方案名称（必须从上面方案名中精确选一个，不要写编号）</action>',
@@ -14921,19 +14944,30 @@ async function wolfStrategyDiscuss(wolves) {
 
   // 统计票数
   const votes = {};
+  const missing = [];   // 没计上的票及原因，显示在结果里
   stratList.forEach(s => votes[s.name] = []);
   aliveWolves.forEach(w => {
     const r = voteResults[w.id];
+    const en = uiEnglish();
     // 投不出有效票 → 记弃权。此前的兜底是「默认投自己」，等于把解析失败直接变成一张自投票；
     // 盲投之下投票人根本不知道哪条是自己的，兜底再投自己就是凭空替他做了一个他没做的选择。
     if (!r || !r.action) {
       Render.devLog && Render.devLog('warn', `[狼盟密约] ${w.name} 没有投出有效票，记为弃权`);
+      const st = voteStatus[w.id];
+      missing.push({name: w.name, reason: !r && st === 'pending' ? (en ? `still thinking after ${Math.round(_wvoteMs/1000)}s` : `等了 ${Math.round(_wvoteMs/1000)} 秒还没投完`)
+        : !r && st === 'error' ? (en ? 'request failed' : '请求失败')
+        : (en ? 'gave no choice' : '没有给出选择')});
       return;
     }
     const actStr = r.action.trim();
-    // 在方案名里精确/包含匹配
-    const matched = stratList.find(s => actStr === s.name || actStr.includes(s.name) || s.name.includes(actStr));
+    // 在方案名里精确/包含匹配；只写了编号的，按它自己看到的顺序对回方案
+    let matched = stratList.find(s => actStr === s.name || actStr.includes(s.name) || s.name.includes(actStr));
+    if (!matched && voteOrders[w.id]) {
+      const num = actStr.match(/^[^\d]{0,4}(\d{1,2})(?!\d)/);
+      if (num) matched = voteOrders[w.id][parseInt(num[1], 10) - 1] || null;
+    }
     if (!matched) {
+      missing.push({name: w.name, reason: (en ? 'wrote “' : '写的「') + actStr.slice(0, 20) + (en ? '”, which matches no plan' : '」对不上任何方案')});
       Render.devLog && Render.devLog('warn', `[狼盟密约] ${w.name} 的投票「${actStr.slice(0,40)}」对不上任何方案名，记为弃权`);
       return;
     }
@@ -14955,8 +14989,9 @@ async function wolfStrategyDiscuss(wolves) {
   S.wolfStrategyRound = S.round;
 
   // 渲染弹窗
-  Render.showWolfStrategyResult(stratList, votes, winner);
-  Render.log('night-detail', '🐺 投票结果：' + Object.keys(votes).map(n => '「' + n + '」' + votes[n].length + '票').join('、'));
+  Render.showWolfStrategyResult(stratList, votes, winner, missing);
+  Render.log('night-detail', '🐺 投票结果：' + Object.keys(votes).map(n => '「' + n + '」' + votes[n].length + '票').join('、')
+    + (missing.length ? '；未计票：' + missing.map(x => x.name + '（' + x.reason + '）').join('、') : ''));
   logWolfStrategyEntry('🐺 最终定策', S.wolfStrategyName, S.wolfStrategy, true);
 
   // 把胜出策略写入所有狼人的 memory（影响后续白天发言/夜晚决策）
