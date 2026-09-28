@@ -3170,6 +3170,8 @@ body.has-wp::after {
           <div class="conc-item"><label>🐺 Pact vote</label><input type="number" id="t-wvote" value="90" min="20" max="600"></div>
         </div>
         <div style="font-size:0.62em;color:#7068a0;padding:4px 6px;line-height:1.5">If slower reasoning models are frequently cut off, increase Request timeout and Pact proposal. Larger values allow longer reasoning but also wait longer when a request stalls.</div>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.74em;color:#f0c080"><input type="checkbox" id="g-full-reasoning" style="width:auto;min-width:auto" onchange="syncFullReasoningUI();saveCfg()">🔥 Full reasoning (cost no object)</label>
+        <div id="g-full-reasoning-hint" style="font-size:0.62em;color:#c8a070;padding:2px 6px 4px;line-height:1.5;display:none">Every AI at every step (including votes and target picks) uses the highest reasoning effort, overriding the effort below and any per-seat setting; retries never lower the effort; single requests and the wolf-pact proposals/vote wait up to 30 minutes; the output limit is at least 65536 (falls back to your setting if a model rejects it). Noticeably slower and more expensive.</div>
         <div class="cr" style="margin-top:6px;align-items:center">
           <label style="font-size:.7em;color:#a8a0c8;white-space:nowrap">Reasoning effort</label>
           <select id="g-reasoning-mode" style="font-size:.72em;flex:1">
@@ -7462,6 +7464,7 @@ function saveCfg() {
     modeltagFull:$('m-modeltag-full')?$('m-modeltag-full').checked:false,
     thinking:$('m-thinking')?$('m-thinking').checked:true,
     reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
+    fullReasoning:$('g-full-reasoning')?$('g-full-reasoning').checked:false,
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'all',
@@ -7534,6 +7537,7 @@ function loadCfg() {
         ? ReasoningControl.normalizeMode(d.reasoningMode, 'smart')
         : ReasoningControl.migrateLegacyKimiMode(d.kimiThinkingMode);
     }
+    if ($('g-full-reasoning')) { $('g-full-reasoning').checked = !!d.fullReasoning; syncFullReasoningUI(); }
     if (d.freeOutput !== undefined && $('m-free-output')) $('m-free-output').checked = d.freeOutput;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
     // 旧存档里这里是布尔（复选框时代）：true→分诊，false→关闭
@@ -10025,7 +10029,26 @@ async function demoResponder(p, prompt) {
 
 // Resolve one reasoning level from the current stage and per-player override, then map it
 // to provider-specific optional fields. Explicitly rejected controls are removed and retried.
+// ★ 全力推理：不计成本，所有 AI、所有环节一律最高思考档；重试不降档；超时与输出上限放到最大。
+//   单开"最高"档还不够——命牌可以单独覆盖成低档、重试会逐级降档、狼盟投票整体只等 90 秒、
+//   输出上限 32768 会被最高档的思考吃光，这些都会在暗中把推理压低或掐断。
+const FULL_REASONING_MAX_TOKENS = 65536;
+const FULL_REASONING_TIMEOUT_MS = 1800000;   // 30 分钟：单次请求与狼盟提案/投票整体等待
+const _fullReasoningTkRejected = new Set();   // 端点明确拒绝 65536 输出上限的 (地址|模型)，之后退回用户设置
+function fullReasoningOn() {
+  const el = typeof document !== 'undefined' && document.getElementById('g-full-reasoning');
+  return !!(el && el.checked);
+}
+// 打开后显示说明，并把"思考强度"下拉框变灰——它已被总开关接管
+function syncFullReasoningUI() {
+  const on = fullReasoningOn();
+  const hint = document.getElementById('g-full-reasoning-hint');
+  if (hint) hint.style.display = on ? '' : 'none';
+  const sel = document.getElementById('g-reasoning-mode');
+  if (sel) { sel.disabled = on; sel.title = on ? 'Controlled by Full reasoning: always the highest effort' : ''; }
+}
 function resolveAIReasoning(p, prompt, opts) {
+  if (fullReasoningOn()) return ReasoningControl.resolveMode({globalMode: 'max', playerMode: 'inherit', prompt, opts});
   return ReasoningControl.resolveMode({
     globalMode: $('g-reasoning-mode') ? $('g-reasoning-mode').value : 'smart',
     playerMode: (playerConfigs[p.id] || {}).reasoningMode || 'inherit',
@@ -10383,7 +10406,9 @@ async function _callAIImpl(p, prompt, opts) {
       if (el && parseInt(el.value) > 0) _uiSingle = parseInt(el.value) * 1000;
     }
     const defaultTimeout = _uiSingle || (typeof window !== 'undefined' && window.AI_TIMEOUT_MS) || 600000;
-    const timeoutMs = opts.timeoutMs || defaultTimeout;
+    const timeoutMs = fullReasoningOn()
+      ? Math.max(opts.timeoutMs || 0, defaultTimeout, FULL_REASONING_TIMEOUT_MS)
+      : (opts.timeoutMs || defaultTimeout);
     const _reqStartTs = Date.now();   // ★ 记录请求开始时间,用于报错时算真实耗时,区分"真超时"vs"连接被掐"
     const timeoutCtrl = new AbortController();
     const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
@@ -10400,7 +10425,8 @@ async function _callAIImpl(p, prompt, opts) {
     //   上游截断（症状是返回一段断在词中间的思考摘要，例如
     //   "**Assessing wolf coordination and inform"），而重试用同样的档位必然再撞一次，
     //   于是同一个角色在同一轮里反复失败。降档后重试才有意义。
-    const reasoning = (att > 1 && _degradeReasoning(_reasoningBase.effective, att) !== _reasoningBase.effective)
+    //   全力推理模式下不降档：宁可多等、多花，也不在重试时偷偷变笨。
+    const reasoning = (!fullReasoningOn() && att > 1 && _degradeReasoning(_reasoningBase.effective, att) !== _reasoningBase.effective)
       ? Object.assign({}, _reasoningBase, {effective: _degradeReasoning(_reasoningBase.effective, att)})
       : _reasoningBase;
     if (reasoning !== _reasoningBase) {
@@ -10413,6 +10439,11 @@ async function _callAIImpl(p, prompt, opts) {
     const globalTk = globalTkEl.value === 'custom' ? (globalTkCustom || 32768) : (parseInt(globalTkEl.value) || 32768);
     const pcMaxTk = (playerConfigs[p.id] || {}).maxTokens;
     let maxTk = pcMaxTk || globalTk;
+    // 全力推理：输出上限至少 65536，免得最高档的思考把预算吃光、正式回答被截断。
+    //   个别模型的上限更低会直接 400——那种 (地址|模型) 记下来，之后退回用户自己的设置。
+    if (fullReasoningOn() && !_fullReasoningTkRejected.has((useApi.url || '') + '|' + (useApi.model || ''))) {
+      maxTk = Math.max(maxTk, FULL_REASONING_MAX_TOKENS);
+    }
     const mn = (useApi.model||'').toLowerCase();
     Render.devLog('req', `[P${p.id+1} ${p.name}] model:${useApi.model}${att>1?' (重试'+att+')':''} [${apiType}]`);
 
@@ -10742,7 +10773,8 @@ async function _callAIImpl(p, prompt, opts) {
           });
           if (!res.ok) { const t2 = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t2.slice(0,100)); }
         } else {
-          throw new Error('HTTP '+res.status);
+          // 带上端点给出的原因（例如"max_tokens 太大"），上层才能按原因处理，而不是只知道 400
+          throw new Error('HTTP '+res.status+' '+t.slice(0,200));
         }
       }
       // ★★ SSE 容错解析(v9.6 抽到全局 parseAPIResponseWithSSEFallback)
@@ -10957,6 +10989,18 @@ async function _callAIImpl(p, prompt, opts) {
         }
         Render.devLog('err', `[P${p.id+1}] 主API尝试${att}: ${e.message}`);
         mainErr = e.message;
+        // 全力推理把输出上限提到 65536；这个模型的上限更低、端点明确拒绝时，记住它并立刻用
+        // 用户自己的设置重来一次（不算作一次失败，也只会发生一次）。
+        if (fullReasoningOn() && /HTTP 400/.test(e.message)
+            && /max[_ ]?tokens|max_output|maximum.{0,40}tokens?|too (?:large|many)|exceed/i.test(e.message)) {
+          const _tkKey = (api.url || '') + '|' + (api.model || '');
+          if (!_fullReasoningTkRejected.has(_tkKey)) {
+            _fullReasoningTkRejected.add(_tkKey);
+            Render.devLog('warn', `[P${p.id+1}] ${api.model} 不接受 ${FULL_REASONING_MAX_TOKENS} 的输出上限，退回你的设置重试`);
+            att--;
+            continue;
+          }
+        }
         // MiniMax M2.x cannot reliably disable thinking. If it spent the whole response
         // budget on reasoning, retry once on the same relay with a final-answer-only turn.
         // This is deliberately protocol-agnostic and does not require the user to know
@@ -13393,9 +13437,9 @@ async function wolfStrategyDiscuss(wolves) {
   const _wpropMs = (() => {
     if (typeof document !== 'undefined') {
       const el = document.getElementById('t-wprop');
-      if (el && parseInt(el.value) > 0) return parseInt(el.value) * 1000;
+      if (el && parseInt(el.value) > 0) return Math.max(parseInt(el.value) * 1000, fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 0);
     }
-    return 240000;
+    return fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 240000;
   })();
   await Promise.race([
     Promise.all(proposalPromises),
@@ -13639,9 +13683,9 @@ async function wolfStrategyDiscuss(wolves) {
   const _wvoteMs = (() => {
     if (typeof document !== 'undefined') {
       const el = document.getElementById('t-wvote');
-      if (el && parseInt(el.value) > 0) return parseInt(el.value) * 1000;
+      if (el && parseInt(el.value) > 0) return Math.max(parseInt(el.value) * 1000, fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 0);
     }
-    return 90000;
+    return fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : 90000;
   })();
   await Promise.race([
     Promise.all(votePromises),
