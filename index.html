@@ -3379,6 +3379,7 @@ body.has-wp::after {
             <button class="be" id="btn-prompt-lib" data-ui-icon="library" title="管理可分配给不同模型的长篇提示词模板">提示词库</button>
             <button class="be" id="btn-teaching-wb" data-ui-icon="book" title="导入或编写狼人杀教学世界书，控制 AI 的策略与打法">教学世界书</button>
             <button class="be" id="btn-rules" data-ui-icon="book" title="导出本局完整规则，可复制给外部AI（如网页端ChatGPT/Claude），让它按你这个板子的规则来玩">规则</button>
+            <button class="be" id="btn-pact-trial" data-ui-icon="sparkles" title="按当前座位、模型和思考强度，只跑第一夜狼队写方案和投票，一两分钟看结果，不用打整局">试密约</button>
             <button class="be" id="btn-tts" data-ui-icon="volume" title="用系统语音朗读AI发言（免费，无需API）">朗读</button>
             <button class="be" id="btn-tts-cfg" data-ui-icon="sliders" title="朗读设置：切换系统语音/自定义TTS接口">设置</button>
           </div>
@@ -14788,7 +14789,7 @@ async function wolfStrategyDiscuss(wolves) {
         '<thinking>哪个方案对狼队整体最有利？为什么？</thinking>\n' +
         '<game>简短说你投谁、为什么</game>\n' +
         '<action>方案名称（必须从上面方案名中精确选一个，不要写编号）</action>',
-        {noMemory: true, skillConfirm: true, reasoningStage:'normal', timeoutMs: 360000, maxRetries: 2}
+        {noMemory: true, skillConfirm: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2}
       );
       voteResults[w.id] = r;
     } catch(e) {
@@ -14858,7 +14859,7 @@ async function wolfStrategyDiscuss(wolves) {
           '<thinking>哪个方案对狼队整体最有利？为什么？</thinking>\n' +
           '<game>简短说你投谁、为什么</game>\n' +
           '<action>方案名称（必须从上面方案名中精确选一个，不要写编号）</action>',
-          {noMemory: true, skillConfirm: true, reasoningStage:'normal', timeoutMs: 360000, maxRetries: 2}
+          {noMemory: true, skillConfirm: true, reasoningStage:'deep', timeoutMs: 360000, maxRetries: 2}
         );
         voteResults[w.id] = r;
       } catch(e) {
@@ -22259,6 +22260,44 @@ if (humanViewLocked()) Render.log('system', uiEnglish()
   : '真人私密视角已开启：其他席位随机分配身份；整局结束前仅展示你有权知道的信息。');
 }
 
+// ★ 只试狼盟密约：按当前座位、模型、思考强度设置，只跑第一夜狼队写方案和投票，不进行整局。
+//   调 AI 打法时不用每次从开局跑一整局（一局一两个小时）才看得到狼队怎么商量。
+//   · 有正在进行的对局时先确认，同意才重置
+//   · 结束后阶段回到 waiting：AutoSave.canSave() 为假，不会把试跑状态存成存档、覆盖真实进度
+//   · 结果留在屏幕上（方案与投票弹窗 + 日志）；之后点「开局」会先清掉试跑内容再正式开局
+async function trialWolfPact() {
+  const en = uiEnglish();
+  if (S.running) { alert(en ? 'Something is still running. Wait for it to finish first.' : '当前还有流程在进行，请等它结束再试。'); return; }
+  const inGame = $('bst').disabled && !S.gameOver && !S._pactTrialDone;
+  if (inGame && !confirm(en ? 'This ends the current match and runs only the first-night wolf pact. Continue?'
+                            : '试密约会结束当前对局，只跑第一夜的狼盟密约。继续吗？')) return;
+  if (inGame || S._pactTrialDone || (S.players && S.players.length)) forceReset();
+  startGame();
+  if (!S.players || !S.players.length || S.phase !== 'night') return;   // 没配 API 等情况，startGame 已提示
+  S.running = true;
+  $('bne').disabled = true; $('bau').disabled = true;
+  Render.log('system', en
+    ? '🧪 Pact trial: using the current seats, models and reasoning settings, only the first-night wolf proposals and vote are run — not a full match.'
+    : '🧪 只试狼盟密约：按当前的座位、模型和思考强度设置，只跑第一夜狼队写方案和投票，不进行整局。');
+  const ws = S.players.filter(p => p.alive && p.role.team === 'bad' && p.role.id !== 'mechwolf' && p.role.id !== 'gargoyle');
+  try {
+    if (ws.length < 2) Render.log('system', en ? `This setup has ${ws.length} wolf in the pack, so there is no pact to try.` : `这个板子狼队只有 ${ws.length} 只狼，没有狼盟密约可试。`);
+    else {
+      Render.log('system', (en ? '🐺 Wolves: ' : '🐺 本局狼队：') + ws.map(w => w.name + '【' + w.role.name + '】').join('、'));
+      await wolfStrategyDiscuss(ws);
+    }
+  } catch (e) {
+    Render.log('system', (en ? '⚠️ Pact trial failed: ' : '⚠️ 试跑出错：') + ((e && e.message) || e));
+  }
+  S.running = false;
+  S._pactTrialDone = true;
+  S.phase = 'waiting';
+  $('bst').disabled = false; $('bne').disabled = true; $('bau').disabled = false;
+  Render.log('system', en
+    ? '🧪 Pact trial finished. Change models or reasoning strength and try again, or press Start for a real match.'
+    : '🧪 试跑结束。可以换模型、调思考强度后再点「试密约」，或者点「开局」正式开一局。');
+}
+
 async function nextStep() {
   if (S.gameOver || S.running) return;
   S.running = true;
@@ -24656,7 +24695,9 @@ function bindEvents() {
       ? '── 收起命牌 ▲ ──'
       : (phoneLayoutMq.matches ? `── 命牌 ${b.querySelectorAll('.pc').length}人 · 横滑查看 ▼ ──` : '── 展开命牌 ▼ ──');
   });
-  $('bst').addEventListener('click', startGame);
+  // 试过密约之后点「开局」：先清掉试跑内容再正式开局
+  $('bst').addEventListener('click', () => { if (S._pactTrialDone) forceReset(); startGame(); });
+  $('btn-pact-trial') && $('btn-pact-trial').addEventListener('click', trialWolfPact);
   { const bd = $('btn-demo'); if (bd) bd.addEventListener('click', startDemoMatch); }   // 🎬 观战Demo（固定精编剧本回放）
   { const bsh = $('btn-share'); if (bsh) bsh.addEventListener('click', shareGame); }   // 🔗 分享
   $('bne').addEventListener('click', nextStep);
