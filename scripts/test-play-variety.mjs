@@ -97,7 +97,8 @@ for (const file of FILES) {
   // 投票评判：收益也算分，最稳的不自动赢；原有 pact-blind 锚点还在
   assert.match(src, /最稳的那条不自动赢/, `${file}: 密约投票仍让最稳的自动赢`);
   assert.match(src, /只比较方案本身：条件分支是否完整/, `${file}: pact-blind 的评判锚点被删了`);
-  assert.equal((src.match(/skillConfirm: true, reasoningStage:'normal'/g) || []).length, 2, `${file}: 两个密约投票调用都应提到 normal 档推理`);
+  // 投票最初是默认 quick 档，打法多样性提到 normal；比较几条线的成败账和写方案一样费算力，现与写方案同为 deep
+  assert.equal((src.match(/skillConfirm: true, reasoningStage:'deep', timeoutMs/g) || []).length, 2, `${file}: 两个密约投票调用都应与写方案同为 deep 档推理`);
 
   // ── 5. 狼人 / 狼美人 guide ─────────────────────────────────────────────────
   const wolf = between(src, "id:'werewolf'", 'reg({');
