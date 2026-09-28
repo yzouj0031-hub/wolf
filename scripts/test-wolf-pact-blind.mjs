@@ -93,10 +93,10 @@ for (const file of FILES) {
 // ── ② 狼盟密约：盲投 ────────────────────────────────────────────────────────
 function voteCounter(src, file) {
   const body = slice(src, file, '  // 统计票数\n  const votes = {};', '\n  // 决出胜者', '投票统计代码块');
-  const ctx = { Render: { devLog: () => {} } };
+  const ctx = { Render: { devLog: () => {} }, uiEnglish: () => false, _wvoteMs: 360000 };
   vm.createContext(ctx);
   vm.runInContext(
-    `this.count = function (stratList, aliveWolves, voteResults) {\n${body}\n  return votes;\n};`,
+    `const G = this; this.count = function (stratList, aliveWolves, voteResults, voteOrders = {}, voteStatus = {}) {\n${body}\n  G.count.lastMissing = missing;\n  return votes;\n};`,
     ctx, { filename: `${file}:votes` },
   );
   return ctx.count;
@@ -117,10 +117,10 @@ for (const file of FILES) {
     assert.ok(!src.includes(residue), `${file}: 投票环节仍然在暗示"投自己的" → ${residue}`);
   }
   // 提案人只在结果弹窗里揭晓，投票前一次都不能露
-  assert.ok(src.includes('const blindDisplayFor = () => shuffle(stratList.slice())'), `${file}: 候选列表没有做盲化`);
+  assert.ok(src.includes('const blindDisplayFor = (w) => {\n    const order = shuffle(stratList.slice());'), `${file}: 候选列表没有做盲化`);
   assert.ok(src.includes('const _humanBlind = shuffle(stratList.slice());'), `${file}: 人类弹窗的候选顺序没有打乱`);
   assert.equal(
-    (src.match(/blindDisplayFor\(\)/g) || []).length, 2,
+    (src.match(/blindDisplayFor\(w\)/g) || []).length, 2,
     `${file}: 两处 AI 投票（并发投票 / "让 AI 替我决定"）应当都走盲化列表`,
   );
   assert.match(src, /只比较方案本身：条件分支是否完整/, `${file}: 缺少"按什么标准比方案"的说明`);
@@ -132,12 +132,14 @@ for (const file of FILES) {
   vm.runInContext(
     `const shuffle = a => a.slice().reverse();
      const pactRuleFacts = {zh:'', en:''};
+     const voteOrders = {};
      const stratList = [
        {name:'冷焰交叉', content:'A 方案内容', proposer:'安室透', proposerId:3},
        {name:'暗夜执笔', content:'B 方案内容', proposer:'Light Yagami', proposerId:10},
      ];
      ${decl}
-     this.display = blindDisplayFor();
+     this.display = blindDisplayFor({id: 3});
+     this.order = voteOrders[3].map(s => s.name);
      this.note = BLIND_NOTE;`,
     ctx, { filename: `${file}:blind` },
   );
@@ -172,6 +174,24 @@ for (const file of FILES) {
     3: { action: '暗夜执笔' }, 10: { action: '冷焰交叉' },
   })));
   assert.deepEqual(ok, { 冷焰交叉: ['Light'], 暗夜执笔: ['安室透'] }, `${file}: 正常投票被改坏了`);
+
+  // 场景四：只写编号 → 按这只狼自己看到的顺序对回方案（每只狼顺序不同）
+  const orders = { 3: [stratList[1], stratList[0]], 10: [stratList[0], stratList[1]] };
+  const num = JSON.parse(JSON.stringify(count(stratList, wolves, {
+    3: { action: '1' }, 10: { action: '方案2' },
+  }, orders)));
+  assert.deepEqual(num, { 冷焰交叉: [], 暗夜执笔: ['安室透', 'Light'] }, `${file}: 只写编号的票没有按各自看到的顺序计上`);
+
+  // 场景五：没计上的票必须带原因，不能悄悄消失（4 狼只显示 2 票的 bug）
+  const four = [...wolves, { id: 5, name: '丁' }, { id: 7, name: '戊' }];
+  const got = JSON.parse(JSON.stringify(count(stratList, four, {
+    3: { action: '冷焰交叉' }, 10: { action: '暗夜执笔' }, 5: null, 7: null,
+  }, {}, { 3: 'done', 10: 'done', 5: 'pending', 7: 'error' })));
+  assert.deepEqual(got, { 冷焰交叉: ['安室透'], 暗夜执笔: ['Light'] }, `${file}: 场景五计票错了`);
+  const miss = count.lastMissing || [];
+  assert.equal(miss.length, 2, `${file}: 没计上的 2 票没有列出来`);
+  assert.match(miss.find(x => x.name === '丁').reason, /360/, `${file}: 超时没投完的没写等了多久`);
+  assert.ok(miss.some(x => x.name === '戊'), `${file}: 请求失败的票没有列出来`);
 }
 
 // ── ③ 教学：被原话推翻的指控 ────────────────────────────────────────────────
