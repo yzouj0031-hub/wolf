@@ -14549,6 +14549,16 @@ async function wolfStrategyDiscuss(wolves) {
       zh.push('本局开启隐死亡：出局者不翻牌、不公布身份。');
       en.push('Hidden deaths are on: eliminated players\' roles are not revealed.');
     }
+    // 只在对应角色本局在场时才给：今晚刀法（含自刀、刀队友）的账要用到这些结算规则
+    const _has = id => (S.players || []).some(p => p && p.alive && p.role && p.role.id === id);
+    if (_has('witch')) {
+      zh.push('本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；同一夜不能同时用两瓶药；救药一旦用掉（不论救的是谁），她此后再也看不到刀口。');
+      en.push('There is a Witch: while she still has the antidote she sees each night\'s kill target and decides whether to save before anyone has claimed a role; she cannot use both potions on the same night; once the antidote is used (on anyone), she never sees the kill target again.');
+    }
+    if (_has('magician')) {
+      zh.push('本局有魔术师：他每晚可交换两人号码，只影响狼刀——名义刀口若被换走，实际倒下的是另一人；查验、用药、守护不受影响。');
+      en.push('There is a Magician: each night he may swap two players\' numbers, which only affects the wolf kill — if the named target is swapped, the other player falls instead; checks, potions and guarding are unaffected.');
+    }
     return {
       zh: zh.length ? '\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· ' + zh.join('\n· ') : '',
       en: en.length ? '\n\n[HARD RULES THAT AFFECT TONIGHT\'S PLAN — system facts]\n• ' + en.join('\n• ') : '',
