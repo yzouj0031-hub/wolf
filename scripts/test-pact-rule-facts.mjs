@@ -26,8 +26,8 @@ for (const file of ['index.html', 'en/index.html']) {
   ]) assert.ok(src.includes(needle), `${file}: ${label}没有带上本局硬规则`);
   assert.ok(!src.includes('例：明暗双线|让 P3 前排带节奏'), `${file}: 真人手写提示里还留着被照抄的模板示例`);
 
-  const facts = ({round, n, hdeath}) => {
-    const ctx = {S: {round, players: Array.from({length: n}, (_, i) => ({id: i}))},
+  const facts = ({round, n, hdeath, roles = []}) => {
+    const ctx = {S: {round, players: Array.from({length: n}, (_, i) => ({id: i, alive: true, role: {id: roles[i] || 'villager'}}))},
       $: id => id === 'm-hdeath' ? {checked: hdeath} : null};
     vm.createContext(ctx);
     vm.runInContext(src.slice(a, b) + 'this.f = pactRuleFacts;', ctx);
@@ -42,6 +42,13 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.equal(f.zh, '', `${file}: 第二夜起没有警长竞选，不该再提`);
   f = facts({round: 1, n: 9, hdeath: false});
   assert.equal(f.zh, '', `${file}: 不足 12 人没有警长竞选，不该提`);
+  // 女巫 / 魔术师：在场才讲结算规则，不在场一个字都不提
+  f = facts({round: 2, n: 12, hdeath: false, roles: ['witch', 'magician']});
+  assert.match(f.zh, /本局有女巫/, `${file}: 有女巫却没讲她的用药结算`);
+  assert.match(f.zh, /本局有魔术师/, `${file}: 有魔术师却没讲换刀结算`);
+  assert.match(f.en, /There is a Witch/, `${file}: 英文版缺女巫结算`);
+  f = facts({round: 1, n: 12, hdeath: false});
+  assert.ok(!/女巫|魔术师/.test(f.zh), `${file}: 没有女巫/魔术师却提到了`);
 }
 
 const twb = fs.readFileSync('teaching-worldbooks.js', 'utf8');
