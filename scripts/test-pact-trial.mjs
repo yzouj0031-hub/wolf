@@ -47,13 +47,17 @@ await withOfflinePage(async (page, origin) => {
         proposeCreative: (calls.find(c => c.kind === 'propose') || {opts:{}}).opts.creative,
         wolves: S.players.filter(p => p.role.team === 'bad' && p.role.id !== 'mechwolf').length,
         strategy: S.wolfStrategyName || '',
+        alts: (S.wolfStrategyAlts || []).length,
+        altMemory: S.players.filter(p => p.role.team === 'bad' && p.role.id !== 'mechwolf')
+          .every(w => w.memory.some(m => /狼队备选方案/.test(m.content || '') && !/狼队备选方案[^]*「\s*」/.test(m.content || ''))),
+        altHasOtherPlans: S.players.some(w => w.memory.some(m => /狼队备选方案/.test(m.content || '') && !(m.content || '').includes('「' + S.wolfStrategyName + '」'))),
         autosaved: saved, savegame: localStorage.getItem('wg_savegame'),
         bst: $('bst').disabled, logHasStart: raw.some(t => /只试狼盟密约|Pact trial/.test(t)),
       };
       // 之后点「开局」：先清掉试跑，再正式开局
       $('bst').click(); await sleep(300);
       const start = {phase: S.phase, trialDone: !!S._pactTrialDone, trialLogLeft: [...document.querySelectorAll('#gl .le')].some(n => /只试狼盟密约|Pact trial/.test(n.textContent)),
-        strategy: S.wolfStrategyName || '', records: gameRecord.length};
+        strategy: S.wolfStrategyName || '', alts: (S.wolfStrategyAlts || []).length, records: gameRecord.length};
       return {after, start};
     });
     assert.deepEqual(errors, [], `${path}: 页面报错`);
@@ -64,6 +68,9 @@ await withOfflinePage(async (page, origin) => {
     assert.equal(after.voteStage, 'deep', `${path}: 投票不是 deep 思考档`);
     assert.equal(after.proposeCreative, true, `${path}: 写方案没有放开随机性`);
     assert.ok(after.strategy, `${path}: 没有选出狼队方案`);
+    assert.equal(after.alts, after.wolves - 1, `${path}: 落选方案没有全部留作备选（${after.alts}）`);
+    assert.ok(after.altMemory, `${path}: 有狼的记忆里没有备选方案`);
+    assert.ok(after.altHasOtherPlans, `${path}: 备选方案里混进了胜出方案`);
     assert.equal(after.phase, 'waiting', `${path}: 试跑后阶段没回到 waiting`);
     assert.equal(after.running, false, `${path}: 试跑后还标着在运行`);
     assert.equal(after.autosaved, false, `${path}: 试跑后自动存档仍会写入（会覆盖真实存档）`);
@@ -73,6 +80,7 @@ await withOfflinePage(async (page, origin) => {
     assert.equal(start.trialDone, false, `${path}: 正式开局后还带着试跑标记`);
     assert.equal(start.trialLogLeft, false, `${path}: 正式开局后试跑日志没清掉`);
     assert.equal(start.strategy, '', `${path}: 正式开局沿用了试跑选出的狼队方案`);
+    assert.equal(start.alts, 0, `${path}: 正式开局沿用了试跑的备选方案`);
   }
 });
 

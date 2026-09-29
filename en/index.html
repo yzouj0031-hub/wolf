@@ -5127,6 +5127,7 @@ function freshState(prev) {
     _wolfKillRun: null,  // Internal wolf-discussion checkpoint: opening / echo / vote
     wolfStrategy: '',     // ★ 狼盟密约：胜出方案的内容
     wolfStrategyName: '', // ★ 狼盟密约：胜出方案的名字
+    wolfStrategyAlts: [], // ★ 狼盟密约：同一晚落选的方案（备选）
     wolfStrategyRevised: false,    // ★ 主方案是否被夜间修订过
     wolfStrategyRevisedRound: 0,   // ★ 修订发生的夜晚
     directorMode: prev ? prev.directorMode : false,
@@ -13848,6 +13849,17 @@ async function wolfStrategyDiscuss(wolves) {
     role: 'system',
     content: '【狼队主方案·第' + S.round + '夜夜谈定】「' + S.wolfStrategyName + '」：' + S.wolfStrategy + '\n\n这是第' + S.round + '夜夜谈投票决出的开局预案，【不是后续任何一天的当前命令】——系统提示里的「狼队密约（第N夜预案，距今N轮）」说的就是这一条，两处是同一份方案，以带日期的那份为准。每次决策前重新比较，别把开局预案当成今天的既定指令。\n\n【主方案不是死命令，要根据局势评估是否切换】\n开局方案是基于"假设场上局势按预期发展"做的。真实局势会偏离预期，每次发言/决策前在 thinking 里问自己：\n· 主方案的前提条件还成立吗?(比如"压 X 入抗推位"的前提是 X 没自证、没人替他说话——如果场上已经有强好人帮他洗了，前提崩了)\n· 队友状态有变化吗?(有队友死了/被锁死/已经悍跳成功——这些都会改变主方案的执行价值)\n· 继续执行主方案的边际收益还为正吗?还是已经在白送信息?\n\n【什么时候必须切换备用方案】\n· 主方案目标人物已经死了 → 不要再踩他, 浪费发言权\n· 主方案要保的队友已经被锁死无法救 → 转向自保/切割\n· 你自己被推上抗推台 → 主方案让位给生存, 优先回应针对你的指控\n· 出现主方案完全没预料到的变量(真预言家强势、骑士跳、白狼王已爆) → 重新评估\n· 局势比预想更好打(解药已用掉、守卫已暴露、真预言家迟迟不跳) → 升级：再起一个身份、换更狠的刀口——切换不只是撤退\n\n【切换不是背叛队友, 是把活下来的狼救出去】\n死板执行开局方案到死, 是把队友的命和自己的命一起送掉。每个决策点都要重新评估"主方案 vs 当前最优"——能继续执行就执行, 不能就切。'
   }));
+  // 落选方案也留给狼队当备选：主方案前提崩了时，不必从零想，可以直接切换或拼接其中一条。
+  //   每条截短，避免挤占记忆；提案人仍不公开（与盲投一致），只附得票数。
+  const _alts = stratList.filter(s => s !== winner);
+  S.wolfStrategyAlts = _alts.map(s => ({name: s.name, content: s.content, votes: votes[s.name].length, round: S.round}));
+  if (_alts.length) {
+    const _cut = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 400 ? t.slice(0, 400) + '…' : t; };
+    const altNote = '【狼队备选方案·第' + S.round + '夜落选】以下是同一晚没被选中的方案（' + _alts.length + '条），不是命令，也不代表队友会照做——'
+      + '主方案的前提崩了、或局势出现某条备选早就算到的分支时，可以在狼队密谈里提议切换到其中一条或拼接其中几步：\n'
+      + _alts.map((s, i) => (i + 1) + '. 「' + s.name + '」（' + votes[s.name].length + '票）：' + _cut(s.content)).join('\n');
+    aliveWolves.forEach(w => w.memory.push({role: 'system', content: altNote}));
+  }
 
   await waitForWolfStratClose();
 }
