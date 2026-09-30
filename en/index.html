@@ -12457,10 +12457,12 @@ async function execWhitewolfExplodeIfAny(p, r) {
     let gameText = r.game.replace(/(?:如果|要是|万一|除非|不然|否则|要不然|假如|倘若|宁愿|宁可|早就|要不是|大不了|本来想|差点|险些)[^。！？\n]*[。！？\n]/g, '');
     // ★ 收紧：只认"明确宣告执行自爆"的硬动作词，去掉"我炸了/我爆了/带走XX"等极易被发言或演戏误触发的宽松模式，
     //   防止 AI 把 thinking 里的犹豫/复述/假设带进发言而被误判为真自爆。
-    if (_hasExplicitExplodeIntent(gameText)) {
+    const _strictExplode = _hasExplicitExplodeIntent(gameText);
+    if (_strictExplode || _mentionsSelfExplode(gameText)) {
       const aliveCandidates = S.players.filter(x => x.alive && x.id !== p.id);
-      const tn = extractTargetName(gameText, aliveCandidates);
+      const tn = _strictExplode ? extractTargetName(gameText, aliveCandidates) : null;
       target = tn ? findPlayer(tn, aliveCandidates) : null;
+      if (!target) target = await _confirmWhitewolfExplodeFromSpeech(p, r, aliveCandidates);
     }
   }
 
@@ -13154,11 +13156,14 @@ async function proc(players, promptFn, label, opts) {
           // 移除条件分句：从"如果/要是/万一/除非/不然/否则"开始到句号/感叹号之间的内容
           gameText = gameText.replace(/(?:如果|要是|万一|除非|不然|否则|要不然|假如|倘若|宁愿|宁可|早就|要不是|大不了|本来想|差点|险些)[^。！？\n]*[。！？\n]/g, '');
           // ★ 收紧：只认"明确宣告执行自爆"的硬动作词，去掉"我炸了/我爆了/带走XX"等极易被发言或演戏误触发的宽松模式。
-          if (_hasExplicitExplodeIntent(gameText)) {
+          const _strictExplode = _hasExplicitExplodeIntent(gameText);
+          if (_strictExplode || _mentionsSelfExplode(gameText)) {
             // 找候选目标（取最后出现的玩家名，符合 AI 说话习惯）
             const aliveCandidates = S.players.filter(x => x.alive && x.id !== p.id);
-            const targetName = extractTargetName(gameText, aliveCandidates);
-            const target = targetName ? findPlayer(targetName, aliveCandidates) : null;
+            const targetName = _strictExplode ? extractTargetName(gameText, aliveCandidates) : null;
+            let target = targetName ? findPlayer(targetName, aliveCandidates) : null;
+            // 说了要炸但措辞不够"硬"或认不出目标 → 问它一次，而不是悄悄当没说
+            if (!target) target = await _confirmWhitewolfExplodeFromSpeech(p, r, aliveCandidates);
             if (target) {
               let shouldExecute = true;
               // 导演模式：弹窗确认
@@ -13938,8 +13943,30 @@ function _stripConditionalActionClauses(value) {
 function _hasExplicitExplodeIntent(value) {
   const text = _stripConditionalActionClauses(value);
   if (!text.trim()) return false;
-  if (/(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝)\s*(?:现在|这就|立即|马上|当场)?\s*(?:自爆|引爆|起爆)|\b(?:do\s+not|don't|won't|will\s+not|not\s+going\s+to|refuse\s+to|save|hold|keep)\b[^.!?\n]{0,40}\b(?:self[- ]?destruct|detonate|explode)\b/i.test(text)) return false;
-  return /(?:技能发动|发动技能|现在(?:就)?自爆|立即自爆|马上自爆|当场自爆|我(?:现在|这就|就此)?(?:宣布)?自爆|按下(?:了)?起爆|引爆自己)|\b(?:i\s+(?:will|shall|now|am\s+going\s+to)\s+(?:activate\s+(?:my\s+)?skill\s+and\s+)?(?:self[- ]?destruct|detonate|explode)|(?:self[- ]?destruct|explode)\s+now|detonate\s+myself)\b/i.test(text);
+  if (/(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝)\s*(?:现在|这就|立即|马上|当场)?\s*(?:发动|选择|决定)?\s*(?:自爆|引爆|起爆)|\b(?:do\s+not|don't|won't|will\s+not|not\s+going\s+to|refuse\s+to|save|hold|keep)\b[^.!?\n]{0,40}\b(?:self[- ]?destruct|detonate|explode)\b/i.test(text)) return false;
+  return /(?:技能发动|发动技能|(?:我(?:现在|这就|就此)?|现在|立即|马上|当场|这就|就此)(?:就)?(?:发动|选择|决定|要)?自爆(?:技能)?[，,、\s]*带走|(?:现在|立即|马上|当场|这就|就此)(?:就)?(?:发动|选择|决定)?自爆|我(?:现在|这就|就此)?(?:选择|决定)自爆|立即自爆|马上自爆|当场自爆|我(?:现在|这就|就此)?(?:宣布)?自爆|按下(?:了)?起爆|引爆自己)|\b(?:i\s+(?:will|shall|now|am\s+going\s+to)\s+(?:activate\s+(?:my\s+)?skill\s+and\s+)?(?:self[- ]?destruct|detonate|explode)|(?:self[- ]?destruct|explode)\s+now|detonate\s+myself)\b/i.test(text);
+}
+
+// 发言里"提到了自爆"（比严格宣告宽）：我要自爆 / 我决定自爆 / 那我就自爆 / 选择自爆 / 自爆带走X……
+// 只用来决定要不要"再问它一句"，不直接执行——真假由白狼王自己在确认请求里决定。
+function _mentionsSelfExplode(value) {
+  const text = _stripConditionalActionClauses(value);
+  if (!text.trim()) return false;
+  if (/(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝)\s*(?:现在|这就|立即|马上|当场)?\s*(?:发动|选择|决定)?\s*(?:自爆|引爆|起爆)|\b(?:do\s+not|don't|won't|will\s+not|not\s+going\s+to|refuse\s+to|save|hold|keep)\b[^.!?\n]{0,40}\b(?:self[- ]?destruct|detonate|explode)\b/i.test(text)) return false;
+  return /自爆|引爆|起爆|\b(?:self[- ]?destruct(?:s|ing)?|detonat(?:e|ing))\b|\bexplod(?:e|ing)\b/i.test(text);
+}
+
+// 白狼王在发言里说了自爆、但机器认不出"是真宣告"或认不出目标时：不再悄悄当没说，
+// 单独问它一次——真要炸就给目标，只是威胁/以后再说就放弃。返回目标或 null。
+async function _confirmWhitewolfExplodeFromSpeech(p, r, candidates) {
+  const correction = await resolveAIAction3(p, {action: '', game: r.game, thinking: r.thinking}, {
+    label: '白狼王自爆确认', candidates, targetCount: 1, allowPass: true,
+    formatHint: 'EXPLODE|P数字 或 PASS',
+    extraRule: '你刚才的公开发言里提到了自爆，但系统无法确定你是否在此刻执行、带走谁。发言里说出口的不会自动执行，只有这里的选择才算：此刻真要自爆带人就写 EXPLODE|P数字；只是威胁、试探、或打算以后再用就写 PASS。'
+  });
+  if (correction.status === 'execute') return correction.targets[0];
+  if (correction.status === 'invalid') recordTechnicalActionFailure(p, '白狼王自爆', '发言里提到自爆，但确认请求没有给出合法目标；技能未消耗');
+  return null;
 }
 
 function _isExplicitMachinePass(value, extraPassRe) {
