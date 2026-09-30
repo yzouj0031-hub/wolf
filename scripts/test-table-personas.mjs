@@ -107,9 +107,14 @@ for (const file of FILES) {
     `${file}: 「性情」开关仍然不控制人格注入`,
   );
   assert.ok(
-    src.includes('const mbtiBlock = (!S.pureAI && p.mbti && !cosplayOn && personaTagOn) ?'),
+    src.includes('const mbtiBlock = (p.mbti && !cosplayOn && personaTagOn) ?'),
     `${file}: 人格注入没有接上开关`,
   );
+
+  // 全 AI 局也要分人格、也要注入，否则所有 AI 退回同一副助手腔
+  assert.ok(!/if \(!S\.pureAI\) \{\s*const ks = shuffle\(Object\.keys\(TABLE_PERSONAS\)\)/.test(src), `${file}: 全 AI 局又不分牌桌人格了`);
+  assert.ok(!src.includes('!S.pureAI && p.mbti'), `${file}: 全 AI 局的人格注入/显示被关掉了`);
+  assert.match(src, /【你是在牌桌上跟对手博弈，不是在辅导谁】/, `${file}: 缺少"别用助手/老师口吻"的语气要求`);
 
   // 三个字段都要用上，不能只用 desc
   for (const f of ['${p.mbti.desc}', '${p.mbti.habit}', '${p.mbti.cost}']) {
