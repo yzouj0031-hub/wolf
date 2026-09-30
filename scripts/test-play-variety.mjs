@@ -106,7 +106,7 @@ for (const file of FILES) {
   assert.match(wolf, /被守卫挡下只是扑空、解药还在/, `${file}: 狼人 guide 把守卫挡刀也当成了银水/耗解药`);
   assert.match(hint, /她不救（且没被守卫等其他保护挡下）/, `${file}: 自刀账漏了守卫挡下的那一支`);
   assert.match(wolf, /再起一个身份（比如假女巫\/假守卫）/, `${file}: 狼人 guide 没有双起身份的队形`);
-  for (const kept of ['不要列招式名词、不要套模板', '是最差的一种', '狼队至少要有两个人在场上干活']) {
+  for (const kept of ['不要列招式名词、不要套模板', '和装中立不是一回事', '狼队至少要有两个人在场上干活']) {
     assert.ok(wolf.includes(kept), `${file}: 狼人 guide 原有锚点「${kept}」被删了`);
   }
   const beauty = between(src, "id:'wolfbeauty'", 'reg({');
