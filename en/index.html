@@ -7850,7 +7850,7 @@ const Render = {
     const pn = $('pn-'+p.id);
     if (pn) pn.textContent = publicPlayerLabel(p);
     const mt = $('mbt-'+p.id);
-    if (mt) mt.innerText = (!S.pureAI && p.mbti && $('m-mbti').checked) ? p.mbtiKey : '';
+    if (mt) mt.innerText = (p.mbti && $('m-mbti').checked) ? p.mbtiKey : '';
     // 预言家查验标记：只有真人自己是预言家、且验过这个人时才出现
     const stg = $('stg-'+p.id);
     if (stg) {
@@ -9028,11 +9028,15 @@ function buildSystemPrompt(p, taskContext) {
   const hasPersona = !!(playerConfigs[p.id] && playerConfigs[p.id].persona && playerConfigs[p.id].persona.trim());
   const hasPreset  = !!(playerConfigs[p.id] && playerConfigs[p.id].preset && playerConfigs[p.id].preset.trim());
   const selectedPrompt = playerConfigs[p.id] && promptLibrary[playerConfigs[p.id].promptId];
+  // 没有人格/人设时（尤其全 AI 局），模型会退回"助手/老师"口吻："建议你……""这样打不对哦"。
+  //   这里只管语气：牌桌上的人是对手，不是学生。怎么判断、站谁，仍由它自己推理决定。
+  styleBlock += '\n\n【你是在牌桌上跟对手博弈，不是在辅导谁】不要用助手或老师的口吻：别说"建议你""这样打不太对哦""我们要理性""大家冷静一下"这种居高临下的指导腔，也别替对方把道理讲圆。'
+    + '你不同意就直说他哪里不对、你为什么不信他；被点名、被踩就正面回击，拿他的原话打他。可以针锋相对、可以不给面子，但攻击要落在具体的话和票上，不要人身攻击。';
   if (selectedPrompt && selectedPrompt.content) styleBlock += '\n\n[MODEL-SPECIFIC INSTRUCTION · HIGHEST PRIORITY]\n' + selectedPrompt.content.trim();
   // ★「性情」开关此前只控制卡片上显不显示标签，根本不控制提示词注入——
   //   用户以为关掉了，其实人格设定照样全量注入。这里让它名副其实。
   const personaTagOn = !$('m-mbti') || $('m-mbti').checked;
-  const mbtiBlock = (!S.pureAI && p.mbti && !cosplayOn && personaTagOn) ?
+  const mbtiBlock = (p.mbti && !cosplayOn && personaTagOn) ?
     `\n【你是谁——先立住这个人，再开口】你叫「${p.name}」，你的牌桌风格是【${p.mbtiKey}】：${p.mbti.desc}\n· 你的习惯：${p.mbti.habit}\n· 这种风格要付的代价：${p.mbti.cost}（这是打法上的代价，不是能力上的短板）\n在心里把自己当成一个有脾气、有立场、有判断的具体的人来玩，而不是一个中立的分析程序。别人说什么你先用自己的脑子过一遍，觉得不对就反驳，觉得对也要讲出你自己的理由。带点情绪、带点态度地说话，像真人聊天拌嘴，不要写分析报告、不要罗列要点、不要当复读机跟着大流走。\n【边界·最重要的一条】风格只决定你【怎么说话】和【什么时候下注】，不决定你【算得多清楚】。任何时候都要先把账算明白——谁死了、谁跳了、票型指向谁、这一步对哪一边有利——然后再用你的方式说出来。绝不要因为「我是这个风格」就故意少想一步、故意看漏证据，或者故意做出一个你自己都知道更差的选择。\n注意：不要在发言中提到「${p.mbtiKey}」这个标签本身。` : '';
   // ★ 角色扮演(Cosplay)人格注入 — 从 playerConfigs 读取用户自定义人设
   const userPersona = hasPersona ? playerConfigs[p.id].persona.trim() : '';
@@ -20393,7 +20397,7 @@ function matchReplayCardHtml(p, opts) {
     ? `<img src="${cfg.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentNode.textContent='${firstChar}'">`
     : firstChar;
   const modelTag = ($('m-modeltag') && $('m-modeltag').checked) ? getModelTagHtml(p, {size:'small'}) : '';
-  const mbti = (!S.pureAI && p.mbti && $('m-mbti') && $('m-mbti').checked && p.mbtiKey) ? escapeHtml(p.mbtiKey) : '';
+  const mbti = (p.mbti && $('m-mbti') && $('m-mbti').checked && p.mbtiKey) ? escapeHtml(p.mbtiKey) : '';
   const roleName = showRole ? escapeHtml(p.role.name) : 'Unknown';
   const cls = 'pc mr-pc' + (showRole ? ' role-theme role-' + p.role.id : '')
     + (opts.dead ? ' dead' : '') + (opts.speaking ? ' speaking' : '') + (p.id === S.sheriff ? ' issh' : '');
@@ -20885,7 +20889,9 @@ function startGame() {
     poisoned:false,
     mbti:null, mbtiKey:''
   }));
-  if (!S.pureAI) {
+  // 全 AI 局也分牌桌人格：它只决定说话方式和下注时机、不决定推理能力（见 #216），
+  //   不分的话所有 AI 都退回同一副助手腔。想要"素颜"对局，关掉「性情」开关即可。
+  {
     const ks = shuffle(Object.keys(TABLE_PERSONAS));
     S.players.forEach((p,i) => { const k=ks[i%ks.length]; p.mbti=TABLE_PERSONAS[k]; p.mbtiKey=k; });
   }
