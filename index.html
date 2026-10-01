@@ -13553,7 +13553,7 @@ async function execWhitewolfExplodeIfAny(p, r) {
     // ★ 收紧：只认"明确宣告执行自爆"的硬动作词，去掉"我炸了/我爆了/带走XX"等极易被发言或演戏误触发的宽松模式，
     //   防止 AI 把 thinking 里的犹豫/复述/假设带进发言而被误判为真自爆。
     const _strictExplode = _hasExplicitExplodeIntent(gameText);
-    if (_strictExplode || _mentionsSelfExplode(gameText)) {
+    if (_strictExplode || _mentionsSelfExplode(gameText) || _whitewolfWeighingExplode(r)) {
       const aliveCandidates = S.players.filter(x => x.alive && x.id !== p.id);
       const tn = _strictExplode ? extractTargetName(gameText, aliveCandidates) : null;
       target = tn ? findPlayer(tn, aliveCandidates) : null;
@@ -14310,7 +14310,7 @@ async function proc(players, promptFn, label, opts) {
       // ★ v9 新增：白狼王自爆 — 自然语言兜底 + 导演确认弹窗
       //   场景：AI 在 <game> 里宣告自爆但 <action> 没输出标准 EXPLODE:xxx 格式
       //   修复：从 <game> 里检测自爆意图（严格条件防止误触发）
-      if (!S._whitewolfUsed && p.role.id === 'whitewolf' && p.alive && S.phase !== 'night' && S.phase !== 'sheriff' && !p.isPlayer) {
+      if (!S._whitewolfUsed && p.role.id === 'whitewolf' && p.alive && S.phase !== 'night' && !p.isPlayer) {
         const hasStdExplode = r.action && /^\s*EXPLODE\b/i.test(r.action);
         if (!hasStdExplode && r.game) {
           // 去掉条件句（"如果你们投我我就自爆" 这种威胁/假设不算）
@@ -14319,7 +14319,7 @@ async function proc(players, promptFn, label, opts) {
           gameText = gameText.replace(/(?:如果|要是|万一|除非|不然|否则|要不然|假如|倘若|宁愿|宁可|早就|要不是|大不了|本来想|差点|险些)[^。！？\n]*[。！？\n]/g, '');
           // ★ 收紧：只认"明确宣告执行自爆"的硬动作词，去掉"我炸了/我爆了/带走XX"等极易被发言或演戏误触发的宽松模式。
           const _strictExplode = _hasExplicitExplodeIntent(gameText);
-          if (_strictExplode || _mentionsSelfExplode(gameText)) {
+          if (_strictExplode || _mentionsSelfExplode(gameText) || _whitewolfWeighingExplode(r)) {
             // 找候选目标（取最后出现的玩家名，符合 AI 说话习惯）
             const aliveCandidates = S.players.filter(x => x.alive && x.id !== p.id);
             const targetName = _strictExplode ? extractTargetName(gameText, aliveCandidates) : null;
@@ -15123,11 +15123,19 @@ function _mentionsSelfExplode(value) {
 
 // 白狼王在发言里说了自爆、但机器认不出"是真宣告"或认不出目标时：不再悄悄当没说，
 // 单独问它一次——真要炸就给目标，只是威胁/以后再说就放弃。返回目标或 null。
+// 白狼王这一轮【在考虑】自爆：思考里提到自爆，或公开发言自曝白狼王。
+// 发言里常常只演出来、不写出"自爆"二字（例："我，白狼王。"然后把牌推给某人），
+// 所以不靠关键词猜他炸没炸，而是单独再问他一次，由他自己给出 EXPLODE 或 PASS。
+function _whitewolfWeighingExplode(r) {
+  const game = String((r && r.game) || ''), thinking = String((r && r.thinking) || '');
+  return /白狼王|white\s*wolf\s*king/i.test(game) || /自爆|引爆|起爆|self[- ]?destruct|detonat|explode/i.test(thinking + '\n' + game);
+}
+
 async function _confirmWhitewolfExplodeFromSpeech(p, r, candidates) {
   const correction = await resolveAIAction3(p, {action: '', game: r.game, thinking: r.thinking}, {
     label: '白狼王自爆确认', candidates, targetCount: 1, allowPass: true,
     formatHint: 'EXPLODE|P数字 或 PASS',
-    extraRule: '你刚才的公开发言里提到了自爆，但系统无法确定你是否在此刻执行、带走谁。发言里说出口的不会自动执行，只有这里的选择才算：此刻真要自爆带人就写 EXPLODE|P数字；只是威胁、试探、或打算以后再用就写 PASS。'
+    extraRule: '你刚才的发言或思考涉及自爆，但系统无法确定你是否在此刻执行、带走谁。发言里说出口的不会自动执行，只有这里的选择才算：此刻真要自爆带人就写 EXPLODE|P数字；只是威胁、试探、自曝身份、或打算以后再用就写 PASS。'
   });
   if (correction.status === 'execute') return correction.targets[0];
   if (correction.status === 'invalid') recordTechnicalActionFailure(p, '白狼王自爆', '发言里提到自爆，但确认请求没有给出合法目标；技能未消耗');
