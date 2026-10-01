@@ -33,6 +33,8 @@ const FILES = [
   'multiplayer.css',
   'undercover-ui.js',
   'undercover-ui.css',
+  'night3-bench.js',
+  'night3-bench.css',
   'lobby-redesign.css',
   'horror.html',
   'style-preview.html'

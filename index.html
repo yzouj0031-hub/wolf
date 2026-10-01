@@ -2564,6 +2564,7 @@ body.has-wp::after {
 <link rel="stylesheet" href="./role-effects.css?v=36">
 <link rel="stylesheet" href="./multiplayer.css">
 <link rel="stylesheet" href="./lobby-redesign.css">
+<link rel="stylesheet" href="./night3-bench.css">
 <script src="./role-sigils.js"></script>
 <script src="./action-cg.js"></script>
 <script src="./ui-icons.js"></script>
@@ -2598,6 +2599,11 @@ body.has-wp::after {
   <button id="btn-demo" class="lobby-demo" type="button" title="无需任何 API key，本地脚本自动播放一局，供路人观战">
     <span class="lobby-demo-icon" aria-hidden="true"></span>
     <span class="lobby-demo-copy"><strong>先看一局 Demo</strong><small>无需 API Key · 点击即自动观战</small></span>
+    <span class="lobby-demo-arrow">›</span>
+  </button>
+  <button id="btn-night3-bench" class="lobby-demo lobby-bench" type="button" title="一局真实对局的死局做成固定考题：让模型坐进最后一只狼的位置决定刀口，按刀口和推演要点评分">
+    <span class="lobby-demo-icon" aria-hidden="true">🧪</span>
+    <span class="lobby-demo-copy"><strong>AI 考题 · 第三夜</strong><small>一道真实死局 · 测任何模型的狼人杀水平</small></span>
     <span class="lobby-demo-arrow">›</span>
   </button>
   <div class="mc" id="mode-cards">
@@ -28532,6 +28538,7 @@ if ('serviceWorker' in navigator &&
 })();
 </script>
 <script src="./mystery.js"></script>
+<script src="./night3-bench.js"></script>
 <script src="replay-generator.js?v=2"></script>
 <script src="./community-matches.js?v=1"></script>
 </body>

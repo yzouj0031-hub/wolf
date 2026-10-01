@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v46-shared-js';
+const CACHE_NAME = 'wolf-pwa-v47-night3-bench';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,8 @@ const APP_SHELL = [
   './reasoning-control.js',
   './undercover-ui.js',
   './undercover-ui.css',
+  './night3-bench.js',
+  './night3-bench.css',
   './manifest.webmanifest',
   './tablet.css',
   './role-effects.css?v=36',
