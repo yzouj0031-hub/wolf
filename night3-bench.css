@@ -13,6 +13,13 @@
 .n3b-head { display: flex; align-items: center; gap: 10px; }
 .n3b-head h3 { flex: 1; margin: 0; }
 .n3b-x { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #c8c0d8; cursor: pointer; }
+.n3b-puzzles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin: 10px 0 4px; }
+.n3b-puzzles button { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 9px 12px; text-align: left; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); border-radius: var(--r, 6px); background: rgba(255,255,255,0.025); color: #c8c0d8; }
+.n3b-puzzles button b { font-size: 0.82em; color: #e2d9f0; font-family: var(--font-title); letter-spacing: 0.04em; }
+.n3b-puzzles button small { font-size: 0.7em; color: #8a8098; }
+.n3b-puzzles button.on { border-color: rgba(232,184,104,0.6); background: rgba(232,184,104,0.1); }
+.n3b-puzzles button.on b { color: #f3dca0; }
+.n3b-tbl tr.cur td { background: rgba(232,184,104,0.05); }
 .n3b-intro { margin: 8px 0 12px; color: #b3a5c8; font-size: 0.8em; line-height: 1.7; }
 .n3b-note { margin: 6px 0 10px; color: #9a90b0; font-size: 0.76em; line-height: 1.6; }
 .n3b-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px; }
