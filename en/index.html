@@ -3166,10 +3166,11 @@ body.has-wp::after {
       <details class="conc-det"><summary>AI reasoning and timeouts</summary>
         <div class="conc-grid">
           <div class="conc-item"><label>💬 Request timeout</label><input type="number" id="t-single" value="600" min="30" max="1800"></div>
+          <div class="conc-item"><label>⏳ Slow-reply alert</label><input type="number" id="t-slow" value="60" min="10" max="900" onchange="saveCfg()"></div>
           <div class="conc-item"><label>🐺 Pact proposal</label><input type="number" id="t-wprop" value="240" min="30" max="900"></div>
           <div class="conc-item"><label>🐺 Pact vote</label><input type="number" id="t-wvote" value="90" min="20" max="600"></div>
         </div>
-        <div style="font-size:0.62em;color:#7068a0;padding:4px 6px;line-height:1.5">If slower reasoning models are frequently cut off, increase Request timeout and Pact proposal. Larger values allow longer reasoning but also wait longer when a request stalls.</div>
+        <div style="font-size:0.62em;color:#7068a0;padding:4px 6px;line-height:1.5">If slower reasoning models are frequently cut off, increase Request timeout and Pact proposal. Larger values allow longer reasoning but also wait longer when a request stalls. Slow-reply alert (seconds): once a reply takes longer than this, the game log shows a live waiting note and a “Stop waiting” button appears in the corner; stopping never skips the speech, you are asked what to do next.</div>
         <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.74em;color:#f0c080"><input type="checkbox" id="g-full-reasoning" style="width:auto;min-width:auto" onchange="syncFullReasoningUI();saveCfg()">🔥 Full reasoning (cost no object)</label>
         <div id="g-full-reasoning-hint" style="font-size:0.62em;color:#c8a070;padding:2px 6px 4px;line-height:1.5;display:none">Every AI at every step (including votes and target picks) uses the highest reasoning effort, overriding the effort below and any per-seat setting; retries never lower the effort; single requests and the wolf-pact proposals/vote wait up to 30 minutes; the output limit is at least 65536 (falls back to your setting if a model rejects it). Noticeably slower and more expensive.</div>
         <div class="cr" style="margin-top:6px;align-items:center">
@@ -7466,6 +7467,7 @@ function saveCfg() {
     thinking:$('m-thinking')?$('m-thinking').checked:true,
     reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
     fullReasoning:$('g-full-reasoning')?$('g-full-reasoning').checked:false,
+    slowNotice:$('t-slow')?$('t-slow').value:'60',
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'all',
@@ -7541,6 +7543,7 @@ function loadCfg() {
     if ($('g-full-reasoning')) { $('g-full-reasoning').checked = !!d.fullReasoning; syncFullReasoningUI(); }
     if (d.freeOutput !== undefined && $('m-free-output')) $('m-free-output').checked = d.freeOutput;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
+    if (d.slowNotice && $('t-slow')) $('t-slow').value = d.slowNotice;
     // 旧存档里这里是布尔（复选框时代）：true→分诊，false→关闭
     if (d.speechJudge !== undefined && $('m-speech-judge')) {
       const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'all' : 'off') : d.speechJudge;
@@ -7748,6 +7751,7 @@ const Render = {
     applyObserverPerspective(false);
     scrollGL();
     pruneGL();
+    return d;
   },
   logSpeech(p, g, isWolfChat) {
     if (humanViewLocked() && isWolfChat && !isPackWolfRole(humanViewPlayer()?.role)) return;
@@ -9904,6 +9908,98 @@ function factCheck(p, result) {
 
 // ★ 手动重试系统：异常时弹三选一,让用户选择如何处理
 //   返回 'manual' | 'fallback' | 'retry-main'
+// ★ 思考过久提醒（AIWait）
+//   模型迟迟不回来时，用户以前只能干等：对局日志没有动静，看不出是在思考还是已经卡死。
+//   现在每一次请求都挂一个计时器：超过「⏳ 思考过久提醒」阈值（默认 60 秒）就在对局日志里
+//   写一条会自己更新的等待说明，并在屏幕角落显示带「不等了」按钮的角标。
+//   「不等了」只中断这一次等待，不会跳过发言——走的是和超时完全一样的处理路线：
+//   手动重试对话框 / 备用 API / 技术故障暂停询问。
+const AIWait = (() => {
+  const DEFAULT_NOTICE_MS = 60000;
+  const active = new Map();
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function noticeMs() {
+    const el = typeof document !== 'undefined' && document.getElementById('t-slow');
+    const v = el ? parseInt(el.value, 10) : 0;
+    if (v > 0) return v * 1000;
+    if (typeof window !== 'undefined' && window.AI_SLOW_NOTICE_MS > 0) return window.AI_SLOW_NOTICE_MS;
+    return DEFAULT_NOTICE_MS;
+  }
+  function fmt(sec) { return sec >= 60 ? Math.floor(sec / 60) + ' min ' + (sec % 60) + ' s' : sec + ' s'; }
+  function ensureStyle() {
+    if (document.getElementById('ai-wait-style')) return;
+    const st = document.createElement('style'); st.id = 'ai-wait-style';
+    st.textContent = '.ai-wait-banner{position:fixed;right:12px;bottom:88px;z-index:1500;display:flex;flex-direction:column;gap:6px;max-width:min(92vw,380px)}'
+      + '.ai-wait-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(28,22,42,.94);border:1px solid rgba(240,180,120,.45);color:#f0d0a0;font-size:.8em;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.4)}'
+      + '.ai-wait-row button{margin-left:auto;flex:0 0 auto;padding:4px 10px;border-radius:6px;border:1px solid rgba(240,180,120,.5);background:rgba(240,180,120,.14);color:#f3dca0;cursor:pointer;font-size:.9em;font-family:inherit}'
+      + '@media (max-width:620px){.ai-wait-banner{right:8px;left:8px;bottom:72px;max-width:none}}';
+    document.head.appendChild(st);
+  }
+  function banner() {
+    ensureStyle();
+    let b = document.getElementById('ai-wait-banner');
+    if (!b) { b = document.createElement('div'); b.id = 'ai-wait-banner'; b.className = 'ai-wait-banner'; document.body.appendChild(b); }
+    return b;
+  }
+  function render() {
+    const shown = [...active.values()].filter(w => w.shown);
+    const b = banner();
+    if (!shown.length) { b.innerHTML = ''; b.style.display = 'none'; return; }
+    b.style.display = '';
+    b.innerHTML = shown.map(w => {
+      const sec = Math.round((Date.now() - w.startTs) / 1000);
+      return `<div class="ai-wait-row" data-wait="${w.key}"><span>⏳ ${esc(publicPlayerLabel(w.p))} thinking for ${esc(fmt(sec))}</span><button type="button" data-stop="${w.key}" title="Stop waiting for this reply only. The speech is not skipped: you will be asked what to do next.">Stop waiting</button></div>`;
+    }).join('');
+    b.querySelectorAll('[data-stop]').forEach(btn => { btn.onclick = () => { const w = active.get(btn.dataset.stop); if (w && w.onStop && !w.stopped) { w.stopped = true; btn.disabled = true; w.onStop(); } }; });
+  }
+  function setLine(w, html) {
+    if (!w.node) return;
+    try { w.node.innerHTML = stripLogDecor(html); blindMaskElementText(w.node); } catch (_) { w.node.textContent = html; }
+  }
+  function waitingText(w, sec) {
+    const i = w.info || {};
+    const limit = i.limitMs ? Math.round(i.limitMs / 1000) : 0;
+    return `⏳ ${w.p.name} has been thinking for ${fmt(sec)} and has not replied yet (attempt ${i.attempt || 1}/${i.maxAttempts || 1}${limit ? ', this attempt waits up to ' + limit + ' s' : ''}). Use the “Stop waiting” button in the corner if you do not want to wait.`;
+  }
+  function tick(w) {
+    const sec = Math.round((Date.now() - w.startTs) / 1000);
+    if (sec * 1000 < noticeMs()) return;
+    if (!w.shown) {
+      w.shown = true;
+      const node = Render.log('system', waitingText(w, sec));
+      w.node = node || null;
+      try { Render.devLog && Render.devLog('warn', `[P${w.p.id+1} ${w.p.name}] 思考已超过 ${sec} 秒仍未回复`); } catch (_) {}
+    } else {
+      setLine(w, waitingText(w, sec));
+    }
+    render();
+  }
+  function begin(p, info, onStop) {
+    if (typeof document === 'undefined') return { end() {} };
+    const w = { key: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), p, info: info || {}, startTs: Date.now(), node: null, shown: false, stopped: false, onStop };
+    w.timer = setInterval(() => tick(w), 5000);
+    active.set(w.key, w);
+    return { end(outcome) { finish(w, outcome); } };
+  }
+  function finish(w, outcome) {
+    if (!active.has(w.key)) return;
+    clearInterval(w.timer);
+    active.delete(w.key);
+    const sec = Math.round((Date.now() - w.startTs) / 1000);
+    if (w.shown) {
+      const name = w.p.name;
+      const text = outcome === 'ok' ? `✅ ${name} replied after thinking for ${fmt(sec)}`
+        : outcome === 'stop' ? `⏹️ You stopped waiting for ${name} after ${fmt(sec)}; the speech is not skipped, see the next line`
+        : outcome === 'abort' ? `⏱️ ${name}: request ended after ${fmt(sec)} (timeout or connection cut), see the next line`
+        : `⚠️ ${name}: request failed after ${fmt(sec)}, see the next line`;
+      setLine(w, text);
+    }
+    render();
+  }
+  return { begin, noticeMs, active: () => [...active.values()], _fmt: fmt };
+})();
+if (typeof window !== 'undefined') window.AIWait = AIWait;
+
 function manualRetryDialog(p, reason) {
   return new Promise(resolve => {
     // ★ 判断当前环节是否"关键发言"：白天发言/警长竞选/投票/技能 → 重要，建议重试；
@@ -10371,6 +10467,30 @@ async function _callAIImpl(p, prompt, opts) {
   // 备选API由 getFallbacks() 动态获取（支持多个）
 
   // 尝试单次请求，支持不同接口类型
+  // ★ 思考过久提醒 + 「不等了」：每一次尝试（主 API 与备用 API）都包一层 _watched。
+  //   _userStopCtrl 由 tryOnce 合并进请求的 abort 信号；用户按「不等了」时只中断当前这一次尝试，
+  //   之后按超时同样的路线处理（手动重试对话框 / 备用 API / 技术故障暂停），绝不悄悄跳过发言。
+  let _userStopCtrl = null;
+  let _userStopped = false;
+  // 超时分支在 tryOnce 外面的 catch 里要用到这两个值，必须放在外层作用域（原来是 tryOnce 里的 const，
+  // 超时时 catch 一引用就 ReferenceError，整条请求链路炸掉，发言随之悄悄消失）。
+  let _reqStartTs = 0;
+  let timeoutMs = 0;
+  const _plannedTimeoutMs = () => {
+    let ui = 0;
+    if (typeof document !== 'undefined') { const el = document.getElementById('t-single'); if (el && parseInt(el.value) > 0) ui = parseInt(el.value) * 1000; }
+    const d = ui || (typeof window !== 'undefined' && window.AI_TIMEOUT_MS) || 600000;
+    return fullReasoningOn() ? Math.max(opts.timeoutMs || 0, d, FULL_REASONING_TIMEOUT_MS) : (opts.timeoutMs || d);
+  };
+  const _watched = async (run, att, maxAtt) => {
+    _userStopCtrl = new AbortController();
+    _userStopped = false;
+    const ctrl = _userStopCtrl;
+    const w = AIWait.begin(p, {attempt: att, maxAttempts: maxAtt, limitMs: _plannedTimeoutMs()}, () => { _userStopped = true; ctrl.abort(); });
+    try { const r = await run(); w.end('ok'); return r; }
+    catch (e) { w.end(_userStopped ? 'stop' : (e && e.name === 'AbortError' ? 'abort' : 'error')); throw e; }
+    finally { if (_userStopCtrl === ctrl) _userStopCtrl = null; }
+  };
   async function tryOnce(useApi, att, apiType) {
     if (S.gameId !== myGid) return null;
     apiType = apiType || 'openai';
@@ -10412,10 +10532,10 @@ async function _callAIImpl(p, prompt, opts) {
       if (el && parseInt(el.value) > 0) _uiSingle = parseInt(el.value) * 1000;
     }
     const defaultTimeout = _uiSingle || (typeof window !== 'undefined' && window.AI_TIMEOUT_MS) || 600000;
-    const timeoutMs = fullReasoningOn()
+    timeoutMs = fullReasoningOn()
       ? Math.max(opts.timeoutMs || 0, defaultTimeout, FULL_REASONING_TIMEOUT_MS)
       : (opts.timeoutMs || defaultTimeout);
-    const _reqStartTs = Date.now();   // ★ 记录请求开始时间,用于报错时算真实耗时,区分"真超时"vs"连接被掐"
+    _reqStartTs = Date.now();   // ★ 记录请求开始时间,用于报错时算真实耗时,区分"真超时"vs"连接被掐"
     const timeoutCtrl = new AbortController();
     const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
     // 合并游戏abort和超时abort
@@ -10423,6 +10543,7 @@ async function _callAIImpl(p, prompt, opts) {
       const ctrl = new AbortController();
       S.abortCtrl.signal.addEventListener('abort', () => ctrl.abort());
       timeoutCtrl.signal.addEventListener('abort', () => ctrl.abort());
+      if (_userStopCtrl) _userStopCtrl.signal.addEventListener('abort', () => ctrl.abort());
       return ctrl.signal;
     })();
     // ★ 重试时逐级降低思考强度。
@@ -10932,7 +11053,7 @@ async function _callAIImpl(p, prompt, opts) {
       try {
         // 主 API 以前写死 'openai'，等于 tryOnce 里那两套原生适配（Anthropic /v1/messages、
         // Gemini :generateContent）只有备选 API 用得上。改成读用户选的渠道。
-        const result = await tryOnce(api, att, api.type || 'openai');
+        const result = await _watched(() => tryOnce(api, att, api.type || 'openai'), att, maxRetries);
         if (result === null) return {thinking:'',game:'',action:''};
         // ★ 检测到复读沉默：直接跳到备用API，不在同一个模型上浪费重试
         if (result._isRepeatSilent && getFallbacks().length > 0) {
@@ -10971,18 +11092,29 @@ async function _callAIImpl(p, prompt, opts) {
           const _waited = Math.round((Date.now() - _reqStartTs) / 1000);
           const _limit = Math.round(timeoutMs / 1000);
           // 实际等待时间若明显短于设定上限(< 上限的80%),几乎一定是连接被掐,不是计时器到点
-          const _isCut = _waited < _limit * 0.8;
-          if (_isCut) {
+          const _isCut = !_userStopped && _waited < _limit * 0.8;
+          // 接下来会发生什么，要说给用户听：以前不管有没有备用 API 都写"尝试备用模型"，
+          // 没配备用时用户以为换了模型，其实是在默默重试同一个。
+          const _hasFb = getFallbacks().length > 0;
+          const _next = isManualRetryEnabled() ? 'waiting for your choice'
+            : _hasFb ? 'trying the fallback model'
+            : (att < maxRetries ? `retrying the same model automatically (attempt ${att + 1}/${maxRetries})` : 'this request failed; the speech step will pause and ask you');
+          if (_userStopped) {
+            Render.devLog('warn', `[P${p.id+1}] ⏹️ 用户在 ${_waited} 秒时停止等待（设定上限 ${_limit} 秒）`);
+            Render.log('system', `⏹️ You stopped waiting for ${p.name} after ${_waited} s, ${_next}`);
+          } else if (_isCut) {
             Render.devLog('err', `[P${p.id+1}] ⚠️ 请求在 ${_waited} 秒后被中断(设定上限 ${_limit} 秒，远未到）——几乎一定是反代/网络掐断了长连接，不是真超时。多半因生成太慢(max_tokens过大/思考链过长)导致连接静默被掐。`);
-            Render.log('system', `⚠️ ${p.name} 连接在 ${_waited} 秒后被掐断（非满超时），尝试备用模型`);
+            Render.log('system', `⚠️ ${p.name}: connection cut after ${_waited} s (before the timeout), ${_next}`);
           } else {
             Render.devLog('err', `[P${p.id+1}] ⏱️ 请求等满 ${_waited} 秒触发超时上限(${_limit}秒)。thinking 模型可能需要更长时间，Console: window.AI_TIMEOUT_MS=600000 可改。`);
-            Render.log('system', `⏱️ ${p.name} 请求超时（等待 ${_waited} 秒 / 上限 ${_limit} 秒），尝试备用模型`);
+            Render.log('system', `⏱️ ${p.name}: request timed out (waited ${_waited} s / limit ${_limit} s), ${_next}`);
           }
-          mainErr = _isCut ? '连接被掐断' : 'API超时';
-          if (getFallbacks().length > 0) {
+          mainErr = _userStopped ? '用户停止等待' : (_isCut ? '连接被掐断' : 'API超时');
+          // 有备用 API、开了手动重试、或是用户自己叫停：立刻交给下面的处理，不再默默重试。
+          // 以前只有配了备用 API 才跳出，开着手动重试却没配备用的人要先干等完三次超时才看到对话框。
+          if (_hasFb || isManualRetryEnabled() || _userStopped) {
             silentDetected = true;
-            silentReason = _isCut ? '连接被掐断' : '主API超时';
+            silentReason = (_userStopped ? '用户停止等待' : (_isCut ? '连接被掐断' : '主API超时')) + `（已等 ${_waited} 秒）`;
             break;
           }
           // 没备用 API：进入正常重试循环
@@ -11072,12 +11204,17 @@ async function _callAIImpl(p, prompt, opts) {
         for (let att = 1; att <= 1; att++) {
           if (S.gameId !== myGid) return {thinking:'',game:'',action:''};
           try {
-            const result = await tryOnce(fbApi, att, fbType);
+            const result = await _watched(() => tryOnce(fbApi, att, fbType), fi + 1, fallbacks.length);
             if (result === null) return {thinking:'',game:'',action:''};
             Render.devLog('res', `[P${p.id+1}] 备选#${fi+1}成功`);
             return result;
           } catch(e) {
-            if (e.name==='AbortError' || S.gameId!==myGid) return {thinking:'',game:'',action:''};
+            if (S.gameId!==myGid) return {thinking:'',game:'',action:''};
+            if (e.name==='AbortError') {
+              // 备用 API 也超时或被「不等了」叫停：说一声，换下一个备用；都不行再走下面的失败处理
+              Render.log('system', `⏱️ ${p.name}: fallback #${fi+1} ${_userStopped ? 'stopped by you' : 'timed out'}, trying the next fallback or asking you`);
+              break;
+            }
             Render.devLog('err', `[P${p.id+1}] 备选#${fi+1}尝试${att}: ${e.message}`);
           }
         }
@@ -12751,7 +12888,7 @@ async function proc(players, promptFn, label, opts) {
   while (idx < players.length) {
     const batch = players.slice(idx, idx + Math.min(conc, players.length - idx));
     const results = new Array(batch.length);
-    await Promise.allSettled(batch.map(async (p, j) => {
+    const _settled = await Promise.allSettled(batch.map(async (p, j) => {
       if (!p.alive) { results[j] = 'dead'; return; } // ★ 骑士内联决斗/技能可能中途杀人，跳过已出局者
       // ★ 修复：导演控制状态自愈——"让AI说"临时把 isPlayer 置 false 后如果中途异常没恢复，
       //   之后这个角色会被当成纯AI直接发言（导演弹窗再也不弹=发言被跳过）。
@@ -12942,6 +13079,18 @@ async function proc(players, promptFn, label, opts) {
         results[j] = _r;
       }
     }));
+    // ★ 批处理里任何一步抛出异常（请求、事实校验、分诊……），以前被 allSettled 吞掉，
+    //   results[j] 留空，下面一句 `if (!r) continue` 就把这位玩家整个跳过，日志里一个字都没有。
+    //   现在把异常记成技术故障，让流程暂停并问用户，而不是装作他没说话。
+    _settled.forEach((st, j) => {
+      if (!st || st.status !== 'rejected') return;
+      if (S.abortCtrl && S.abortCtrl.signal.aborted) return;
+      const p = batch[j];
+      if (!p || !p.alive || results[j] === 'dead' || results[j] === 'player') return;
+      const msg = (st.reason && st.reason.message) || String(st.reason);
+      Render.devLog('err', `[P${p.id+1} ${p.name}] 发言请求过程抛出异常，按技术故障处理而不是跳过：${msg}`);
+      results[j] = {thinking:'', game:'', action:'', _technicalFailure:true, _technicalReason:'请求过程抛出异常：' + msg};
+    });
     for (let j = 0; j < batch.length; j++) {
       if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
       const p = batch[j];
@@ -12978,7 +13127,12 @@ async function proc(players, promptFn, label, opts) {
         }
       }
       let r = results[j];
-      if (!r) continue;
+      if (!r) {
+        if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
+        // 结果缺失也不能悄悄跳过：按技术故障暂停询问
+        Render.devLog('err', `[P${p.id+1} ${p.name}] 发言结果缺失，按技术故障处理而不是跳过`);
+        r = results[j] = {thinking:'', game:'', action:'', _technicalFailure:true, _technicalReason:'发言结果缺失'};
+      }
       if (!opts.silent && r._technicalFailure) {
         r = results[j] = await recoverTechnicalSpeech(p, r);
       }
