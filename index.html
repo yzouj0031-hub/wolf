@@ -10967,6 +10967,116 @@ const AIWait = (() => {
 })();
 if (typeof window !== 'undefined') window.AIWait = AIWait;
 
+// ★ 技术故障绝不自动跳过
+//   以前：发言 / 密谈 / 遗言生成失败、投票或夜间技能解析失败时，有的弹框问用户，有的只写一行日志就过去了。
+//   现在统一成一条原则：只要不是对局被重置，任何"没拿到可用结果"的情况都暂停并问用户，
+//   跳过只能由用户点「确认跳过」；能重试的给重试，能手动代劳的给手动，模型其实说了话的给"照用原话"。
+//   唯一例外：匿名 / 真人视角下，夜间角色的技能故障弹框会泄露身份，这种场合沿用原来的静默记录。
+function technicalDialogAllowed() { return !isAnon() || isMC() || S.directorMode || S.pureAI; }
+
+// 打开某位玩家的配置面板，等用户保存或取消（切换模型 / API 后重试用）
+function waitForPlayerConfigDialog(p) {
+  return new Promise(resolve => {
+    const saveBtn = $('pcsave'), cancelBtn = $('pccancel');
+    const done = saved => {
+      saveBtn && saveBtn.removeEventListener('click', onSave);
+      cancelBtn && cancelBtn.removeEventListener('click', onCancel);
+      resolve(saved);
+    };
+    const onSave = () => done(true);
+    const onCancel = () => done(false);
+    saveBtn && saveBtn.addEventListener('click', onSave);
+    cancelBtn && cancelBtn.addEventListener('click', onCancel);
+    openPCfg(p.id);
+  });
+}
+
+// 发言类（公开发言 / 竞选 / PK / 狼人密谈 / 遗言）生成失败：暂停询问，直到拿到可用发言或用户确认跳过。
+async function recoverTechnicalSpeechFor(p, failed, promptFn, opts, label) {
+  let last = failed;
+  while (last && last._technicalFailure) {
+    const api = getAPI(p.id);
+    const raw = String(last._rawCandidate || '').trim();
+    const choices = [
+      {label:'切换模型 / API 后重试', value:'switch'},
+      {label:'使用当前模型重试', value:'retry'},
+      {label:'手写代替（你来替它说）', value:'manual'}
+    ];
+    if (raw) choices.push({label:'照用它最后一次的原话（不再审核）', value:'raw'});
+    choices.push({label:'确认跳过本次发言', value:'skip', danger:true});
+    const choice = await waitChoice(
+      `${p.name}（P${p.id+1}）在“${label}”阶段没有生成可提取的正式发言。\n当前模型：${api.model || '未填写'}\n原因：${last._technicalReason || '未标注'}`
+      + (raw ? `\n\n它最后一次交回的原文（被判定为草稿或过短而未采用）：\n“${raw.slice(0, 200)}${raw.length > 200 ? '…' : ''}”` : '')
+      + `\n\n流程已暂停，不会自动跳过。`,
+      '发言生成故障',
+      choices
+    );
+    if (choice === 'skip') return last;
+    if (choice === 'raw') return {...last, game: raw, _technicalFailure:false, _technicalReason:'', _rawAccepted:true};
+    if (choice === 'manual') {
+      const written = await handleManualWrite(p, promptFn(p), opts || {});
+      if (!written) continue;
+      return {...written, _technicalFailure:false, _technicalReason:''};
+    }
+    if (choice === 'switch') {
+      const saved = await waitForPlayerConfigDialog(p);
+      if (!saved) continue;
+    }
+    Render.devLog('info', `[P${p.id+1} ${p.name}] 用户选择${choice === 'switch' ? '切换配置后' : '使用当前模型'}重试“${label}”`);
+    try {
+      const retried = factCheck(p, await callAI(p, promptFn(p), {
+        ...(opts || {}), noMemory:true, forceFallback:false, maxRetries:1
+      }));
+      if (retried && !isAISilentFailure(retried.game)) {
+        return {...retried, _technicalFailure:false, _technicalReason:''};
+      }
+      last = {...(retried || {}), _technicalFailure:true, _technicalReason:'用户重试后仍无有效正式发言', _rawCandidate:last._rawCandidate};
+    } catch (e) {
+      last = {...(last || {}), _technicalFailure:true, _technicalReason:'用户重试时API调用失败：' + (e && e.message || e)};
+      Render.devLog('err', `[P${p.id+1} ${p.name}] 用户重试“${label}”失败：${e && e.message || e}`);
+    }
+  }
+  return last;
+}
+
+// 行动类（投票 / 夜间技能）两次格式纠正仍失败：暂停询问。
+// 返回 'retry' | 'switch' | 'manual' | 'skip'；视角不允许看到该玩家身份时直接返回 'skip'（沿用原来的静默记录）。
+async function askTechnicalAction(player, label, detail) {
+  if (!technicalDialogAllowed()) return 'skip';
+  const api = getAPI(player.id);
+  return await waitChoice(
+    `${player.name}（P${player.id+1}）的“${label}”：${detail || '两次格式纠正后仍无法识别目标'}。\n当前模型：${api.model || '未填写'}\n\n流程已暂停，不会自动按故障处理。`,
+    '行动解析故障',
+    [
+      {label:'再问一次模型', value:'retry'},
+      {label:'切换模型 / API 后再问', value:'switch'},
+      {label:'我来替它选择', value:'manual'},
+      {label:'确认按技术故障处理（不执行）', value:'skip', danger:true}
+    ]
+  );
+}
+
+// 手动替 AI 选目标：单目标一次选定；多目标逐个选，够数后可点「完成」。返回目标数组 / 'pass' / null（取消）。
+async function pickTargetsManually(player, label, candidates, minCount, maxCount, allowPass) {
+  const picked = [];
+  while (true) {
+    const pool = (candidates || []).filter(x => !picked.includes(x));
+    const opts = pool.map(x => ({label:`P${x.id+1} ${x.name}`, value:'P' + x.id}));
+    if (allowPass && !picked.length) opts.push({label:'不行动 / 弃权', value:'__PASS__', abs:true});
+    if (picked.length >= minCount) opts.push({label:`完成（已选 ${picked.length} 人）`, value:'__DONE__', abs:true});
+    opts.push({label:'取消（回到上一步）', value:'__CANCEL__', abs:true});
+    const v = await waitChoice(
+      `替 ${player.name}（P${player.id+1}）选择“${label}”的目标${maxCount > 1 ? `（${minCount}～${maxCount} 人，已选：${picked.map(x=>x.name).join('、') || '无'}）` : ''}。`,
+      '手动指定目标', opts);
+    if (v === '__CANCEL__') return null;
+    if (v === '__PASS__') return 'pass';
+    if (v === '__DONE__') return picked;
+    const t = pool.find(x => 'P' + x.id === v);
+    if (t) picked.push(t);
+    if (picked.length >= maxCount) return picked;
+  }
+}
+
 function manualRetryDialog(p, reason) {
   return new Promise(resolve => {
     // ★ 判断当前环节是否"关键发言"：白天发言/警长竞选/投票/技能 → 重要，建议重试；
@@ -14000,53 +14110,9 @@ async function proc(players, promptFn, label, opts) {
   // 默认要求至少 80 字；调用方可以按特殊公开环节调低，但不能低于 30 字。
   const minSpeechChars = Math.max(30, Number(opts.minSpeechChars) || 80);
   const trialOn = $('m-trial').checked && !opts.wolfOnly && !opts.noTrial;
-  const waitForPlayerConfig = p => new Promise(resolve => {
-    const saveBtn = $('pcsave'), cancelBtn = $('pccancel');
-    const done = saved => {
-      saveBtn && saveBtn.removeEventListener('click', onSave);
-      cancelBtn && cancelBtn.removeEventListener('click', onCancel);
-      resolve(saved);
-    };
-    const onSave = () => done(true);
-    const onCancel = () => done(false);
-    saveBtn && saveBtn.addEventListener('click', onSave);
-    cancelBtn && cancelBtn.addEventListener('click', onCancel);
-    openPCfg(p.id);
-  });
-  const recoverTechnicalSpeech = async (p, failed) => {
-    let last = failed;
-    while (last && last._technicalFailure) {
-      const api = getAPI(p.id);
-      const choice = await waitChoice(
-        `${p.name}（P${p.id+1}）在“${label}”阶段没有生成可提取的正式发言。\n当前模型：${api.model || '未填写'}\n\n流程已暂停，不会自动跳过。你可以切换该玩家的模型/API 后重试，或用当前模型再试一次。`,
-        '发言生成故障',
-        [
-          {label:'切换模型 / API 后重试', value:'switch'},
-          {label:'使用当前模型重试', value:'retry'},
-          {label:'确认跳过本次发言', value:'skip', danger:true}
-        ]
-      );
-      if (choice === 'skip') return last;
-      if (choice === 'switch') {
-        const saved = await waitForPlayerConfig(p);
-        if (!saved) continue;
-      }
-      Render.devLog('info', `[P${p.id+1} ${p.name}] 用户选择${choice === 'switch' ? '切换配置后' : '使用当前模型'}重试公开发言`);
-      try {
-        const retried = factCheck(p, await callAI(p, promptFn(p), {
-          ...opts, noMemory:true, forceFallback:false, maxRetries:1
-        }));
-        if (retried && !isAISilentFailure(retried.game)) {
-          return {...retried, _technicalFailure:false, _technicalReason:''};
-        }
-        last = {...(retried || {}), _technicalFailure:true, _technicalReason:'用户重试后仍无有效正式发言'};
-      } catch (e) {
-        last = {...(last || {}), _technicalFailure:true, _technicalReason:'用户重试时API调用失败：' + (e && e.message || e)};
-        Render.devLog('err', `[P${p.id+1} ${p.name}] 用户重试发言失败：${e && e.message || e}`);
-      }
-    }
-    return last;
-  };
+  const waitForPlayerConfig = waitForPlayerConfigDialog;
+  // 发言生成故障的询问流程提到了顶层（recoverTechnicalSpeechFor），密谈和遗言也用同一套。
+  const recoverTechnicalSpeech = (p, failed) => recoverTechnicalSpeechFor(p, failed, promptFn, opts, label);
   const conc = getC('c-speak');
   let idx = 0;
   while (idx < players.length) {
@@ -14096,6 +14162,7 @@ async function proc(players, promptFn, label, opts) {
       };
       {
         // ★ 抢先朗读只在"发言并发=1的公开发言"时开启:并发>1会造成多人同时开口、乱序
+        let _lastRejectedGame = '';   // 判官/正则否掉的最后一版原文：技术故障弹框里给用户"照用原话"
         const _judgeMode = S.debugDisableSpeechJudge ? 'off'
           : (($('m-speech-judge') && $('m-speech-judge').value) || 'all');
         const _liveOK = _judgeMode === 'off' && batch.length === 1 && !opts.wolfOnly && !opts.silent;
@@ -14165,7 +14232,7 @@ async function proc(players, promptFn, label, opts) {
             _judgeRejected = true;
             Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 正则直接判定为思维链倾倒（${_dump.source.slice(0, 40)}），不必问判官："${String(_r.game).slice(0, 50)}…"`);
             Render.log('system', `🧮 ${p.name} 交回的是思考过程而不是发言，正在重新请求`);
-            _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
+            _lastRejectedGame = String(_r.game || ''); _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
           }
         }
         if (!_judgeRejected && needsSpeechJudge(_r, opts, _judgeMode)) {
@@ -14209,7 +14276,7 @@ async function proc(players, promptFn, label, opts) {
               _judgeRejected = true;
               Render.devLog('warn', `[P${p.id+1} ${p.name}] 🧮 发言分诊判定为私下盘算而非公开发言，已挪回thinking并请求正式发言："${String(_r.game).slice(0, 50)}…"`);
               Render.log('system', `🧮 ${p.name} 交回的是内心盘算而不是发言，正在重新请求`);
-              _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
+              _lastRejectedGame = String(_r.game || ''); _r = {..._r, thinking: (_r.thinking ? _r.thinking + '\n\n' : '') + _r.game, game: ''};
             } else {
               _js.passed++; _js.streak = 0;
             }
@@ -14235,7 +14302,7 @@ async function proc(players, promptFn, label, opts) {
             _r = {..._r, _speechStillShort:true};
             Render.devLog('warn', `[P${p.id+1} ${p.name}] 重写后仍只有${remaining.length}字，保留发言但标记为偏短`);
           } else {
-            _r = {...(_r || {}), _technicalFailure:true, _technicalReason:'生成或解析后无有效正式发言'};
+            _r = {...(_r || {}), _technicalFailure:true, _technicalReason:'生成或解析后无有效正式发言', _rawCandidate:_lastRejectedGame};
           }
         }
         // ★ 跟踪连续短发言（不影响输出，只产生告警）
@@ -15435,6 +15502,29 @@ async function resolveAIAction3(player, result, cfg) {
   }
 
   Render.devLog && Render.devLog('warn', `[${cfg.label}] 行动解析最终失败；原action="${actionRaw}"。不得记作主动空过。`);
+  // ★ 不再自动按故障处理：暂停问用户（视角允许时）。再问模型 / 切换模型后再问 / 手动替它选 / 确认按故障处理。
+  while (true) {
+    const choice = await askTechnicalAction(player, cfg.label, `两次格式纠正后仍无法识别目标（原action：${actionRaw || '（空白）'}）`);
+    if (choice === 'skip') break;
+    if (choice === 'manual') {
+      const picked = await pickTargetsManually(player, cfg.label, candidates, minTargetCount, maxTargetCount, !!cfg.allowPass);
+      if (picked === null) continue;
+      if (picked === 'pass') return {status:'pass', targets:[], source:'manual', raw:'PASS'};
+      Render.devLog && Render.devLog('info', `[${cfg.label}] 用户手动指定 → ${picked.map(x=>`P${x.id+1} ${x.name}`).join('、')}`);
+      return {status:'execute', targets:picked, source:'manual', raw:picked.map(x=>'P'+(x.id+1)).join(',')};
+    }
+    if (choice === 'switch') { const saved = await waitForPlayerConfigDialog(player); if (!saved) continue; }
+    const again = await _requestMachineActionCorrection(player, result || {}, {
+      label:cfg.label, candidates, targetCount, minTargetCount, maxTargetCount,
+      allowPass:!!cfg.allowPass, passActionRe:cfg.passActionRe, formatHint:cfg.formatHint, extraRule:cfg.extraRule || ''
+    });
+    if (cfg.allowPass && _isExplicitMachinePass(again, cfg.passActionRe)) return {status:'pass', targets:[], source:'correction', raw:again};
+    const t2 = _extractMachineTargets(again, candidates, candidates.length);
+    if (t2.length >= minTargetCount && t2.length <= maxTargetCount) {
+      Render.devLog && Render.devLog('info', `[${cfg.label}用户重试] → ${t2.map(x=>`P${x.id+1} ${x.name}`).join('、')}`);
+      return {status:'execute', targets:t2, source:'correction', raw:again};
+    }
+  }
   return {status:'invalid', targets:[], source:'none', raw:actionRaw};
 }
 
@@ -15477,6 +15567,31 @@ async function resolveAIWitchAction(player, result, cfg) {
       Render.devLog && Render.devLog('warn', `[女巫格式纠正] 第${attempt}次请求失败：${e&&e.message?e.message:e}`);
     }
   }
+  // ★ 不再自动按故障处理：暂停问用户（视角允许时）
+  while (true) {
+    const choice = await askTechnicalAction(player, '女巫用药', '两次格式纠正后仍无法识别用药决定');
+    if (choice === 'skip') break;
+    if (choice === 'manual') {
+      const opts = [];
+      if (cfg.canSave) opts.push({label:'救人（SAVE）', value:'SAVE'});
+      (cfg.canPoison ? (cfg.poisonPool || []) : []).forEach(x => opts.push({label:`毒 P${x.id+1} ${x.name}`, value:'POISON|P' + x.id}));
+      opts.push({label:'不用药', value:'__PASS__', abs:true});
+      opts.push({label:'取消（回到上一步）', value:'__CANCEL__', abs:true});
+      const v = await waitChoice(`替 ${player.name}（P${player.id+1}）决定本夜用药。`, '手动指定用药', opts);
+      if (v === '__CANCEL__') continue;
+      if (v === '__PASS__') return {status:'pass', kind:'pass', target:null, raw:'NO_ACTION', source:'manual'};
+      if (v === 'SAVE') return {status:'execute', kind:'save', target:null, raw:'SAVE', source:'manual'};
+      const t = (cfg.poisonPool || []).find(x => 'POISON|P' + x.id === v);
+      if (t) return {status:'execute', kind:'poison', target:t, raw:'POISON|P' + (t.id+1), source:'manual'};
+      continue;
+    }
+    if (choice === 'switch') { const saved = await waitForPlayerConfigDialog(player); if (!saved) continue; }
+    try {
+      const corrected = await callAI(player, `【女巫行动格式纠正·用户要求再答一次】只输出 <action>${formats}</action>。一晚只能用一瓶药；只有原本明确决定不用药时才写 NO_SAVE/NO_POISON。`, {noMemory:true, skillConfirm:true, maxRetries:1});
+      const p2 = _parseWitchMachineAction(corrected && (corrected.action || corrected.game), cfg.canSave, cfg.poisonPool);
+      if (p2.status !== 'invalid') return {...p2, source:'correction'};
+    } catch(e) { Render.devLog && Render.devLog('warn', `[女巫格式纠正·用户重试] 请求失败：${e&&e.message?e.message:e}`); }
+  }
   return {status:'invalid', kind:null, target:null, source:'none', raw:_cleanMachineAction(result&&result.action)};
 }
 
@@ -15502,6 +15617,23 @@ async function resolveAIEnumAction(player, result, cfg) {
       Render.devLog && Render.devLog('warn', `[${cfg.label}格式纠正] 第${attempt}次请求失败：${e&&e.message?e.message:e}`);
     }
   }
+  // ★ 不再自动按故障处理：暂停问用户（视角允许时）
+  while (true) {
+    const choice = await askTechnicalAction(player, cfg.label, `两次格式纠正后仍未识别选项（可选：${(cfg.options||[]).join(' / ')}）`);
+    if (choice === 'skip') break;
+    if (choice === 'manual') {
+      const opts = (cfg.options || []).map(o => ({label:String(o), value:String(o)})).concat([{label:'取消（回到上一步）', value:'__CANCEL__', abs:true}]);
+      const v = await waitChoice(`替 ${player.name}（P${player.id+1}）选择“${cfg.label}”的选项。`, '手动指定选项', opts);
+      if (v === '__CANCEL__') continue;
+      return {status:'execute', value:String(v).toUpperCase(), source:'manual'};
+    }
+    if (choice === 'switch') { const saved = await waitForPlayerConfigDialog(player); if (!saved) continue; }
+    try {
+      const corrected = await callAI(player, `【${cfg.label}·行动格式纠正·用户要求再答一次】只输出 <action>${(cfg.options||[]).join(' 或 ')}</action>，不要解释。`, {noMemory:true, skillConfirm:true, maxRetries:1});
+      const v2 = _parseMachineEnum(corrected && (corrected.action || corrected.game), cfg.options);
+      if (v2) return {status:'execute', value:v2, source:'correction'};
+    } catch(e) { Render.devLog && Render.devLog('warn', `[${cfg.label}用户重试] 请求失败：${e&&e.message?e.message:e}`); }
+  }
   return {status:'invalid', value:null, source:'none'};
 }
 
@@ -15513,7 +15645,7 @@ async function procWolf(wolves, promptFn, label, opts) {
   while (idx < wolves.length) {
     const batch = wolves.slice(idx, idx + Math.min(conc, wolves.length - idx));
     const results = new Array(batch.length);
-    await Promise.allSettled(batch.map(async (p, j) => {
+    const _settled = await Promise.allSettled(batch.map(async (p, j) => {
       // ★ 修复：导演控制状态自愈（同白天发言处），防止 isPlayer 被卡成 false 后密谈弹窗被跳过
       if (S.directorMode && !p.isPlayer && S.directorIds && S.directorIds.includes(p.id)) {
         p.isPlayer = true;
@@ -15523,13 +15655,32 @@ async function procWolf(wolves, promptFn, label, opts) {
       if (S.abortCtrl && S.abortCtrl.signal.aborted) return;
       results[j] = factCheck(p, await callAI(p, promptFn(p), opts));
     }));
+    // ★ 批处理里抛出的异常以前被 allSettled 吞掉、这只狼直接消失；现在记成技术故障，下面暂停询问
+    _settled.forEach((st, j) => {
+      if (!st || st.status !== 'rejected' || results[j] === 'player') return;
+      if (S.abortCtrl && S.abortCtrl.signal.aborted) return;
+      const msg = (st.reason && st.reason.message) || String(st.reason);
+      Render.devLog('err', `[P${batch[j].id+1} ${batch[j].name}] 密谈请求过程抛出异常，按技术故障处理而不是跳过：${msg}`);
+      results[j] = {thinking:'', game:'', action:'', _technicalFailure:true, _technicalReason:'请求过程抛出异常：' + msg};
+    });
     // ★ fix: 先展示所有AI队友发言，再让人类玩家输入（防止人类先弹窗看不到队友内容）
     for (let j = 0; j < batch.length; j++) {
       if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
       const p = batch[j];
       if (results[j]==='player') continue; // 先跳过人类，等AI发完
-      const r = results[j];
-      if (!r) continue;
+      let r = results[j];
+      if (!r) {
+        if (S.abortCtrl && S.abortCtrl.signal.aborted) break;
+        r = results[j] = {thinking:'', game:'', action:'', _technicalFailure:true, _technicalReason:'密谈结果缺失'};
+      }
+      // 密谈没拿到可用发言：以前直接显示"(沉默)"或干脆不显示；现在暂停询问（视角允许时），跳过只能由用户确认
+      if ((r._technicalFailure || isAISilentFailure(r.game)) && technicalDialogAllowed()) {
+        r = results[j] = await recoverTechnicalSpeechFor(p, {...r, _technicalFailure:true, _technicalReason:r._technicalReason || '密谈生成或解析后无有效发言'}, promptFn, opts, label || '狼人密谈');
+        if (r._technicalFailure) {
+          Render.log('system', `⚠️ ${p.name}本次密谈因系统生成/解析故障未产生发言（已由你确认跳过）`, {scope:'pack', actorId:p.id});
+          continue;
+        }
+      }
       if (r.game) {
         Render.setSpeaking(p.id, true); await ftp();
         await streamSpeak(p, label, r, true);
@@ -16312,14 +16463,19 @@ async function lastWords(p) {
             ? ''
             : `\n\n【⚠️ 重要提醒】你是【${p.role.name}】，${p.role.id === 'wolfbeauty' ? '你出局时被你魅惑的人会自动殉情（系统结算，不用你宣布）；' : '没有死亡技能；'}遗言里不要说"我开枪带走XX""我自爆带走XX""我决斗XX"这类话。${p.role.team === 'bad' ? '你是狼：遗言也是博弈，可以继续你的身份口径、替还活着的队友打掩护或把火力引向好人，不必认狼（除非你算过这样对狼队更有利）。' : p.role.team === 'good' ? '你是好人：遗言要留下能帮好人的东西——你掌握的真实信息（查验、用药、守护等记录）、你的站边、你最怀疑谁和理由。' : ''}`;
           Render.setSpeaking(p.id, true);
-          r0 = await callAI(p, '【遗言】你死了，最后说几句。'+skillReminder0+'\n<thinking>思考</thinking>\n<game>遗言</game>\n<action>None</action>');
+          const willPrompt0 = '【遗言】你死了，最后说几句。'+skillReminder0+'\n<thinking>思考</thinking>\n<game>遗言</game>\n<action>None</action>';
+          r0 = await callAI(p, willPrompt0);
           Render.setSpeaking(p.id, false);
+          if (!r0 || isAISilentFailure(r0.game)) {
+            r0 = await recoverTechnicalSpeechFor(p, {...(r0 || {thinking:'', game:'', action:''}), _technicalFailure:true, _technicalReason:'遗言生成或解析后无有效内容'}, () => willPrompt0, {}, '遗言');
+            if (r0._technicalFailure) r0 = {...r0, game:'(沉默·发言生成失败)'};
+          }
           await streamSpeak(p, '遗言', r0, false, true);
         } finally {
           Render.setSpeaking(p.id, false);
           p.isPlayer = true;
         }
-        words = r0 ? (r0.game || '') : '';
+        words = (r0 && !r0._technicalFailure) ? (r0.game || '') : '';
       } else {
         words = choice;
         // ★ 若网页端AI/导演输入带标签(<thinking>/<game>)，用 parseAI 拆开，避免标签原样显示
@@ -16349,10 +16505,16 @@ async function lastWords(p) {
     const skillReminder = hasDeathSkill
       ? ''
       : `\n\n【⚠️ 重要提醒】你是【${p.role.name}】，${p.role.id === 'wolfbeauty' ? '你出局时被你魅惑的人会自动殉情（系统结算，不用你宣布）；' : '没有死亡技能；'}遗言里不要说"我开枪带走XX""我自爆带走XX""我决斗XX"这类话。${p.role.team === 'bad' ? '你是狼：遗言也是博弈，可以继续你的身份口径、替还活着的队友打掩护或把火力引向好人，不必认狼（除非你算过这样对狼队更有利）。' : p.role.team === 'good' ? '你是好人：遗言要留下能帮好人的东西——你掌握的真实信息（查验、用药、守护等记录）、你的站边、你最怀疑谁和理由。' : ''}`;
-    const r = await callAI(p,'【遗言】你死了，最后说几句。'+skillReminder+'\n<thinking>思考</thinking>\n<game>遗言</game>\n<action>None</action>');
+    const willPromptAI = '【遗言】你死了，最后说几句。'+skillReminder+'\n<thinking>思考</thinking>\n<game>遗言</game>\n<action>None</action>';
+    let r = await callAI(p, willPromptAI);
     Render.setSpeaking(p.id,false);
+    // 遗言生成失败不再直接显示"(请求失败)"了事：暂停询问，跳过只能由用户确认；确认跳过的遗言不广播进记忆
+    if (!r || isAISilentFailure(r.game)) {
+      r = await recoverTechnicalSpeechFor(p, {...(r || {thinking:'', game:'', action:''}), _technicalFailure:true, _technicalReason:'遗言生成或解析后无有效内容'}, () => willPromptAI, {}, '遗言');
+      if (r._technicalFailure) r = {...r, game:'(沉默·发言生成失败)'};
+    }
     await streamSpeak(p,'遗言',r,false,true);
-    words = r ? (r.game || '') : '';
+    words = (r && !r._technicalFailure) ? (r.game || '') : '';
   }
   // ★ fix: 遗言广播到所有存活玩家的记忆，让AI下一轮能引用
   if (words && words.trim()) {
@@ -20377,8 +20539,13 @@ const PhaseHandlers = {
     }
     // AI普通投票也使用三态解析：空/乱码不是弃权，只有明确PASS/None才是主动弃票。
     for (const p of aiP) {
-      const vr = aiR[p.id];
-      if (!vr || vr.actionTechnicalInvalid) continue;
+      let vr = aiR[p.id];
+      if (vr && vr.actionTechnicalInvalid) continue;
+      if (!vr) {
+        // 投票请求没有返回结果（异常被 batchCall 吞掉）：以前这一票悄悄消失；现在交给格式纠正与询问流程
+        Render.devLog('warn', `[P${p.id+1} ${p.name}] 投票请求没有返回结果，进入格式纠正与询问流程`);
+        vr = aiR[p.id] = {thinking:'', game:'', action:''};
+      }
       const decision = await resolveAIAction3(p, vr, {
         label:'白天投票', candidates:alive, targetCount:1, allowPass:true,
         passActionRe:/^(?:(?:本轮|这票)?(?:选择|决定|就)?\s*)?(?:弃权|不投|不投票|放弃投票)$/i,
