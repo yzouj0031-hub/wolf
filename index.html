@@ -2565,6 +2565,7 @@ body.has-wp::after {
 <link rel="stylesheet" href="./multiplayer.css">
 <link rel="stylesheet" href="./lobby-redesign.css">
 <link rel="stylesheet" href="./night3-bench.css">
+<link rel="stylesheet" href="./spacewolf.css">
 <script src="./role-sigils.js"></script>
 <script src="./action-cg.js"></script>
 <script src="./ui-icons.js"></script>
@@ -2626,6 +2627,7 @@ body.has-wp::after {
     <div class="mcd" data-mode="groupchat"><img class="mcd-art" src="icons/modes/groupchat.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>群聊</h3><div class="pl">🗨️</div><div class="desc">赛后复盘群<br>AI 吐槽甩锅互相盘</div></div>
     <div class="mcd mcd-chaos" data-mode="mystery"><img class="mcd-art" src="icons/modes/mystery.jpg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>剧本杀</h3><div class="pl">🔍</div><div class="desc">搜证·圆桌·指认<br>API／网页端 AI／真人混合</div></div>
     <div class="mcd mcd-chaos" onclick="Undercover.openUI()" role="button" tabindex="0"><i class="mcd-scrim"></i><h3>谁是卧底</h3><div class="pl">🕵️</div><div class="desc">描述词语·找出卧底<br>API／网页端 AI／真人混合</div></div>
+    <div class="mcd mcd-chaos" data-mode="spacewolf"><img class="mcd-art" src="icons/modes/spacewolf.svg" alt="" loading="lazy" onload="this.closest('.mcd').classList.add('has-art')"><i class="mcd-scrim"></i><h3>太空狼人杀</h3><div class="pl">🚀</div><div class="desc">实时走位·击杀·开会<br>API 模型／纯脚本演示</div></div>
     </div></section>
     <section class="mode-section mode-section-saved" id="custom-mode-section" hidden><div class="mode-section-head"><span>05</span><h2>我的模式</h2><p>你保存的私人板型</p></div><div class="mode-section-grid" id="custom-mode-cards"></div></section>
   </div>
@@ -25145,6 +25147,7 @@ function bindEvents() {
     else if (mode === 'pureai') selectMode('standard', true);
     else if (mode === 'groupchat') openGChat();
     else if (mode === 'mystery') openMurderMystery();
+    else if (mode === 'spacewolf') openSpaceWolf();
     else if (mode.indexOf('cm_') === 0) startCustomModePreset(mode);  // 自定义模式预设
     else selectMode(mode);
   });
@@ -28905,6 +28908,8 @@ if ('serviceWorker' in navigator &&
 </script>
 <script src="./mystery.js"></script>
 <script src="./night3-bench.js"></script>
+<script src="./spacewolf-engine.js"></script>
+<script src="./spacewolf.js"></script>
 <script src="replay-generator.js?v=2"></script>
 <script src="./community-matches.js?v=1"></script>
 </body>

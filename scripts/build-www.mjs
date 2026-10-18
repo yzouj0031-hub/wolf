@@ -35,6 +35,9 @@ const FILES = [
   'undercover-ui.css',
   'night3-bench.js',
   'night3-bench.css',
+  'spacewolf-engine.js',
+  'spacewolf.js',
+  'spacewolf.css',
   'lobby-redesign.css',
   'horror.html',
   'style-preview.html'

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#1a1f3d"/>
+      <stop offset="0.6" stop-color="#0b0d1c"/>
+      <stop offset="1" stop-color="#05060d"/>
+    </radialGradient>
+    <linearGradient id="visor" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#bfe7ff"/>
+      <stop offset="1" stop-color="#4e8ed8"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="400" height="560" fill="url(#bg)"/>
+  <g fill="#fff" opacity=".85">
+    <circle cx="30" cy="40" r="1.6"/><circle cx="90" cy="120" r="1.1"/><circle cx="150" cy="30" r="1.4"/><circle cx="240" cy="70" r="1.2"/>
+    <circle cx="330" cy="50" r="1.8"/><circle cx="370" cy="150" r="1.1"/><circle cx="60" cy="220" r="1.3"/><circle cx="350" cy="260" r="1.5"/>
+    <circle cx="20" cy="330" r="1.2"/><circle cx="120" cy="430" r="1.4"/><circle cx="300" cy="470" r="1.1"/><circle cx="380" cy="520" r="1.6"/>
+    <circle cx="200" cy="520" r="1.2"/><circle cx="260" cy="180" r="1"/><circle cx="40" cy="480" r="1.3"/>
+  </g>
+  <!-- 飞船舷窗 -->
+  <circle cx="200" cy="230" r="150" fill="none" stroke="#2c3560" stroke-width="12"/>
+  <circle cx="200" cy="230" r="134" fill="#0e1326"/>
+  <!-- 红色内鬼 -->
+  <g transform="translate(200 250) scale(1.25)">
+    <rect x="-46" y="-66" width="92" height="118" rx="40" fill="#c51111"/>
+    <rect x="-66" y="-30" width="30" height="62" rx="14" fill="#8f0c0c"/>
+    <rect x="-20" y="46" width="34" height="26" rx="10" fill="#c51111"/>
+    <rect x="12" y="46" width="34" height="26" rx="10" fill="#c51111"/>
+    <ellipse cx="14" cy="-32" rx="40" ry="24" fill="url(#visor)"/>
+    <ellipse cx="2" cy="-40" rx="16" ry="7" fill="#fff" opacity=".75"/>
+  </g>
+  <!-- 刀 -->
+  <g transform="translate(300 300) rotate(-32)" filter="url(#glow)">
+    <rect x="-6" y="-70" width="12" height="70" rx="3" fill="#d7dde8"/>
+    <rect x="-10" y="0" width="20" height="12" rx="3" fill="#5b4632"/>
+    <rect x="-5" y="12" width="10" height="34" rx="4" fill="#3a2a1c"/>
+  </g>
+  <!-- 远处小船员 -->
+  <g transform="translate(90 410) scale(.5)">
+    <rect x="-46" y="-66" width="92" height="118" rx="40" fill="#1b3fd8"/>
+    <rect x="-66" y="-30" width="30" height="62" rx="14" fill="#122a8a"/>
+    <ellipse cx="14" cy="-32" rx="40" ry="24" fill="url(#visor)"/>
+  </g>
+  <g transform="translate(320 430) scale(.42)">
+    <rect x="-46" y="-66" width="92" height="118" rx="40" fill="#15923a"/>
+    <rect x="-66" y="-30" width="30" height="62" rx="14" fill="#0d5f26"/>
+    <ellipse cx="14" cy="-32" rx="40" ry="24" fill="url(#visor)"/>
+  </g>
+</svg>
