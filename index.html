@@ -2570,6 +2570,7 @@ body.has-wp::after {
 <script src="./action-cg.js"></script>
 <script src="./ui-icons.js"></script>
 <script src="./teaching-worldbooks.js"></script>
+<script src="./experience-cases.js"></script>
 <script src="./js/demo-match.js"></script>
 <script src="./reasoning-context.js"></script>
 </head>
@@ -3297,6 +3298,7 @@ body.has-wp::after {
         <label class="mti" data-ui-icon="flame"><input type="checkbox" id="m-hardcore">硬核</label>
         <label class="mti" data-ui-icon="thought" title="开启后AI会输出思维过程（更耗token但可观察推理）；关闭则直接输出发言和操作（省token，速度更快）"><input type="checkbox" id="m-thinking" checked>思维链</label>
         <label class="mti" data-ui-icon="message" title="开启后AI自然说话，思考可写在[草稿]里自动过滤；关闭则用XML标签格式（可能导致发言过短）。推荐保持开启。可在命牌弹窗里针对单个AI关闭。"><input type="checkbox" id="m-free-output" checked>自由输出</label>
+        <label class="mti" data-ui-icon="book" title="开启后每次发言会按本局角色和当下局面，给 AI 看两局别人打过的牌（带结果）和两段说得好的发言范例，让它从中自己悟，而不是再多塞一条道理。纯净/仅自定义世界书模式下不注入。"><input type="checkbox" id="m-experience" checked>经验库</label>
         <label class="mti" data-ui-icon="dice" title="开启后：每次开局会从「人设库」里随机抽取人设，分配给没有手动配置人设的 AI。每局阵容自动不同。需要先在主菜单的人设库里建好人设。"><input type="checkbox" id="m-persona-pool">人设随机池</label>
         </div>
       </details>
@@ -8323,6 +8325,7 @@ function saveCfg() {
     fullReasoning:$('g-full-reasoning')?$('g-full-reasoning').checked:false,
     slowNotice:$('t-slow')?$('t-slow').value:'60',
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
+    experience:$('m-experience')?$('m-experience').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
     speechJudge:$('m-speech-judge')?$('m-speech-judge').value:'all',
     pconfigs:playerConfigs,
@@ -8397,6 +8400,7 @@ function loadCfg() {
     }
     if ($('g-full-reasoning')) { $('g-full-reasoning').checked = !!d.fullReasoning; syncFullReasoningUI(); }
     if (d.freeOutput !== undefined && $('m-free-output')) $('m-free-output').checked = d.freeOutput;
+    if (d.experience !== undefined && $('m-experience')) $('m-experience').checked = d.experience;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
     if (d.slowNotice && $('t-slow')) $('t-slow').value = d.slowNotice;
     // 旧存档里这里是布尔（复选框时代）：true→分诊，false→关闭
@@ -9977,6 +9981,11 @@ function buildSystemPrompt(p, taskContext) {
   //   这里只管语气：牌桌上的人是对手，不是学生。怎么判断、站谁，仍由它自己推理决定。
   styleBlock += '\n\n【你是在牌桌上跟对手博弈，不是在辅导谁】不要用助手或老师的口吻：别说"建议你""这样打不太对哦""我们要理性""大家冷静一下"这种居高临下的指导腔，也别替对方把道理讲圆。'
     + '你不同意就直说他哪里不对、你为什么不信他；被点名、被踩就正面回击，拿他的原话打他。可以针锋相对、可以不给面子，但攻击要落在具体的话和票上，不要人身攻击。';
+  // 📖 经验库：按本局角色、阵营、阶段和局面挑两局"别人打过的牌"和两段范例给它看，让它从结果里自己悟，
+  //   代替再加一条道理。纯净 / 仅自定义模式和关掉「经验库」开关时为空串。
+  if (window.WolfExperience && typeof WolfExperience.build === 'function') {
+    try { styleBlock += WolfExperience.build(p, taskContext, S); } catch (e) { console.warn('经验库注入失败', e); }
+  }
   // ★ 说人话：规则书教的是"怎么想"，不是"怎么说"。此前模型会把世界书里的内部术语原样搬进发言
   //   （"我的账本摆在这儿""自报平民没有排他性""用同一把尺子"），真人听着就是一股怪味。
   //   这里把思考语和台面语明确分层，并允许"今天没看出问题"这种真人常说的结论，免得它为凑格式硬找人怀疑。

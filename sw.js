@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v49-natural-speech';
+const CACHE_NAME = 'wolf-pwa-v50-experience';
 const APP_SHELL = [
   './',
   './index.html',
@@ -19,6 +19,7 @@ const APP_SHELL = [
   './action-cg.js',
   './ui-icons.js',
   './teaching-worldbooks.js',
+  './experience-cases.js',
   './js/audio.js',
   './js/api-config.js',
   './js/autosave.js',
