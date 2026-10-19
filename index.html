@@ -14117,7 +14117,7 @@ async function proc(players, promptFn, label, opts) {
   opts = opts || {};
   // 公开讨论不是动作确认：短到只剩一句结论时，模型几乎没有对线和争取票型的空间。
   // 默认要求至少 80 字；调用方可以按特殊公开环节调低，但不能低于 30 字。
-  const minSpeechChars = Math.max(30, Number(opts.minSpeechChars) || 80);
+  const minSpeechChars = Math.max(30, Number(opts.minSpeechChars) || 50);
   const trialOn = $('m-trial').checked && !opts.wolfOnly && !opts.noTrial;
   const waitForPlayerConfig = waitForPlayerConfigDialog;
   // 发言生成故障的询问流程提到了顶层（recoverTechnicalSpeechFor），密谈和遗言也用同一套。
@@ -14183,8 +14183,8 @@ async function proc(players, promptFn, label, opts) {
             && !S.debugDisableShortRetry) {
           Render.devLog('warn', `[P${p.id+1} ${p.name}] 公开发言仅${_firstSpeech.length}字，要求同模型扩充到完整对线发言`);
           const expansionPrompt = promptFn(p)
-            + `\n\n【系统重写·公开发言过短】上一份公开发言只有${_firstSpeech.length}字，无法充分回应场上观点。`
-            + '请保持原有身份、立场和投票方向不变，重新写成120至300字的正式发言：说清这轮想推动什么，用最有价值的具体言行、票型、事实或私密记录支撑；若没有成立的反驳对象，不要硬造狼点，可以提出能获得新信息的问题、协调行动或解释保留意见。不要写草稿、XML标签、开场说明或“没有补充”。';
+            + `\n\n【系统重写·公开发言过短】上一份公开发言只有${_firstSpeech.length}字，别人听不出你想推动什么。`
+            + '请保持原有身份、立场和投票方向不变，用日常口吻重新说一遍，80至200字就够：说清这轮想推动什么，给一个具体依据（谁说过什么、票投了谁、系统公布了什么）；若没有成立的反驳对象，不要硬造狼点，可以提问、协调或说明为什么保留意见。不要写草稿、XML标签、开场说明或“没有补充”，不要为了凑字数复述别人的发言。';
           try {
             const expanded = factCheck(p, await callAI(p, expansionPrompt, {
               ...opts, noMemory:true, liveTTS:false, maxRetries:1

@@ -27,3 +27,12 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.ok(html.includes('【尽量有自己的判断,但别硬凑】'), `${file}: 村民指南没有改成"别硬凑"`);
 }
 console.log('natural-speech: jargon ban, tag placeholders and no-padding rules present on both pages');
+
+// ④ 过短发言的自动扩写：门槛降到 50 字、目标 80-200 字，且明确不许凑字数
+for (const file of ['index.html', 'en/index.html']) {
+  const html = fs.readFileSync(file, 'utf8');
+  assert.ok(html.includes('Number(opts.minSpeechChars) || 50)'), `${file}: 短发言门槛应为 50 字`);
+  assert.ok(html.includes('80至200字就够') && html.includes('不要为了凑字数复述别人的发言'), `${file}: 扩写提示仍在逼模型凑字数`);
+  assert.ok(!html.includes('重新写成120至300字'), `${file}: 旧的 120-300 字扩写目标仍在`);
+}
+console.log('natural-speech: short-speech expansion floor lowered and padding forbidden');
