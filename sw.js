@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v48-spacewolf';
+const CACHE_NAME = 'wolf-pwa-v49-natural-speech';
 const APP_SHELL = [
   './',
   './index.html',
