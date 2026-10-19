@@ -18,7 +18,7 @@
       : '守护与解药同落最终狼刀目标会奶穿死亡。因此“人死了”本身不能证明“没救过”；玩家转述自己的奶穿反馈，对其他玩家仍是声明，不会自动成为全场系统认证。');
     if (ids.has('magician')) lines.push(english
       ? 'The Magician redirects only the wolf attack between the exchanged pair. The action names the original attack target, not the desired final victim. The rule does not reveal whether a Magician is alive or whom they exchange tonight.'
-      : '魔术师只在交换的两人之间重定向狼刀；action填写名义刀口，不是希望死掉的最终目标。这条规则不提供魔术师是否存活或今夜交换谁的情报。');
+      : '魔术师只在交换的两人之间改变狼刀真正死的人；action 填你们实际选刀的人，不是猜测换位后会死的人。这条规则不提供魔术师是否存活或今夜交换谁的情报。');
     return '\n\n' + lines.join('\n');
   }
   function wolfChoice(roleIds) {

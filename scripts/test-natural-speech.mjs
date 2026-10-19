@@ -36,3 +36,14 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.ok(!html.includes('重新写成120至300字'), `${file}: 旧的 120-300 字扩写目标仍在`);
 }
 console.log('natural-speech: short-speech expansion floor lowered and padding forbidden');
+
+// ⑤ 魔术师相关的狼队提示词不再用"名义刀口 / 落点"这种自造术语（模型会原样照说）
+for (const file of ['index.html', 'en/index.html']) {
+  const html = fs.readFileSync(file, 'utf8');
+  for (const bad of ['可讨论名义刀口', '说清名义刀口', '名义刀其中一人', '反算名义刀口', '最终名义刀口', '两种可能落点', '重定向当晚狼刀的落点', '双向落点博弈', '名义刀队友']) {
+    assert.ok(!html.includes(bad), `${file}: 狼队提示词仍在用自造术语：${bad}`);
+  }
+  assert.ok(html.includes('名义刀口、落点"这些是规则书里帮你思考的词'), `${file}: 说人话块没把名义刀口/落点列进去`);
+  assert.ok(html.includes('不说"名义刀口""落点"，说"今晚刀谁""最后死的是谁"'), `${file}: 说人话块缺少密谈的对照例子`);
+}
+console.log('natural-speech: magician wolf-chat wording uses plain language');
