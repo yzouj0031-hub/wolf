@@ -1,12 +1,16 @@
--- AI learning corpus: players may donate a finished match for AI learning;
--- administrators distil approved matches into short cases that every client
--- fetches and mixes into the built-in experience library.
+-- AI learning corpus: players may donate a finished match for AI learning.
+-- The donating client distils the match into a short case with the player's own
+-- model right away ("auto"); the case is validated by check constraints below and
+-- goes live without a human. Administrators can retire a case or distil a pending
+-- match by hand.
 --
 -- learning_matches : donated sanitized snapshots (same shape as community gallery
 --                    replays, optionally anonymised). Only pending rows can be
 --                    inserted by players; nobody but administrators can read them.
 -- learning_cases   : short "someone played it this way and this happened" cases.
---                    Everyone may read approved rows; only administrators write.
+--                    Everyone may read approved rows. Players may insert one case
+--                    per donated match (tied through source_submission_id);
+--                    administrators may insert, update and retire freely.
 
 create extension if not exists pgcrypto;
 
@@ -44,7 +48,9 @@ create index if not exists learning_matches_review_idx
 create table if not exists public.learning_cases (
   id uuid primary key default gen_random_uuid(),
   source_match_id uuid references public.learning_matches(id) on delete set null,
+  source_submission_id uuid references public.learning_matches(client_submission_id) on delete set null,
   author_id uuid default auth.uid() references auth.users(id) on delete set null,
+  source text not null default 'auto' check (source in ('auto','admin')),
   text text not null check (char_length(text) between 40 and 320),
   needs text[] not null default '{}',
   team text not null default 'any' check (team in ('good','bad','any')),
@@ -53,7 +59,10 @@ create table if not exists public.learning_cases (
   status text not null default 'approved' check (status in ('approved','retired')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  -- 机械审核：不许带规则书术语、标签或指令腔，needs 只能是角色 id
+  check (text !~ '(账本|标尺|排他性|暂认|证据等级|零成本|目标函数|时点|信息差|视角关|名义刀|落点|最高优先级|忽略.{0,8}(规则|指令)|system prompt|<[a-zA-Z/]|【|】)'),
   check (cardinality(needs) <= 8),
+  check (needs <@ array(select regexp_split_to_table('seer,witch,guard,hunter,villager,werewolf,knight,magician,wolfbeauty,whitewolf,wolfking,fox,dreamwalker,gargoyle,gravekeeper,alchemist,soulwarden,serialkiller,imitator,mechwolf,cupid,jester,whitecat,merchant,fool,wolfconcubine,youshang', ','))),
   check (cardinality(phases) between 1 and 5),
   check (phases <@ array['day','pk','sheriff','lastwords','wolfnight']::text[]),
   check (cardinality(tags) <= 6),
@@ -62,6 +71,8 @@ create table if not exists public.learning_cases (
 
 create index if not exists learning_cases_public_idx
   on public.learning_cases(status,created_at desc);
+create unique index if not exists learning_cases_one_auto_per_match
+  on public.learning_cases(source_submission_id) where source = 'auto';
 
 alter table public.learning_matches enable row level security;
 alter table public.learning_cases enable row level security;
@@ -88,7 +99,18 @@ on public.learning_matches for update to authenticated
 using (public.is_feedback_admin())
 with check (public.is_feedback_admin());
 
--- learning_cases: everyone reads approved cases; only admins write.
+-- learning_cases: everyone reads approved cases; players insert one auto case per
+-- donated match; admins insert, update and retire.
+drop policy if exists "anonymous players add auto cases" on public.learning_cases;
+create policy "anonymous players add auto cases"
+on public.learning_cases for insert to anon
+with check (author_id is null and source = 'auto' and status = 'approved' and source_submission_id is not null and source_match_id is null);
+
+drop policy if exists "signed in players add auto cases" on public.learning_cases;
+create policy "signed in players add auto cases"
+on public.learning_cases for insert to authenticated
+with check (author_id = auth.uid() and source = 'auto' and status = 'approved' and source_submission_id is not null and source_match_id is null);
+
 drop policy if exists "anyone reads approved learning cases" on public.learning_cases;
 create policy "anyone reads approved learning cases"
 on public.learning_cases for select to anon, authenticated
@@ -102,7 +124,7 @@ using (public.is_feedback_admin());
 drop policy if exists "admins write learning cases" on public.learning_cases;
 create policy "admins write learning cases"
 on public.learning_cases for insert to authenticated
-with check (public.is_feedback_admin() and author_id = auth.uid());
+with check (public.is_feedback_admin() and author_id = auth.uid() and source = 'admin');
 
 drop policy if exists "admins update learning cases" on public.learning_cases;
 create policy "admins update learning cases"
@@ -116,10 +138,10 @@ grant select on public.learning_matches to authenticated;
 grant update (status,admin_note,reviewed_at,updated_at) on public.learning_matches to authenticated;
 
 revoke all on public.learning_cases from anon, authenticated;
-grant select on public.learning_cases to anon, authenticated;
-grant insert, update on public.learning_cases to authenticated;
+grant select, insert on public.learning_cases to anon, authenticated;
+grant update (status,updated_at) on public.learning_cases to authenticated;
 
 comment on table public.learning_matches is
   'Matches donated for AI learning. snapshot is the sanitized gallery replay shape (no prompts, chain-of-thought, API config, memories or avatars), optionally anonymised.';
 comment on table public.learning_cases is
-  'Short cases distilled from donated matches by administrators; approved rows are fetched by every client and mixed into the experience library.';
+  'Short cases distilled from donated matches (auto: by the donating client with its own model, one per match; admin: by hand). Approved rows are fetched by every client and mixed into the experience library; retire a bad one by setting status = retired.';

@@ -22,11 +22,14 @@
 
   const copy = EN ? {
     donate: 'Donate this match for AI learning', donateShort: 'Donate for AI learning', close: 'Close', cancel: 'Cancel',
-    intro: 'The full omniscient record of this match (roles, night actions, wolf chats, speeches, votes) is uploaded to the project cloud. An administrator reviews it and may distil it into a short case that every player\'s AI reads before speaking, so the AIs learn from real games instead of hand-written rules.',
+    intro: 'The full omniscient record of this match (roles, night actions, wolf chats, speeches, votes) is uploaded to the project cloud. Your own model then distils it into a short case; after automatic checks it goes live, and every player\'s AI reads it before speaking, so the AIs learn from real games instead of hand-written rules.',
     anonymize: 'Replace player names with seat numbers (recommended)',
     noteLabel: 'Where did the AI play strangely in this match? (optional, up to 600 characters)',
     consent: 'I confirm the match has ended and agree to upload it for AI learning. API keys, prompts, private AI reasoning, memories and avatars are never uploaded.',
     send: 'Upload', sending: 'Uploading…', sent: 'Uploaded. Thank you! The AIs will learn from it after review.',
+    distillingUpload: 'Uploaded. Your model is distilling this match into a case…', sentAuto: 'Uploaded and distilled. Every AI will read this case within a few hours.',
+    sentNoApi: 'Uploaded. No model is configured here, so an administrator will distil it later.', sentDistilFailed: 'Uploaded. The case could not be distilled automatically, so an administrator will do it later.',
+    autoCase: 'Auto-distilled case', retire: 'Retire this case', retired: 'Retired.',
     fill: 'Please accept the upload notice first.', endedOnly: 'Only a completed Werewolf match can be donated.',
     blindBlocked: 'Turn off blind post-game review before donating an omniscient record.',
     tooLarge: 'This record is too large to upload.', unavailable: 'The learning service is unavailable. Apply the latest Supabase migration and check the network.',
@@ -39,11 +42,14 @@
     badCase: 'The case does not pass the checks: ', remoteLoaded: n => `${n} cloud cases loaded into the experience library.`
   } : {
     donate: '上传本局供 AI 学习', donateShort: '🧠 上传供 AI 学习', close: '关闭', cancel: '取消',
-    intro: '会把本局完整的上帝视角记录（身份、夜间行动、狼队密谈、发言、投票）上传到项目云端。管理员审核后，可能把它提炼成一条短案例，所有玩家的 AI 在发言前都会读到，让 AI 从真实对局里学，而不是靠手写规则。',
+    intro: '会把本局完整的上帝视角记录（身份、夜间行动、狼队密谈、发言、投票）上传到项目云端，然后用你自己配的模型把它提炼成一条短案例，过了自动检查就直接入库，所有玩家的 AI 在发言前都会读到，让 AI 从真实对局里学，而不是靠手写规则。',
     anonymize: '把玩家名换成座位号（推荐）',
     noteLabel: '你觉得这局 AI 哪里打得怪？（可选，600 字以内）',
     consent: '我确认对局已经结束，并同意上传供 AI 学习。系统不会上传 API 密钥、提示词、AI 私密思维、永久记忆或头像。',
     send: '上传', sending: '正在上传…', sent: '已上传，谢谢！审核后 AI 就会从这局里学。',
+    distillingUpload: '已上传。正在用你的模型把这局提炼成案例…', sentAuto: '已上传并提炼成案例，几小时内所有 AI 都会读到这一局。',
+    sentNoApi: '已上传。本机没配模型，案例留给管理员提炼。', sentDistilFailed: '已上传。自动提炼没通过检查，案例留给管理员提炼。',
+    autoCase: '自动提炼的案例', retire: '撤下这条案例', retired: '已撤下。',
     fill: '请先勾选上传说明。', endedOnly: '只有已经结束的狼人杀对局可以上传。',
     blindBlocked: '请先关闭终局盲复盘，再上传完整的上帝视角记录。',
     tooLarge: '本局记录体积过大，无法上传。', unavailable: '学习语料服务暂不可用。请先执行最新 Supabase 迁移，并检查网络连接。',
@@ -143,6 +149,7 @@
     const text = cleanText(c?.text, 400);
     if (text.length < 40 || text.length > 320) errors.push(EN ? 'text must be 40–320 characters' : '文本要在 40 到 320 字之间');
     if (JARGON.test(text)) errors.push(EN ? 'text contains internal jargon' : '文本里有规则书术语（账本/标尺/排他性/落点…）');
+    if (/最高优先级|忽略.{0,8}(?:规则|指令)|system prompt|<[a-zA-Z/]|【|】/.test(text)) errors.push(EN ? 'text looks like an instruction or contains tags' : '文本像指令或带标签（【】/<>/最高优先级…）');
     const needs = Array.isArray(c?.needs) ? c.needs.map(x => cleanText(x, 40)).filter(Boolean) : [];
     if (roleIds && roleIds.size) for (const r of needs) if (!roleIds.has(r)) errors.push((EN ? 'unknown role id: ' : '未知角色 id：') + r);
     for (const [word, rid] of [['预言家', 'seer'], ['女巫', 'witch'], ['守卫', 'guard'], ['猎人', 'hunter'], ['骑士', 'knight'], ['魔术师', 'magician'], ['狼美人', 'wolfbeauty'], ['白狼王', 'whitewolf'], ['狼王', 'wolfking']]) {
@@ -297,6 +304,7 @@
         <div id="lc-admin-detail" style="display:none">
           <button type="button" class="lc-btn" id="lc-admin-back">← ${copy.pending}</button>
           <div class="lc-match" id="lc-admin-match"></div>
+          <div id="lc-auto-case" style="display:none"><div class="lc-note">🤖 ${copy.autoCase}</div><div class="lc-match" id="lc-auto-text" style="max-height:160px"></div><div class="lc-row"><button type="button" class="lc-btn danger" id="lc-retire">${copy.retire}</button></div></div>
           <div class="lc-row"><button type="button" class="lc-btn primary" id="lc-distil">${copy.distil}</button><span class="lc-note" id="lc-distil-note"></span></div>
           <div class="lc-note">${copy.caseText}</div>
           <textarea id="lc-case-text" maxlength="320" rows="5"></textarea>
@@ -314,7 +322,7 @@
     byId('lc-donate-close').onclick = closeDonate; byId('lc-donate-cancel').onclick = closeDonate; byId('lc-send').onclick = submitDonation;
     donate.addEventListener('click', e => { if (e.target === donate) closeDonate(); });
     byId('lc-admin-close').onclick = () => admin.classList.remove('show'); byId('lc-admin-refresh').onclick = loadReview;
-    byId('lc-admin-back').onclick = showList; byId('lc-distil').onclick = distil; byId('lc-approve').onclick = approve; byId('lc-reject').onclick = reject;
+    byId('lc-admin-back').onclick = showList; byId('lc-distil').onclick = distil; byId('lc-approve').onclick = approve; byId('lc-reject').onclick = reject; byId('lc-retire').onclick = retire;
     admin.addEventListener('click', e => { if (e.target === admin) admin.classList.remove('show'); });
   }
 
@@ -344,8 +352,10 @@
       const { error } = await c.from(MATCH_TABLE).insert(payload);
       if (error) throw error;
       submittedMatchId = snapshot.match_id;
-      setStatus('lc-donate-status', copy.sent);
       const pg = byId('pg-learning-submit'); if (pg) { pg.disabled = true; pg.textContent = '✅ ' + copy.sent.split(/[。.]/)[0]; }
+      setStatus('lc-donate-status', copy.distillingUpload);
+      const result = await autoDistil(c, payload);
+      setStatus('lc-donate-status', result === 'ok' ? copy.sentAuto : result === 'noapi' ? copy.sentNoApi : copy.sentDistilFailed, false);
     } catch (e) {
       console.warn('[学习语料] 上传失败', e);
       setStatus('lc-donate-status', copy.unavailable + ' ' + cleanText(e?.message, 160), true);
@@ -353,7 +363,26 @@
     }
   }
 
-  // ── 管理员审核 ──
+  // ── 自动提炼：上传者自己的模型 → 机械检查 → 直接入库（一局一条，靠 source_submission_id 绑定） ──
+  async function autoDistil(c, payload) {
+    const api = hostApi();
+    const request = global.AuxGameAPI?.request;
+    if (!api || typeof request !== 'function') return 'noapi';
+    try {
+      const { sys, user } = distilPrompt({ snapshot: payload.snapshot, note: payload.note });
+      const raw = await request(api, sys, user, undefined, 2000);
+      const draft = parseCaseJson(raw);
+      const roleIds = new Set((payload.snapshot?.players || []).map(p => p.role?.id).filter(Boolean));
+      const v = validateCase(draft, roleIds);
+      if (!v.ok) { console.warn('[学习语料] 自动案例没通过检查', v.errors); return 'invalid'; }
+      const { error } = await c.from(CASE_TABLE).insert({ source_submission_id: payload.client_submission_id, author_id: currentUser()?.id || null, source: 'auto', status: 'approved', text: v.value.text, needs: v.value.needs, team: v.value.team, phases: v.value.phases, tags: v.value.tags });
+      if (error) throw error;
+      return 'ok';
+    } catch (e) { console.warn('[学习语料] 自动提炼失败', e); return 'failed'; }
+  }
+
+  // ── 管理员审核：看待审对局、撤下自动案例、给没提炼出来的对局手动提炼 ──
+  let autoCases = new Map();   // source_submission_id → case row
   async function checkAdmin() {
     isAdmin = false;
     const button = byId('learning-admin-open'); if (button) button.style.display = 'none';
@@ -374,9 +403,14 @@
     const c = client(); if (!c) { setStatus('lc-admin-status', copy.unavailable, true); return; }
     setStatus('lc-admin-status', copy.loading);
     try {
-      const { data, error } = await c.from(MATCH_TABLE).select('id,note,anonymized,mode_name,winner,rounds,player_count,roles,models,snapshot,status,created_at').eq('status', 'pending').order('created_at', { ascending: true }).limit(50);
+      const { data, error } = await c.from(MATCH_TABLE).select('id,client_submission_id,note,anonymized,mode_name,winner,rounds,player_count,roles,models,snapshot,status,created_at').eq('status', 'pending').order('created_at', { ascending: true }).limit(50);
       if (error) throw error;
       reviewRows = Array.isArray(data) ? data : [];
+      autoCases = new Map();
+      try {
+        const cases = await c.from(CASE_TABLE).select('id,source_submission_id,text,status').eq('source', 'auto').eq('status', 'approved').order('created_at', { ascending: false }).limit(200);
+        for (const row of (cases.data || [])) if (row.source_submission_id) autoCases.set(row.source_submission_id, row);
+      } catch (_) {}
       renderList(); setStatus('lc-admin-status', reviewRows.length ? '' : copy.empty);
     } catch (e) { setStatus('lc-admin-status', copy.unavailable + ' ' + cleanText(e?.message, 160), true); }
   }
@@ -385,7 +419,8 @@
     list.innerHTML = '';
     for (const row of reviewRows) {
       const card = document.createElement('div'); card.className = 'lc-card';
-      card.innerHTML = `<div><strong>${cleanText(row.mode_name, 80)}</strong> · ${row.player_count}${EN ? ' players' : '人'} · ${row.rounds}${EN ? ' rounds' : '回合'} · ${cleanText(row.winner, 60)}</div><small>${(row.models || []).join(', ')}${row.note ? ' · 📝 ' + cleanText(row.note, 80) : ''} · ${cleanText(row.created_at, 19).replace('T', ' ')}</small>`;
+      const auto = autoCases.get(row.client_submission_id);
+      card.innerHTML = `<div><strong>${cleanText(row.mode_name, 80)}</strong> · ${row.player_count}${EN ? ' players' : '人'} · ${row.rounds}${EN ? ' rounds' : '回合'} · ${cleanText(row.winner, 60)}${auto ? ' · 🤖 ' + copy.autoCase : ''}</div><small>${(row.models || []).join(', ')}${row.note ? ' · 📝 ' + cleanText(row.note, 80) : ''} · ${cleanText(row.created_at, 19).replace('T', ' ')}</small>`;
       card.onclick = () => openDetail(row);
       list.appendChild(card);
     }
@@ -394,6 +429,9 @@
     activeRow = row; activeDraft = null;
     byId('lc-admin-list').style.display = 'none'; byId('lc-admin-detail').style.display = '';
     byId('lc-admin-match').textContent = renderMatchText(row);
+    const auto = autoCases.get(row.client_submission_id);
+    const autoBox = byId('lc-auto-case');
+    if (autoBox) { autoBox.style.display = auto ? '' : 'none'; byId('lc-auto-text').textContent = auto ? auto.text : ''; byId('lc-retire').dataset.caseId = auto ? auto.id : ''; }
     byId('lc-case-text').value = ''; byId('lc-case-needs').value = ''; byId('lc-case-team').value = 'any';
     document.querySelectorAll('#lc-admin-detail [data-phase]').forEach(x => { x.checked = x.dataset.phase === 'day'; });
     document.querySelectorAll('#lc-admin-detail [data-tag]').forEach(x => { x.checked = false; });
@@ -442,13 +480,23 @@
     if (!v.ok) { setStatus('lc-review-status', copy.badCase + v.errors.join('；'), true); return; }
     const c = client(); const user = currentUser(); if (!c || !user) { setStatus('lc-review-status', copy.adminNeeded, true); return; }
     try {
-      const { error } = await c.from(CASE_TABLE).insert({ source_match_id: activeRow.id, author_id: user.id, text: v.value.text, needs: v.value.needs, team: v.value.team, phases: v.value.phases, tags: v.value.tags, status: 'approved' });
+      const { error } = await c.from(CASE_TABLE).insert({ source_match_id: activeRow.id, author_id: user.id, source: 'admin', text: v.value.text, needs: v.value.needs, team: v.value.team, phases: v.value.phases, tags: v.value.tags, status: 'approved' });
       if (error) throw error;
       const upd = await c.from(MATCH_TABLE).update({ status: 'approved', reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', activeRow.id);
       if (upd.error) throw upd.error;
       setStatus('lc-review-status', copy.approvedMsg);
       reviewRows = reviewRows.filter(r => r.id !== activeRow.id); renderList();
       loadRemoteCases(true);
+    } catch (e) { setStatus('lc-review-status', copy.unavailable + ' ' + cleanText(e?.message, 160), true); }
+  }
+  async function retire() {
+    const id = byId('lc-retire')?.dataset.caseId; const c = client(); if (!id || !c) return;
+    try {
+      const { error } = await c.from(CASE_TABLE).update({ status: 'retired', updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      setStatus('lc-review-status', copy.retired); byId('lc-auto-case').style.display = 'none';
+      for (const [k, v] of autoCases) if (v.id === id) autoCases.delete(k);
+      renderList(); loadRemoteCases(true);
     } catch (e) { setStatus('lc-review-status', copy.unavailable + ' ' + cleanText(e?.message, 160), true); }
   }
   async function reject() {
@@ -471,7 +519,7 @@
 
   const api = {
     init, openDonate, openAdmin, authChanged: checkAdmin, loadRemoteCases,
-    _test: { anonymize, buildPayload, validateCase, parseCaseJson, renderMatchText, distilPrompt, applyRemote, PHASES, TAGS, MAX_SNAPSHOT_BYTES, CACHE_KEY }
+    _test: { anonymize, buildPayload, validateCase, parseCaseJson, renderMatchText, distilPrompt, applyRemote, autoDistil, PHASES, TAGS, MAX_SNAPSHOT_BYTES, CACHE_KEY }
   };
   global.WolfLearning = api;
   if (global.document) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init(); }
