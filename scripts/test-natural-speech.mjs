@@ -47,3 +47,14 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.ok(html.includes('不说"名义刀口""落点"，说"今晚刀谁""最后死的是谁"'), `${file}: 说人话块缺少密谈的对照例子`);
 }
 console.log('natural-speech: magician wolf-chat wording uses plain language');
+
+// ⑥ 规则层：口误/算错数不进嫌疑账、好核对≠重要、单轮发言不合唱、预言家验人优先级
+for (const file of ['index.html', 'en/index.html']) {
+  const html = fs.readFileSync(file, 'utf8');
+  assert.ok(html.includes('别人算错了数，一句纠正就过'), `${file}: C 级证据没写"算错数当场纠正即可"`);
+  assert.ok(html.includes('不算"说出了不该知道的信息"'), `${file}: 狼数估算仍可能被当成私密信息`);
+  assert.ok(html.includes('好核对不等于重要'), `${file}: 缺少"好核对≠重要"`);
+  assert.ok(html.includes('一句"同意谁，理由同他"带过'), `${file}: 单轮发言任务仍会逼出合唱`);
+  assert.ok(html.includes('先验没验过、且票型或获利链指向的位置') && html.includes('别把查验花在对方讨着要验的位置上'), `${file}: 预言家指南缺少验人优先级`);
+}
+console.log('natural-speech: evidence-level, anti-chorus and seer-priority rules present');
