@@ -36,8 +36,8 @@ await withOfflinePage(async (page, origin) => {
       gameRecord.push({ type: 'death', name: 'N1', role: '村民', team: 'good', cause: 'trial', round: 4, phase: 'day', suffix: ' [被审判定罪处决]' });
       S.round = 5; await NightActions.gravekeeper(alive());
       const beforeDayKills = results().length;
-      // 第 5 天：白天里的非放逐死亡（白狼王投票阶段自爆带人、自爆者本人、猎人开枪、骑士决斗）都不算放逐
-      for (const [name, cause, phase] of [['N3', 'explode', 'vote'], ['N3x', 'selfexplode', 'vote'], ['N3y', 'shoot', 'day'], ['N3z', 'duel', 'day']]) {
+      // 第 5 天：白天里的非放逐死亡（白狼王投票阶段自爆带人、自爆者本人、猎人开枪、骑士决斗、狼美人被放逐时连带殉情的被魅惑者、恋人殉情）都不算放逐
+      for (const [name, cause, phase] of [['N3', 'explode', 'vote'], ['N3x', 'selfexplode', 'vote'], ['N3y', 'shoot', 'day'], ['N3z', 'duel', 'day'], ['N3c', 'charm', 'vote'], ['N3l', 'loversick', 'vote']]) {
         gameRecord.push({ type: 'death', name, role: '?', team: 'bad', cause, round: 5, phase, suffix: '' });
       }
       S.round = 6; await NightActions.gravekeeper(alive());
