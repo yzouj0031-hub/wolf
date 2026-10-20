@@ -37,6 +37,12 @@
       text: '猎人7号白天被投出局。开枪前他没找嗓门最大的，说："我枪12号。不是因为他投了我，是归票的时候他改票的理由，和他上午说的那句对不上。"12号翻狼。另一桌的猎人带走的是全场最凶的那个人，翻开是个平民，那局好人输了。' },
     { id: 'endgame_two_lines', needs: ['seer'], team: 'good', when: ['day', 'pk'], tags: ['late', 'counterclaim'],
       text: '残局两狼三好。A说自己是预言家、验了B是狼，B说自己是民。6号拿不准谁真，于是不算"谁像好人"，改算两边投错的后果：投B错了直接输，投A错了也输，一样。那就看票：A前一天那票投给了后来翻狼的人，B前一天那票投给了后来翻好人的人。他投了B。翻狼，好人赢。' },
+    { id: 'label_dictionary', needs: ['witch', 'werewolf'], team: 'any', when: ['day'], tags: ['early'],
+      text: '一局第一天，四个人开口先报身份：两个真平民说"我是平民"，女巫和一匹狼都说"我是好人牌"。当时没人觉得有什么。第二夜狼队密谈里一句话："说平民的多半真是平民，说好人牌又不跳神的，不是神就是自己人。"照着这个名单，刀了那个说"好人牌"的，正是女巫。她那句"我是好人牌"没骗到任何人，只替狼把范围缩小了一半。' },
+    { id: 'seer_three_lines', needs: ['seer'], team: 'good', when: ['day', 'sheriff'], tags: ['early', 'counterclaim'],
+      text: '一个预言家上警只说了三句话："我是预言家，验了12号，狼。警徽流先3后9。我要是假的，明天你们全票推我。"对跳的那个说了四百字，解释自己为什么验8号、警徽流为什么留1和11，结果11号根本没上警，被人当场抓住，整局的信任从那一句崩掉。三句话的那个七比三拿了警徽。他后来说：话说得越多，能被抓的错越多；手里有真结果，不需要解释。' },
+    { id: 'villager_decoy', needs: ['seer', 'villager', 'werewolf'], team: 'good', when: ['day', 'sheriff'], tags: ['counterclaim'],
+      text: '真预言家首日被悍跳狼压着打，票眼看要被带走。一个村民跳出来说"我也是预言家，昨晚验了5号好人"，只报金水，不发查杀，警上投票时主动退水把警徽让给真的那个。狼知道自己队友是假的，可剩下两个分不清，当晚刀了这个村民。第二天真预言家又报出一张查杀，悍跳狼出局。那个村民的遗言只有一句：我没信息，命是我唯一的筹码，换狼一刀落空够本了。' },
     { id: 'guard_quiet', needs: ['guard', 'seer'], team: 'good', when: ['day'], tags: [],
       text: '守卫4号前两夜守的都是最像预言家的那个人，第二夜守中了，天亮是平安夜。他没跳，白天只说："平安夜，谁救的谁守的我不管，预言家你照常报。"第三天有人跳守卫说"第二夜守的是3号"，4号这才开口："第二夜守的是我，守的5号，不是3号。"对方当场出局翻狼。他说：守卫的记录只有一份是真的，留着，等人来撞。' }
   ];
@@ -135,7 +141,13 @@
     // 云端案例来自真实对局，同分时优先于内置的虚构案例
     const scored = cands.map((it, i) => ({ it, score: (it.tags || []).reduce((s, t) => s + (ctx.tags.has(t) ? 2 : 0), it.cloud ? 1 : 0), rot: (i + ctx.salt) % cands.length }));
     scored.sort((a, b) => b.score - a.score || a.rot - b.rot);
-    return scored.slice(0, n).map(x => x.it);
+    const top = scored.slice(0, n).map(x => x.it);
+    // 真实对局（云端案例）只要有合适的，就至少占一个位置，不让内置的虚构案例把它全挤掉
+    if (n > 1 && !top.some(it => it.cloud)) {
+      const bestCloud = scored.find(x => x.it.cloud);
+      if (bestCloud) top[n - 1] = bestCloud.it;
+    }
+    return top;
   }
 
   function enabled() {

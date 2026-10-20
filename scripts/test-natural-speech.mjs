@@ -58,3 +58,16 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.ok(html.includes('先验没验过、且票型或获利链指向的位置') && html.includes('别把查验花在对方讨着要验的位置上'), `${file}: 预言家指南缺少验人优先级`);
 }
 console.log('natural-speech: evidence-level, anti-chorus and seer-priority rules present');
+
+// ⑦ 口气与身份：结论先说、理由一条；没事别报身份、全桌一个词、不半跳；密谈不抬杠；独狼不写计划书；平民可挡刀
+for (const file of ['index.html', 'en/index.html']) {
+  const html = fs.readFileSync(file, 'utf8');
+  assert.ok(html.includes('【口气·结论先说，理由只给最硬的一条】'), `${file}: 缺少口气块`);
+  assert.ok(html.includes('【身份·没事别报，要提就全桌一个词】') && html.includes('要么跳全，要么藏全'), `${file}: 缺少身份块`);
+  assert.ok(!html.includes('推谁出局、保谁、跳不跳身份、要谁回答什么'), `${file}: 白天任务仍在催"跳不跳身份"`);
+  assert.ok(html.includes('给一条最硬的依据就够，别把想到的理由全摆出来'), `${file}: 表达底线仍要求堆依据`);
+  assert.ok(html.includes('同意就一句同意，不用把队友的理由再讲一遍') && !html.includes('装作一致会让这一轮被直接跳过'), `${file}: 密谈仍在逼狼人制造分歧`);
+  assert.ok(html.includes('队友都不在了，这是你自己的盘算'), `${file}: 独狼密谈没有专门的任务说明`);
+  assert.ok(html.includes('但【挡刀】是另一回事'), `${file}: 村民指南没有把挡刀写成选项`);
+}
+console.log('natural-speech: voice, identity, wolf-chat and decoy rules present');

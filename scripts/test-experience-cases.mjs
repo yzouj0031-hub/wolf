@@ -73,7 +73,7 @@ const day = { prompt: '【第2天·白天发言·第一轮】', opts: {} };
   const c = X.ctxOf(S.players[3], day, S);
   assert.ok(c.tags.has('counterclaim') && c.tags.has('accused') && c.tags.has('early'), [...c.tags].join());
   const sel = X.select(S.players[0], day, S);
-  assert.equal(sel.cases[0].id, 'seer_counterclaim', '对跳局的预言家应优先看到对跳案例');
+  assert.ok(['seer_counterclaim', 'seer_three_lines'].includes(sel.cases[0].id), '对跳局的预言家应优先看到对跳案例：' + sel.cases[0].id);
   const late = X.ctxOf(S.players[0], day, mk(['seer', 'villager', 'werewolf', 'werewolf'], { round: 4 }));
   assert.ok(late.tags.has('late') && !late.tags.has('early'));
 }
