@@ -15544,7 +15544,9 @@ const NightActions = {
   async gravekeeper(alive) {
     const gk = alive.find(p => p.role.id === 'gravekeeper');
     if (!gk) return;
-    const exile = [...gameRecord].reverse().find(r => r.type === 'death' && r.cause === 'vote' && r.phase === 'day');
+    // ★ 修复：放逐时 S.phase 是 'vote'（PK 也是），死亡记录的 phase 跟着写成 'vote'，这里却只认 'day'，
+    //   守墓人整局一条结果都拿不到。白天被投出去（含平票 PK）和审判处决都算放逐；夜里死的不算。
+    const exile = [...gameRecord].reverse().find(r => r.type === 'death' && (r.cause === 'vote' || r.cause === 'trial') && r.phase !== 'night');
     if (!exile || gk._gravekeeperSeen === exile.round + ':' + exile.name) return;
     gk._gravekeeperSeen = exile.round + ':' + exile.name;
     const team = exile.team === 'bad' ? '狼人阵营' : exile.team === 'third' ? '第三方阵营' : '好人阵营';

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v52-learning';
+const CACHE_NAME = 'wolf-pwa-v53-gravekeeper';
 const APP_SHELL = [
   './',
   './index.html',
