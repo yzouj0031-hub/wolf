@@ -126,8 +126,12 @@
   const fmtTime = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60); };
   const roomName = id => (ROOM[id] && ROOM[id].name) || (id || '走廊');
   const DEFAULTS = {
-    players: 8, impostors: 2, tasksPerCrew: 4, killCooldownSec: 25, buttonsPerPlayer: 1, buttonCooldownSec: 15,
-    speedPxPerSec: 85, taskTimeScale: 1.8, confirmEjects: false, discussionRounds: 1, ghostTaskSec: 25, seed: null, names: null
+    players: 8, impostors: 2, tasksPerCrew: 6, killCooldownSec: 45, buttonsPerPlayer: 1, buttonCooldownSec: 15,
+    // 节奏按原作校：单个任务二三十秒、全部任务四到六分钟，内鬼才有两三次出手的机会。
+    //   之前 taskTimeScale 1.8 / 85 px/s 是为了演示局快点跑完，真打起来船员两分钟就靠任务赢了。
+    //   击杀冷却 45 秒是原作默认；开局首刀 20 秒。脚本小人不会推理，脚本局只是任务和刀口的赛跑，真正的平衡看 API 局。
+    speedPxPerSec: 65, taskTimeScale: 4, crewRestSec: 6, firstKillCooldownSec: 20,
+    confirmEjects: false, discussionRounds: 1, ghostTaskSec: 25, seed: null, names: null
   };
 
   // 每个人在每个房间有一个固定的站位，避免全挤在房间中心
@@ -158,7 +162,8 @@
         role: roleBag[id], alive: true, ejected: false, deathT: null,
         room: 'cafeteria', pos: slotPos('cafeteria', id), moving: null, path: [],
         intent: null, intentDone: true, intentSetAt: 0, tasking: null, fakeUntil: 0, waitUntil: 0,
-        killCooldown: cfg.killCooldownSec * 1000, buttonsLeft: cfg.buttonsPerPlayer,
+        killCooldown: Math.min(cfg.killCooldownSec, cfg.firstKillCooldownSec || cfg.killCooldownSec) * 1000, buttonsLeft: cfg.buttonsPerPlayer,
+        restUntil: 0,
         tasks: [], timeline: [], seenBodies: {}, witnessed: [], lastVisible: [], roomEnteredAt: 0, ghostTaskAt: 0,
         brain: 'bot', stats: { kills: 0, tasksDone: 0, votesCast: 0, meetingsCalled: 0, reports: 0 }
       };
@@ -314,7 +319,8 @@
     for (const p of alive(G)) {
       if (p.role === 'impostor') p.killCooldown = Math.max(0, p.killCooldown - dt);
       if (!p.intent || p.intentDone) {
-        if (p.brain === 'bot') setIntent(G, p, botIntent(G, p), 'bot');
+        if (p.brain === 'bot' && p.restUntil > G.t) { /* 脚本船员做完任务歇一会儿，别像流水线 */ }
+        else if (p.brain === 'bot') setIntent(G, p, botIntent(G, p), 'bot');
         else if (!p.intent) setIntent(G, p, botIntent(G, p), 'fallback');
         else { /* 等界面层给新意图；期间原地等 */ }
       }
@@ -378,7 +384,7 @@
         task.progress += dt / 1000;
         if (task.progress >= task.sec) {
           task.done = true; p.tasking = null; p.stats.tasksDone++;
-          if (p.role === 'crew') G.taskDone++;
+          if (p.role === 'crew') { G.taskDone++; p.restUntil = G.t + (1 + G.rng() * Math.max(0, G.cfg.crewRestSec || 0)) * 1000; }
           obs(G, p, `完成任务「${task.name}」（${roomName(p.room)}）`, { type: 'taskDone', room: p.room });
           event(G, { type: 'task', playerId: p.id, room: p.room, text: `${p.color} 在${roomName(p.room)}完成「${task.name}」（${G.taskDone}/${G.taskTotal}）` });
           finishIntent(G, p, '任务完成');
@@ -619,7 +625,7 @@
     if (p.killCooldown <= 0) {
       const crew = alive(G).filter(x => x.role === 'crew');
       const loners = crew.filter(x => x.room && occupants(G, x.room).filter(y => y.role === 'crew').length === 1);
-      const pick = (loners.length ? loners : crew).sort((a, b) => DIST[here][a.room || here] - DIST[here][b.room || here])[0];
+      const pick = (loners.length ? loners : crew).sort((a, b) => ((a.tasking ? 0 : 1) - (b.tasking ? 0 : 1)) || (DIST[here][a.room || here] - DIST[here][b.room || here]))[0];
       if (pick) return { plan: 'hunt', target: pick.id, kill: { target: pick.id, allowWitness: false }, seconds: 30, note: '盯着落单的人' };
     }
     const fakeRoom = p.tasks.filter(t => !t.done)[Math.floor(G.rng() * Math.max(1, p.tasks.filter(t => !t.done).length))];

@@ -14,11 +14,18 @@ const SpaceWolf = (() => {
    *  § 配置
    * ================================================================ */
   const DEFAULT_CFG = {
-    players: 8, impostors: 2, tasksPerCrew: 4, killCooldownSec: 25, confirmEjects: false, discussionRounds: 1,
+    players: 8, impostors: 2, tasksPerCrew: 6, killCooldownSec: 45, pace: 'standard', confirmEjects: false, discussionRounds: 1,
     speed: 2, demo: false,
     actionMinIntervalSec: 10, actionMaxConcurrent: 3, actionTimeoutSec: 25, meetingTimeoutSec: 600,
     api: { default: null, action: null, actionSeparate: false }
   };
+  // 节奏档：快 = 演示用；标准 = 按原作校（任务四到六分钟）；慢 = 大局
+  const PACES = {
+    fast: { label: '快（演示）', taskTimeScale: 1.8, speedPxPerSec: 85, crewRestSec: 2, tasksPerCrew: 4, killCooldownSec: 25 },
+    standard: { label: '标准', taskTimeScale: 4, speedPxPerSec: 65, crewRestSec: 6, tasksPerCrew: 6, killCooldownSec: 45 },
+    slow: { label: '慢（大局）', taskTimeScale: 5.5, speedPxPerSec: 55, crewRestSec: 9, tasksPerCrew: 8, killCooldownSec: 60 }
+  };
+  function paceOf(c) { return PACES[c.pace] || PACES.standard; }
   let CFG = null;
   function loadCfg() {
     if (CFG) return CFG;
@@ -144,8 +151,9 @@ const SpaceWolf = (() => {
     <div class="sw-grid">
       <label>人数 <input type="number" id="sw-c-players" min="5" max="12" value="${c.players}"></label>
       <label>内鬼数 <input type="number" id="sw-c-imps" min="1" max="3" value="${c.impostors}"></label>
-      <label>每位船员任务数 <input type="number" id="sw-c-tasks" min="2" max="6" value="${c.tasksPerCrew}"></label>
-      <label>击杀冷却（秒） <input type="number" id="sw-c-cd" min="10" max="60" value="${c.killCooldownSec}"></label>
+      <label>节奏 <select id="sw-c-pace">${Object.keys(PACES).map(k => `<option value="${k}"${(c.pace || 'standard') === k ? ' selected' : ''}>${PACES[k].label}</option>`).join('')}</select></label>
+      <label>每位船员任务数 <input type="number" id="sw-c-tasks" min="2" max="8" value="${c.tasksPerCrew}"></label>
+      <label>击杀冷却（秒） <input type="number" id="sw-c-cd" min="10" max="90" value="${c.killCooldownSec}"></label>
       <label>会议发言轮数 <select id="sw-c-rounds"><option value="1"${c.discussionRounds === 1 ? ' selected' : ''}>1 轮</option><option value="2"${c.discussionRounds === 2 ? ' selected' : ''}>2 轮</option></select></label>
       <label class="row"><input type="checkbox" id="sw-c-confirm"${c.confirmEjects ? ' checked' : ''}> 放逐后公布是不是内鬼</label>
       <label class="row"><input type="checkbox" id="sw-c-demo"${c.demo ? ' checked' : ''}> 纯脚本小人演示（不用 API，先看看节奏）</label>
@@ -192,7 +200,8 @@ const SpaceWolf = (() => {
 </div>`;
     const readForm = () => {
       c.players = clamp(+q('sw-c-players').value, 5, 12); c.impostors = clamp(+q('sw-c-imps').value, 1, 3);
-      c.tasksPerCrew = clamp(+q('sw-c-tasks').value, 2, 6); c.killCooldownSec = clamp(+q('sw-c-cd').value, 10, 60);
+      c.pace = PACES[q('sw-c-pace').value] ? q('sw-c-pace').value : 'standard';
+      c.tasksPerCrew = clamp(+q('sw-c-tasks').value, 2, 8); c.killCooldownSec = clamp(+q('sw-c-cd').value, 10, 90);
       c.discussionRounds = +q('sw-c-rounds').value; c.confirmEjects = q('sw-c-confirm').checked; c.demo = q('sw-c-demo').checked;
       c.actionMinIntervalSec = clamp(+q('sw-c-interval').value, 4, 60); c.actionMaxConcurrent = clamp(+q('sw-c-conc').value, 1, 8);
       c.actionTimeoutSec = clamp(+q('sw-c-atimeout').value, 8, 120); c.meetingTimeoutSec = clamp(+q('sw-c-mtimeout').value, 30, 1800);
@@ -202,6 +211,8 @@ const SpaceWolf = (() => {
       saveCfg();
     };
     q('sw-setup').querySelectorAll('input,select').forEach(el => el.addEventListener('change', readForm));
+    // 切节奏档时把任务数和冷却一起带到该档的建议值（之后仍可手改）
+    q('sw-c-pace').addEventListener('change', () => { const p = PACES[q('sw-c-pace').value]; if (p) { q('sw-c-tasks').value = p.tasksPerCrew; q('sw-c-cd').value = p.killCooldownSec; readForm(); } });
     q('sw-b-sep').addEventListener('change', () => { q('sw-b-wrap').style.display = q('sw-b-sep').checked ? '' : 'none'; });
     q('sw-a-import').onclick = () => { const m = readMainApi(); q('sw-a-prov').value = m.provider; q('sw-a-url').value = m.url; q('sw-a-key').value = m.key; q('sw-a-model').value = m.model; readForm(); out('已导入狼人杀全局 API 设置。'); };
     const out = t => { q('sw-api-out').textContent = t; };
@@ -236,7 +247,10 @@ const SpaceWolf = (() => {
     stopGame();
     V.runId++; V.frames = []; V.lastFrameT = -1; V.logIdx = 0; V.ended = false; V.paused = false; V.replay = null; V.inflight.clear(); V.lastCall = {}; V.waiting = {}; V.busy = 0; V.stats = { calls: 0, fails: 0 };
     V.abort = new AbortController();
-    const G = E().createGame({ players: c.players, impostors: c.impostors, tasksPerCrew: c.tasksPerCrew, killCooldownSec: c.killCooldownSec, confirmEjects: c.confirmEjects, discussionRounds: c.discussionRounds });
+    const pace = paceOf(c);
+    const G = E().createGame({ players: c.players, impostors: c.impostors, tasksPerCrew: c.tasksPerCrew, killCooldownSec: c.killCooldownSec, confirmEjects: c.confirmEjects, discussionRounds: c.discussionRounds,
+      taskTimeScale: pace.taskTimeScale, speedPxPerSec: pace.speedPxPerSec, crewRestSec: pace.crewRestSec });
+    V.taskSnapshot = { done: 0, total: G.taskTotal };
     G.players.forEach(p => { p.brain = c.demo ? 'bot' : 'api'; });
     V.G = G;
     q('sw-setup').style.display = 'none'; q('sw-game').style.display = '';
@@ -379,7 +393,8 @@ ${E().mapBrief()}
 - button：去食堂按紧急按钮（剩余次数有限）
 - wait：原地等 seconds 秒${imp ? `
 - fake：去某个房间假装做任务
-- hunt：盯住 target，和他独处且冷却完毕就击杀；kill.allowWitness 为 true 表示有人看着也动手（几乎必败，极少这么做）` : ''}
+- hunt：盯住 target，和他独处且冷却完毕就击杀；kill.allowWitness 为 true 表示有人看着也动手（几乎必败，极少这么做）
+内鬼提醒：船员做任务时会在房间里站二三十秒不动，这是最好的下手窗口；hunt 的目标优先选正在做任务、房间里只有他一个的人。冷却一好就该找人下手，一直 fake 拖着不动，船员几分钟就把任务做完了，你会直接输。` : ''}
 只回复一个 JSON，不要解释、不要写思考：
 {"plan":"意图名","room":"房间名","target":"颜色","kill":{"target":"颜色","allowWitness":false},"seconds":30,"note":"一句话说明你的打算"}`;
   }
@@ -616,7 +631,9 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     q('sw-chip-time').innerHTML = `⏱ <b>${E().fmtTime(G.t)}</b>`;
     const ph = { action: '行动中', meeting: '会议中', ended: '已结束' }[G.phase] || G.phase;
     q('sw-chip-phase').innerHTML = `<b>${ph}</b>${V.inflight.size ? ` · 🧠${V.inflight.size}` : ''}`;
-    const bar = q('sw-taskbar'); bar.querySelector('i').style.width = (G.taskTotal ? G.taskDone / G.taskTotal * 100 : 0) + '%'; bar.querySelector('span').textContent = `任务 ${G.taskDone}/${G.taskTotal}`;
+    if (!V.taskSnapshot || G.phase !== 'action') V.taskSnapshot = { done: G.taskDone, total: G.taskTotal };
+    const shown = V.god ? { done: G.taskDone, total: G.taskTotal } : V.taskSnapshot;
+    const bar = q('sw-taskbar'); bar.querySelector('i').style.width = (shown.total ? shown.done / shown.total * 100 : 0) + '%'; bar.querySelector('span').textContent = `任务 ${shown.done}/${shown.total}` + (V.god ? '' : '（开会时更新）');
     if (G.phase === 'action' && !V.inflight.size) setWait('');
   }
 
