@@ -74,7 +74,8 @@ for (const file of FILES) {
   assert.match(second.taskBlock, /你是第 2 个发言/, `${file}: 第二位仍然被告知"你是第一个发言"`);
   assert.ok(!/你是第一个发言/.test(second.taskBlock), `${file}: 第二位的任务描述里仍有"第一个发言"的假话`);
   assert.match(second.taskBlock, /不同意就直接说出来/, `${file}: 没有要求后发言者明确表态`);
-  assert.match(second.taskBlock, /装作一致会让这一轮被直接跳过/, `${file}: 没有说清"假装一致会跳过二轮讨论"的代价`);
+  assert.match(second.taskBlock, /同意就一句同意/, `${file}: 后发言者没被告知"同意就一句同意、别为了多说一轮挑措辞"`);
+  assert.ok(!/装作一致会让这一轮被直接跳过/.test(second.taskBlock), `${file}: 旧的"装作一致会被跳过"仍在，会逼狼人制造分歧`);
 
   // 第三个发言的人：两条都在，且顺序就是实际发言顺序
   const third = build(wolves, wolves[2], records);
