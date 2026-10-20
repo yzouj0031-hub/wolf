@@ -35,13 +35,21 @@ await withOfflinePage(async (page, origin) => {
       S.players[1].alive = false;
       gameRecord.push({ type: 'death', name: 'N1', role: '村民', team: 'good', cause: 'trial', round: 4, phase: 'day', suffix: ' [被审判定罪处决]' });
       S.round = 5; await NightActions.gravekeeper(alive());
-      return { afterVote, mem1, noDup, afterKill, final: results() };
+      const beforeDayKills = results().length;
+      // 第 5 天：白天里的非放逐死亡（白狼王投票阶段自爆带人、自爆者本人、猎人开枪、骑士决斗）都不算放逐
+      for (const [name, cause, phase] of [['N3', 'explode', 'vote'], ['N3x', 'selfexplode', 'vote'], ['N3y', 'shoot', 'day'], ['N3z', 'duel', 'day']]) {
+        gameRecord.push({ type: 'death', name, role: '?', team: 'bad', cause, round: 5, phase, suffix: '' });
+      }
+      S.round = 6; await NightActions.gravekeeper(alive());
+      const dayKillsIgnored = results().length === beforeDayKills;
+      return { afterVote, mem1, noDup, afterKill, final: results(), dayKillsIgnored };
     });
     assert.deepEqual(r.afterVote, ['N2:狼人阵营'], `${file}: 放逐（phase=vote）当晚没读到阵营`);
     assert.ok(r.mem1.includes('【守墓人私密结果】') && r.mem1.includes('N2') && r.mem1.includes('狼人阵营'), `${file}: 私密结果没进记忆`);
     assert.equal(r.noDup, 1, `${file}: 同一放逐者重复报了`);
     assert.deepEqual(r.afterKill, ['N2:狼人阵营'], `${file}: 夜里被刀的人不该被守墓人读到`);
     assert.deepEqual(r.final, ['N2:狼人阵营', 'N5:第三方阵营', 'N1:好人阵营'], `${file}: PK 放逐 / 审判处决没读到`);
+    assert.ok(r.dayKillsIgnored, `${file}: 白天的自爆带走 / 开枪 / 决斗被当成了放逐`);
     console.log(file, 'ok');
   }
 });
