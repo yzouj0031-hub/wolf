@@ -132,7 +132,8 @@
   function pick(list, ctx, n) {
     const cands = list.filter(it => fits(it, ctx));
     if (!cands.length) return [];
-    const scored = cands.map((it, i) => ({ it, score: (it.tags || []).reduce((s, t) => s + (ctx.tags.has(t) ? 2 : 0), 0), rot: (i + ctx.salt) % cands.length }));
+    // 云端案例来自真实对局，同分时优先于内置的虚构案例
+    const scored = cands.map((it, i) => ({ it, score: (it.tags || []).reduce((s, t) => s + (ctx.tags.has(t) ? 2 : 0), it.cloud ? 1 : 0), rot: (i + ctx.salt) % cands.length }));
     scored.sort((a, b) => b.score - a.score || a.rot - b.rot);
     return scored.slice(0, n).map(x => x.it);
   }
@@ -146,10 +147,32 @@
     return mode === 'official' || mode === 'hybrid';
   }
 
+  // ── 云端案例：管理员从玩家上传的真实对局里提炼、审核过的「别人打过的牌」，和内置案例一起参与挑选 ──
+  let REMOTE = [];
+  const REMOTE_MAX = 80;
+  const REMOTE_JARGON = /账本|标尺|排他性|暂认|证据等级|S级|A级|零成本|目标函数|时点|信息差|视角关|名义刀|落点/;
+  const PHASES = ['day', 'pk', 'sheriff', 'lastwords', 'wolfnight'];
+  function setRemoteCases(rows) {
+    const seen = new Set();
+    REMOTE = (Array.isArray(rows) ? rows : []).map(r => ({
+      id: String(r && r.id || ''),
+      needs: Array.isArray(r && r.needs) ? r.needs.map(String) : [],
+      team: ['good', 'bad', 'any'].includes(r && r.team) ? r.team : 'any',
+      when: Array.isArray(r && r.when) ? r.when.filter(w => PHASES.includes(w)) : ['day'],
+      tags: Array.isArray(r && r.tags) ? r.tags.map(String) : [],
+      text: String(r && r.text || '').trim(),
+      cloud: true
+    })).filter(c => c.id && !seen.has(c.id) && (seen.add(c.id), true)
+      && c.text.length >= 40 && c.text.length <= 320 && c.when.length && !REMOTE_JARGON.test(c.text)
+      && !/<\/?(?:thinking|game|action|system)|【.{0,12}(?:指令|规则|最高优先级)/.test(c.text)).slice(0, REMOTE_MAX);
+    return REMOTE.length;
+  }
+  function allCases() { return CASES.concat(REMOTE); }
+
   function select(p, task, S) {
     const ctx = ctxOf(p, task, S);
     if (!ctx.phase) return { ctx, cases: [], examples: [] };
-    return { ctx, cases: pick(CASES, ctx, 2), examples: pick(EXAMPLES, ctx, 2) };
+    return { ctx, cases: pick(allCases(), ctx, 2), examples: pick(EXAMPLES, ctx, 2) };
   }
 
   const MAX_CHARS = 1600;
@@ -178,5 +201,5 @@
     return out;
   }
 
-  root.WolfExperience = { CASES, EXAMPLES, ctxOf, phaseOf, pick, select, build, enabled, MAX_CHARS };
+  root.WolfExperience = { CASES, EXAMPLES, ctxOf, phaseOf, pick, select, build, enabled, MAX_CHARS, setRemoteCases, allCases, remoteCount: () => REMOTE.length };
 })(typeof window !== 'undefined' ? window : globalThis);

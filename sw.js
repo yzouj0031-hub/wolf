@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v51-rules';
+const CACHE_NAME = 'wolf-pwa-v52-learning';
 const APP_SHELL = [
   './',
   './index.html',
@@ -33,6 +33,7 @@ const APP_SHELL = [
   './js/demo-match.js',
   './reasoning-context.js',
   './community-matches.js',
+  './learning-corpus.js',
   './mystery.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

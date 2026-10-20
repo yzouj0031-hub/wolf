@@ -26,6 +26,7 @@ const FILES = [
   'reasoning-context.js',
   'replay-generator.js',
   'community-matches.js',
+  'learning-corpus.js',
   'native-http.js',
   'reasoning-control.js',
   'exit-guard.js',
