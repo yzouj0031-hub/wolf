@@ -57,15 +57,53 @@ await withOfflinePage(async (page, origin) => {
   assert.ok(g1.end.includes('获胜'), '终局面板没有显示胜负');
   assert.ok(g1.frames > 10, '回放帧太少');
   assert.ok(g1.logLines > 5, '上帝日志太少');
-  assert.notEqual(g1.replay, 'none', '终局后应显示回放条');
+  assert.notEqual(g1.replay, 'none', '终局后应显示复盘台');
   if (g1.meetings) {
     const mt = await page.evaluate(() => $('sw-meeting').textContent);
     assert.ok(mt.includes('次会议'), '会议面板没有内容');
   }
-  // 回放：拖到中间，位置变化
-  await page.evaluate(() => { const r = $('sw-replay-range'); r.value = Math.floor(+r.max / 2); r.dispatchEvent(new Event('input')); });
-  const replayTime = await page.$eval('#sw-replay-time', e => e.textContent);
-  assert.ok(/^\d\d:\d\d$/.test(replayTime));
+  // ── 复盘台：时间轴标记、跳事件、播放、跟随轨迹、同步面板、导入 ──
+  const rp = await page.evaluate(async () => {
+    const S = SpaceWolf, G = S._state.G, RP = S._rp;
+    const marks = document.querySelectorAll('#sw-tl-marks .sw-tl-mark').length;
+    const visible = G.events.filter(e => ['kill', 'bodySeen', 'meeting', 'vote', 'end'].includes(e.type)).length;
+    const dur = RP.dur;
+    // 回放打开时，实时循环不能再把地图画回终局：拖到 0 后小人应停在开局位置（食堂）
+    S._rpSeek(0); await new Promise(r => setTimeout(r, 120));
+    const atStart = document.querySelector('#sw-g-av .sw-av').getAttribute('transform');
+    const timeAtStart = document.getElementById('sw-rp-time').textContent;
+    // 跳到下一个事件
+    S._rpJump(1); const t1 = RP.t;
+    const firstMark = G.events.find(e => ['kill', 'bodySeen', 'meeting', 'vote', 'end'].includes(e.type));
+    // 跟随第一个人：有轨迹线、回放页有他的见闻
+    const sel = document.getElementById('sw-rp-follow'); sel.value = '0'; sel.dispatchEvent(new Event('change'));
+    S._rpSeek(Math.min(dur, 30000));
+    const trail = document.querySelector('#sw-g-trail polyline');
+    const followed = document.querySelector('#sw-g-av .sw-av.follow');
+    const paneText = document.getElementById('sw-rp-pane').textContent;
+    // 播放：时间前进；暂停后停住
+    S._rpSeek(0); S._rpTogglePlay(); await new Promise(r => setTimeout(r, 400)); const tPlay = RP.t; S._rpTogglePlay(); await new Promise(r => setTimeout(r, 200)); const tStop = RP.t;
+    // 会议页同步：第一次会议之前显示"还没有开过会"，之后显示会议
+    const me = G.events.find(e => e.type === 'meeting');
+    let meetingBefore = '', meetingAfter = '';
+    if (me) { S._rpSeek(Math.max(0, me.t - 1000)); meetingBefore = document.getElementById('sw-meeting').textContent; S._rpSeek(me.t + 1); meetingAfter = document.getElementById('sw-meeting').textContent; }
+    // 上帝视角关掉：击杀标记消失
+    document.getElementById('sw-god').click(); const marksNoGod = document.querySelectorAll('#sw-tl-marks .sw-tl-mark.kill').length; document.getElementById('sw-god').click();
+    // 导入：导出的 JSON 再导回来，复盘台照样能开
+    const data = JSON.parse(JSON.stringify(S._exportData()));
+    S._rpImport(data);
+    const imported = { on: S._rp.on, marks: document.querySelectorAll('#sw-tl-marks .sw-tl-mark').length, players: S._state.G.players.length, end: document.getElementById('sw-end').textContent.includes('获胜') };
+    return { marks, visible, dur, atStart, timeAtStart, t1, firstT: firstMark && firstMark.t, trail: !!trail, followed: !!followed, paneHasFollow: paneText.includes('为止的见闻'), tPlay, tStop, me: !!me, meetingBefore, meetingAfter, marksNoGod, imported };
+  });
+  assert.equal(rp.marks, rp.visible, '时间轴标记数应等于可见事件数');
+  assert.ok(rp.dur > 0 && /00:00/.test(rp.timeAtStart), '拖到 0 时时间应为 00:00：' + rp.timeAtStart);
+  assert.ok(rp.atStart && /translate\(/.test(rp.atStart), '回放应接管地图渲染');
+  assert.equal(rp.t1, rp.firstT, '⏭ 应跳到第一个事件');
+  assert.ok(rp.trail && rp.followed && rp.paneHasFollow, '跟随模式应画轨迹、加亮小人并在回放页显示见闻');
+  assert.ok(rp.tPlay > 0 && Math.abs(rp.tStop - rp.tPlay) < 1500, '播放应前进、暂停应停住：' + rp.tPlay + ' ' + rp.tStop);
+  if (rp.me) { assert.ok(rp.meetingBefore.includes('还没有开过会'), '会议前应提示还没开会'); assert.ok(rp.meetingAfter.includes('次会议'), '会议后应显示会议内容'); }
+  assert.equal(rp.marksNoGod, 0, '非上帝视角不该显示击杀标记');
+  assert.ok(rp.imported.on && rp.imported.marks === rp.marks && rp.imported.players === 7 && rp.imported.end, '导入回放后复盘台应能打开：' + JSON.stringify(rp.imported));
 
   // ── 场景 2：桩 API —— 行动脑给 JSON、会议脑给 say/claims/vote，跑到第一次会议结束 ──
   await page.click('#sw-restart');
