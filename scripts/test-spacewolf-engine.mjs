@@ -52,7 +52,8 @@ assert.ok(E.mapBrief().includes('食堂（紧急按钮）'));
 // ── 整局：脚本小人，多种子，检查不变量 ──
 let ends = { crew: 0, impostor: 0, timeout: 0 }, meetings = 0, kills = 0, witnessKills = 0;
 for (let seed = 1; seed <= 24; seed++) {
-  const G = E.createGame({ players: 8, impostors: 2, seed, tasksPerCrew: 3, killCooldownSec: 20 });
+  // 脚本小人不会推理，脚本局只是任务和刀口的赛跑；这组参数下两边都能赢，用来守不变量
+  const G = E.createGame({ players: 8, impostors: 2, seed, tasksPerCrew: 3, killCooldownSec: 45, taskTimeScale: 3 });
   G.players.forEach(p => { p.brain = 'bot'; });
   let guard = 0;
   while (G.phase !== 'ended' && G.t < 25 * 60 * 1000 && guard++ < 200000) {
@@ -110,4 +111,31 @@ assert.ok(ends.crew > 0 && ends.impostor > 0, '24 局里两边都该赢过');
   assert.ok(E.whereText(G, p).includes('医疗室'));
 }
 
-console.log('spacewolf engine: map, meetings, intents, 24 scripted games and claim verification OK');
+// ── 节奏：默认值按原作校；首个击杀冷却缩短；脚本船员做完任务会歇一会儿；默认配置下整局不会两分钟就被任务结束 ──
+{
+  const D = E.DEFAULTS;
+  assert.equal(D.tasksPerCrew, 6); assert.equal(D.killCooldownSec, 45); assert.equal(D.taskTimeScale, 4); assert.equal(D.speedPxPerSec, 65);
+  assert.ok(D.crewRestSec >= 3 && D.firstKillCooldownSec <= 20, '缺少船员歇息 / 首刀冷却');
+  const G = E.createGame({ players: 8, impostors: 2, seed: 7 });
+  G.players.forEach(p => { p.brain = 'bot'; });
+  const imp = G.players.find(p => p.role === 'impostor');
+  assert.equal(imp.killCooldown, 20000, '开局首个击杀冷却应为 20 秒');
+  const crew = G.players.find(p => p.role === 'crew');
+  assert.ok(crew.tasks.every(t => t.sec >= 20), '标准节奏下单个任务不该短于 20 秒：' + crew.tasks.map(t => t.sec).join());
+  let rested = false, guard = 0, firstTaskDoneAt = null;
+  while (G.phase !== 'ended' && G.t < 15 * 60 * 1000 && guard++ < 200000) {
+    if (G.phase === 'meeting') {
+      for (const p of E.alive(G)) { const s = E.botSpeech(G, p); E.addSpeech(G, p, s.text, { accuse: s.accuse }); }
+      const votes = {}; for (const p of E.alive(G)) votes[p.id] = E.botVote(G, p);
+      E.resolveMeeting(G, votes); continue;
+    }
+    E.step(G, 100);
+    if (firstTaskDoneAt == null && G.taskDone > 0) firstTaskDoneAt = G.t;
+    if (G.players.some(p => p.role === 'crew' && p.alive && p.restUntil > G.t && (!p.intent || p.intentDone))) rested = true;
+  }
+  assert.ok(firstTaskDoneAt == null || firstTaskDoneAt >= 20000, '第一个任务完成得太早：' + firstTaskDoneAt);
+  assert.ok(rested, '脚本船员做完任务后应歇一会儿');
+  assert.ok(!(G.winner === 'crew' && G.t < 150000), '默认节奏下船员不该在两分半内靠任务赢：' + G.winner + ' ' + G.t);
+}
+
+console.log('spacewolf engine: map, meetings, intents, 24 scripted games, claim verification and pacing OK');

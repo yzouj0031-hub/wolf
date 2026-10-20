@@ -14,11 +14,18 @@ const SpaceWolf = (() => {
    *  § 配置
    * ================================================================ */
   const DEFAULT_CFG = {
-    players: 8, impostors: 2, tasksPerCrew: 4, killCooldownSec: 25, confirmEjects: false, discussionRounds: 1,
+    players: 8, impostors: 2, tasksPerCrew: 6, killCooldownSec: 45, pace: 'standard', confirmEjects: false, discussionRounds: 1,
     speed: 2, demo: false,
     actionMinIntervalSec: 10, actionMaxConcurrent: 3, actionTimeoutSec: 25, meetingTimeoutSec: 600,
     api: { default: null, action: null, actionSeparate: false }
   };
+  // 节奏档：快 = 演示用；标准 = 按原作校（任务四到六分钟）；慢 = 大局
+  const PACES = {
+    fast: { label: '快（演示）', taskTimeScale: 1.8, speedPxPerSec: 85, crewRestSec: 2, tasksPerCrew: 4, killCooldownSec: 25 },
+    standard: { label: '标准', taskTimeScale: 4, speedPxPerSec: 65, crewRestSec: 6, tasksPerCrew: 6, killCooldownSec: 45 },
+    slow: { label: '慢（大局）', taskTimeScale: 5.5, speedPxPerSec: 55, crewRestSec: 9, tasksPerCrew: 8, killCooldownSec: 60 }
+  };
+  function paceOf(c) { return PACES[c.pace] || PACES.standard; }
   let CFG = null;
   function loadCfg() {
     if (CFG) return CFG;
@@ -76,31 +83,62 @@ const SpaceWolf = (() => {
 </div>
 <div class="sw-setup" id="sw-setup"></div>
 <div class="sw-game" id="sw-game" style="display:none">
-  <div class="sw-mapwrap">
-    <svg class="sw-map" id="sw-map" viewBox="0 0 1160 660" preserveAspectRatio="xMidYMid meet"></svg>
-    <div class="sw-overlay" id="sw-overlay"></div>
+  <div class="sw-left">
+    <div class="sw-mapwrap">
+      <svg class="sw-map" id="sw-map" viewBox="0 0 1160 660" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="sw-overlay" id="sw-overlay"></div>
+    </div>
+    <div class="sw-replay" id="sw-replay" style="display:none">
+      <div class="sw-rp-row">
+        <button class="sw-btn ghost" id="sw-rp-prev" title="上一个事件">⏮</button>
+        <button class="sw-btn ghost" id="sw-rp-play">▶ 播放</button>
+        <button class="sw-btn ghost" id="sw-rp-next" title="下一个事件">⏭</button>
+        <div class="sw-speed" id="sw-rp-speed"><button data-s="1">1×</button><button data-s="2" class="on">2×</button><button data-s="4">4×</button><button data-s="8">8×</button></div>
+        <span class="sw-chip" id="sw-rp-time">⏱ <b>00:00</b> / 00:00</span>
+        <label class="sw-rp-follow">跟随 <select id="sw-rp-follow"><option value="">不跟随</option></select></label>
+        <span class="sw-spacer"></span>
+        <button class="sw-btn ghost" id="sw-export">导出 JSON</button>
+        <button class="sw-btn ghost" id="sw-import">导入回放</button>
+        <input type="file" id="sw-import-file" accept="application/json,.json" style="display:none">
+      </div>
+      <div class="sw-tl" id="sw-tl">
+        <div class="sw-tl-track" id="sw-tl-track"><i class="sw-tl-played" id="sw-tl-played"></i><div id="sw-tl-bands"></div><div id="sw-tl-marks"></div><div class="sw-tl-cursor" id="sw-tl-cursor"></div></div>
+        <div class="sw-tl-legend"><span class="kill">🔪 击杀</span><span class="seen">👁 发现尸体</span><span class="meeting">📣 会议</span><span class="vote">⚖️ 投票</span><span class="end">🏁 终局</span><span class="sw-muted">点时间轴上的标记跳过去；拖动可以慢慢看。</span></div>
+      </div>
+    </div>
   </div>
   <div class="sw-side">
     <div class="sw-tabs" id="sw-tabs">
-      <button data-tab="log" class="on">上帝日志</button><button data-tab="crew">船员</button><button data-tab="meeting">会议</button><button data-tab="end">终局</button>
+      <button data-tab="log" class="on">上帝日志</button><button data-tab="crew">船员</button><button data-tab="meeting">会议</button><button data-tab="replay">回放</button><button data-tab="end">终局</button>
     </div>
     <div class="sw-pane on" data-pane="log" id="sw-log"></div>
     <div class="sw-pane" data-pane="crew" id="sw-crew"></div>
     <div class="sw-pane" data-pane="meeting" id="sw-meeting"><div class="sw-muted">还没有开过会。</div></div>
+    <div class="sw-pane" data-pane="replay" id="sw-rp-pane"><div class="sw-muted">对局结束后，这里跟着回放的时间显示当时发生的事；选一个人可以看他的轨迹。</div></div>
     <div class="sw-pane" data-pane="end" id="sw-end"><div class="sw-muted">对局结束后这里显示结果、身份和统计。</div></div>
-    <div class="sw-replay" id="sw-replay" style="display:none"><button class="sw-btn ghost" id="sw-replay-play">▶ 回放</button><input type="range" id="sw-replay-range" min="0" max="0" value="0"><span id="sw-replay-time">00:00</span><button class="sw-btn ghost" id="sw-export">导出 JSON</button></div>
   </div>
 </div>`;
     document.body.appendChild(el);
     q('sw-back').onclick = close;
     q('sw-restart').onclick = () => { stopGame(); showSetup(); };
     q('sw-pause').onclick = () => { V.paused = !V.paused; q('sw-pause').textContent = V.paused ? '▶ 继续' : '⏸ 暂停'; q('sw-pause').classList.toggle('on', V.paused); };
-    q('sw-god').onclick = () => { V.god = !V.god; q('sw-god').classList.toggle('on', V.god); V.logIdx = 0; q('sw-log').innerHTML = ''; renderLog(); renderCrew(); renderMapStatic(); };
+    q('sw-god').onclick = () => { V.god = !V.god; q('sw-god').classList.toggle('on', V.god); V.logIdx = 0; q('sw-log').innerHTML = ''; renderLog(); renderCrew(); renderMapStatic(); if (RP.on) { rpBuildTimeline(); RP.lastMeetingKey = ''; rpSeek(RP.t); } };
     q('sw-speed').querySelectorAll('button').forEach(b => b.onclick = () => { loadCfg().speed = +b.dataset.s; saveCfg(); syncSpeedUI(); });
     q('sw-tabs').querySelectorAll('button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
-    q('sw-replay-range').oninput = () => replaySeek(+q('sw-replay-range').value);
-    q('sw-replay-play').onclick = replayToggle;
     q('sw-export').onclick = exportJson;
+    q('sw-import').onclick = () => q('sw-import-file').click();
+    q('sw-import-file').onchange = ev => { const f = ev.target.files && ev.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { try { rpImport(JSON.parse(String(r.result))); } catch (e) { alert('这个文件不是太空狼人杀导出的回放：' + (e && e.message || e)); } }; r.readAsText(f); ev.target.value = ''; };
+    q('sw-rp-play').onclick = rpTogglePlay;
+    q('sw-rp-prev').onclick = () => rpJump(-1);
+    q('sw-rp-next').onclick = () => rpJump(1);
+    q('sw-rp-speed').querySelectorAll('button').forEach(b => b.onclick = () => { RP.speed = +b.dataset.s; q('sw-rp-speed').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+    q('sw-rp-follow').onchange = () => { RP.follow = q('sw-rp-follow').value === '' ? null : +q('sw-rp-follow').value; rpSeek(RP.t); };
+    const track = q('sw-tl-track');
+    const seekFromPointer = ev => { const r = track.getBoundingClientRect(); const k = Math.max(0, Math.min(1, (ev.clientX - r.left) / Math.max(1, r.width))); rpStop(); rpSeek(k * RP.dur); };
+    track.addEventListener('pointerdown', ev => { if (ev.target.classList.contains('sw-tl-mark')) return; RP.drag = true; try { track.setPointerCapture(ev.pointerId); } catch (_) {} seekFromPointer(ev); });
+    track.addEventListener('pointermove', ev => { if (RP.drag) seekFromPointer(ev); });
+    track.addEventListener('pointerup', () => { RP.drag = false; }); track.addEventListener('pointercancel', () => { RP.drag = false; });
+    document.addEventListener('keydown', ev => { if (!RP.on || q('sw-view').getAttribute('aria-hidden') === 'true' || /INPUT|TEXTAREA|SELECT/.test(ev.target && ev.target.tagName)) return; if (ev.key === ' ') { ev.preventDefault(); rpTogglePlay(); } else if (ev.key === 'ArrowLeft') rpJump(-1); else if (ev.key === 'ArrowRight') rpJump(1); });
     window.WolfExitGuard && window.WolfExitGuard.register && window.WolfExitGuard.register('spacewolf', {
       label: '太空狼人杀', isActive: () => !!(q('sw-view') && q('sw-view').classList.contains('on') && V.G && V.G.phase !== 'ended'), onExit: stopGame
     });
@@ -144,8 +182,9 @@ const SpaceWolf = (() => {
     <div class="sw-grid">
       <label>人数 <input type="number" id="sw-c-players" min="5" max="12" value="${c.players}"></label>
       <label>内鬼数 <input type="number" id="sw-c-imps" min="1" max="3" value="${c.impostors}"></label>
-      <label>每位船员任务数 <input type="number" id="sw-c-tasks" min="2" max="6" value="${c.tasksPerCrew}"></label>
-      <label>击杀冷却（秒） <input type="number" id="sw-c-cd" min="10" max="60" value="${c.killCooldownSec}"></label>
+      <label>节奏 <select id="sw-c-pace">${Object.keys(PACES).map(k => `<option value="${k}"${(c.pace || 'standard') === k ? ' selected' : ''}>${PACES[k].label}</option>`).join('')}</select></label>
+      <label>每位船员任务数 <input type="number" id="sw-c-tasks" min="2" max="8" value="${c.tasksPerCrew}"></label>
+      <label>击杀冷却（秒） <input type="number" id="sw-c-cd" min="10" max="90" value="${c.killCooldownSec}"></label>
       <label>会议发言轮数 <select id="sw-c-rounds"><option value="1"${c.discussionRounds === 1 ? ' selected' : ''}>1 轮</option><option value="2"${c.discussionRounds === 2 ? ' selected' : ''}>2 轮</option></select></label>
       <label class="row"><input type="checkbox" id="sw-c-confirm"${c.confirmEjects ? ' checked' : ''}> 放逐后公布是不是内鬼</label>
       <label class="row"><input type="checkbox" id="sw-c-demo"${c.demo ? ' checked' : ''}> 纯脚本小人演示（不用 API，先看看节奏）</label>
@@ -192,7 +231,8 @@ const SpaceWolf = (() => {
 </div>`;
     const readForm = () => {
       c.players = clamp(+q('sw-c-players').value, 5, 12); c.impostors = clamp(+q('sw-c-imps').value, 1, 3);
-      c.tasksPerCrew = clamp(+q('sw-c-tasks').value, 2, 6); c.killCooldownSec = clamp(+q('sw-c-cd').value, 10, 60);
+      c.pace = PACES[q('sw-c-pace').value] ? q('sw-c-pace').value : 'standard';
+      c.tasksPerCrew = clamp(+q('sw-c-tasks').value, 2, 8); c.killCooldownSec = clamp(+q('sw-c-cd').value, 10, 90);
       c.discussionRounds = +q('sw-c-rounds').value; c.confirmEjects = q('sw-c-confirm').checked; c.demo = q('sw-c-demo').checked;
       c.actionMinIntervalSec = clamp(+q('sw-c-interval').value, 4, 60); c.actionMaxConcurrent = clamp(+q('sw-c-conc').value, 1, 8);
       c.actionTimeoutSec = clamp(+q('sw-c-atimeout').value, 8, 120); c.meetingTimeoutSec = clamp(+q('sw-c-mtimeout').value, 30, 1800);
@@ -202,6 +242,8 @@ const SpaceWolf = (() => {
       saveCfg();
     };
     q('sw-setup').querySelectorAll('input,select').forEach(el => el.addEventListener('change', readForm));
+    // 切节奏档时把任务数和冷却一起带到该档的建议值（之后仍可手改）
+    q('sw-c-pace').addEventListener('change', () => { const p = PACES[q('sw-c-pace').value]; if (p) { q('sw-c-tasks').value = p.tasksPerCrew; q('sw-c-cd').value = p.killCooldownSec; readForm(); } });
     q('sw-b-sep').addEventListener('change', () => { q('sw-b-wrap').style.display = q('sw-b-sep').checked ? '' : 'none'; });
     q('sw-a-import').onclick = () => { const m = readMainApi(); q('sw-a-prov').value = m.provider; q('sw-a-url').value = m.url; q('sw-a-key').value = m.key; q('sw-a-model').value = m.model; readForm(); out('已导入狼人杀全局 API 设置。'); };
     const out = t => { q('sw-api-out').textContent = t; };
@@ -234,9 +276,13 @@ const SpaceWolf = (() => {
       if (!api.url || !api.model || (!api.key && kit() && kit().needsKey(api))) { alert('请先填好会议脑的 API（或勾选"纯脚本小人演示"）'); return; }
     }
     stopGame();
+    rpClose();
     V.runId++; V.frames = []; V.lastFrameT = -1; V.logIdx = 0; V.ended = false; V.paused = false; V.replay = null; V.inflight.clear(); V.lastCall = {}; V.waiting = {}; V.busy = 0; V.stats = { calls: 0, fails: 0 };
     V.abort = new AbortController();
-    const G = E().createGame({ players: c.players, impostors: c.impostors, tasksPerCrew: c.tasksPerCrew, killCooldownSec: c.killCooldownSec, confirmEjects: c.confirmEjects, discussionRounds: c.discussionRounds });
+    const pace = paceOf(c);
+    const G = E().createGame({ players: c.players, impostors: c.impostors, tasksPerCrew: c.tasksPerCrew, killCooldownSec: c.killCooldownSec, confirmEjects: c.confirmEjects, discussionRounds: c.discussionRounds,
+      taskTimeScale: pace.taskTimeScale, speedPxPerSec: pace.speedPxPerSec, crewRestSec: pace.crewRestSec });
+    V.taskSnapshot = { done: 0, total: G.taskTotal };
     G.players.forEach(p => { p.brain = c.demo ? 'bot' : 'api'; });
     V.G = G;
     q('sw-setup').style.display = 'none'; q('sw-game').style.display = '';
@@ -251,6 +297,7 @@ const SpaceWolf = (() => {
     if (V.abort) { try { V.abort.abort(); } catch (_) {} }
     V.abort = null; V.meetingTask = null; V.inflight.clear(); V.busy = 0;
     if (V.replay) { clearInterval(V.replay.timer); V.replay = null; }
+    rpStop();
   }
   function loop(ts) {
     const G = V.G; if (!G) return;
@@ -269,7 +316,9 @@ const SpaceWolf = (() => {
       V.meetingTask = runMeeting(G.meeting).catch(e => console.error('[太空狼人杀] 会议流程异常', e)).finally(() => { if (V.runId === runId) V.meetingTask = null; });
     }
     if (G.phase === 'ended' && !V.ended) { V.ended = true; onGameEnd(); }
-    renderFrame(); renderLog(); renderTop();
+    // 回放打开后地图和顶栏归回放管；之前这里每帧都把实时位置画回去，拖回放条等于白拖
+    if (!RP.on) { renderFrame(); renderTop(); }
+    renderLog();
     if (ts - (V.lastCrewTs || 0) > 1000 || V._crewDirty) { renderCrew(); V._crewDirty = false; V.lastCrewTs = ts; }
     V.raf = requestAnimationFrame(loop);
   }
@@ -379,7 +428,8 @@ ${E().mapBrief()}
 - button：去食堂按紧急按钮（剩余次数有限）
 - wait：原地等 seconds 秒${imp ? `
 - fake：去某个房间假装做任务
-- hunt：盯住 target，和他独处且冷却完毕就击杀；kill.allowWitness 为 true 表示有人看着也动手（几乎必败，极少这么做）` : ''}
+- hunt：盯住 target，和他独处且冷却完毕就击杀；kill.allowWitness 为 true 表示有人看着也动手（几乎必败，极少这么做）
+内鬼提醒：船员做任务时会在房间里站二三十秒不动，这是最好的下手窗口；hunt 的目标优先选正在做任务、房间里只有他一个的人。冷却一好就该找人下手，一直 fake 拖着不动，船员几分钟就把任务做完了，你会直接输。` : ''}
 只回复一个 JSON，不要解释、不要写思考：
 {"plan":"意图名","room":"房间名","target":"颜色","kill":{"target":"颜色","allowWitness":false},"seconds":30,"note":"一句话说明你的打算"}`;
   }
@@ -616,7 +666,9 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     q('sw-chip-time').innerHTML = `⏱ <b>${E().fmtTime(G.t)}</b>`;
     const ph = { action: '行动中', meeting: '会议中', ended: '已结束' }[G.phase] || G.phase;
     q('sw-chip-phase').innerHTML = `<b>${ph}</b>${V.inflight.size ? ` · 🧠${V.inflight.size}` : ''}`;
-    const bar = q('sw-taskbar'); bar.querySelector('i').style.width = (G.taskTotal ? G.taskDone / G.taskTotal * 100 : 0) + '%'; bar.querySelector('span').textContent = `任务 ${G.taskDone}/${G.taskTotal}`;
+    if (!V.taskSnapshot || G.phase !== 'action') V.taskSnapshot = { done: G.taskDone, total: G.taskTotal };
+    const shown = V.god ? { done: G.taskDone, total: G.taskTotal } : V.taskSnapshot;
+    const bar = q('sw-taskbar'); bar.querySelector('i').style.width = (shown.total ? shown.done / shown.total * 100 : 0) + '%'; bar.querySelector('span').textContent = `任务 ${shown.done}/${shown.total}` + (V.god ? '' : '（开会时更新）');
     if (G.phase === 'action' && !V.inflight.size) setWait('');
   }
 
@@ -686,32 +738,172 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     q('sw-end').innerHTML = `<div class="sw-result" style="font-size:1em">${G.winner === 'crew' ? '🛠 船员获胜' : '🔪 内鬼获胜'} · ${h(G.winReason)} · 用时 ${E().fmtTime(G.t)}</div>
       <table class="sw-end-table"><thead><tr><th>玩家</th><th>身份</th><th>结局</th><th>击杀 / 任务</th><th>口供不符 / 声称数</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="sw-muted" style="margin-top:8px">会议 ${G.meetings.length} 次 · 模型请求 ${V.stats.calls} 次（失败 ${V.stats.fails}）。"口供不符"是模型在会议上声称去过的房间、看见的人与真实轨迹对不上的次数。</div>`;
-    q('sw-replay').style.display = '';
-    q('sw-replay-range').max = Math.max(0, V.frames.length - 1); q('sw-replay-range').value = q('sw-replay-range').max;
     showTab('end');
     renderMapStatic(); renderCrew();
+    rpOpen();
   }
-  function replaySeek(i) {
-    const f = V.frames[i]; if (!f) return;
-    renderFrame(f); q('sw-replay-time').textContent = E().fmtTime(f.t);
+
+  /* ================================================================
+   *  § 复盘台：时间轴 + 事件标记 + 跟随某人 + 同步日志与会议 + 导入回放
+   *  地图上的小人按时间插值走位，击杀处闪红并连到目击者（上帝视角）；
+   *  非上帝视角只看得到公开事件（会议、投票、终局、尸体被发现）。
+   * ================================================================ */
+  const RP = { on: false, t: 0, dur: 0, playing: false, raf: 0, lastTs: 0, speed: 2, follow: null, marks: [], drag: false, lastMeetingKey: '' };
+  const RP_MARK = { kill: { icon: '🔪', cls: 'kill', god: true }, bodySeen: { icon: '👁', cls: 'seen' }, meeting: { icon: '📣', cls: 'meeting' }, vote: { icon: '⚖️', cls: 'vote' }, end: { icon: '🏁', cls: 'end' } };
+  function rpVisibleEvents() { const G = V.G; if (!G) return []; return G.events.filter(e => RP_MARK[e.type] && (V.god || !RP_MARK[e.type].god)); }
+  function rpOpen() {
+    const G = V.G; if (!G || !V.frames.length) return;
+    RP.on = true; RP.dur = Math.max(1, V.frames[V.frames.length - 1].t); RP.follow = null; RP.lastMeetingKey = ''; rpStop();
+    q('sw-replay').style.display = '';
+    q('sw-rp-follow').innerHTML = '<option value="">不跟随</option>' + G.players.map(p => `<option value="${p.id}">${h(p.color)}${V.god && p.role === 'impostor' ? '（内鬼）' : ''}</option>`).join('');
+    rpBuildTimeline();
+    rpSeek(RP.dur);
   }
-  function replayToggle() {
-    if (V.replay) { clearInterval(V.replay.timer); V.replay = null; q('sw-replay-play').textContent = '▶ 回放'; return; }
-    let i = +q('sw-replay-range').value; if (i >= V.frames.length - 1) i = 0;
-    q('sw-replay-play').textContent = '⏸ 停止';
-    V.replay = { timer: setInterval(() => { i += Math.max(1, Math.round(loadCfg().speed)); if (i >= V.frames.length) { i = V.frames.length - 1; clearInterval(V.replay.timer); V.replay = null; q('sw-replay-play').textContent = '▶ 回放'; } q('sw-replay-range').value = i; replaySeek(i); }, 250) };
+  function rpClose() { rpStop(); RP.on = false; RP.marks = []; const r = q('sw-replay'); if (r) r.style.display = 'none'; const svg = q('sw-map'); if (svg) svg.querySelectorAll('#sw-g-fx, #sw-g-trail').forEach(g => { g.innerHTML = ''; }); }
+  function rpBuildTimeline() {
+    const G = V.G; const marks = q('sw-tl-marks'), bands = q('sw-tl-bands'); if (!marks) return;
+    marks.innerHTML = ''; bands.innerHTML = '';
+    const dur = RP.dur;
+    G.events.filter(e => e.type === 'meeting').forEach(me => {
+      const ve = G.events.find(e => e.type === 'vote' && e.meetingId === me.meetingId);
+      const a = me.t / dur * 100, b = (ve ? ve.t : me.t) / dur * 100;
+      const d = document.createElement('i'); d.className = 'sw-tl-band'; d.style.left = a + '%'; d.style.width = Math.max(.6, b - a) + '%'; d.title = me.text; bands.appendChild(d);
+    });
+    RP.marks = rpVisibleEvents();
+    // 时间挨得近的标记（会议和投票发生在同一游戏时刻）错开到上下两条道，别叠在一起
+    let lastPct = -99, lane = 0;
+    RP.marks.forEach(e => {
+      const m = RP_MARK[e.type]; const d = document.createElement('button'); d.type = 'button';
+      const pct = e.t / dur * 100;
+      lane = pct - lastPct < 1.6 ? (lane + 1) % 3 : 0; lastPct = pct;
+      d.className = 'sw-tl-mark ' + m.cls + (lane ? ' lane' + lane : ''); d.style.left = pct + '%'; d.textContent = m.icon; d.dataset.id = e.id;
+      d.title = E().fmtTime(e.t) + '  ' + e.text;
+      d.onclick = ev => { ev.stopPropagation(); rpStop(); rpSeek(e.t); };
+      marks.appendChild(d);
+    });
   }
-  function exportJson() {
-    const G = V.G; if (!G) return;
-    const data = { game: 'spacewolf', cfg: G.cfg, winner: G.winner, winReason: G.winReason, duration: G.t,
+  // 按时间取帧：两帧之间按比例插值，拖得再慢小人也是连续走的
+  function rpFrameAt(t) {
+    const F = V.frames; if (!F.length) return null;
+    let lo = 0, hi = F.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (F[mid].t <= t) lo = mid; else hi = mid - 1; }
+    const a = F[lo], b = F[lo + 1];
+    if (!b || b.t <= a.t) return a;
+    const k = Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t)));
+    return { t, phase: a.phase, taskDone: a.taskDone, bodies: a.bodies,
+      players: a.players.map((p, i) => { const n = b.players[i]; return (n && p.alive && n.alive) ? { id: p.id, x: p.x + (n.x - p.x) * k, y: p.y + (n.y - p.y) * k, alive: true, room: p.room, tasking: p.tasking } : p; }) };
+  }
+  function rpSeek(t) {
+    const G = V.G; if (!G || !RP.on) return;
+    RP.t = Math.max(0, Math.min(RP.dur, t));
+    const f = rpFrameAt(RP.t);
+    if (f) renderFrame(f);
+    rpEffects(); rpTrail();
+    const pct = RP.t / RP.dur * 100;
+    q('sw-tl-played').style.width = pct + '%'; q('sw-tl-cursor').style.left = pct + '%';
+    q('sw-rp-time').innerHTML = `⏱ <b>${E().fmtTime(RP.t)}</b> / ${E().fmtTime(RP.dur)}`;
+    q('sw-chip-time').innerHTML = `⏱ <b>${E().fmtTime(RP.t)}</b>`;
+    q('sw-chip-phase').innerHTML = `<b>回放</b>`;
+    q('sw-tl-marks').querySelectorAll('.sw-tl-mark').forEach(m => { const e = RP.marks.find(x => x.id === +m.dataset.id); m.classList.toggle('past', !!e && e.t <= RP.t); });
+    rpPane(); rpMeetingSync();
+  }
+  function rpFxGroup(id) { const svg = q('sw-map'); let g = svg.querySelector('#' + id); if (!g) { g = mk('g', { id }, svg); if (id === 'sw-g-trail') { const av = svg.querySelector('#sw-g-av'); if (av) svg.insertBefore(g, av); } } return g; }
+  // 击杀闪红 + 目击者连线；尸体被发现处闪黄。只画发生在当前时间前两秒内的
+  function rpEffects() {
+    const G = V.G, Eng = E(); const g = rpFxGroup('sw-g-fx'); g.innerHTML = '';
+    for (const e of RP.marks) {
+      const age = RP.t - e.t; if (age < 0 || age > 2000) continue;
+      const room = Eng.ROOM[e.room]; if (!room) continue;
+      const k = 1 - age / 2000;
+      if (e.type === 'kill') {
+        mk('circle', { cx: room.cx, cy: room.cy, r: 18 + (1 - k) * 46, fill: 'none', stroke: '#ff4d4d', 'stroke-width': 3, opacity: (k * .9).toFixed(2) }, g);
+        mk('rect', { x: room.cx - room.w / 2, y: room.cy - room.h / 2, width: room.w, height: room.h, rx: 14, fill: '#ff3b3b', opacity: (k * .22).toFixed(2) }, g);
+        const f = rpFrameAt(RP.t);
+        (e.witnesses || []).forEach(w => { const fp = f && f.players[w]; if (!fp) return; mk('line', { x1: fp.x, y1: fp.y, x2: room.cx, y2: room.cy, stroke: '#ffd166', 'stroke-width': 2, 'stroke-dasharray': '6 4', opacity: (k * .9).toFixed(2) }, g); });
+        mk('text', { x: room.cx, y: room.cy - room.h / 2 - 8, 'text-anchor': 'middle', fill: '#ff9a9a', 'font-size': 13, 'font-weight': 700, 'paint-order': 'stroke', stroke: '#000', 'stroke-width': 3, opacity: k.toFixed(2) }, g).textContent = `${G.players[e.killer].color} 杀了 ${G.players[e.victim].color}`;
+      } else if (e.type === 'bodySeen') {
+        mk('circle', { cx: room.cx, cy: room.cy, r: 14 + (1 - k) * 30, fill: 'none', stroke: '#ffd166', 'stroke-width': 2, opacity: (k * .8).toFixed(2) }, g);
+      }
+    }
+  }
+  // 跟随某人：画他最近 60 秒的轨迹，并把他的小人加亮
+  function rpTrail() {
+    const g = rpFxGroup('sw-g-trail'); g.innerHTML = '';
+    q('sw-map').querySelectorAll('.sw-av').forEach(a => a.classList.toggle('follow', RP.follow != null && +a.dataset.id === RP.follow));
+    if (RP.follow == null) return;
+    const p = V.G.players[RP.follow]; if (!p) return;
+    const pts = V.frames.filter(f => f.t >= RP.t - 60000 && f.t <= RP.t).map(f => f.players[RP.follow]).filter(x => x && x.alive).map(x => `${x.x},${x.y}`);
+    if (pts.length > 1) mk('polyline', { points: pts.join(' '), fill: 'none', stroke: p.hex, 'stroke-width': 4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: .75, 'stroke-dasharray': '2 6' }, g);
+  }
+  // 「回放」页：跟随者当时的见闻 + 当前时间之前的事件（可点跳转）
+  function rpPane() {
+    const G = V.G, box = q('sw-rp-pane'); if (!box) return;
+    let html = '';
+    if (RP.follow != null) {
+      const p = G.players[RP.follow];
+      const seen = (p.timeline || []).filter(e => e.t <= RP.t && e.text && (V.god || !/^(你在.*杀死|你亲眼看见)/.test(e.text))).slice(-10);
+      html += `<div class="sw-rp-follow-box"><div><span class="sw-sw" style="background:${p.hex}"></span><b>${h(p.color)}</b>${V.god ? ` <span class="role ${p.role}">${p.role === 'impostor' ? '内鬼' : '船员'}</span>` : ''} 到 ${E().fmtTime(RP.t)} 为止的见闻</div>` + (seen.length ? seen.map(e => `<div class="sw-rp-tl"><time>${E().fmtTime(e.t)}</time>${h(e.text)}</div>`).join('') : '<div class="sw-muted">还没有记录。</div>') + '</div>';
+    }
+    const evs = G.events.filter(e => e.t <= RP.t && (V.god ? e.type !== 'brain' || true : PUBLIC_TYPES.has(e.type)) && !(e.type === 'task' && e.ghost && !V.god)).slice(-40);
+    const cur = RP.marks.filter(e => e.t <= RP.t).slice(-1)[0];
+    html += evs.map(e => `<div class="sw-log-line ${e.type}${cur && e.id === cur.id ? ' current' : ''}" data-t="${e.t}"><time>${E().fmtTime(e.t)}</time>${h(e.text)}</div>`).join('') || '<div class="sw-muted">开局之前。</div>';
+    box.innerHTML = html;
+    box.querySelectorAll('.sw-log-line[data-t]').forEach(d => { d.onclick = () => { rpStop(); rpSeek(+d.dataset.t); }; });
+    const c = box.querySelector('.current'); if (c && !RP.drag) c.scrollIntoView({ block: 'nearest' });
+  }
+  // 会议页跟着时间走：显示当前时间之前最近一次会议（含发言与票型）
+  function rpMeetingSync() {
+    const G = V.G; const me = G.events.filter(e => e.type === 'meeting' && e.t <= RP.t).slice(-1)[0];
+    const key = me ? String(me.meetingId) : 'none';
+    if (key === RP.lastMeetingKey) return; RP.lastMeetingKey = key;
+    if (!me) { q('sw-meeting').innerHTML = '<div class="sw-muted">这个时间点之前还没有开过会。</div>'; return; }
+    const m = G.meetings.find(x => x.id === me.meetingId); if (m) renderMeeting(m, { phase: m.result ? 'done' : 'speak', speaking: null });
+  }
+  function rpStop() { RP.playing = false; if (RP.raf) cancelAnimationFrame(RP.raf); RP.raf = 0; const b = q('sw-rp-play'); if (b) b.textContent = '▶ 播放'; }
+  function rpTogglePlay() {
+    if (!RP.on) return;
+    if (RP.playing) { rpStop(); return; }
+    if (RP.t >= RP.dur - 1) RP.t = 0;
+    RP.playing = true; RP.lastTs = performance.now(); q('sw-rp-play').textContent = '⏸ 暂停';
+    const tick = ts => { if (!RP.playing) return; const dt = Math.min(100, ts - RP.lastTs) * RP.speed; RP.lastTs = ts; rpSeek(RP.t + dt); if (RP.t >= RP.dur) { rpStop(); return; } RP.raf = requestAnimationFrame(tick); };
+    RP.raf = requestAnimationFrame(tick);
+  }
+  function rpJump(dir) {
+    if (!RP.on) return; rpStop();
+    const next = dir > 0 ? RP.marks.find(e => e.t > RP.t + 1) : RP.marks.slice().reverse().find(e => e.t < RP.t - 1);
+    rpSeek(next ? next.t : (dir > 0 ? RP.dur : 0));
+  }
+  // 导入之前导出的 JSON：重建一个只读的对局骨架，进复盘台
+  function rpImport(data) {
+    if (!data || data.game !== 'spacewolf' || !Array.isArray(data.players) || !Array.isArray(data.frames) || !data.frames.length) throw new Error('缺少玩家或帧数据');
+    const Eng = E();
+    stopGame(); rpClose();
+    const players = data.players.map((p, i) => { const c = Eng.COLORS.find(c => c.name === p.color) || Eng.COLORS[i % Eng.COLORS.length]; return { id: Number.isInteger(p.id) ? p.id : i, color: p.color || c.name, hex: c.hex, role: p.role === 'impostor' ? 'impostor' : 'crew', alive: !!p.alive, ejected: !!p.ejected, stats: Object.assign({ kills: 0, tasksDone: 0 }, p.stats || {}), tasks: Array.isArray(p.tasks) ? p.tasks : [], timeline: Array.isArray(p.timeline) ? p.timeline : [], pos: { x: 0, y: 0 }, room: 'cafeteria', moving: null, intent: null, tasking: null, brain: 'bot', killCooldown: 0 }; });
+    const events = (data.events || []).map((e, i) => Object.assign({ id: i + 1, t: 0 }, e));
+    const last = data.frames[data.frames.length - 1];
+    V.runId++; V.frames = data.frames; V.lastFrameT = last.t; V.logIdx = 0; V.ended = true; V.paused = false; V.inflight.clear(); V.stats = { calls: 0, fails: 0 };
+    V.G = { players, events, meetings: data.meetings || [], bodies: [], t: Number(data.duration) || last.t, phase: 'ended', winner: data.winner || null, winReason: data.winReason || '导入的回放', taskDone: last.taskDone || 0, taskTotal: players.filter(p => p.role === 'crew').reduce((s, p) => s + p.tasks.length, 0), cfg: data.cfg || {}, nextEventId: events.length + 1, pending: [], meeting: null };
+    V.taskSnapshot = { done: V.G.taskDone, total: V.G.taskTotal };
+    q('sw-setup').style.display = 'none'; q('sw-game').style.display = '';
+    q('sw-log').innerHTML = ''; q('sw-meeting').innerHTML = '<div class="sw-muted">还没有开过会。</div>';
+    buildMap(); renderMapStatic(); renderCrew(); renderLog();
+    onGameEnd();
+    return V.G;
+  }
+  function exportData() {
+    const G = V.G; if (!G) return null;
+    return { game: 'spacewolf', cfg: G.cfg, winner: G.winner, winReason: G.winReason, duration: G.t,
       players: G.players.map(p => ({ id: p.id, color: p.color, role: p.role, alive: p.alive, ejected: p.ejected, stats: p.stats, tasks: p.tasks, timeline: p.timeline })),
       events: G.events, meetings: G.meetings, frames: V.frames };
+  }
+  function exportJson() {
+    const data = exportData(); if (!data) return;
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'spacewolf-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.json';
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
 
-  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf };
+  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf, _rp: RP, _rpSeek: rpSeek, _rpJump: rpJump, _rpTogglePlay: rpTogglePlay, _rpImport: rpImport, _exportData: exportData };
 })();
 function openSpaceWolf() { SpaceWolf.open(); }
 if (typeof window !== 'undefined') window.SpaceWolf = SpaceWolf;

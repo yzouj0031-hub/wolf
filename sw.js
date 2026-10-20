@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v54-voice';
+const CACHE_NAME = 'wolf-pwa-v56-spacewolf-replay';
 const APP_SHELL = [
   './',
   './index.html',
