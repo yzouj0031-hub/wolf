@@ -76,6 +76,9 @@ assert.ok(picked.cases.some(c => c.id === 'cloud_c1'), '云端案例应参与挑
 assert.ok(X.build(S.players[0], { prompt: '【第1天·白天发言·第一轮】', opts: {} }, S).includes(good.value.text.slice(0, 20)));
 
 // ── SQL 权限：玩家只能插 pending，只有管理员能读上传的对局；案例只读 approved ──
+// CHECK 约束里不能有子查询（PostgreSQL 直接拒绝建表）
+for (const m of sql.matchAll(/check\s*\(([^;]*?)\)[,\s]*\n/gi)) assert.ok(!/\(\s*select\b/i.test(m[1]), 'CHECK 约束里不能写子查询：' + m[1].slice(0, 80));
+assert.match(sql, /needs <@ string_to_array\(/, 'needs 的角色白名单应用 string_to_array 展开');
 assert.match(sql, /alter table public\.learning_matches enable row level security/i);
 assert.match(sql, /alter table public\.learning_cases enable row level security/i);
 assert.match(sql, /with check \(submitter_id is null and status = 'pending' and reviewed_at is null\)/i);
@@ -86,7 +89,7 @@ assert.match(sql, /with check \(public\.is_feedback_admin\(\) and author_id = au
 // 自动案例：玩家可以插，但只能是 approved + auto + 绑定一局上传；文本受 check 约束把关；一局一条
 assert.match(sql, /on public\.learning_cases for insert to anon\s+with check \(author_id is null and source = 'auto' and status = 'approved' and source_submission_id is not null and source_match_id is null\)/i);
 assert.match(sql, /check \(text !~ '\(账本\|标尺\|排他性/);
-assert.match(sql, /needs <@ array\(select regexp_split_to_table\('seer,witch,guard/);
+assert.match(sql, /needs <@ string_to_array\('seer,witch,guard/, 'needs 的角色白名单应是固定列表');
 assert.match(sql, /create unique index if not exists learning_cases_one_auto_per_match\s+on public\.learning_cases\(source_submission_id\) where source = 'auto'/i);
 assert.match(sql, /grant update \(status,updated_at\) on public\.learning_cases to authenticated/i);
 // 校验器和 SQL 同口径：指令腔 / 标签文本进不来

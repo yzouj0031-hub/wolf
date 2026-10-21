@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v60-bridge-fix';
+const CACHE_NAME = 'wolf-pwa-v61-corpus-fixes';
 const APP_SHELL = [
   './',
   './index.html',
