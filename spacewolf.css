@@ -140,3 +140,11 @@
   .sw-taskbar{order:9;flex-basis:100%;max-width:none}
   .sw-api-row{grid-template-columns:1fr 1fr}
 }
+
+/* 多模型同桌 */
+.sw-model{font-style:normal;font-size:.72em;padding:1px 6px;border-radius:999px;border:1px solid rgba(140,160,220,.35);background:rgba(140,160,220,.12);color:#b9c0dc;margin-left:4px;vertical-align:1px}
+.sw-av-model{fill:#b9c0dc;font-size:9px;text-anchor:middle;paint-order:stroke;stroke:#000;stroke-width:2.5px}
+.sw-r-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;margin:8px 0}
+.sw-r-list label.row{display:flex;align-items:center;gap:6px;font-size:.82em;border:1px solid rgba(140,160,220,.16);border-radius:8px;padding:6px 8px;background:rgba(255,255,255,.03)}
+.sw-r-list label.row input{width:auto;min-width:auto}
+.sw-model-sum{margin-top:8px;font-size:.8em;line-height:1.7;color:#c9cde0}
