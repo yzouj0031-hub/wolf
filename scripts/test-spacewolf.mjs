@@ -190,7 +190,8 @@ await withOfflinePage(async (page, origin) => {
       }
       await new Promise(r => setTimeout(r, 50));
       if (imp) { const aliveLine = (user.match(/【存活】([^\n]+)/) || [])[1] || ''; const target = aliveLine.split('、').map(s => s.trim()).find(c => c && c !== me) || ''; return `{"plan":"hunt","target":"${target}","kill":{"target":"${target}","allowWitness":false},"seconds":40}`; }
-      return '{"plan":"task"}';
+      // 船员先去按紧急按钮，保证本场景一定开一次会（任务做完得太快会直接结束对局）；开过会后再做任务
+      return Object.keys(window.__speakers).length ? '{"plan":"task"}' : '{"plan":"button"}';
     };
     $('sw-c-players').value = '7'; $('sw-c-imps').value = '1'; $('sw-c-tasks').value = '3'; $('sw-c-cd').value = '15';
     $('sw-c-demo').checked = false; $('sw-c-interval').value = '4'; $('sw-c-conc').value = '8';
