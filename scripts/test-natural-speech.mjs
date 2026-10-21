@@ -71,3 +71,14 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.ok(html.includes('但【挡刀】是另一回事'), `${file}: 村民指南没有把挡刀写成选项`);
 }
 console.log('natural-speech: voice, identity, wolf-chat and decoy rules present');
+
+// ⑧ 事实不说教：狼队夜里选刀口时，本局硬规则（竞选时序 / 隐死亡 / 守墓人只看放逐 / 女巫 / 魔术师）合成一份、密约和每晚密谈共用；"非常规"标签去掉
+for (const file of ['index.html', 'en/index.html']) {
+  const html = fs.readFileSync(file, 'utf8');
+  assert.ok(html.includes('function buildWolfNightRuleFacts()'), `${file}: 缺少共享的狼队夜间规则事实`);
+  assert.ok(html.includes("if (_has('gravekeeper')) {") && html.includes('夜里死的人，不管怎么死的，他都看不到'), `${file}: 规则事实里没有守墓人只看放逐`);
+  assert.ok(html.includes('${buildWolfChoiceHint()}${buildWolfNightRuleFacts().zh}'), `${file}: 每晚密谈开场没带规则事实`);
+  assert.ok(html.includes('const pactRuleFacts = buildWolfNightRuleFacts();'), `${file}: 狼盟密约没有复用同一份事实`);
+  for (const bad of ['从非常规的刀法出发', '从非常规的身份安排出发', '若有一条非常规线', '最强的一条非常规线']) assert.ok(!html.includes(bad), `${file}: 仍在用"非常规"给打法贴标签：${bad}`);
+}
+console.log('natural-speech: wolf-night rule facts shared and unlabelled');

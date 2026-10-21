@@ -10,9 +10,12 @@ import vm from 'node:vm';
 
 for (const file of ['index.html', 'en/index.html']) {
   const src = fs.readFileSync(file, 'utf8');
-  const a = src.indexOf('  const pactRuleFacts = (() => {');
-  const b = src.indexOf('  })();\n', a) + 8;
-  assert.ok(a >= 0 && b > a, `${file}: pactRuleFacts 未找到`);
+  // 规则事实现在是顶层函数 buildWolfNightRuleFacts()，密约、密约投票和每晚密谈开场共用
+  const a = src.indexOf('function buildWolfNightRuleFacts() {');
+  const b = src.indexOf('async function wolfStrategyDiscuss(wolves) {', a);
+  assert.ok(a >= 0 && b > a, `${file}: buildWolfNightRuleFacts 未找到`);
+  assert.ok(src.includes('const pactRuleFacts = buildWolfNightRuleFacts();'), `${file}: 狼盟密约没有复用共享的规则事实`);
+  assert.ok(src.includes('${buildWolfChoiceHint()}${buildWolfNightRuleFacts().zh}'), `${file}: 每晚密谈开场没带规则事实`);
 
   // 注入点：AI 提案、网页 AI 提案（中/英）、AI 投票（BLIND_NOTE）、真人投票复制（中/英）、真人手写提示
   for (const [needle, label] of [
@@ -30,10 +33,13 @@ for (const file of ['index.html', 'en/index.html']) {
     const ctx = {S: {round, players: Array.from({length: n}, (_, i) => ({id: i, alive: true, role: {id: roles[i] || 'villager'}}))},
       $: id => id === 'm-hdeath' ? {checked: hdeath} : null};
     vm.createContext(ctx);
-    vm.runInContext(src.slice(a, b) + 'this.f = pactRuleFacts;', ctx);
+    vm.runInContext(src.slice(a, b) + 'this.f = buildWolfNightRuleFacts();', ctx);
     return ctx.f;
   };
   let f = facts({round: 1, n: 12, hdeath: true});
+  const fg = facts({round: 2, n: 12, hdeath: true, roles: ['gravekeeper']});
+  assert.match(fg.zh, /守墓人.*只读到上一个白天被放逐者的阵营/, `${file}: 有守墓人时规则事实没说他只看放逐`);
+  assert.ok(!/守墓人/.test(facts({round: 2, n: 12, hdeath: true}).zh), `${file}: 没有守墓人也在讲守墓人`);
   assert.match(f.zh, /警长竞选/, `${file}: 第一夜 12 人局没告诉 AI 竞选在死讯之前`);
   assert.match(f.zh, /不影响他明天上警起跳/, `${file}: 没落到"死了照样能上警"`);
   assert.match(f.zh, /隐死亡/, `${file}: 开了隐死亡却没说`);
