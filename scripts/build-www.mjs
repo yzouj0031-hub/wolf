@@ -29,6 +29,7 @@ const FILES = [
   'learning-corpus.js',
   'native-http.js',
   'reasoning-control.js',
+  'claude-bridge-compat.js',
   'exit-guard.js',
   'exit-guard.css',
   'multiplayer.js',

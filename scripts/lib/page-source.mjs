@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export function readPageSource(file) {
+  if (process.platform === 'win32' && typeof file === 'string' && /^\/[A-Za-z]:\//.test(file)) file = file.slice(1);
   const html = fs.readFileSync(file, 'utf8');
   const dir = path.dirname(path.resolve(file));
   return html.replace(/<script src="((?:\.\.?\/)?js\/[^"?]+)(?:\?[^"]*)?"><\/script>/g, (tag, src) => {

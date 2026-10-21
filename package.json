@@ -4,6 +4,7 @@
   "private": true,
   "description": "把 AI 狼人杀 PWA 用 Capacitor 打包成安卓 APK",
   "scripts": {
+    "pretest": "npm run test:claude-bridge",
     "build:www": "node scripts/build-www.mjs",
     "render:icon": "node scripts/render-icon.mjs",
     "stamp": "node scripts/stamp-build.mjs",
@@ -65,6 +66,7 @@
     "test:absent-role-pruning": "node scripts/test-absent-role-pruning.mjs",
     "test:chat-summary-mode": "node scripts/test-chat-summary-mode.mjs",
     "test:reasoning": "node scripts/test-reasoning-control.mjs",
+    "test:claude-bridge": "node scripts/test-claude-bridge-compat.mjs",
     "test:reasoning-coverage": "node scripts/test-reasoning-coverage.mjs",
     "test:worldbooks": "node scripts/test-teaching-worldbooks.mjs",
     "test:poison-endgame": "node scripts/test-poison-endgame.mjs",

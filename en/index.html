@@ -42,6 +42,7 @@
 <script src="./i18n.js"></script>
 <script src="./native-http.js"></script>
 <script src="../reasoning-control.js"></script>
+<script src="../claude-bridge-compat.js"></script>
 <link rel="stylesheet" href="../exit-guard.css">
 <script src="../exit-guard.js"></script>
 <!-- 🔥 Hot update: must load before the main script — its boot guard needs to record
@@ -8637,6 +8638,7 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
   const tag = opts.tag || '';  // 用于日志,如 "[P4]" 或 "[测试]"
   const onDelta = typeof opts.onDelta === 'function' ? opts.onDelta : null;
   let rawText;
+  let observedStreamError = '';
   if (onDelta && res.body && typeof res.body.getReader === 'function') {
     // ★ 真流式:边收边解析,content增量实时回调(供抢先朗读)。
     //   仍然把原始字节全量累积到 rawText,后续解析逻辑与缓冲路径完全一致,行为不变。
@@ -8655,6 +8657,8 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
         const payload = line.slice(5).trim();
         if (!payload || payload === '[DONE]') continue;
         let evt; try { evt = JSON.parse(payload); } catch(_) { continue; }
+        const bridgeError = ClaudeBridgeCompat.failureFromEvent(evt);
+        if (bridgeError) { observedStreamError = bridgeError; continue; }
         const d = (evt.choices && evt.choices[0] && (evt.choices[0].delta || {})) || {};
         if (typeof d.content === 'string' && d.content) { try { onDelta(d.content); } catch(_) {} }
         if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') { try { onDelta(evt.delta); } catch(_) {} }
@@ -8683,11 +8687,13 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
 
   if (!looksLikeSSE) {
     // 正常 JSON 路径
+    let parsed;
     try {
-      return JSON.parse(rawText);
+      parsed = JSON.parse(rawText);
     } catch(e) {
       throw new Error('响应不是合法JSON：' + rawText.slice(0, 150));
     }
+    return ClaudeBridgeCompat.validateJSON(parsed);
   }
 
   // SSE 流式路径:逐行拼接
@@ -8705,6 +8711,8 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
     if (!payload || payload === '[DONE]') continue;
     let evt;
     try { evt = JSON.parse(payload); } catch(_) { continue; }
+    const bridgeError = ClaudeBridgeCompat.failureFromEvent(evt);
+    if (bridgeError) { observedStreamError = bridgeError; continue; }
     // 1) OpenAI Chat Completions 流式:choices[].delta.{content,reasoning_content}
     const choice = evt.choices?.[0];
     if (choice) {
@@ -8751,9 +8759,11 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
     if (evt.usage) lastUsage = evt.usage;
   }
 
-  if (!mergedContent && !mergedReasoning) {
-    throw new Error('中转返回了空响应(连接成功但无输出内容,通常是中转限流/上游故障/模型不可用,建议换模型或换中转)');
-  }
+  ClaudeBridgeCompat.assertStreamResult({
+    content: mergedContent,
+    reasoning: mergedReasoning,
+    streamError: observedStreamError
+  });
 
   return {
     choices: [{
@@ -10939,7 +10949,7 @@ async function _callAIImpl(p, prompt, opts) {
       const requestMsgs = forceFinalOnlyRetry
         ? msgs.concat([{role:'user',content:'【技术补发·最高优先级】上一份回复把输出额度耗在思考中，正式发言没有完成。不要重新分析、不要复述推理、不要写草稿或 thinking。立即只输出本轮最终公开发言和必要的 action；发言控制在300字以内，必须完整收尾。'}])
         : msgs;
-      const body = isGemini3Compat
+      let body = isGemini3Compat
         ? {model:useApi.model, messages:requestMsgs}
         : {model:useApi.model, messages:requestMsgs, temperature:pTemp, top_p:pTopP, max_tokens:compatMaxTk, stream: true};
       if (isMiniMaxThinking) {
@@ -10983,6 +10993,9 @@ async function _callAIImpl(p, prompt, opts) {
       if (isMiniMaxThinking) { delete body.frequency_penalty; delete body.presence_penalty; }
       // GPT-5.x 推理模型不支持 top_p / temperature / frequency_penalty / presence_penalty
       if (isGPT5Thinking || isOpenAIReasoning) { delete body.top_p; delete body.temperature; delete body.frequency_penalty; delete body.presence_penalty; }
+
+      // Claude Code bridge/model aliases share one compatibility pass.
+      body = ClaudeBridgeCompat.prepareOpenAIRequest(body);
 
       // ★ v9.9.17: GLM-5.x 不再强制关闭 thinking 模式（恢复正常）
       //   旧版(v9.9.5)为了防止思维链外露/沉默,强制 enable_thinking=false 阉割了 GLM 的思考能力。
@@ -11173,6 +11186,7 @@ async function _callAIImpl(p, prompt, opts) {
   //   仅在 m-manual-retry 开启 + 异常时弹三选一
   let manualRetryAttempts = 0;
   const MAX_MANUAL_RETRIES = 5; // 防止无限循环
+  const _primaryClaudeCompat = (api.type || 'openai') === 'openai' && ClaudeBridgeCompat.isClaudeModel(api.model);
   while (true) {
     // forceFallback：过短切换模式直接跳过主API，走备用
     let silentDetected = opts.forceFallback ? true : false;
@@ -11184,7 +11198,8 @@ async function _callAIImpl(p, prompt, opts) {
 
     // 主API重试3次（forceFallback时跳过）
     // ★ 重试次数可配置：默认 3 次；快决策可设 opts.maxRetries=1
-    const maxRetries = opts.maxRetries || 3;
+    const requestedMaxRetries = opts.maxRetries || 3;
+    const maxRetries = _primaryClaudeCompat ? Math.min(requestedMaxRetries, 2) : requestedMaxRetries;
     let mainErr = '';
     for (let att = 1; att <= maxRetries && !silentDetected; att++) {
       if (S.gameId !== myGid) return {thinking:'',game:'',action:''};
@@ -11265,6 +11280,13 @@ async function _callAIImpl(p, prompt, opts) {
         }
         Render.devLog('err', `[P${p.id+1}] 主API尝试${att}: ${e.message}`);
         mainErr = e.message;
+        if (_primaryClaudeCompat && !ClaudeBridgeCompat.shouldRetry(e, att, maxRetries)) {
+          const friendly = ClaudeBridgeCompat.userMessage(e);
+          Render.log('system', `⚠️ ${p.name} ${friendly}; the same bridge will not be called repeatedly`);
+          silentDetected = true;
+          silentReason = friendly;
+          break;
+        }
         // 全力推理把输出上限提到 65536；这个模型的上限更低、端点明确拒绝时，记住它并立刻用
         // 用户自己的设置重来一次（不算作一次失败，也只会发生一次）。
         if (fullReasoningOn() && /HTTP 400/.test(e.message)
@@ -23646,8 +23668,9 @@ async function testAPI() {
       let data;
       try { data = await parseAPIResponseWithSSEFallback(res, { tag: '[全局测试]' }); }
       catch(parseErr) { data = { error: { message: parseErr.message } }; }
-      if (res.ok) { ok=true; detail='回复：'+(data.choices&&data.choices[0]?data.choices[0].message.content:'ok'); }
-      else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
+      const reply = data.choices&&data.choices[0]&&data.choices[0].message ? data.choices[0].message.content : '';
+      if (res.ok && !data.error && reply) { ok=true; detail='回复：'+reply; }
+      else { detail = (res.ok ? '空回复/流式错误 ' : res.status+' ')+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
     }
     if (ok && (isAnthropic || isGeminiNative)) {
       Render.log('system', '✅ 连通成功 ['+fmt+'] '+detail);

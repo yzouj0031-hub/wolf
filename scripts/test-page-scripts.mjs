@@ -16,12 +16,12 @@ const dirs = [...build.match(/const DIRS = \[([^\]]*)\]/)[1].matchAll(/'([^']+)'
 const packaged = rel => files.has(rel) || dirs.some(d => rel === d || rel.startsWith(d + '/'));
 
 const AFTER_MAIN = ['name-pool.js', 'api-vault.js', 'character-generator.js', 'permanent-memory.js'];
-const MAIN_MARK = '<script>\n\n/* ===== AI社交博弈认知规则 ===== */';
+const MAIN_MARK = /<script>\r?\n\r?\n\/\* ===== AI社交博弈认知规则 ===== \*\//;
 
 for (const page of ['index.html', 'en/index.html']) {
   const html = fs.readFileSync(page, 'utf8');
   const dir = path.dirname(page);
-  const main = html.indexOf(MAIN_MARK);
+  const main = html.search(MAIN_MARK);
   assert.ok(main >= 0, `${page}: 主脚本起点未找到`);
   const mainEnd = html.indexOf('</script>', main);
   let sharedCount = 0;

@@ -503,9 +503,10 @@ const MurderMystery = (() => {
     }else{
       const mn=api.model.toLowerCase();
       const reasoning=/gpt-?5(?:\.|[-_]|$)|(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
-      const body={model:api.model,messages:[{role:'system',content:sysPrompt},{role:'user',content:userPrompt}],stream:true};
+      let body={model:api.model,messages:[{role:'system',content:sysPrompt},{role:'user',content:userPrompt}],stream:true};
       if(reasoning)body.max_completion_tokens=maxTokens&&maxTokens<1024?maxTokens:Math.max(maxTokens||8192,8192);
       else{body.max_tokens=maxTokens||4096;body.temperature=.8;}
+      body=ClaudeBridgeCompat.prepareOpenAIRequest(body);
       const headers={'Content-Type':'application/json'};if(api.key)headers.Authorization='Bearer '+api.key;
       const send=()=>fetch(endpoint,{method:'POST',headers:headers,body:JSON.stringify(body),signal:signal});
       res=await send();
