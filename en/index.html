@@ -10994,7 +10994,7 @@ async function _callAIImpl(p, prompt, opts) {
       // GPT-5.x 推理模型不支持 top_p / temperature / frequency_penalty / presence_penalty
       if (isGPT5Thinking || isOpenAIReasoning) { delete body.top_p; delete body.temperature; delete body.frequency_penalty; delete body.presence_penalty; }
 
-      // Claude Code bridge/model aliases share one compatibility pass.
+      // Claude Code bridge/model aliases: drop top_p and the penalty fields. Parameters only, prompts untouched.
       body = ClaudeBridgeCompat.prepareOpenAIRequest(body);
 
       // ★ v9.9.17: GLM-5.x 不再强制关闭 thinking 模式（恢复正常）

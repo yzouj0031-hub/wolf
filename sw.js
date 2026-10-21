@@ -1,9 +1,10 @@
-const CACHE_NAME = 'wolf-pwa-v59-sw-roster-inline';
+const CACHE_NAME = 'wolf-pwa-v60-bridge-fix';
 const APP_SHELL = [
   './',
   './index.html',
   './i18n.js',
   './reasoning-control.js',
+  './claude-bridge-compat.js',
   './undercover-ui.js',
   './undercover-ui.css',
   './night3-bench.js',

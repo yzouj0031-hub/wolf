@@ -12057,8 +12057,8 @@ async function _callAIImpl(p, prompt, opts) {
       // GPT-5.x 推理模型不支持 top_p / temperature / frequency_penalty / presence_penalty
       if (isGPT5Thinking || isOpenAIReasoning) { delete body.top_p; delete body.temperature; delete body.frequency_penalty; delete body.presence_penalty; }
 
-      // Claude Code 反代及其模型别名（Fable/Mythos/裸 Opus/Sonnet）统一走兼容整理：
-      // 去掉易冲突的采样字段，并移除显式索取隐藏思维链的模板，只保留最终发言/行动协议。
+      // Claude 兼容层（Claude Code 反代及其别名 Fable/Mythos/裸 Opus/Sonnet）：去掉 top_p 等
+      // 易冲突的采样字段。只动参数，不碰提示词。
       body = ClaudeBridgeCompat.prepareOpenAIRequest(body);
 
       // ★ v9.9.17: GLM-5.x 不再强制关闭 thinking 模式（恢复正常）
