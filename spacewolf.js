@@ -18,8 +18,9 @@ const SpaceWolf = (() => {
     speed: 2, demo: false,
     actionMinIntervalSec: 10, actionMaxConcurrent: 3, actionTimeoutSec: 25, meetingTimeoutSec: 600,
     api: { default: null, action: null, actionSeparate: false },
-    // 每人一个会议脑：shared 共用 / pool 从 API 库轮流分配 / manual 按座位指定
-    roster: { mode: 'shared', pool: [], manual: {} }
+    // 每人一个会议脑：shared 共用 / pool 把下面填的模型轮流分给每个人 / manual 按座位指定
+    // models: [{ id, provider, url, key, model, on }]，地址、密钥留空就用会议脑的
+    roster: { mode: 'shared', models: [], manual: {} }
   };
   // 节奏档：快 = 演示用；标准 = 按原作校（任务四到六分钟）；慢 = 大局
   const PACES = {
@@ -34,8 +35,12 @@ const SpaceWolf = (() => {
     let saved = null; try { saved = JSON.parse(localStorage.getItem(STORAGE) || 'null'); } catch (_) {}
     CFG = Object.assign({}, DEFAULT_CFG, saved || {});
     CFG.api = Object.assign({ default: null, action: null, actionSeparate: false }, (saved && saved.api) || {});
-    CFG.roster = Object.assign({ mode: 'shared', pool: [], manual: {} }, (saved && saved.roster) || {});
-    if (!Array.isArray(CFG.roster.pool)) CFG.roster.pool = [];
+    CFG.roster = Object.assign({ mode: 'shared', models: [], manual: {} }, (saved && saved.roster) || {});
+    if (!Array.isArray(CFG.roster.models)) CFG.roster.models = [];
+    CFG.roster.models = CFG.roster.models.filter(m => m && typeof m === 'object').map((m, i) => ({ id: m.id || ('rm_' + Date.now() + '_' + i), provider: m.provider || '', url: String(m.url || ''), key: String(m.key || ''), model: String(m.model || ''), on: m.on !== false }));
+    // 旧版本只记了 API 库条目的 id：把它们搬进来
+    if (Array.isArray(CFG.roster.pool) && CFG.roster.pool.length && !CFG.roster.models.length) { const byId = new Map(vaultEntries().map(e => [e.id, e])); CFG.roster.models = CFG.roster.pool.map(id => byId.get(id)).filter(Boolean).map(e => ({ id: e.id, provider: e.provider, url: e.url, key: e.key, model: e.model, on: true })); }
+    delete CFG.roster.pool;
     if (!CFG.roster.manual || typeof CFG.roster.manual !== 'object') CFG.roster.manual = {};
     return CFG;
   }
@@ -46,23 +51,33 @@ const SpaceWolf = (() => {
     const provider = (type && type.value) || (k ? k.inferProvider(url && url.value) : 'custom');
     return { provider, url: String(url && url.value || '').trim(), key: String(key && key.value || '').trim(), model: String(model && model.value || '').trim() };
   }
-  // ── API 库 → 可用的会议脑条目（url/key 缺省时用狼人杀全局配置补齐） ──
+  // ── 主菜单「API 库」里带模型名的条目，可一键导入到下面的模型列表 ──
   function vaultEntries() {
     const vault = typeof ApiVault !== 'undefined' ? ApiVault : window.ApiVault;
     const list = (vault && typeof vault.loadAll === 'function') ? vault.loadAll() : [];
-    const main = readMainApi();
     const k = kit();
-    return (Array.isArray(list) ? list : []).filter(e => e && e.model).map(e => {
-      const url = (e.url || main.url || '').trim();
-      return { id: e.id, name: e.name || e.model, url, key: (e.key || main.key || '').trim(), model: e.model.trim(), provider: e.provider || (k ? k.inferProvider(url) : 'custom') };
+    return (Array.isArray(list) ? list : []).filter(e => e && e.model && String(e.model).trim()).map(e => {
+      const url = String(e.url || '').trim();
+      return { id: e.id, name: e.name || e.model, url, key: String(e.key || '').trim(), model: String(e.model).trim(), provider: e.provider || (k ? k.inferProvider(url) : 'custom') };
+    });
+  }
+  // 设置页里直接填的模型 → 可用的会议脑条目：没填模型名的跳过；地址、密钥留空用会议脑的
+  function rosterEntries(c, onlyOn) {
+    const cfg = c || loadCfg();
+    const base = (cfg.api && cfg.api.default && cfg.api.default.url) ? cfg.api.default : readMainApi();
+    const k = kit();
+    return (cfg.roster.models || []).filter(m => m.model && m.model.trim() && (!onlyOn || m.on !== false)).map(m => {
+      const url = (m.url || base.url || '').trim();
+      return { id: m.id, name: m.model.trim(), url, key: (m.key || base.key || '').trim(), model: m.model.trim(), provider: m.provider || (m.url ? (k ? k.inferProvider(url) : 'custom') : (base.provider || (k ? k.inferProvider(url) : 'custom'))), on: m.on !== false };
     });
   }
   // 纯函数：按配置给每个座位分一个会议脑；返回 playerId → 条目（或 null = 用共用的）
+  // pool：entries 里 on 的轮流分；manual：按座位号从 entries 里找
   function assignRoster(players, roster, entries, rnd) {
     const out = {};
     const r = roster || {}; const byId = new Map(entries.map(e => [e.id, e]));
     if (r.mode === 'pool') {
-      const pool = (r.pool || []).map(id => byId.get(id)).filter(Boolean);
+      const pool = entries.filter(e => e.on !== false);
       if (!pool.length) return out;
       const order = pool.slice();
       for (let i = order.length - 1; i > 0; i--) { const j = Math.floor((rnd || Math.random)() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
@@ -207,16 +222,28 @@ const SpaceWolf = (() => {
   /* ================================================================
    *  § 设置页
    * ================================================================ */
-  function rosterPoolHtml(c) {
-    const entries = vaultEntries();
-    if (!entries.length) return '<div class="sw-muted">API 库里还没有带模型名的配置。回主菜单打开「API 库」保存几条，再回来勾选。</div>';
-    return '<div class="sw-r-list">' + entries.map(e => `<label class="row"><input type="checkbox" value="${h(e.id)}"${(c.roster.pool || []).includes(e.id) ? ' checked' : ''}> <b>${h(e.name)}</b> <span class="sw-muted">${h(e.model)}</span></label>`).join('') + '</div><div class="sw-muted">勾几条就轮流分给几个人：3 条配置 8 个人，就是 3、3、2。</div>';
+  function rosterProvOpts(sel) {
+    const provs = (kit() && kit().providers) ? kit().providers() : [{ id: 'custom', name: 'OpenAI 兼容' }];
+    return '<option value="">渠道同会议脑</option>' + provs.map(p => `<option value="${h(p.id)}"${p.id === sel ? ' selected' : ''}>${h(p.name)}</option>`).join('');
+  }
+  // 模型列表：每行一个模型，地址、密钥留空就用上面会议脑的
+  function rosterModelsHtml(c) {
+    const rows = c.roster.models || [];
+    if (!rows.length) return '<div class="sw-muted" id="sw-r-empty">还没有填模型。点「＋ 加一个模型」，只填模型名也行（地址、密钥留空就用上面会议脑的）。</div>';
+    return rows.map((m, i) => `<div class="sw-r-row" data-id="${h(m.id)}">
+      <label class="row sw-r-on-wrap" title="不勾就暂时不上桌"><input type="checkbox" class="sw-r-on"${m.on !== false ? ' checked' : ''}> ${i + 1}</label>
+      <select class="sw-r-prov">${rosterProvOpts(m.provider)}</select>
+      <input class="sw-r-url" value="${h(m.url)}" placeholder="地址（留空用会议脑的）">
+      <input class="sw-r-key" type="password" value="${h(m.key)}" placeholder="密钥（留空用会议脑的）">
+      <input class="sw-r-model" value="${h(m.model)}" placeholder="模型名，如 gpt-4o / deepseek-chat">
+      <span class="sw-r-btns"><button class="sw-btn ghost sw-r-fetch" type="button">拉取列表</button><button class="sw-btn ghost sw-r-test" type="button">测试</button><button class="sw-btn ghost sw-r-del" type="button" title="删除这一行">✕</button></span>
+    </div>`).join('');
   }
   function rosterManualHtml(c) {
-    const entries = vaultEntries();
+    const entries = rosterEntries(c);
     const n = Math.max(4, Math.min(12, +c.players || 8));
-    if (!entries.length) return '<div class="sw-muted">API 库里还没有带模型名的配置。</div>';
-    const opts = seat => '<option value="">共用会议脑</option>' + entries.map(e => `<option value="${h(e.id)}"${(c.roster.manual || {})[String(seat)] === e.id ? ' selected' : ''}>${h(e.name)} · ${h(e.model)}</option>`).join('');
+    if (!entries.length) return '<div class="sw-muted">上面先填几个模型，这里才能按座位指定。</div>';
+    const opts = seat => '<option value="">共用会议脑</option>' + entries.map(e => `<option value="${h(e.id)}"${(c.roster.manual || {})[String(seat)] === e.id ? ' selected' : ''}>${h(e.model)}</option>`).join('');
     return '<div class="sw-grid">' + Array.from({ length: n }, (_, i) => `<label>座位 ${i + 1} <select data-seat="${i}">${opts(i)}</select></label>`).join('') + '</div><div class="sw-muted">座位号是开局顺序，颜色每局随机，所以按座位而不是按颜色指定。</div>';
   }
   function showSetup() {
@@ -278,11 +305,16 @@ const SpaceWolf = (() => {
   </div>
   <div class="sw-panel" id="sw-roster-panel">
     <h3>每人一个会议脑（可选）</h3>
-    <div class="sw-muted">想看不同模型同桌对抗，就从主菜单「API 库」里保存几条配置，这里勾选后开局轮流分给每个宇航员；也可以按座位手动指定。行动脑仍然共用上面那个快模型。</div>
+    <div class="sw-muted">想看不同模型同桌对抗：在下面直接填几个模型，开局轮流分给每个宇航员（3 个模型 8 个人就是 3、3、2），或者按座位指定。地址、密钥留空就用上面会议脑的；行动脑仍然共用上面那个快模型。</div>
     <div class="sw-grid" style="margin-top:8px">
-      <label>分配方式 <select id="sw-r-mode"><option value="shared"${c.roster.mode === 'shared' ? ' selected' : ''}>共用上面的会议脑</option><option value="pool"${c.roster.mode === 'pool' ? ' selected' : ''}>从 API 库轮流分配</option><option value="manual"${c.roster.mode === 'manual' ? ' selected' : ''}>按座位手动指定</option></select></label>
+      <label>分配方式 <select id="sw-r-mode"><option value="shared"${c.roster.mode === 'shared' ? ' selected' : ''}>不用，大家共用上面的会议脑</option><option value="pool"${c.roster.mode === 'pool' ? ' selected' : ''}>把下面的模型轮流分给每个人</option><option value="manual"${c.roster.mode === 'manual' ? ' selected' : ''}>按座位指定</option></select></label>
     </div>
-    <div id="sw-r-pool" style="${c.roster.mode === 'pool' ? '' : 'display:none'}">${rosterPoolHtml(c)}</div>
+    <div id="sw-r-models">${rosterModelsHtml(c)}</div>
+    <div class="sw-start-row" style="margin-top:8px">
+      <button class="sw-btn" id="sw-r-add" type="button">＋ 加一个模型</button>
+      <button class="sw-btn ghost" id="sw-r-import" type="button" title="把主菜单「API 库」里带模型名的配置都加进来">从 API 库导入</button>
+      <span class="sw-api-out" id="sw-r-out" style="margin-top:0"></span>
+    </div>
     <div id="sw-r-manual" style="${c.roster.mode === 'manual' ? '' : 'display:none'}">${rosterManualHtml(c)}</div>
   </div>
   <div class="sw-panel">
@@ -302,7 +334,7 @@ const SpaceWolf = (() => {
       c.api.default = { provider: q('sw-a-prov').value, url: q('sw-a-url').value.trim(), key: q('sw-a-key').value.trim(), model: q('sw-a-model').value.trim() };
       c.api.actionSeparate = q('sw-b-sep').checked;
       c.roster.mode = ['shared', 'pool', 'manual'].includes(q('sw-r-mode').value) ? q('sw-r-mode').value : 'shared';
-      c.roster.pool = [...q('sw-setup').querySelectorAll('#sw-r-pool input[type=checkbox]:checked')].map(x => x.value);
+      c.roster.models = [...q('sw-r-models').querySelectorAll('.sw-r-row')].map(row => ({ id: row.dataset.id, provider: row.querySelector('.sw-r-prov').value, url: row.querySelector('.sw-r-url').value.trim(), key: row.querySelector('.sw-r-key').value.trim(), model: row.querySelector('.sw-r-model').value.trim(), on: row.querySelector('.sw-r-on').checked }));
       const manual = {}; q('sw-setup').querySelectorAll('#sw-r-manual select').forEach(sel => { if (sel.value) manual[sel.dataset.seat] = sel.value; }); c.roster.manual = manual;
       c.api.action = { provider: q('sw-b-prov').value, url: q('sw-b-url').value.trim(), key: q('sw-b-key').value.trim(), model: q('sw-b-model').value.trim() };
       saveCfg();
@@ -311,8 +343,35 @@ const SpaceWolf = (() => {
     // 切节奏档时把任务数和冷却一起带到该档的建议值（之后仍可手改）
     q('sw-c-pace').addEventListener('change', () => { const p = PACES[q('sw-c-pace').value]; if (p) { q('sw-c-tasks').value = p.tasksPerCrew; q('sw-c-cd').value = p.killCooldownSec; readForm(); } });
     q('sw-b-sep').addEventListener('change', () => { q('sw-b-wrap').style.display = q('sw-b-sep').checked ? '' : 'none'; });
-    q('sw-r-mode').addEventListener('change', () => { q('sw-r-pool').style.display = q('sw-r-mode').value === 'pool' ? '' : 'none'; q('sw-r-manual').style.display = q('sw-r-mode').value === 'manual' ? '' : 'none'; });
-    q('sw-c-players').addEventListener('change', () => { readForm(); q('sw-r-manual').innerHTML = rosterManualHtml(c); q('sw-r-manual').querySelectorAll('select').forEach(el => el.addEventListener('change', readForm)); });
+    q('sw-r-mode').addEventListener('change', () => { q('sw-r-manual').style.display = q('sw-r-mode').value === 'manual' ? '' : 'none'; });
+    const redrawManual = () => { q('sw-r-manual').innerHTML = rosterManualHtml(c); q('sw-r-manual').querySelectorAll('select').forEach(el => el.addEventListener('change', readForm)); };
+    const redrawModels = () => { q('sw-r-models').innerHTML = rosterModelsHtml(c); redrawManual(); };
+    q('sw-c-players').addEventListener('change', () => { readForm(); redrawManual(); });
+    // 模型列表的行会增删，用事件代理：改了任何一格就存，模型名变了顺带刷新座位下拉
+    q('sw-r-models').addEventListener('change', e => { readForm(); if (e.target && e.target.classList.contains('sw-r-model')) redrawManual(); });
+    const rout = t => { q('sw-r-out').textContent = t; };
+    q('sw-r-add').onclick = () => { readForm(); c.roster.models.push({ id: 'rm_' + Date.now() + '_' + c.roster.models.length, provider: '', url: '', key: '', model: '', on: true }); saveCfg(); redrawModels(); const last = q('sw-r-models').querySelector('.sw-r-row:last-child .sw-r-model'); if (last) last.focus(); if (q('sw-r-mode').value === 'shared') { q('sw-r-mode').value = 'pool'; readForm(); } };
+    q('sw-r-import').onclick = () => { readForm(); const have = new Set(c.roster.models.map(m => m.model + '@' + m.url)); const add = vaultEntries().filter(e => !have.has(e.model + '@' + e.url)); if (!add.length) rout(vaultEntries().length ? 'API 库里的模型都已经在列表里了。' : 'API 库里还没有带模型名的配置。'); else { add.forEach(e => c.roster.models.push({ id: 'rm_' + e.id, provider: e.provider, url: e.url, key: e.key, model: e.model, on: true })); saveCfg(); redrawModels(); if (q('sw-r-mode').value === 'shared') { q('sw-r-mode').value = 'pool'; readForm(); } rout(`从 API 库加了 ${add.length} 个模型。`); } };
+    q('sw-r-models').addEventListener('click', async e => {
+      const btn = e.target.closest('button'); if (!btn) return;
+      const row = btn.closest('.sw-r-row'); if (!row) return;
+      readForm();
+      if (btn.classList.contains('sw-r-del')) { c.roster.models = c.roster.models.filter(m => m.id !== row.dataset.id); Object.keys(c.roster.manual).forEach(k => { if (c.roster.manual[k] === row.dataset.id) delete c.roster.manual[k]; }); saveCfg(); redrawModels(); return; }
+      const entry = rosterEntries(c).find(m => m.id === row.dataset.id) || (() => { const base = (c.api.default && c.api.default.url) ? c.api.default : readMainApi(); const m = c.roster.models.find(x => x.id === row.dataset.id) || {}; return { url: (m.url || base.url || '').trim(), key: (m.key || base.key || '').trim(), model: (m.model || '').trim(), provider: m.provider || base.provider || 'custom' }; })();
+      if (!kit()) return rout('多渠道请求层未加载');
+      const meta = kit().provider(entry.provider); const api = { provider: entry.provider, type: (meta && meta.type) || 'openai', url: entry.url, key: entry.key, model: entry.model };
+      if (!api.url) return rout('这一行没填地址，上面的会议脑也没填。');
+      if (btn.classList.contains('sw-r-fetch')) {
+        rout('正在拉取模型列表…');
+        try { const models = await kit().listModels(api, AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined); const picked = await kit().chooseModel(models, '选择模型'); if (picked) { row.querySelector('.sw-r-model').value = picked; readForm(); redrawManual(); } rout(`已拉取 ${models.length} 个模型${picked ? '，已选择 ' + picked : ''}。`); }
+        catch (err) { rout('拉取失败：' + (err && err.message || err)); }
+      } else if (btn.classList.contains('sw-r-test')) {
+        if (!api.model) return rout('先填模型名。');
+        rout('测试中…'); const t0 = Date.now();
+        try { const raw = await kit().request(api, '你是测试。', '只回复 OK。', AbortSignal.timeout ? AbortSignal.timeout(60000) : undefined, 64); rout(`✅ ${api.model} 回复（${Math.round((Date.now() - t0) / 1000)} 秒）：${String(raw).slice(0, 60)}`); }
+        catch (err) { rout('❌ ' + (err && err.message || err)); }
+      }
+    });
     q('sw-a-import').onclick = () => { const m = readMainApi(); q('sw-a-prov').value = m.provider; q('sw-a-url').value = m.url; q('sw-a-key').value = m.key; q('sw-a-model').value = m.model; readForm(); out('已导入狼人杀全局 API 设置。'); };
     const out = t => { q('sw-api-out').textContent = t; };
     const fetchModels = async (prefix) => {
@@ -339,13 +398,15 @@ const SpaceWolf = (() => {
    * ================================================================ */
   function startGame() {
     const c = loadCfg();
-    const entries = vaultEntries();
+    const entries = rosterEntries(c);
     if (!c.demo) {
       const api = apiFor('meeting');
       const sharedOk = api.url && api.model && (api.key || !(kit() && kit().needsKey(api)));
-      const poolReady = c.roster.mode === 'pool' && c.roster.pool.some(id => entries.some(e => e.id === id));
-      if (!sharedOk && !poolReady) { alert('请先填好会议脑的 API，或在"每人一个会议脑"里从 API 库勾选至少一条（也可以勾选"纯脚本小人演示"）'); return; }
-      if (c.roster.mode === 'pool' && !poolReady) { alert('"从 API 库轮流分配"没有勾选任何可用条目，请先勾选，或改回共用会议脑'); return; }
+      const poolReady = c.roster.mode === 'pool' && entries.some(e => e.on !== false && e.url);
+      const manualReady = c.roster.mode === 'manual' && Object.values(c.roster.manual || {}).some(id => entries.some(e => e.id === id && e.url));
+      const coversAll = c.roster.mode === 'pool' && poolReady;
+      if (!sharedOk && !coversAll) { alert(c.roster.mode === 'pool' ? '"每人一个会议脑"里还没有可用的模型：至少填一行模型名，地址、密钥留空就要先填好上面的会议脑' : '请先填好会议脑的 API（也可以勾选"纯脚本小人演示"）'); return; }
+      if (c.roster.mode === 'manual' && !manualReady && !sharedOk) { alert('按座位指定的模型都不可用，请检查，或改回共用会议脑'); return; }
     }
     stopGame();
     rpClose();
@@ -987,7 +1048,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
 
-  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf, _rp: RP, _rpSeek: rpSeek, _rpJump: rpJump, _rpTogglePlay: rpTogglePlay, _rpImport: rpImport, _exportData: exportData, _assignRoster: assignRoster, _vaultEntries: vaultEntries, _modelLabel: modelLabel };
+  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf, _rp: RP, _rpSeek: rpSeek, _rpJump: rpJump, _rpTogglePlay: rpTogglePlay, _rpImport: rpImport, _exportData: exportData, _assignRoster: assignRoster, _vaultEntries: vaultEntries, _rosterEntries: rosterEntries, _modelLabel: modelLabel };
 })();
 function openSpaceWolf() { SpaceWolf.open(); }
 if (typeof window !== 'undefined') window.SpaceWolf = SpaceWolf;
