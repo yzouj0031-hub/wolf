@@ -62,7 +62,8 @@ create table if not exists public.learning_cases (
   -- 机械审核：不许带规则书术语、标签或指令腔，needs 只能是角色 id
   check (text !~ '(账本|标尺|排他性|暂认|证据等级|零成本|目标函数|时点|信息差|视角关|名义刀|落点|最高优先级|忽略.{0,8}(规则|指令)|system prompt|<[a-zA-Z/]|【|】)'),
   check (cardinality(needs) <= 8),
-  check (needs <@ array(select regexp_split_to_table('seer,witch,guard,hunter,villager,werewolf,knight,magician,wolfbeauty,whitewolf,wolfking,fox,dreamwalker,gargoyle,gravekeeper,alchemist,soulwarden,serialkiller,imitator,mechwolf,cupid,jester,whitecat,merchant,fool,wolfconcubine,youshang', ','))),
+  -- CHECK 里不能写子查询，用 string_to_array 展开固定列表
+  check (needs <@ string_to_array('seer,witch,guard,hunter,villager,werewolf,knight,magician,wolfbeauty,whitewolf,wolfking,fox,dreamwalker,gargoyle,gravekeeper,alchemist,soulwarden,serialkiller,imitator,mechwolf,cupid,jester,whitecat,merchant,fool,wolfconcubine,youshang', ',')),
   check (cardinality(phases) between 1 and 5),
   check (phases <@ array['day','pk','sheriff','lastwords','wolfnight']::text[]),
   check (cardinality(tags) <= 6),

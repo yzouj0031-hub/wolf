@@ -65,6 +65,8 @@
   const byId = id => global.document?.getElementById(id) || null;
   const cleanText = (value, max = 4000) => String(value == null ? '' : value)
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, max);
+  // 任何来自云端的字段进 innerHTML 前都要转义：备注、模式名、模型名都是别人填的
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const bytes = value => {
     const text = JSON.stringify(value);
     return global.TextEncoder ? new TextEncoder().encode(text).length : unescape(encodeURIComponent(text)).length;
@@ -420,7 +422,7 @@
     for (const row of reviewRows) {
       const card = document.createElement('div'); card.className = 'lc-card';
       const auto = autoCases.get(row.client_submission_id);
-      card.innerHTML = `<div><strong>${cleanText(row.mode_name, 80)}</strong> · ${row.player_count}${EN ? ' players' : '人'} · ${row.rounds}${EN ? ' rounds' : '回合'} · ${cleanText(row.winner, 60)}${auto ? ' · 🤖 ' + copy.autoCase : ''}</div><small>${(row.models || []).join(', ')}${row.note ? ' · 📝 ' + cleanText(row.note, 80) : ''} · ${cleanText(row.created_at, 19).replace('T', ' ')}</small>`;
+      card.innerHTML = `<div><strong>${esc(cleanText(row.mode_name, 80))}</strong> · ${esc(row.player_count)}${EN ? ' players' : '人'} · ${esc(row.rounds)}${EN ? ' rounds' : '回合'} · ${esc(cleanText(row.winner, 60))}${auto ? ' · 🤖 ' + esc(copy.autoCase) : ''}</div><small>${esc((row.models || []).join(', '))}${row.note ? ' · 📝 ' + esc(cleanText(row.note, 80)) : ''} · ${esc(cleanText(row.created_at, 19).replace('T', ' '))}</small>`;
       card.onclick = () => openDetail(row);
       list.appendChild(card);
     }

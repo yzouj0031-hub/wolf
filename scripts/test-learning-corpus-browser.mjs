@@ -46,7 +46,8 @@ await withOfflinePage(async (page, origin) => {
       // 管理员审核：第一条已自动入库（能撤下），第二条没案例（手动提炼）
       store.pending = [
         { id: 'm1', client_submission_id: up.row.client_submission_id, note: '狼人第二天一直复读', anonymized: true, mode_name: '测试', winner: '好人', rounds: 3, player_count: 6, roles: [], models: ['stub'], snapshot: up.row.snapshot, status: 'pending', created_at: '2026-10-20T00:00:00Z' },
-        { id: 'm2', client_submission_id: 'sub-2', note: '', anonymized: true, mode_name: '测试二', winner: '狼人', rounds: 2, player_count: 6, roles: [], models: ['stub'], snapshot: up.row.snapshot, status: 'pending', created_at: '2026-10-20T01:00:00Z' }
+        { id: 'm2', client_submission_id: 'sub-2', note: '', anonymized: true, mode_name: '测试二', winner: '狼人', rounds: 2, player_count: 6, roles: [], models: ['stub'], snapshot: up.row.snapshot, status: 'pending', created_at: '2026-10-20T01:00:00Z' },
+        { id: 'm3', client_submission_id: 'sub-3', note: '<img src=x onerror="window.__xss=1">', anonymized: true, mode_name: '<b>粗</b>', winner: '好人', rounds: 1, player_count: 6, roles: [], models: ['<i>m</i>'], snapshot: up.row.snapshot, status: 'pending', created_at: '2026-10-21T00:00:00Z' }
       ];
       store.cases[0].source_submission_id = up.row.client_submission_id; store.cases[0].source = 'auto';
       const realFrom = stub.from;
@@ -54,6 +55,9 @@ await withOfflinePage(async (page, origin) => {
       await WolfLearning.openAdmin();
       await new Promise(r => setTimeout(r, 300));
       const cards = document.querySelectorAll('#lc-admin-list .lc-card').length;
+      await new Promise(r => setTimeout(r, 50));
+      const xssFired = !!window.__xss, xssImg = document.querySelectorAll('#lc-admin-list img, #lc-admin-list b, #lc-admin-list i').length;
+      const xssText = document.querySelectorAll('#lc-admin-list .lc-card')[2].textContent;
       const firstCardAuto = document.querySelector('#lc-admin-list .lc-card').textContent.includes('🤖');
       document.querySelector('#lc-admin-list .lc-card').click();
       const autoShown = document.getElementById('lc-auto-case').style.display !== 'none' && document.getElementById('lc-auto-text').textContent.includes('P1 首夜验出');
@@ -79,7 +83,7 @@ await withOfflinePage(async (page, origin) => {
       return {
         dialogShown, needConsent, alert: window.__alert || '', donateStatus,
         autoStatus: autoCase && autoCase.row.status, autoSource: autoCase && autoCase.row.source, autoTied: autoCase && autoCase.row.source_submission_id === up.row.client_submission_id, autoNeeds: autoCase && autoCase.row.needs.join(),
-        firstCardAuto, autoShown, retired: !!retired, secondNoAuto,
+        firstCardAuto, autoShown, retired: !!retired, secondNoAuto, xssFired, xssImg, xssText,
         upStatus: up && up.row.status, anon: up && up.row.snapshot.players.map(p => p.name).join(','), noteInUpload: up && up.row.note,
         leak: up ? JSON.stringify(up.row.snapshot).includes('PRIVATE') : null,
         cards, matchTextHasSeat: matchText.includes('P1（预言家'), distilUserAnon: /P6/.test(window.__distilUser || '') && !/龙崎/.test(window.__distilUser || ''),
@@ -93,12 +97,14 @@ await withOfflinePage(async (page, origin) => {
     assert.equal(r.upStatus, 'pending', `${file}: 上传负载不是 pending`);
     assert.equal(r.anon, 'P1,P2,P3,P4,P5,P6', `${file}: 默认应匿名化为座位号`);
     assert.equal(r.noteInUpload, '狼人第二天一直复读');
+    assert.ok(!r.xssFired && r.xssImg === 0, `${file}: 审核列表把别人填的备注当 HTML 执行了`);
+    assert.ok(r.xssText.includes('<img src=x') && r.xssText.includes('<b>粗</b>') && r.xssText.includes('<i>m</i>'), `${file}: 备注、模式名、模型名应按原文显示 ${r.xssText}`);
     assert.equal(r.leak, false, `${file}: 快照泄露了私密思维`);
     assert.ok(r.donateDisabled, `${file}: 上传后按钮应禁用防重复`);
     assert.equal(r.autoStatus, 'approved', `${file}: 上传后应自动提炼入库 ${r.donateStatus}`);
     assert.equal(r.autoSource, 'auto'); assert.ok(r.autoTied, `${file}: 自动案例要绑定到这次上传`); assert.equal(r.autoNeeds, 'seer');
     assert.ok(r.donateStatus.includes('已上传并提炼') || r.donateStatus.includes('distilled'), `${file}: 上传状态文案 ${r.donateStatus}`);
-    assert.equal(r.cards, 2, `${file}: 审核列表应有 2 条`);
+    assert.equal(r.cards, 3, `${file}: 审核列表应有 3 条`);
     assert.ok(r.firstCardAuto && r.autoShown, `${file}: 管理员应看到自动案例`);
     assert.ok(r.retired, `${file}: 撤下没有更新状态`);
     assert.ok(r.secondNoAuto, `${file}: 没案例的对局不该显示自动案例`);

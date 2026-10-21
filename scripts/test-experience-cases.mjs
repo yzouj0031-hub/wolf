@@ -94,5 +94,9 @@ const day = { prompt: '【第2天·白天发言·第一轮】', opts: {} };
   assert.equal(X.build(S.players[1], day, S), '', '纯净模式不该注入');
   sandbox.TeachingWorldbooks = { mode: () => 'official' };
   assert.ok(X.build(S.players[1], day, S).includes('【别人打过的几局'));
+  sandbox.TeachingWorldbooks = { mode: () => 'custom' };
+  assert.ok(X.build(S.players[1], day, S).includes('【别人打过的几局'), '手写世界书也该配经验库');
+  sandbox.TeachingWorldbooks = { mode: () => 'hybrid' };
+  assert.ok(X.build(S.players[1], day, S).includes('【别人打过的几局'));
 }
 console.log('experience-cases: data health, role gating, phase/team selection, rotation and switches OK');
