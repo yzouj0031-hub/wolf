@@ -150,34 +150,65 @@ await withOfflinePage(async (page, origin) => {
     const players = Array.from({ length: 8 }, (_, i) => ({ id: 'p' + i }));
     const entries = [{ id: 'av_a', name: 'A', model: 'model-a', url: 'u', key: 'k', provider: 'custom' }, { id: 'av_b', name: 'B', model: 'model-b', url: 'u', key: 'k', provider: 'custom' }, { id: 'av_c', name: 'C', model: 'model-c', url: 'u', key: 'k', provider: 'custom' }];
     let seed = 1; const rnd = () => { seed = (seed * 48271) % 2147483647; return seed / 2147483647; };
-    const pool = SpaceWolf._assignRoster(players, { mode: 'pool', pool: ['av_a', 'av_b', 'av_c'] }, entries, rnd);
+    const pool = SpaceWolf._assignRoster(players, { mode: 'pool' }, entries, rnd);
     const count = {}; players.forEach(p => { const m = pool[p.id].model; count[m] = (count[m] || 0) + 1; });
+    const off = SpaceWolf._assignRoster(players, { mode: 'pool' }, entries.map((e, i) => Object.assign({}, e, { on: i !== 1 })), rnd);
     const manual = SpaceWolf._assignRoster(players, { mode: 'manual', manual: { 0: 'av_c', 3: 'av_a', 5: 'av_zzz' } }, entries, rnd);
-    const shared = SpaceWolf._assignRoster(players, { mode: 'shared', pool: ['av_a'] }, entries, rnd);
-    const empty = SpaceWolf._assignRoster(players, { mode: 'pool', pool: ['av_zzz'] }, entries, rnd);
-    return { count, manual: players.map(p => manual[p.id] ? manual[p.id].model : null), shared: Object.keys(shared).length, empty: Object.keys(empty).length, label: SpaceWolf._modelLabel('openai/gpt-4o-mini') };
+    const shared = SpaceWolf._assignRoster(players, { mode: 'shared' }, entries, rnd);
+    const empty = SpaceWolf._assignRoster(players, { mode: 'pool' }, [], rnd);
+    return { count, off: new Set(players.map(p => off[p.id].model)).size, manual: players.map(p => manual[p.id] ? manual[p.id].model : null), shared: Object.keys(shared).length, empty: Object.keys(empty).length, label: SpaceWolf._modelLabel('openai/gpt-4o-mini') };
   });
-  assert.deepEqual(Object.values(roster.count).sort(), [2, 3, 3], '3 条配置 8 个人应轮流分成 3、3、2：' + JSON.stringify(roster.count));
+  assert.deepEqual(Object.values(roster.count).sort(), [2, 3, 3], '3 个模型 8 个人应轮流分成 3、3、2：' + JSON.stringify(roster.count));
+  assert.equal(roster.off, 2, '没勾"上桌"的模型不该分到人');
   assert.deepEqual(roster.manual, ['model-c', null, null, 'model-a', null, null, null, null], '手动指定应按座位号落到人头：' + JSON.stringify(roster.manual));
   assert.equal(roster.shared, 0, '共用模式不该分配任何人');
-  assert.equal(roster.empty, 0, '池里没有可用条目时不该分配');
+  assert.equal(roster.empty, 0, '没有模型时不该分配');
   assert.ok(roster.label && roster.label.length <= 14, '模型标签应是短名');
 
   await page.click('#sw-restart');
   await page.waitForSelector('#sw-start');
+  // 直接在设置页填模型：加两行，一行带自己的地址，一行只填模型名（地址、密钥用上面会议脑的）
   await page.evaluate(() => {
     localStorage.setItem('wg_apivault', JSON.stringify([
-      { id: 'av_x', name: '甲', model: 'model-x', url: 'http://127.0.0.1:9/v1', key: 'kx' },
-      { id: 'av_y', name: '乙', model: 'model-y', url: '', key: '' },
+      { id: 'av_v', name: '库里的', model: 'model-vault', url: 'http://127.0.0.1:9/v1', key: 'kv' },
       { id: 'av_nomodel', name: '没模型', url: 'http://127.0.0.1:9/v1', key: 'k', model: '' }
     ]));
-    $('g-url').value = 'http://127.0.0.1:9/v1'; $('g-key').value = 'k';
     SpaceWolf.close(); SpaceWolf.open();
   });
   await page.waitForSelector('#sw-start');
-  const vault = await page.evaluate(() => SpaceWolf._vaultEntries().map(e => ({ id: e.id, model: e.model, url: e.url, key: e.key })));
-  assert.deepEqual(vault.map(v => v.id), ['av_x', 'av_y'], 'API 库里没有模型名的条目不该出现：' + JSON.stringify(vault));
-  assert.equal(vault[1].url, 'http://127.0.0.1:9/v1', 'API 库条目缺 url 时应用狼人杀全局配置补齐：' + JSON.stringify(vault[1]));
+  assert.ok(await page.$('#sw-r-empty'), '没填模型时应有提示');
+  await page.evaluate(() => {
+    $('sw-a-prov').value = 'custom'; $('sw-a-url').value = 'http://127.0.0.1:9/v1'; $('sw-a-key').value = 'k'; $('sw-a-model').value = 'stub';
+    ['sw-a-prov', 'sw-a-url', 'sw-a-key', 'sw-a-model'].forEach(id => $(id).dispatchEvent(new Event('change')));
+  });
+  await page.click('#sw-r-add');
+  await page.click('#sw-r-add');
+  const rowsAfterAdd = await page.evaluate(() => ({ rows: document.querySelectorAll('#sw-r-models .sw-r-row').length, mode: $('sw-r-mode').value, focused: document.activeElement && document.activeElement.classList.contains('sw-r-model') }));
+  assert.equal(rowsAfterAdd.rows, 2, '点两次"加一个模型"应有两行');
+  assert.equal(rowsAfterAdd.mode, 'pool', '加了模型后分配方式应自动切到轮流分配');
+  assert.ok(rowsAfterAdd.focused, '加一行后光标应落在模型名框');
+  await page.evaluate(() => {
+    const rows = document.querySelectorAll('#sw-r-models .sw-r-row');
+    rows[0].querySelector('.sw-r-url').value = 'http://127.0.0.1:9/own'; rows[0].querySelector('.sw-r-key').value = 'kx'; rows[0].querySelector('.sw-r-model').value = 'model-x';
+    rows[1].querySelector('.sw-r-model').value = 'model-y';
+    rows[1].querySelector('.sw-r-model').dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const entries = await page.evaluate(() => SpaceWolf._rosterEntries().map(e => ({ model: e.model, url: e.url, key: e.key, on: e.on })));
+  assert.deepEqual(entries, [{ model: 'model-x', url: 'http://127.0.0.1:9/own', key: 'kx', on: true }, { model: 'model-y', url: 'http://127.0.0.1:9/v1', key: 'k', on: true }], '只填模型名的行应用会议脑的地址、密钥：' + JSON.stringify(entries));
+  assert.equal(await page.evaluate(() => SpaceWolf._cfg().roster.models.length), 2, '填的模型应写进配置');
+  // 从 API 库导入：只加带模型名的、没重复的；再点一次不重复加
+  await page.click('#sw-r-import');
+  assert.deepEqual(await page.evaluate(() => SpaceWolf._rosterEntries().map(e => e.model)), ['model-x', 'model-y', 'model-vault'], '从 API 库导入应只加带模型名的条目');
+  await page.click('#sw-r-import');
+  assert.equal(await page.evaluate(() => SpaceWolf._cfg().roster.models.length), 3, '重复导入不该加重复行');
+  assert.ok((await page.$eval('#sw-r-out', e => e.textContent)).includes('都已经在列表里'), '重复导入应提示');
+  // 删掉导入的那行；座位下拉应列出剩下的模型
+  await page.click('#sw-r-models .sw-r-row:last-child .sw-r-del');
+  assert.deepEqual(await page.evaluate(() => SpaceWolf._cfg().roster.models.map(m => m.model)), ['model-x', 'model-y'], '删除应去掉那一行');
+  await page.evaluate(() => { $('sw-r-mode').value = 'manual'; $('sw-r-mode').dispatchEvent(new Event('change')); });
+  assert.equal(await page.$eval('#sw-r-manual', e => e.style.display), '', '按座位指定时应显示座位表');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#sw-r-manual select')[0].options].map(o => o.textContent)), ['共用会议脑', 'model-x', 'model-y'], '座位下拉应列出填的模型');
+  await page.evaluate(() => { $('sw-r-mode').value = 'pool'; $('sw-r-mode').dispatchEvent(new Event('change')); });
   await page.evaluate(() => {
     window.__speakers = {};
     window.AuxGameAPI.request = async (api, sys, user) => {
@@ -195,17 +226,13 @@ await withOfflinePage(async (page, origin) => {
     };
     $('sw-c-players').value = '7'; $('sw-c-imps').value = '1'; $('sw-c-tasks').value = '3'; $('sw-c-cd').value = '15';
     $('sw-c-demo').checked = false; $('sw-c-interval').value = '4'; $('sw-c-conc').value = '8';
-    $('sw-a-prov').value = 'custom'; $('sw-a-url').value = 'http://127.0.0.1:9/v1'; $('sw-a-key').value = 'k'; $('sw-a-model').value = 'stub';
-    $('sw-r-mode').value = 'pool';
-    ['sw-c-players', 'sw-c-imps', 'sw-c-tasks', 'sw-c-cd', 'sw-c-demo', 'sw-c-interval', 'sw-c-conc', 'sw-a-prov', 'sw-a-url', 'sw-a-key', 'sw-a-model', 'sw-r-mode'].forEach(id => $(id).dispatchEvent(new Event('change')));
-    document.querySelectorAll('#sw-r-pool input[type=checkbox]').forEach(cb => { cb.checked = true; cb.dispatchEvent(new Event('change')); });
+    ['sw-c-players', 'sw-c-imps', 'sw-c-tasks', 'sw-c-cd', 'sw-c-demo', 'sw-c-interval', 'sw-c-conc'].forEach(id => $(id).dispatchEvent(new Event('change')));
   });
-  assert.equal(await page.$eval('#sw-r-pool', e => e.style.display), '', '选择轮流分配后应显示 API 库勾选列表');
-  assert.deepEqual(await page.evaluate(() => SpaceWolf._cfg().roster), { mode: 'pool', pool: ['av_x', 'av_y'], manual: {} }, '勾选应写进配置');
+  assert.equal(await page.evaluate(() => SpaceWolf._cfg().roster.mode), 'pool', '分配方式应是轮流分配');
   await page.click('#sw-start');
   await page.waitForSelector('#sw-game .sw-av');
   const seats = await page.evaluate(() => { const G = SpaceWolf._state.G; const count = {}; G.players.forEach(p => { const m = p.api && p.api.model; count[m] = (count[m] || 0) + 1; }); return { count, labels: G.players.map(p => p.modelLabel), avatars: document.querySelectorAll('#sw-game .sw-av-model').length, cards: document.querySelectorAll('#sw-crew .sw-model').length }; });
-  assert.deepEqual(Object.values(seats.count).sort(), [3, 4], '两条配置 7 个人应分成 4、3：' + JSON.stringify(seats.count));
+  assert.deepEqual(Object.values(seats.count).sort(), [3, 4], '两个模型 7 个人应分成 4、3：' + JSON.stringify(seats.count));
   assert.ok(seats.labels.every(Boolean), '每个人都应有模型标签');
   assert.equal(seats.avatars, 7, '地图小人头上应标模型');
   assert.equal(seats.cards, 7, '船员卡应带模型标签');
