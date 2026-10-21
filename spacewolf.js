@@ -17,7 +17,9 @@ const SpaceWolf = (() => {
     players: 8, impostors: 2, tasksPerCrew: 6, killCooldownSec: 45, pace: 'standard', confirmEjects: false, discussionRounds: 1,
     speed: 2, demo: false,
     actionMinIntervalSec: 10, actionMaxConcurrent: 3, actionTimeoutSec: 25, meetingTimeoutSec: 600,
-    api: { default: null, action: null, actionSeparate: false }
+    api: { default: null, action: null, actionSeparate: false },
+    // 每人一个会议脑：shared 共用 / pool 从 API 库轮流分配 / manual 按座位指定
+    roster: { mode: 'shared', pool: [], manual: {} }
   };
   // 节奏档：快 = 演示用；标准 = 按原作校（任务四到六分钟）；慢 = 大局
   const PACES = {
@@ -32,6 +34,9 @@ const SpaceWolf = (() => {
     let saved = null; try { saved = JSON.parse(localStorage.getItem(STORAGE) || 'null'); } catch (_) {}
     CFG = Object.assign({}, DEFAULT_CFG, saved || {});
     CFG.api = Object.assign({ default: null, action: null, actionSeparate: false }, (saved && saved.api) || {});
+    CFG.roster = Object.assign({ mode: 'shared', pool: [], manual: {} }, (saved && saved.roster) || {});
+    if (!Array.isArray(CFG.roster.pool)) CFG.roster.pool = [];
+    if (!CFG.roster.manual || typeof CFG.roster.manual !== 'object') CFG.roster.manual = {};
     return CFG;
   }
   function saveCfg() { try { localStorage.setItem(STORAGE, JSON.stringify(CFG)); } catch (_) {} }
@@ -41,8 +46,44 @@ const SpaceWolf = (() => {
     const provider = (type && type.value) || (k ? k.inferProvider(url && url.value) : 'custom');
     return { provider, url: String(url && url.value || '').trim(), key: String(key && key.value || '').trim(), model: String(model && model.value || '').trim() };
   }
-  function apiFor(kind) {
+  // ── API 库 → 可用的会议脑条目（url/key 缺省时用狼人杀全局配置补齐） ──
+  function vaultEntries() {
+    const vault = typeof ApiVault !== 'undefined' ? ApiVault : window.ApiVault;
+    const list = (vault && typeof vault.loadAll === 'function') ? vault.loadAll() : [];
+    const main = readMainApi();
+    const k = kit();
+    return (Array.isArray(list) ? list : []).filter(e => e && e.model).map(e => {
+      const url = (e.url || main.url || '').trim();
+      return { id: e.id, name: e.name || e.model, url, key: (e.key || main.key || '').trim(), model: e.model.trim(), provider: e.provider || (k ? k.inferProvider(url) : 'custom') };
+    });
+  }
+  // 纯函数：按配置给每个座位分一个会议脑；返回 playerId → 条目（或 null = 用共用的）
+  function assignRoster(players, roster, entries, rnd) {
+    const out = {};
+    const r = roster || {}; const byId = new Map(entries.map(e => [e.id, e]));
+    if (r.mode === 'pool') {
+      const pool = (r.pool || []).map(id => byId.get(id)).filter(Boolean);
+      if (!pool.length) return out;
+      const order = pool.slice();
+      for (let i = order.length - 1; i > 0; i--) { const j = Math.floor((rnd || Math.random)() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+      players.forEach((p, i) => { out[p.id] = order[i % order.length]; });
+    } else if (r.mode === 'manual') {
+      players.forEach((p, i) => { const e = byId.get((r.manual || {})[String(i)]); out[p.id] = e || null; });
+    }
+    return out;
+  }
+  function modelLabel(model) {
+    if (!model) return '';
+    try { if (typeof window.getModelTag === 'function') { const t = window.getModelTag(model); if (t && t.label) return t.label; } } catch (_) {}
+    return String(model).replace(/^.*\//, '').slice(0, 14);
+  }
+  function apiFor(kind, p) {
     const c = loadCfg();
+    const k0 = kit();
+    if (kind === 'meeting' && p && p.api && p.api.url && p.api.model) {
+      const meta = k0 ? k0.provider(p.api.provider) : null;
+      return { url: p.api.url, key: p.api.key, model: p.api.model, provider: p.api.provider, type: (meta && meta.type) || (p.api.provider === 'anthropic' || p.api.provider === 'gemini' ? p.api.provider : 'openai') };
+    }
     let a = kind === 'action' && c.api.actionSeparate && c.api.action ? c.api.action : c.api.default;
     if (!a || !a.url) a = readMainApi();
     const k = kit();
@@ -154,7 +195,8 @@ const SpaceWolf = (() => {
     const mm = q('mm'); if (mm) mm.style.display = 'none';
     q('sw-view').classList.add('on'); q('sw-view').setAttribute('aria-hidden', 'false');
     syncSpeedUI();
-    if (!V.G) showSetup();
+    // 没开局、或者停在设置页：重画设置页（API 库可能刚在主菜单里改过）
+    if (!V.G || !q('sw-game') || q('sw-game').style.display === 'none') showSetup();
   }
   function close() {
     stopGame();
@@ -165,6 +207,18 @@ const SpaceWolf = (() => {
   /* ================================================================
    *  § 设置页
    * ================================================================ */
+  function rosterPoolHtml(c) {
+    const entries = vaultEntries();
+    if (!entries.length) return '<div class="sw-muted">API 库里还没有带模型名的配置。回主菜单打开「API 库」保存几条，再回来勾选。</div>';
+    return '<div class="sw-r-list">' + entries.map(e => `<label class="row"><input type="checkbox" value="${h(e.id)}"${(c.roster.pool || []).includes(e.id) ? ' checked' : ''}> <b>${h(e.name)}</b> <span class="sw-muted">${h(e.model)}</span></label>`).join('') + '</div><div class="sw-muted">勾几条就轮流分给几个人：3 条配置 8 个人，就是 3、3、2。</div>';
+  }
+  function rosterManualHtml(c) {
+    const entries = vaultEntries();
+    const n = Math.max(4, Math.min(12, +c.players || 8));
+    if (!entries.length) return '<div class="sw-muted">API 库里还没有带模型名的配置。</div>';
+    const opts = seat => '<option value="">共用会议脑</option>' + entries.map(e => `<option value="${h(e.id)}"${(c.roster.manual || {})[String(seat)] === e.id ? ' selected' : ''}>${h(e.name)} · ${h(e.model)}</option>`).join('');
+    return '<div class="sw-grid">' + Array.from({ length: n }, (_, i) => `<label>座位 ${i + 1} <select data-seat="${i}">${opts(i)}</select></label>`).join('') + '</div><div class="sw-muted">座位号是开局顺序，颜色每局随机，所以按座位而不是按颜色指定。</div>';
+  }
   function showSetup() {
     const c = loadCfg();
     q('sw-game').style.display = 'none'; q('sw-setup').style.display = '';
@@ -222,6 +276,15 @@ const SpaceWolf = (() => {
     </div>
     <div class="sw-api-out" id="sw-api-out"></div>
   </div>
+  <div class="sw-panel" id="sw-roster-panel">
+    <h3>每人一个会议脑（可选）</h3>
+    <div class="sw-muted">想看不同模型同桌对抗，就从主菜单「API 库」里保存几条配置，这里勾选后开局轮流分给每个宇航员；也可以按座位手动指定。行动脑仍然共用上面那个快模型。</div>
+    <div class="sw-grid" style="margin-top:8px">
+      <label>分配方式 <select id="sw-r-mode"><option value="shared"${c.roster.mode === 'shared' ? ' selected' : ''}>共用上面的会议脑</option><option value="pool"${c.roster.mode === 'pool' ? ' selected' : ''}>从 API 库轮流分配</option><option value="manual"${c.roster.mode === 'manual' ? ' selected' : ''}>按座位手动指定</option></select></label>
+    </div>
+    <div id="sw-r-pool" style="${c.roster.mode === 'pool' ? '' : 'display:none'}">${rosterPoolHtml(c)}</div>
+    <div id="sw-r-manual" style="${c.roster.mode === 'manual' ? '' : 'display:none'}">${rosterManualHtml(c)}</div>
+  </div>
   <div class="sw-panel">
     <div class="sw-start-row">
       <button class="sw-btn primary" id="sw-start">▶ 开局</button>
@@ -238,6 +301,9 @@ const SpaceWolf = (() => {
       c.actionTimeoutSec = clamp(+q('sw-c-atimeout').value, 8, 120); c.meetingTimeoutSec = clamp(+q('sw-c-mtimeout').value, 30, 1800);
       c.api.default = { provider: q('sw-a-prov').value, url: q('sw-a-url').value.trim(), key: q('sw-a-key').value.trim(), model: q('sw-a-model').value.trim() };
       c.api.actionSeparate = q('sw-b-sep').checked;
+      c.roster.mode = ['shared', 'pool', 'manual'].includes(q('sw-r-mode').value) ? q('sw-r-mode').value : 'shared';
+      c.roster.pool = [...q('sw-setup').querySelectorAll('#sw-r-pool input[type=checkbox]:checked')].map(x => x.value);
+      const manual = {}; q('sw-setup').querySelectorAll('#sw-r-manual select').forEach(sel => { if (sel.value) manual[sel.dataset.seat] = sel.value; }); c.roster.manual = manual;
       c.api.action = { provider: q('sw-b-prov').value, url: q('sw-b-url').value.trim(), key: q('sw-b-key').value.trim(), model: q('sw-b-model').value.trim() };
       saveCfg();
     };
@@ -245,6 +311,8 @@ const SpaceWolf = (() => {
     // 切节奏档时把任务数和冷却一起带到该档的建议值（之后仍可手改）
     q('sw-c-pace').addEventListener('change', () => { const p = PACES[q('sw-c-pace').value]; if (p) { q('sw-c-tasks').value = p.tasksPerCrew; q('sw-c-cd').value = p.killCooldownSec; readForm(); } });
     q('sw-b-sep').addEventListener('change', () => { q('sw-b-wrap').style.display = q('sw-b-sep').checked ? '' : 'none'; });
+    q('sw-r-mode').addEventListener('change', () => { q('sw-r-pool').style.display = q('sw-r-mode').value === 'pool' ? '' : 'none'; q('sw-r-manual').style.display = q('sw-r-mode').value === 'manual' ? '' : 'none'; });
+    q('sw-c-players').addEventListener('change', () => { readForm(); q('sw-r-manual').innerHTML = rosterManualHtml(c); q('sw-r-manual').querySelectorAll('select').forEach(el => el.addEventListener('change', readForm)); });
     q('sw-a-import').onclick = () => { const m = readMainApi(); q('sw-a-prov').value = m.provider; q('sw-a-url').value = m.url; q('sw-a-key').value = m.key; q('sw-a-model').value = m.model; readForm(); out('已导入狼人杀全局 API 设置。'); };
     const out = t => { q('sw-api-out').textContent = t; };
     const fetchModels = async (prefix) => {
@@ -271,9 +339,13 @@ const SpaceWolf = (() => {
    * ================================================================ */
   function startGame() {
     const c = loadCfg();
+    const entries = vaultEntries();
     if (!c.demo) {
       const api = apiFor('meeting');
-      if (!api.url || !api.model || (!api.key && kit() && kit().needsKey(api))) { alert('请先填好会议脑的 API（或勾选"纯脚本小人演示"）'); return; }
+      const sharedOk = api.url && api.model && (api.key || !(kit() && kit().needsKey(api)));
+      const poolReady = c.roster.mode === 'pool' && c.roster.pool.some(id => entries.some(e => e.id === id));
+      if (!sharedOk && !poolReady) { alert('请先填好会议脑的 API，或在"每人一个会议脑"里从 API 库勾选至少一条（也可以勾选"纯脚本小人演示"）'); return; }
+      if (c.roster.mode === 'pool' && !poolReady) { alert('"从 API 库轮流分配"没有勾选任何可用条目，请先勾选，或改回共用会议脑'); return; }
     }
     stopGame();
     rpClose();
@@ -284,6 +356,9 @@ const SpaceWolf = (() => {
       taskTimeScale: pace.taskTimeScale, speedPxPerSec: pace.speedPxPerSec, crewRestSec: pace.crewRestSec });
     V.taskSnapshot = { done: 0, total: G.taskTotal };
     G.players.forEach(p => { p.brain = c.demo ? 'bot' : 'api'; });
+    // 每人一个会议脑：按配置分配；没分到的用共用的。行动脑始终共用快模型。
+    const roster = assignRoster(G.players, c.roster, entries, Math.random);
+    G.players.forEach(p => { const e = roster[p.id]; p.api = e ? { url: e.url, key: e.key, model: e.model, provider: e.provider, name: e.name } : null; p.modelLabel = modelLabel(e ? e.model : (c.demo ? '' : apiFor('meeting').model)); });
     V.G = G;
     q('sw-setup').style.display = 'none'; q('sw-game').style.display = '';
     q('sw-log').innerHTML = ''; q('sw-meeting').innerHTML = '<div class="sw-muted">还没有开过会。</div>'; q('sw-end').innerHTML = '<div class="sw-muted">对局进行中。</div>';
@@ -533,7 +608,7 @@ ${said || '（你是第一个发言的）'}
     while (true) {
       const t0 = Date.now();
       try {
-        const raw = await askWithWait(apiFor('meeting'), meetingSystem(p), meetingUser(p, m, round, sinceT), c.meetingTimeoutSec * 1000, 4096, p, '发言');
+        const raw = await askWithWait(apiFor('meeting', p), meetingSystem(p), meetingUser(p, m, round, sinceT), c.meetingTimeoutSec * 1000, 4096, p, '发言');
         const say = tagOf(raw, 'say') || stripTags(raw);
         if (!say.trim()) throw new Error('没有解析出发言');
         let claims = null;
@@ -564,7 +639,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
 先 <thinking> 简短盘算，然后只输出 <vote>颜色</vote> 或 <vote>skip</vote>。`;
     while (true) {
       try {
-        const raw = await askWithWait(apiFor('meeting'), meetingSystem(p), user, c.meetingTimeoutSec * 1000, 1024, p, '投票');
+        const raw = await askWithWait(apiFor('meeting', p), meetingSystem(p), user, c.meetingTimeoutSec * 1000, 1024, p, '投票');
         const v = tagOf(raw, 'vote') || stripTags(raw).slice(-30);
         if (/skip|弃票|弃权|不投/i.test(v)) return 'skip';
         const t = E().resolvePlayer(G, v);
@@ -624,6 +699,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
       mk('ellipse', { cx: 4, cy: -8, rx: 9, ry: 5.5, fill: '#bfe7ff', stroke: '#2a4a7a', 'stroke-width': 1 }, g);
       mk('circle', { r: 17, cx: 0, cy: -1, class: 'sw-task-ring', 'stroke-dasharray': '0 200' }, g);
       mk('text', { x: 0, y: 28 }, g).textContent = p.color;
+      if (p.modelLabel) mk('text', { x: 0, y: 40, class: 'sw-av-model' }, g).textContent = p.modelLabel;
       mk('text', { x: 0, y: -22, class: 'sw-av-tag', 'text-anchor': 'middle' }, g).textContent = '内鬼';
     });
   }
@@ -698,7 +774,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
       const inflight = V.inflight.get(p.id);
       const where = p.alive ? (p.moving ? `→ ${E().roomName(p.moving.to)}` : E().roomName(p.room)) : (p.ejected ? '已放逐' : '已死亡');
       const tasks = p.role === 'crew' ? `任务 ${p.tasks.filter(t => t.done).length}/${p.tasks.length}` : (V.god ? `击杀 ${p.stats.kills}` : '');
-      return `<div class="sw-card${p.alive ? '' : ' dead'}"><div><span class="sw-sw" style="background:${p.hex}"></span><b>${h(p.color)}</b> ${V.god ? `<span class="role ${p.role}">${p.role === 'impostor' ? '内鬼' : '船员'}</span>` : ''}</div>
+      return `<div class="sw-card${p.alive ? '' : ' dead'}"><div><span class="sw-sw" style="background:${p.hex}"></span><b>${h(p.color)}</b> ${p.modelLabel ? `<i class="sw-model">${h(p.modelLabel)}</i> ` : ''}${V.god ? `<span class="role ${p.role}">${p.role === 'impostor' ? '内鬼' : '船员'}</span>` : ''}</div>
         <div>${h(where)} · ${h(tasks)}</div>
         ${V.god && p.alive && p.intent ? `<div class="sw-note">${h(describeIntent(G, p.intent))}${p.intent.note ? '：' + h(p.intent.note) : ''}${p.intent.source !== 'brain' ? '（脚本垫步）' : ''}</div>` : ''}
         ${inflight ? `<div class="sw-think">🧠 思考中 ${Math.round((G.t - inflight.since) / 1000)}s</div>` : ''}</div>`;
@@ -712,7 +788,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     html += m.speeches.map(s => {
       const p = G.players[s.playerId];
       const vr = s.verify && s.verify.length ? `<div class="claims">口供核验：${s.verify.map(x => `<span class="${x.ok ? 'ok' : 'bad'}">${x.ok ? '✓' : '✗'} ${h(x.claim)}</span>`).join(' ')}</div>` : '';
-      return `<div class="sw-speech"><span class="sw-sw" style="background:${p.hex}"></span><div><span class="who">${h(p.color)}</span><span class="text">${h(s.text)}</span>${V.god ? vr : ''}${V.god && s.thinking ? `<details><summary class="sw-muted" style="cursor:pointer">盘算</summary><div class="sw-muted">${h(s.thinking)}</div></details>` : ''}</div></div>`;
+      return `<div class="sw-speech"><span class="sw-sw" style="background:${p.hex}"></span><div><span class="who">${h(p.color)}${p.modelLabel ? ` <i class="sw-model">${h(p.modelLabel)}</i>` : ''}</span><span class="text">${h(s.text)}</span>${V.god ? vr : ''}${V.god && s.thinking ? `<details><summary class="sw-muted" style="cursor:pointer">盘算</summary><div class="sw-muted">${h(s.thinking)}</div></details>` : ''}</div></div>`;
     }).join('');
     if (st.speaking != null) { const p = G.players[st.speaking]; html += `<div class="sw-speech thinking"><span class="sw-sw" style="background:${p.hex}"></span><div><span class="who">${h(p.color)}</span><span class="text">…</span></div></div>`; }
     if (st.phase === 'vote') html += `<div class="sw-votes">投票中…</div>`;
@@ -734,9 +810,10 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     setWait('');
     const falseClaims = {}; const totalClaims = {};
     G.meetings.forEach(m => m.speeches.forEach(s => { if (!s.verify) return; totalClaims[s.playerId] = (totalClaims[s.playerId] || 0) + s.verify.length; falseClaims[s.playerId] = (falseClaims[s.playerId] || 0) + s.verify.filter(x => !x.ok).length; }));
-    const rows = G.players.map(p => `<tr><td><span class="sw-sw" style="background:${p.hex};display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px"></span>${h(p.color)}</td><td><span class="sw-badge ${p.role === 'impostor' ? 'imp' : 'crew'}">${p.role === 'impostor' ? '内鬼' : '船员'}</span></td><td>${p.alive ? '存活' : (p.ejected ? '被放逐' : '被杀')}</td><td>${p.role === 'impostor' ? p.stats.kills : p.tasks.filter(t => t.done).length + '/' + p.tasks.length}</td><td>${totalClaims[p.id] ? `${falseClaims[p.id] || 0}/${totalClaims[p.id]}` : '—'}</td></tr>`).join('');
+    const rows = G.players.map(p => `<tr><td><span class="sw-sw" style="background:${p.hex};display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px"></span>${h(p.color)}${p.modelLabel ? ` <i class="sw-model">${h(p.modelLabel)}</i>` : ''}</td><td><span class="sw-badge ${p.role === 'impostor' ? 'imp' : 'crew'}">${p.role === 'impostor' ? '内鬼' : '船员'}</span></td><td>${p.alive ? '存活' : (p.ejected ? '被放逐' : '被杀')}</td><td>${p.role === 'impostor' ? p.stats.kills : p.tasks.filter(t => t.done).length + '/' + p.tasks.length}</td><td>${totalClaims[p.id] ? `${falseClaims[p.id] || 0}/${totalClaims[p.id]}` : '—'}</td></tr>`).join('');
     q('sw-end').innerHTML = `<div class="sw-result" style="font-size:1em">${G.winner === 'crew' ? '🛠 船员获胜' : '🔪 内鬼获胜'} · ${h(G.winReason)} · 用时 ${E().fmtTime(G.t)}</div>
       <table class="sw-end-table"><thead><tr><th>玩家</th><th>身份</th><th>结局</th><th>击杀 / 任务</th><th>口供不符 / 声称数</th></tr></thead><tbody>${rows}</tbody></table>
+      ${modelSummaryHtml(G, falseClaims, totalClaims)}
       <div class="sw-muted" style="margin-top:8px">会议 ${G.meetings.length} 次 · 模型请求 ${V.stats.calls} 次（失败 ${V.stats.fails}）。"口供不符"是模型在会议上声称去过的房间、看见的人与真实轨迹对不上的次数。</div>`;
     showTab('end');
     renderMapStatic(); renderCrew();
@@ -792,6 +869,13 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     const k = Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t)));
     return { t, phase: a.phase, taskDone: a.taskDone, bodies: a.bodies,
       players: a.players.map((p, i) => { const n = b.players[i]; return (n && p.alive && n.alive) ? { id: p.id, x: p.x + (n.x - p.x) * k, y: p.y + (n.y - p.y) * k, alive: true, room: p.room, tasking: p.tasking } : p; }) };
+  }
+  // 多模型同桌时按模型汇总：各当了几次内鬼 / 船员、杀了几个、做了多少任务、口供不符多少
+  function modelSummaryHtml(G, falseClaims, totalClaims) {
+    const groups = new Map();
+    G.players.forEach(p => { if (!p.modelLabel) return; const g = groups.get(p.modelLabel) || { n: 0, imp: 0, crew: 0, kills: 0, tasksDone: 0, tasks: 0, bad: 0, claims: 0, impAlive: 0, crewAlive: 0 }; g.n++; if (p.role === 'impostor') { g.imp++; g.kills += p.stats.kills; if (p.alive) g.impAlive++; } else { g.crew++; g.tasksDone += p.tasks.filter(t => t.done).length; g.tasks += p.tasks.length; if (p.alive) g.crewAlive++; } g.bad += falseClaims[p.id] || 0; g.claims += totalClaims[p.id] || 0; groups.set(p.modelLabel, g); });
+    if (groups.size < 2) return '';
+    return '<div class="sw-model-sum"><div class="sw-muted">按模型看：</div>' + [...groups.entries()].map(([m, g]) => `<div><i class="sw-model">${h(m)}</i> ×${g.n}：${g.imp ? `内鬼 ${g.imp}（击杀 ${g.kills}，存活 ${g.impAlive}）` : ''}${g.imp && g.crew ? ' · ' : ''}${g.crew ? `船员 ${g.crew}（任务 ${g.tasksDone}/${g.tasks}，存活 ${g.crewAlive}）` : ''} · 口供不符 ${g.bad}/${g.claims}</div>`).join('') + '</div>';
   }
   function rpSeek(t) {
     const G = V.G; if (!G || !RP.on) return;
@@ -878,7 +962,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     if (!data || data.game !== 'spacewolf' || !Array.isArray(data.players) || !Array.isArray(data.frames) || !data.frames.length) throw new Error('缺少玩家或帧数据');
     const Eng = E();
     stopGame(); rpClose();
-    const players = data.players.map((p, i) => { const c = Eng.COLORS.find(c => c.name === p.color) || Eng.COLORS[i % Eng.COLORS.length]; return { id: Number.isInteger(p.id) ? p.id : i, color: p.color || c.name, hex: c.hex, role: p.role === 'impostor' ? 'impostor' : 'crew', alive: !!p.alive, ejected: !!p.ejected, stats: Object.assign({ kills: 0, tasksDone: 0 }, p.stats || {}), tasks: Array.isArray(p.tasks) ? p.tasks : [], timeline: Array.isArray(p.timeline) ? p.timeline : [], pos: { x: 0, y: 0 }, room: 'cafeteria', moving: null, intent: null, tasking: null, brain: 'bot', killCooldown: 0 }; });
+    const players = data.players.map((p, i) => { const c = Eng.COLORS.find(c => c.name === p.color) || Eng.COLORS[i % Eng.COLORS.length]; return { id: Number.isInteger(p.id) ? p.id : i, color: p.color || c.name, hex: c.hex, role: p.role === 'impostor' ? 'impostor' : 'crew', alive: !!p.alive, ejected: !!p.ejected, stats: Object.assign({ kills: 0, tasksDone: 0 }, p.stats || {}), tasks: Array.isArray(p.tasks) ? p.tasks : [], timeline: Array.isArray(p.timeline) ? p.timeline : [], modelLabel: String(p.model || ''), pos: { x: 0, y: 0 }, room: 'cafeteria', moving: null, intent: null, tasking: null, brain: 'bot', killCooldown: 0 }; });
     const events = (data.events || []).map((e, i) => Object.assign({ id: i + 1, t: 0 }, e));
     const last = data.frames[data.frames.length - 1];
     V.runId++; V.frames = data.frames; V.lastFrameT = last.t; V.logIdx = 0; V.ended = true; V.paused = false; V.inflight.clear(); V.stats = { calls: 0, fails: 0 };
@@ -893,7 +977,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
   function exportData() {
     const G = V.G; if (!G) return null;
     return { game: 'spacewolf', cfg: G.cfg, winner: G.winner, winReason: G.winReason, duration: G.t,
-      players: G.players.map(p => ({ id: p.id, color: p.color, role: p.role, alive: p.alive, ejected: p.ejected, stats: p.stats, tasks: p.tasks, timeline: p.timeline })),
+      players: G.players.map(p => ({ id: p.id, color: p.color, role: p.role, alive: p.alive, ejected: p.ejected, stats: p.stats, tasks: p.tasks, timeline: p.timeline, model: p.modelLabel || '' })),
       events: G.events, meetings: G.meetings, frames: V.frames };
   }
   function exportJson() {
@@ -903,7 +987,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
 
-  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf, _rp: RP, _rpSeek: rpSeek, _rpJump: rpJump, _rpTogglePlay: rpTogglePlay, _rpImport: rpImport, _exportData: exportData };
+  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf, _rp: RP, _rpSeek: rpSeek, _rpJump: rpJump, _rpTogglePlay: rpTogglePlay, _rpImport: rpImport, _exportData: exportData, _assignRoster: assignRoster, _vaultEntries: vaultEntries, _modelLabel: modelLabel };
 })();
 function openSpaceWolf() { SpaceWolf.open(); }
 if (typeof window !== 'undefined') window.SpaceWolf = SpaceWolf;
