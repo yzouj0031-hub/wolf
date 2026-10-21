@@ -4405,7 +4405,7 @@ D级：玩家名字、原作人设、面相、单纯“感觉像狼”。不作�
   强行换票、押一个低概率但能翻盘的假设）下限同样是零、上限却不是。别在必败局面里继续求稳，
   那只是把输的过程走完。没输定时方差也不是禁区，只是有价格：明显领先时贵，胶着或落后时便宜；
   「照常规打」本身也是一注，对面读的是同一套常规。关键决定（刀谁、跳不跳、技能怎么用）选常规线前，
-  先把最强的一条非常规线按真实概率写出成、败两支——它可以输在算出来的净值上，不能只输在「不常规」上。
+  先把最强的一条别的线按真实概率写出成、败两支——它可以输在算出来的净值上，不能只输在「不常规」上。
 - 【卡在"他到底是谁"的时候，改算两个假设下的后果】。有些决定看上去必须先定身份才能做，于是你
   反复掂量把握有几成，因为不够确定而什么都不做——而"什么都不做"经常是唯一一个一定输的选项。
   换个算法：把两种假设分别摊开，算清同一个动作在每一种假设下的实际后果。如果它在【两种假设下
@@ -14773,6 +14773,39 @@ function logWolfStrategyEntry(label, name, content, open) {
 // 以前整体只等 240 秒 / 90 秒，投票提到 deep 思考档后，想得久的票在 90 秒被整体截掉、记成弃权，
 // 结果 4 只狼只显示 2 票。
 const PACT_CALL_TIMEOUT_MS = 360000;
+// 今晚刀法要用到的本局硬规则（系统事实，不含打法建议）：狼盟密约、密约投票和每晚密谈开场共用一份，
+//   这样"先竞选后公布死讯 / 出局不翻牌 / 守墓人只看放逐 / 女巫看刀口 / 魔术师换位"这些账的原料总是摆在一起。
+function buildWolfNightRuleFacts() {
+  const zh = [], en = [];
+  const hd = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
+  if (S.round === 1 && (S.players || []).length >= 12) {
+    zh.push('今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。所以今晚刀口死不死，都不影响他明天上警起跳。');
+    en.push('The Sheriff election happens after tonight and before tonight\'s deaths are announced: a player killed tonight (and not saved) still counts as present during the election — they can run, give a campaign speech, and vote. Whether tonight\'s target dies does not stop them from running and claiming tomorrow.');
+  }
+  if (hd) {
+    zh.push('本局开启隐死亡：出局者不翻牌、不公布身份。');
+    en.push('Hidden deaths are on: eliminated players\' roles are not revealed.');
+  }
+  // 只在对应角色本局在场时才给：今晚刀法（含自刀、刀队友）的账要用到这些结算规则
+  const _has = id => (S.players || []).some(p => p && p.alive && p.role && p.role.id === id);
+  if (_has('witch')) {
+    zh.push('本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；同一夜不能同时用两瓶药；救药一旦用掉（不论救的是谁），她此后再也看不到刀口。');
+    en.push('There is a Witch: while she still has the antidote she sees each night\'s kill target and decides whether to save before anyone has claimed a role; she cannot use both potions on the same night; once the antidote is used (on anyone), she never sees the kill target again.');
+  }
+  if (_has('gravekeeper')) {
+    zh.push('本局有守墓人：他每晚只读到上一个白天被放逐者的阵营；夜里死的人，不管怎么死的，他都看不到。');
+    en.push('There is a Gravekeeper: each night he learns only the faction of the previous day\'s exiled player; night deaths, whatever the cause, are invisible to him.');
+  }
+  if (_has('magician')) {
+    zh.push('本局有魔术师：他每晚可交换两人号码，只影响狼刀——你们选的人若被换走，真正死的是另一个人；查验、用药、守护不受影响。');
+    en.push('There is a Magician: each night he may swap two players\' numbers, which only affects the wolf kill — if the named target is swapped, the other player falls instead; checks, potions and guarding are unaffected.');
+  }
+  return {
+    zh: zh.length ? '\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· ' + zh.join('\n· ') : '',
+    en: en.length ? '\n\n[HARD RULES THAT AFFECT TONIGHT\'S PLAN — system facts]\n• ' + en.join('\n• ') : '',
+  };
+}
+
 async function wolfStrategyDiscuss(wolves) {
   if (!wolves || wolves.length <= 1) {
     S.wolfStrategy = ''; S.wolfStrategyName = ''; S.wolfStrategyRound = 0;
@@ -14806,32 +14839,7 @@ async function wolfStrategyDiscuss(wolves) {
   //   在警长竞选阶段仍被当作在场，死讯竞选后才公布），但投票的 AI 手里的规则说明里
   //   【一次都没提到警长竞选的时序】，于是把"死了还能上警"当成方案漏洞，没人投。
   //   只写本局真实生效的规则，不生效的一律不提。
-  const pactRuleFacts = (() => {
-    const zh = [], en = [];
-    const hd = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
-    if (S.round === 1 && (S.players || []).length >= 12) {
-      zh.push('今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。所以今晚刀口死不死，都不影响他明天上警起跳。');
-      en.push('The Sheriff election happens after tonight and before tonight\'s deaths are announced: a player killed tonight (and not saved) still counts as present during the election — they can run, give a campaign speech, and vote. Whether tonight\'s target dies does not stop them from running and claiming tomorrow.');
-    }
-    if (hd) {
-      zh.push('本局开启隐死亡：出局者不翻牌、不公布身份。');
-      en.push('Hidden deaths are on: eliminated players\' roles are not revealed.');
-    }
-    // 只在对应角色本局在场时才给：今晚刀法（含自刀、刀队友）的账要用到这些结算规则
-    const _has = id => (S.players || []).some(p => p && p.alive && p.role && p.role.id === id);
-    if (_has('witch')) {
-      zh.push('本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；同一夜不能同时用两瓶药；救药一旦用掉（不论救的是谁），她此后再也看不到刀口。');
-      en.push('There is a Witch: while she still has the antidote she sees each night\'s kill target and decides whether to save before anyone has claimed a role; she cannot use both potions on the same night; once the antidote is used (on anyone), she never sees the kill target again.');
-    }
-    if (_has('magician')) {
-      zh.push('本局有魔术师：他每晚可交换两人号码，只影响狼刀——你们选的人若被换走，真正死的是另一个人；查验、用药、守护不受影响。');
-      en.push('There is a Magician: each night he may swap two players\' numbers, which only affects the wolf kill — if the named target is swapped, the other player falls instead; checks, potions and guarding are unaffected.');
-    }
-    return {
-      zh: zh.length ? '\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· ' + zh.join('\n· ') : '',
-      en: en.length ? '\n\n[HARD RULES THAT AFFECT TONIGHT\'S PLAN — system facts]\n• ' + en.join('\n• ') : '',
-    };
-  })();
+  const pactRuleFacts = buildWolfNightRuleFacts();
   // ★ 每只狼一个不同的出发点：大家读的是同一份教学、常常还是同一个模型，各自独立提案也会
   //   写出差不多的方案，投票再从里面挑最稳的——候选池本身就不够多样。这里只保证候选里有
   //   真正不同的线：一只狼从常规打法出发（常规线同样要交账），其余各从一个非常规方向出发。
@@ -14839,8 +14847,8 @@ async function wolfStrategyDiscuss(wolves) {
   //   分配顺序每局打乱，不绑定座位或角色。
   const PACT_ANGLES = [
     {key:'conventional', text:'从常规打法出发（刀最像神的位置、一狼起身份、其余隐藏），但要写清这局它凭什么比别的线好、弱点在哪——常规线同样要交账，不能靠"稳"自动胜出。'},
-    {key:'knife', text:'从非常规的刀法出发：自刀、刀队友、空刀，或刀一个"看起来不值得刀"的位置来配合明天的剧本。写清女巫救/不救（以及被守护挡下）各会怎样。'},
-    {key:'claim', text:'从非常规的身份安排出发：不起身份、两只狼同时起身份、起预言家以外的身份，或安排一只狼倒钩站到对面换信用。写清谁起什么、其余狼怎么配合、票数上是几打几。'},
+    {key:'knife', text:'从其他刀法出发：自刀、刀队友、空刀，或刀一个"看起来不值得刀"的位置来配合明天的剧本。写清女巫救/不救（以及被守护挡下）各会怎样。'},
+    {key:'claim', text:'从其他身份安排出发：不起身份、两只狼同时起身份、起预言家以外的身份，或安排一只狼倒钩站到对面换信用。写清谁起什么、其余狼怎么配合、票数上是几打几。'},
     {key:'deck', text:'从本局这几只狼的技能组合和座位出发，设计一条只有这副牌才能打的线（比如让技能狼当消耗品冲锋、利用发言先后抢定义权）。'},
   ];
   const pactAngleOf = (() => {
@@ -18080,7 +18088,7 @@ This instruction has priority over generic advice such as "do not waste the nigh
         : speakOrder.length <= 1 ? `【你的任务】队友都不在了，这是你自己的盘算，不是写给谁看的：用几句话定下今晚刀谁、为什么、明天准备怎么说就行，不要写成分条的计划书。`
         : `【你的任务】你是第一个发言(队友的开场你还看不到)，独立给出：
 ① 提议刀谁(具体到名字)  ② 理由(基于上面的推演，不是"感觉他可疑")  ③ 这一刀配明天哪条线(谁起身份、谁站边、谁倒钩)
-你的开场没有被任何队友锚住：算下来若有一条非常规线(自刀配身份、双起身份、空刀做平安夜)账不输常规，就现在带着账提出来——后发言的人很难再从零提起它。`;
+你的开场没有被任何队友锚住：算下来若有一条别的线(自刀配身份、双起身份、空刀做平安夜)账不输常规，就现在带着账提出来——后发言的人很难再从零提起它。`;
       const prompt = killBlocked ? `【狼队密谈·禁刀夜】这是狼队内部，直接说，不用伪装。
 系统已经确认：本夜全体狼人受到禁刀影响，无法造成狼刀击杀。今晚不需要、也不允许选择刀口；不要浪费时间讨论“刀谁”。
 你的队友:${mates}
@@ -18098,7 +18106,7 @@ ${priorBlock}请只讨论明天白天的配合：谁负责跳身份或对跳、�
 可刀目标:${ts}${deadNote}
 ⚠️ 狼队成员(${selfNames})也属于合法刀口，和刀好人记在同一张账上比较（见下方【战术性自刀/刀队友】）。⚠️ 空刀选项(填None=今晚不刀、制造平安夜)也是正式方案——普通夜晚不能把“纠结/拿不定主意”伪装成战术空刀；未明之雾生效时则必须把空刀与每个受限候选等权比较，不能套用“有目标就正常刀人”。${tacticsHint}${singleWolfHint}${tacticalSacrificeHint}${mistDecisionHint}
 
-${buildWolfChoiceHint()}
+${buildWolfChoiceHint()}${buildWolfNightRuleFacts().zh}
 
 ${priorBlock}${taskBlock}
 
