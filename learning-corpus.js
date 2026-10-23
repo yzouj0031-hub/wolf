@@ -184,7 +184,8 @@
     for (const ev of (snap.events || []).slice(0, 600)) {
       const key = `${ev.round}|${ev.phase}`;
       if (key !== last) { lines.push(`\n── 第${ev.round}回合 · ${ev.phase} ──`); last = key; }
-      lines.push((ev.name ? ev.name + '：' : '') + cleanText(ev.text, 1200));
+      // 胜方 / 败方感言之类的标签要带上，提炼模型才分得清哪些是赛后复盘、哪些是桌上的话
+      lines.push((ev.label ? '【' + cleanText(ev.label, 50) + '】' : '') + (ev.name ? ev.name + '：' : '') + cleanText(ev.text, 1200));
     }
     if (row?.note) lines.push('\n【上传者备注】' + cleanText(row.note, 600));
     return lines.join('\n').slice(0, 60000);
@@ -198,7 +199,7 @@
       + '\nneeds 填 text 里提到的角色 id（只能从本局角色里选：' + roleIds.join(', ') + '）；team 填 good/bad/any（这条经验给好人看、给狼看、还是都能看）；'
       + 'phases 从 ' + PHASES.join('/') + ' 里选（day 白天发言、pk 平票自救、sheriff 竞选、lastwords 遗言、wolfnight 狼队密谈）；tags 从 ' + TAGS.join('/') + ' 里选（early 首日、late 残局、counterclaim 有对跳、accused 被查杀或点名、noinfo 没信息的民牌）。'
       + '\n格式：{"text":"…","needs":["seer"],"team":"good","phases":["day"],"tags":["counterclaim"]}';
-    const user = '下面是这局的上帝视角记录。挑这局里最值得别的 AI 看到的一个瞬间（往往是输赢分岔的那一步，或者上传者备注提到的那一处），提炼成案例。\n\n' + renderMatchText(row);
+    const user = '下面是这局的上帝视角记录。挑这局里最值得别的 AI 看到的一个瞬间（往往是输赢分岔的那一步，或者上传者备注提到的那一处），提炼成案例。记录末尾带【胜方感言】【败方感言】的是游戏结束后各人的复盘：输家自己点出的分岔点往往就是最值得提炼的瞬间，但案例要写当时桌上发生了什么，不要抄复盘的话。\n\n' + renderMatchText(row);
     return { sys, user };
   }
 

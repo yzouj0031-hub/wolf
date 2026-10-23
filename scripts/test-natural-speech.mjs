@@ -63,6 +63,13 @@ console.log('natural-speech: evidence-level, anti-chorus and seer-priority rules
 for (const file of ['index.html', 'en/index.html']) {
   const html = fs.readFileSync(file, 'utf8');
   assert.ok(html.includes('【口气·结论先说，理由只给最硬的一条】'), `${file}: 缺少口气块`);
+  // ⑨ 被点名不等于要回击：先判断对不对；驳倒一条其余还在；万能解释不算反驳
+  assert.ok(html.includes('先判断他说得对不对，说对了就认一句、顺着他的推理往下走'), `${file}: 发言底线没改成先判断再回答`);
+  assert.ok(html.includes('但也不要求逐条反驳：点名你的人说对的部分照样要认'), `${file}: 发言底线仍要求逐项回应`);
+  assert.ok(html.includes('被点名、被踩，先看他说得对不对：对了就认，错了拿他的原话指出错在哪'), `${file}: 口气块没改成先判断`);
+  for (const bad of ['正面回击', '针锋相对', '三项都要完成并逐项回应']) assert.ok(!html.includes(bad), `${file}: 提示词里还留着"${bad}"`);
+  assert.ok(html.includes('一段推理有几条依据，驳倒其中一条，其余几条还在'), `${file}: 缺少"驳倒一条其余还在"这条事实`);
+  assert.ok(html.includes('对任何局面都成立的解释（“狼也会这么做”“好人也可能这样”）不构成反驳'), `${file}: 缺少"万能解释不算反驳"这条事实`);
   assert.ok(html.includes('【身份·没事别报，要提就全桌一个词】') && html.includes('要么跳全，要么藏全'), `${file}: 缺少身份块`);
   assert.ok(!html.includes('推谁出局、保谁、跳不跳身份、要谁回答什么'), `${file}: 白天任务仍在催"跳不跳身份"`);
   assert.ok(html.includes('给一条最硬的依据就够，别把想到的理由全摆出来'), `${file}: 表达底线仍要求堆依据`);
