@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v61-corpus-fixes';
+const CACHE_NAME = 'wolf-pwa-v62-judge-first';
 const APP_SHELL = [
   './',
   './index.html',

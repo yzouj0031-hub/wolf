@@ -59,6 +59,13 @@ assert.equal(L.parseCaseJson('没有 json'), null);
 const prompt = L.distilPrompt({ snapshot, note: '备注' });
 assert.ok(prompt.sys.includes('seer, werewolf, villager') && prompt.user.includes('【上传者备注】备注'));
 assert.ok(L.renderMatchText({ snapshot }).includes('灰原哀（预言家·gpt-test）'));
+{
+  const withEnding = JSON.parse(JSON.stringify(snapshot));
+  withEnding.events.push({ type: 'speech', name: 'P2', label: '败方感言', round: 3, phase: 'speech', text: '手里拿着对的牌，却不敢把筹码推出去。' });
+  const text = L.renderMatchText({ snapshot: withEnding });
+  assert.ok(text.includes('【败方感言】P2：手里拿着对的牌'), '感言标签要带给提炼模型：' + text.slice(-200));
+  assert.ok(L.distilPrompt({ snapshot: withEnding }).user.includes('【败方感言】的是游戏结束后各人的复盘'), '提炼提示要说明感言是赛后复盘');
+}
 
 // ── 云端案例并入经验库：脏数据被丢，干净的参与挑选 ──
 const n = L.applyRemote([
