@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v62-judge-first';
+const CACHE_NAME = 'wolf-pwa-v63-timeline-facts';
 const APP_SHELL = [
   './',
   './index.html',

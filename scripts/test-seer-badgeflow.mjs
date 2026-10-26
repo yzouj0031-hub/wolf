@@ -69,7 +69,7 @@ for (const file of FILES) {
 
   // ── 0b. ★ 比例：对跳段不能再压过"跳不跳"的规则 ─────────────────────────────
   const iJump = g.indexOf('【默认就是跳。不跳是例外，门槛很高】');
-  const iTiming = g.indexOf('【⚠️ 报查验理由时的时序铁律');
+  const iTiming = g.indexOf('【报查验理由时的先后顺序】');
   const iDual = g.indexOf('【验对跳你的人');
   const iSpeak = g.indexOf('【跳出来后,发言重点是什么】');
   assert.ok(iJump >= 0 && iTiming > iJump && iDual > iTiming && iSpeak > iDual, `${file}: guide 段落顺序被打乱`);
