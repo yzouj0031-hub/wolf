@@ -166,7 +166,14 @@
     const url = new URL(rawUrl, location.href);
 
     if (shouldUseBrowser(url)) return browserFetch(input, options);
-    if (isOfficialCorsHost(url)) return webViewFetch(input, options);
+    if (isOfficialCorsHost(url)) {
+    // If the direct request fails (network or CORS), retry once through the native channel.
+      try { return await webViewFetch(input, options); }
+      catch (e) {
+        if (e && e.name === 'AbortError') throw e;
+        console.warn('[Native HTTP] WebView fetch failed, falling back to native:', url.host, e && e.message);
+      }
+    }
 
     const sourceHeaders = options.headers || (typeof input === 'object' && input.headers) || {};
     const headers = {};
