@@ -14,7 +14,8 @@ for (const f of ['index.html', 'en/index.html']) {
 for (const f of ['native-http.js', 'en/native-http.js']) {
   const s = fs.readFileSync(f, 'utf8');
   assert.ok(s.includes("host === 'api.anthropic.com' || host === 'generativelanguage.googleapis.com'"), `${f}: 没有识别官方 Claude/Gemini`);
-  assert.ok(s.includes('if (isOfficialCorsHost(url)) return webViewFetch(input, options);'), `${f}: 官方 Claude/Gemini 仍走原生通道`);
+  assert.ok(s.includes('try { return await webViewFetch(input, options); }'), `${f}: 官方 Claude/Gemini 仍走原生通道`);
+  assert.ok(s.includes('falling back to native'), `${f}: 直连失败时没有退回原生通道`);
   assert.ok(s.includes('window.CapacitorWebFetch'), `${f}: 没有取用未被 Capacitor 接管的原版 fetch`);
 }
 
@@ -46,6 +47,8 @@ await withOfflinePage(async (page, origin) => {
       $('g-apitype').value = 'anthropic'; $('g-url').value = 'https://bad-key.example'; $('g-key').value = 'k1';
       await fetchModels();
       out.err = logs();
+      out.prev = [resolveEndpointPreview('anthropic','https://api.anthropic.com/v1'), resolveEndpointPreview('anthropic','https://api.anthropic.com/v1/messages/'),
+        resolveEndpointPreview('gemini','https://generativelanguage.googleapis.com/v1beta','gemini-2.5-pro')];
       return out;
     });
     assert.deepEqual(errors, [], `${path}: 页面报错`);
@@ -58,6 +61,8 @@ await withOfflinePage(async (page, origin) => {
     assert.equal(r.openai.req.u, 'https://api.openai.com/v1/models', `${path}: OpenAI 地址不对`);
     assert.equal(r.openai.req.h.Authorization, 'Bearer k1', `${path}: OpenAI 没带 Bearer`);
     assert.deepEqual(r.openai.models, ['gpt-4.1'], `${path}: OpenAI 模型列表解析错`);
+    assert.deepEqual(r.prev, ['https://api.anthropic.com/v1/messages', 'https://api.anthropic.com/v1/messages',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent'], `${path}: 地址带 /v1 时拼出了重复路径`);
     assert.match(r.err, /HTTP 401.*invalid x-api-key/, `${path}: 失败时没报出状态码和原因：${r.err}`);
   }
 });

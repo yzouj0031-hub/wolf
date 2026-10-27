@@ -6718,13 +6718,18 @@ function inferApiType(url) {
   return 'openai';
 }
 
+// Claude / Gemini 官方地址常被填成带 /v1、/v1beta 甚至完整接口路径的样子；拼路径前统一去掉，
+// 否则会请求到 /v1/v1/messages 这种不存在的地址（官方回 404，跨域时连响应都读不到，只剩 Failed to fetch）。
+function anthropicBase(url) { return String(url || '').trim().replace(/\/+$/, '').replace(/\/v1\/messages$/i, '').replace(/\/v1$/i, ''); }
+function geminiBase(url) { return String(url || '').trim().replace(/\/+$/, '').replace(/\/v1beta(?:\/models(?:\/.*)?)?$/i, '').replace(/\/v1$/i, ''); }
+
 // 预览必须和 tryOnce 里真正 fetch 的路径逐字一致，否则比不给预览更糟。
 function resolveEndpointPreview(type, baseUrl, model) {
   const u = String(baseUrl || '').trim().replace(/\/+$/, '');
   if (!u) return '';
   const m = String(model || '').trim() || '<模型名>';
-  if (type === 'anthropic') return u + '/v1/messages';
-  if (type === 'gemini')    return u + '/v1beta/models/' + m + ':generateContent';
+  if (type === 'anthropic') return anthropicBase(u) + '/v1/messages';
+  if (type === 'gemini')    return geminiBase(u) + '/v1beta/models/' + m + ':generateContent';
   return u + '/chat/completions';
 }
 
@@ -6733,7 +6738,7 @@ function endpointPathWarning(type, baseUrl) {
   const u = String(baseUrl || '').trim().replace(/\/+$/, '').toLowerCase();
   if (!u) return '';
   if ((type === 'anthropic' || type === 'gemini') && /\/v1(beta)?$/.test(u)) {
-    return '地址结尾多了 /v1，这个渠道会自己补路径，通常应删掉';
+    return '地址结尾的 /v1 不用写，系统会自动去掉再补全路径';
   }
   if (type === 'openai' && !/\/v\d+$/.test(u) && !/\/openai$/.test(u)) {
     return '这个渠道要在地址末尾带上 /v1（除非你的中转另有约定）';
@@ -11804,7 +11809,7 @@ async function _callAIImpl(p, prompt, opts) {
       const body = {model: useApi.model, max_tokens: maxTk, messages: anthMsgs, system: systemBlocks};
       const anthropicEffort = ReasoningControl.anthropicEffort(reasoning.effective);
       if (anthropicEffort) body.output_config = {effort: anthropicEffort};
-      res = await fetch(useApi.url + '/v1/messages', {
+      res = await fetch(anthropicBase(useApi.url) + '/v1/messages', {
         method: 'POST',
         headers: {'Content-Type':'application/json','x-api-key': useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body: JSON.stringify(body),
@@ -11816,7 +11821,7 @@ async function _callAIImpl(p, prompt, opts) {
         if (/effort|output_config|output config/i.test(t)) {
           Render.devLog('err', `[P${p.id+1}] Claude模型不支持思考强度 ${anthropicEffort}，撤销参数重试`);
           delete body.output_config;
-          res = await fetch(useApi.url + '/v1/messages', {
+          res = await fetch(anthropicBase(useApi.url) + '/v1/messages', {
             method:'POST',
             headers:{'Content-Type':'application/json','x-api-key':useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
             body:JSON.stringify(body), signal:combinedSignal
@@ -11900,7 +11905,7 @@ async function _callAIImpl(p, prompt, opts) {
         systemInstruction: sysContent ? {parts:[{text:sysContent}]} : undefined,
         generationConfig: genConfig
       };
-      const gemUrl = `${useApi.url}/v1beta/models/${useApi.model}:generateContent?key=${useApi.key}`;
+      const gemUrl = `${geminiBase(useApi.url)}/v1beta/models/${useApi.model}:generateContent?key=${useApi.key}`;
       res = await fetch(gemUrl, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -20973,7 +20978,7 @@ ${toCompress.map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content.
     let summaryText = '';
 
     if (isAnthropic) {
-      const resp = await fetch(sumUrl.replace(/\/$/, '') + '/v1/messages', {
+      const resp = await fetch(anthropicBase(sumUrl) + '/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': sumKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({ model: sumModel, max_tokens: 400, messages: [{ role: 'user', content: compressPrompt }] })
@@ -24925,7 +24930,7 @@ async function testAPIForPC() {
   try {
     let res, ok = false, detail = '', reply = '';
     if (isAnthropic) {
-      res = await fetch(u+'/v1/messages', {
+      res = await fetch(anthropicBase(u)+'/v1/messages', {
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body: JSON.stringify({model: m, max_tokens:20, messages:[{role:'user',content:'回复"测试通过"四个字'}]})
@@ -24934,7 +24939,7 @@ async function testAPIForPC() {
       if (res.ok) { ok=true; reply = data.content && data.content[0] ? data.content[0].text : '(无内容)'; }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,200)); }
     } else if (isGeminiNative) {
-      const gemUrl = u+'/v1beta/models/'+m+':generateContent?key='+k;
+      const gemUrl = geminiBase(u)+'/v1beta/models/'+m+':generateContent?key='+k;
       res = await fetch(gemUrl, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -25146,13 +25151,13 @@ async function testAPI() {
     let res, ok = false, detail = '';
     if (isAnthropic) {
       const body = JSON.stringify({model: m||'claude-haiku-4-5-20251001', max_tokens:10, messages:[{role:'user',content:'hi'}]});
-      res = await fetch(u+'/v1/messages', {method:'POST', headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:body});
+      res = await fetch(anthropicBase(u)+'/v1/messages', {method:'POST', headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:body});
       const data = await res.json();
       if (res.ok) { ok=true; detail='回复：'+(data.content&&data.content[0]?data.content[0].text:'ok'); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
     } else if (isGeminiNative) {
       const modelName = m||'gemini-2.0-flash';
-      const gemUrl = u+'/v1beta/models/'+modelName+':generateContent?key='+k;
+      const gemUrl = geminiBase(u)+'/v1beta/models/'+modelName+':generateContent?key='+k;
       res = await fetch(gemUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{role:'user',parts:[{text:'hi'}]}],generationConfig:{maxOutputTokens:10}})});
       const data = await res.json();
       if (res.ok) { ok=true; detail='回复：'+(data.candidates&&data.candidates[0]?data.candidates[0].content.parts[0].text:'ok'); }
