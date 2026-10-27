@@ -25094,27 +25094,39 @@ function parseModelList(type, d) {
 
 async function fetchAndShowModels(url, key, target, type) {
   type = type || inferApiType(url);
-  if (!String(url || '').trim()) { Render.log('system','⚠️ 未填写API地址'); return; }
-  if (!key) { Render.log('system','⚠️ 未配置API密钥'); return; }
+  // 座位设置弹窗会挡住游戏日志：座位里点的拉取，结果同时写进弹窗里的结果框，并带上实际请求的地址。
+  const box = target === 'pc' ? $('pc-test-result') : null;
+  const report = (msg, bad) => {
+    Render.log('system', msg);
+    if (!box) return;
+    box.style.display = 'block';
+    box.style.background = bad ? 'rgba(200,80,80,0.15)' : 'rgba(80,140,90,0.15)';
+    box.style.color = bad ? '#e08080' : '#90c8a0';
+    box.textContent = msg;
+  };
+  if (!String(url || '').trim()) { report('⚠️ 未填写API地址', true); return; }
+  if (!key) { report('⚠️ 未配置API密钥', true); return; }
+  let reqUrl = '';
   try {
     const req = modelListRequest(type, url, key);
+    reqUrl = req.url.replace(/([?&]key=)[^&]*/i, '$1***');
     const r = await fetch(req.url, {headers: req.headers});
     const raw = await r.text();
     let d = {}; try { d = raw ? JSON.parse(raw) : {}; } catch (_) {}
     if (!r.ok) {
       const msg = (d.error && (d.error.message || d.error)) || d.message || raw;
-      Render.log('system','❌ 拉取模型失败：HTTP ' + r.status + ' ' + String(typeof msg === 'string' ? msg : JSON.stringify(msg)).slice(0, 200));
+      report('❌ 拉取模型失败：HTTP ' + r.status + ' ' + String(typeof msg === 'string' ? msg : JSON.stringify(msg)).slice(0, 200) + '\n请求地址：' + reqUrl, true);
       return;
     }
     const models = parseModelList(type, d);
-    if (!models.length) { Render.log('system','⚠️ 接口有响应，但没有返回模型列表（有些中转不提供这个接口，可以直接手填模型名）'); return; }
+    if (!models.length) { report('⚠️ 接口有响应，但没有返回模型列表（有些中转不提供这个接口，可以直接手填模型名）\n请求地址：' + reqUrl, true); return; }
     _cachedModels = models;
     _modelListTarget = target;
     renderModelList(models);
     $('modelSearch').value = '';
     $('modelListOverlay').classList.add('show');
-    Render.log('system','✅ 拉取到 '+models.length+' 个模型');
-  } catch(e) { Render.log('system','❌ 拉取模型失败：'+e.message); }
+    report('✅ 拉取到 '+models.length+' 个模型', false);
+  } catch(e) { report('❌ 拉取模型失败：'+e.message+(reqUrl ? '\n请求地址：'+reqUrl : ''), true); }
 }
 
 function renderModelList(models) {
