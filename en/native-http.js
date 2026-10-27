@@ -151,6 +151,14 @@
       host === 'fonts.googleapis.com' ||
       host === 'fonts.gstatic.com';
   };
+  // Official Claude / Gemini APIs allow browser CORS. The native channel has dropped custom headers such as
+  // anthropic-version (the API then answers 400 "anthropic-version: header is required"), so these two use the
+  // WebView's own fetch. With CapacitorHttp enabled, the unpatched fetch is kept in CapacitorWebFetch.
+  const isOfficialCorsHost = (url) => {
+    const host = url.hostname.toLowerCase();
+    return host === 'api.anthropic.com' || host === 'generativelanguage.googleapis.com';
+  };
+  const webViewFetch = typeof window.CapacitorWebFetch === 'function' ? window.CapacitorWebFetch.bind(window) : browserFetch;
 
   window.fetch = async function selectiveNativeFetch(input, init) {
     const options = init || {};
@@ -158,6 +166,7 @@
     const url = new URL(rawUrl, location.href);
 
     if (shouldUseBrowser(url)) return browserFetch(input, options);
+    if (isOfficialCorsHost(url)) return webViewFetch(input, options);
 
     const sourceHeaders = options.headers || (typeof input === 'object' && input.headers) || {};
     const headers = {};

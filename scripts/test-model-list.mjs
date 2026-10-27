@@ -1,7 +1,22 @@
 // 拉取模型列表：Claude 官方 /v1/models + x-api-key，Gemini 官方 /v1beta/models?key=，OpenAI 兼容 /models + Bearer。
 // 以前一律按 OpenAI 发，Claude、Gemini 官方永远"未获取到模型列表"；失败时也要报出 HTTP 状态和原因。
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {withOfflinePage} from './lib/offline-browser.mjs';
+
+// 官方 Claude / Gemini 不能经网页代理或 APK 原生通道转发：中间层弄丢了 anthropic-version 请求头，
+// 官方回 400 "anthropic-version: header is required"。两家官方都允许浏览器直连。
+for (const f of ['index.html', 'en/index.html']) {
+  const s = fs.readFileSync(f, 'utf8');
+  const skip = s.slice(s.indexOf('function skipProxy(u)'), s.indexOf('var _fetch = window.fetch.bind(window);'));
+  assert.ok(skip.includes("host === 'api.anthropic.com'") && skip.includes("host === 'generativelanguage.googleapis.com'"), `${f}: 官方 Claude/Gemini 仍经网页代理转发`);
+}
+for (const f of ['native-http.js', 'en/native-http.js']) {
+  const s = fs.readFileSync(f, 'utf8');
+  assert.ok(s.includes("host === 'api.anthropic.com' || host === 'generativelanguage.googleapis.com'"), `${f}: 没有识别官方 Claude/Gemini`);
+  assert.ok(s.includes('if (isOfficialCorsHost(url)) return webViewFetch(input, options);'), `${f}: 官方 Claude/Gemini 仍走原生通道`);
+  assert.ok(s.includes('window.CapacitorWebFetch'), `${f}: 没有取用未被 Capacitor 接管的原版 fetch`);
+}
 
 await withOfflinePage(async (page, origin) => {
   for (const path of ['/index.html', '/en/index.html']) {

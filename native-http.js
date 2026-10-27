@@ -153,6 +153,14 @@
       host === 'fonts.googleapis.com' ||
       host === 'fonts.gstatic.com';
   };
+  // Claude / Gemini 官方接口本身允许跨域直连。原生通道把 anthropic-version 这类自定义请求头弄丢过，
+  // 官方直接回 400 "anthropic-version: header is required"；这两家改用 WebView 自己的请求。
+  // CapacitorHttp 开启时 window.fetch 已被 Capacitor 接管，未接管的原版保存在 CapacitorWebFetch。
+  const isOfficialCorsHost = (url) => {
+    const host = url.hostname.toLowerCase();
+    return host === 'api.anthropic.com' || host === 'generativelanguage.googleapis.com';
+  };
+  const webViewFetch = typeof window.CapacitorWebFetch === 'function' ? window.CapacitorWebFetch.bind(window) : browserFetch;
 
   window.fetch = async function selectiveNativeFetch(input, init) {
     const options = init || {};
@@ -160,6 +168,7 @@
     const url = new URL(rawUrl, location.href);
 
     if (shouldUseBrowser(url)) return browserFetch(input, options);
+    if (isOfficialCorsHost(url)) return webViewFetch(input, options);
 
     const sourceHeaders = options.headers || (typeof input === 'object' && input.headers) || {};
     const headers = {};

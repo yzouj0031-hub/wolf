@@ -68,7 +68,11 @@
       host.endsWith('.githubusercontent.com') ||
       host === 'cdn.jsdelivr.net' ||
       host === 'fonts.googleapis.com' ||
-      host === 'fonts.gstatic.com';
+      host === 'fonts.gstatic.com' ||
+      // Claude / Gemini 官方接口本身允许浏览器直连（CORS 已放行）。经代理转发时
+      // anthropic-version 等自定义请求头会被丢掉，官方返回 400 "anthropic-version: header is required"。
+      host === 'api.anthropic.com' ||
+      host === 'generativelanguage.googleapis.com';
   }
   var _fetch = window.fetch.bind(window);
   window.fetch = function (input, init) {
