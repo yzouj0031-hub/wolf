@@ -23404,14 +23404,15 @@ let _modelListTarget = null; // 'global' | 'pc'
 let _cachedModels = [];
 
 async function fetchModels() {
-  await fetchAndShowModels($('g-url').value, $('g-key').value, 'global');
+  const pv = $('g-apitype') && getProvider($('g-apitype').value);
+  await fetchAndShowModels($('g-url').value, $('g-key').value, 'global', pv ? pv.type : '');
 }
 
 async function fetchModelsForPC() {
   const c = playerConfigs[currentCfgP] || {};
   const u = c.url || $('g-url').value;
   const k = c.key || $('g-key').value;
-  await fetchAndShowModels(u, k, 'pc');
+  await fetchAndShowModels(u, k, 'pc', getAPI(currentCfgP).type);
 }
 
 // ★ 测试当前命牌的 API 配置（含全局兜底），结果显示在弹窗内
@@ -23602,21 +23603,53 @@ async function testAPIForPC() {
   }
 }
 
-async function fetchAndShowModels(url, key, target) {
-  const u = url.replace(/\/$/, '');
+// 拉取模型列表：三种渠道的地址和鉴权各不相同，以前一律按 OpenAI 发 GET <地址>/models + Bearer，
+// Claude 官方（要 /v1/models + x-api-key）和 Gemini 官方（要 /v1beta/models?key=）永远拉不到。
+// 失败时把 HTTP 状态和服务器原话报出来，不再只说"未获取到"。
+function modelListRequest(type, url, key) {
+  let base = String(url || '').trim().replace(/\/+$/, '');
+  if (type === 'anthropic') {
+    base = base.replace(/\/v1\/messages$/i, '').replace(/\/v1$/i, '');
+    return { url: base + '/v1/models?limit=1000', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } };
+  }
+  if (type === 'gemini') {
+    base = base.replace(/\/v1beta(?:\/models(?:\/.*)?)?$/i, '');
+    return { url: base + '/v1beta/models?pageSize=1000&key=' + encodeURIComponent(key), headers: {} };
+  }
+  base = base.replace(/\/(?:chat\/completions|responses)$/i, '');
+  return { url: base + '/models', headers: { 'Authorization': 'Bearer ' + key } };
+}
+function parseModelList(type, d) {
+  const rows = Array.isArray(d && d.data) ? d.data : (Array.isArray(d && d.models) ? d.models : []);
+  return [...new Set(rows
+    .filter(x => type !== 'gemini' || !Array.isArray(x.supportedGenerationMethods) || x.supportedGenerationMethods.includes('generateContent'))
+    .map(x => String((x && (x.id || x.name)) || '').replace(/^models\//, '').trim())
+    .filter(Boolean))].sort();
+}
+
+async function fetchAndShowModels(url, key, target, type) {
+  type = type || inferApiType(url);
+  if (!String(url || '').trim()) { Render.log('system','⚠️ 未填写API地址'); return; }
   if (!key) { Render.log('system','⚠️ 未配置API密钥'); return; }
   try {
-    const r = await fetch(u+'/models', {headers:{'Authorization':'Bearer '+key}});
-    const d = await r.json();
-    const models = (d.data||[]).map(m => m.id).sort();
-    if (!models.length) { Render.log('system','⚠️ 未获取到模型列表'); return; }
+    const req = modelListRequest(type, url, key);
+    const r = await fetch(req.url, {headers: req.headers});
+    const raw = await r.text();
+    let d = {}; try { d = raw ? JSON.parse(raw) : {}; } catch (_) {}
+    if (!r.ok) {
+      const msg = (d.error && (d.error.message || d.error)) || d.message || raw;
+      Render.log('system','❌ 拉取模型失败：HTTP ' + r.status + ' ' + String(typeof msg === 'string' ? msg : JSON.stringify(msg)).slice(0, 200));
+      return;
+    }
+    const models = parseModelList(type, d);
+    if (!models.length) { Render.log('system','⚠️ 接口有响应，但没有返回模型列表（有些中转不提供这个接口，可以直接手填模型名）'); return; }
     _cachedModels = models;
     _modelListTarget = target;
     renderModelList(models);
     $('modelSearch').value = '';
     $('modelListOverlay').classList.add('show');
     Render.log('system','✅ 拉取到 '+models.length+' 个模型');
-  } catch(e) { Render.log('system','❌ '+e.message); }
+  } catch(e) { Render.log('system','❌ 拉取模型失败：'+e.message); }
 }
 
 function renderModelList(models) {
