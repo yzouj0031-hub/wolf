@@ -1,0 +1,17 @@
+{
+  "name": "qianyuxing-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "千屿行：单文件 three.js 武侠小游戏，用 Capacitor 打包成安卓 APK",
+  "scripts": {
+    "build:www": "node scripts/build-www.mjs"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.2"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  }
+}
