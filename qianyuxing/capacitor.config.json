@@ -1,0 +1,7 @@
+{
+  "appId": "com.qianyuxing.app",
+  "appName": "千屿行",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}
