@@ -57,6 +57,9 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Fullscreen, draw into the cutout, dark window background
+        run: node scripts/patch-android.mjs
+
       - name: Stamp version
         env:
           BUILD_NUMBER: ${{ steps.ver.outputs.build }}
