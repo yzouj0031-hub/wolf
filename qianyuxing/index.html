@@ -29,6 +29,9 @@
   --gb: max(12px, env(safe-area-inset-bottom, 0px));
   color-scheme: dark;
 }
+/* 横屏手机：画面会画进摄像头那一侧（APK 允许了刘海区），部分安卓 WebView 不上报 safe-area，
+   所以左右至少留 36px，界面不会被挖孔挡住；画面本身照样铺满 */
+@media (orientation: landscape) and (max-height: 500px) { :root { --gl: max(36px, env(safe-area-inset-left, 0px)); --gr: max(36px, env(safe-area-inset-right, 0px)); } }
 html, body { height: 100%; }
 body {
   margin: 0; overflow: hidden; background: #141a19; color: var(--silk);
@@ -7103,6 +7106,37 @@ function renderFrame(renderer, scene, cam) {
   postPass(renderer, POST.mComp, null);
 }
 
+})();
+</script>
+<script>
+/* 顶栏避让：横屏小屏上，居中的血条会压到右上角的铜钱和按钮。
+   把血条放进「地名/时辰」右边和「铜钱」左边之间的空隙里居中，放不下就把血条缩短；
+   空隙实在太窄，才挪到下一行。 */
+(function () {
+  const $ = id => document.getElementById(id);
+  function fitHud() {
+    const box = $('hpbox'), bar = $('hp'), mb = $('menubar'), reg = $('region'), clk = $('clock');
+    if (!box || !bar || !mb || !box.getClientRects().length) return;   // fixed 元素的 offsetParent 恒为 null，不能拿它判可见
+    box.style.left = ''; box.style.top = ''; bar.style.width = '';
+    const textRight = el => { if (!el || !el.textContent.trim()) return 0; const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().right; };   // 文字本身的右边，不是整块 div
+    const leftEdge = Math.max(textRight(reg), textRight(clk), $('mapbox') ? $('mapbox').getBoundingClientRect().left : 0) + 12;
+    const rightEdge = mb.getBoundingClientRect().left - 12;
+    const b = box.getBoundingClientRect(), m = mb.getBoundingClientRect();
+    if (b.top >= m.bottom || b.bottom <= m.top) return;                // 竖屏时血条本来就在下一行，不用管
+    if (b.left >= leftEdge && b.right <= rightEdge) return;            // 原位放得下，不动
+    const room = rightEdge - leftEdge, others = b.width - bar.getBoundingClientRect().width;
+    const barW = Math.min(bar.getBoundingClientRect().width, room - others);
+    if (barW >= 80) {                                                   // 缩短血条，放进空隙中间
+      bar.style.width = barW + 'px';
+      box.style.left = (leftEdge + rightEdge) / 2 + 'px';
+    } else {                                                            // 太窄了，挪到下一行
+      box.style.top = (m.bottom + 8) + 'px';
+    }
+  }
+  addEventListener('resize', fitHud);
+  addEventListener('orientationchange', () => setTimeout(fitHud, 300));
+  setInterval(fitHud, 1000);   // 铜钱位数、地名长度会变
+  setTimeout(fitHud, 500);
 })();
 </script>
 </body>
