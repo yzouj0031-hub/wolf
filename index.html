@@ -4272,6 +4272,39 @@ const WB_STRATEGY_AUTONOMY = `
 身份争夺、好人挡刀、狼踩狼、诱导技能、制造信息差、空刀或牺牲都可以成为工具，但没有任何一种天然正确。可以设计跨昼夜配合和少见打法，只要它遵守信息边界、算得清失败分支，并能说明为何在本局比普通路线更值。不同玩家在相似局面做出不同选择是正常的；不要猜系统期待哪个标准答案。`;
 
 /* 精简推理核心：旧世界书保留作兼容和对照，但不再注入模型。 */
+const WB_CORE_LITE = `你正在真实参与一局狼人杀。像玩家一样说话和下注，不要写分析报告，也不要追求每次都正确。
+
+【你能用什么】
+- 系统公开的结果（翻牌、技能结算、死讯）是事实。
+- 你自己的私密记录（查验、用药、守护、狼队密谈）只有你知道；别人转述的记录只是他的说法。
+- 别人嘴上说的身份、记录、"我是平民"都只是声称，谁都可能说假话，谁也说得出真话。
+- 投票记录、谁长期从哪个结果里得利、谁和谁一直互相配合或切割，这种连着几天都对得上的东西，比单独一句话分量重。
+
+【几件容易看错的事】
+- 口误、算错人数、记错谁说过什么、把先后顺序说错、语气、发言长短，真人都会犯。一句纠正就过，不够把人投出去。
+- 好核对不等于重要：一句当场能对出来的小错，比不过一条连着几天的票型线。
+- 一段推理有几条依据，驳倒一条，其余几条还在。
+- "狼也会这么做""好人也可能这样"对任何局面都成立，不算反驳。
+- 转述会变形。拿"他说过X"当理由之前，先在记录里找到原话；原话对不上，这条就作废。
+- 新信息出来以后改判断是正常的。前面说自己是平民、被查杀后才跳神，也是常见打法，他把当时为什么没跳交代清楚就结了。
+- 按时交账、格式整齐、态度配合，狼做起来同样不花代价，不加分也不减分。会被明天验证的具体说法、把自己以后的行动锁死的表态，才有分量。
+- 死者的遗言名单是一条可以拿票型去撞的假设，不是圣旨，也不是垃圾。
+- 跟票之前想一下自己新看到了什么；"前面很多人都这么说"不算新东西。
+
+【信息边界】
+- 只用你当时有权知道的信息。夜里的行动发生在天亮之前，依据只能是那一夜之前已经有的信息。
+- 评价别人以前的发言，用他当时知道的东西去衡量，不用后来才公布的结果。
+- 一夜死多人时，按本局配置和角色技能自己推可能的死因。
+
+【下注】
+- 信息不完整时按概率下注，六成怀疑也可以投。
+- 分不清两人谁真谁假时，可以找一个在两种情况下都更像狼的人投。
+- 已经输定时，求稳只是把输走完。
+
+【说话】
+- <thinking>里想，<game>里只说最重要的判断、一条理由和你的倾向。
+- 用名字自然说话，不编号列论文，不朗诵规则。`;
+
 const WB_CORE_COMPACT = `你正在真实参与一局狼人杀。像玩家一样说话和下注，不要写分析报告，也不要追求每次都正确。
 
 【你真正要做的事】
@@ -4570,6 +4603,8 @@ function buildWorldBook(p) {
     rolesInGame: (S && Array.isArray(S.players)) ? S.players.map(x => x && x.role && x.role.id).filter(Boolean) : []
   };
   const officialOn = teachingMode === 'official' || teachingMode === 'hybrid';
+  // 精简官方：只给规则事实和几条常见误读，不给方法论和按身份的战术层（实测两万字的审计手册会把发言带成挑错）
+  if (teachingMode === 'lite') return WB_CORE_LITE + '\n\n' + WolfReasoningContext.disputeReview() + WB_RULES_COMPACT;
   const officialStrategy = officialOn && twb && typeof twb.buildOfficialKnowledge === 'function'
     ? twb.buildOfficialKnowledge(teachingContext) : '';
   const officialTeaching = officialOn ? WB_CORE_COMPACT + '\n\n' + WolfReasoningContext.disputeReview() + officialStrategy : '';
@@ -9945,7 +9980,7 @@ function buildSystemPrompt(p, taskContext) {
   // “仅自定义/纯净”必须真正停用内置职业教学，而不是只关掉公共 WB 后又从
   // role.guide 把官方打法整段塞回来。内置角色此时只保留身份、阵营和技能说明；
   // 自创角色的 guide 可能就是玩家定义的机制本身，必须完整保留。
-  let guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean') && !customMechanicRole
+  let guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean' || currentTeachingMode === 'lite') && !customMechanicRole
     ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${roleFactionClassLabel(p.role)}。${roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。'}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
     // guide 里的跨角色交互按本局实际配置裁剪，和 desc 用同一套「只讲同场角色」的规矩。
     : buildActiveRoleGuide(roleDef, new Set((S.players || []).map(x => x && x.role && x.role.id).filter(Boolean)));
@@ -9956,12 +9991,12 @@ function buildSystemPrompt(p, taskContext) {
     : `【身份分类·硬规则】你属于${roleFactionClassLabel(p.role)}，不属于好人方的神职或民牌。`;
   guide = roleClassRule + '\n' + guide;
   // 只把实际同场角色的专项交互教给 AI，避免不存在的角色进入它的推理范围。
-  if (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' &&
+  if (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' &&
       p.role.id === 'fox' && S.players.some(x => x.role && x.role.id === 'mechwolf')) {
     guide += FOX_MECH_INTERACTION_GUIDE;
   }
   const counterclaimDecoyCorrectionBlock =
-    currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && p.role.team === 'good'
+    currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' && p.role.team === 'good'
       ? `\n\n【同身份声明校正·最高优先级】
 本段覆盖角色旧说明中“记录不同就是铁狼”“出现同身份就必须立刻对跳”等绝对句。你能确定对方不是真正的唯一身份，只能证明其身份声明为假，不能直接证明其阵营是狼人。（例外的强信号：对跳预言家并给真人发查杀的，挡刀好人几乎没有理由这样污染，按悍跳狼优先盘。）
 怎么分辨悍跳狼和挡刀好人，按上面【对跳者是悍跳狼还是挡刀好人】那三条信号（污染、抢归票、压测后退不退水）来算；不要把“如果是我不会这么玩”当作排他证据。
@@ -9973,7 +10008,7 @@ function buildSystemPrompt(p, taskContext) {
   // 身份声明必须使用同一证据标尺。这个短块不属于“推荐打法”，即使关闭教学层也保留，
   // 防止模型把无法排他验证的平民自报当成默认好人，却把别人暂认神职误判成“开视角”。
   // 官方/混合教学层里已有同一条（【身份声明同标尺】），那时不再重复发。
-  if (currentTeachingMode !== 'official' && currentTeachingMode !== 'hybrid') guide += `\n\n【身份声明同标尺·硬约束】
+  if (currentTeachingMode !== 'official' && currentTeachingMode !== 'hybrid' && currentTeachingMode !== 'lite') guide += `\n\n【身份声明同标尺·硬约束】
 自报平民和自报神职都只是声明，不是系统翻牌。多人平民板不存在“无人对跳即坐实平民”：没有人能靠对跳排他验证平民牌；跳平民者只能暂留观察，不能自动获得好人身份，也不能仅凭自称替别人认证平民。
 允许玩家依据逐夜记录、对跳情况、技能兑现和票型暂认一名神职；“认得快、说得满、愿意跟票”本身不构成视角漏洞。要因此提高其狼面，必须指出他当时无权知道的具体私密信息、忽略的硬反证，或持续明确的狼队收益。
 攻击别人过快认神之前，先检查自己和场上是否也在无验证地接某张平民牌、以及此前是否已经按同一神职路线投过票。两边使用同一证据门槛；这不要求机械怀疑所有平民，只禁止默认接平民却单独惩罚暂认神职。`;
@@ -9981,7 +10016,7 @@ function buildSystemPrompt(p, taskContext) {
   // 挡刀与牺牲共享块：与 counterclaim 同门槛（好人阵营、非纯净/自定义教学）。
   // 只发好人——狼的"挡刀"是另一回事，不能用这套好人视角的产出账去教它。
   const decoySacrificeBlock =
-    currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && p.role.team === 'good'
+    currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' && p.role.team === 'good'
       ? buildDecoySacrificeBlock(p.role, new Set((S.players || []).map(x => x && x.role && x.role.id).filter(Boolean)))
       : '';
   guide += decoySacrificeBlock;
