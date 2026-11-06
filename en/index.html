@@ -62,6 +62,9 @@
     var host = u.hostname.toLowerCase();
     return u.origin === location.origin ||
       host === PROXY_HOST ||
+      // Tailscale Serve already provides trusted HTTPS and is reachable only from the
+      // user's tailnet. A public Cloudflare Worker cannot reach these private hosts.
+      host.endsWith('.ts.net') ||
       host.endsWith('.supabase.co') ||
       host === 'api.github.com' ||
       host === 'github.com' ||
