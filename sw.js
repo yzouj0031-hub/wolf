@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v70-seat-channel';
+const CACHE_NAME = 'wolf-pwa-v71-knight-duel';
 const APP_SHELL = [
   './',
   './index.html',
