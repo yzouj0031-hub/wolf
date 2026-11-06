@@ -22,7 +22,7 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.match(source, /否则不要主动说“死者身份不公开”或“跳了不等于真神”/, `${file}: public speech can still recite hidden-role disclaimers`);
   assert.doesNotMatch(source, /\$\{hdeath\?'死者身份不公开。'/, `${file}: blunt hidden-death reminder is still injected beside every prompt`);
   assert.doesNotMatch(source, /\? `💀 \$\{r\.name\} 出局 — \$\{deathDesc\}\$\{voteSuffix\}（死者身份不公开）`/, `${file}: exported battle report repeats hidden identity on every death`);
-  assert.match(source, /const minSpeechChars = Math\.max\(30, Number\(opts\.minSpeechChars\) \|\| 50\)/, `${file}: public speech minimum missing`);
+  assert.match(source, /const minSpeechChars = bareRulesMode\(\) \? 1 : Math\.max\(30, Number\(opts\.minSpeechChars\) \|\| 50\)/, `${file}: public speech minimum missing`);
   assert.match(source, /流程已暂停，不会自动跳过/, `${file}: unrecoverable public speech does not pause the game`);
   assert.match(source, /切换模型 \/ API 后重试/, `${file}: speech failure dialog cannot switch player model`);
   assert.match(source, /使用当前模型重试/, `${file}: speech failure dialog cannot retry the current model`);

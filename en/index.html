@@ -4489,11 +4489,27 @@ function buildActivePublicInteractionRules() {
 function buildWolfChoiceHint() {
   const mode = window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function'
     ? window.TeachingWorldbooks.mode() : 'official';
-  return mode === 'clean' || mode === 'custom' ? ''
+  return mode === 'clean' || mode === 'custom' || mode === 'bare' ? ''
     : WolfReasoningContext.wolfChoice(S.players.map(x => x.role && x.role.id));
 }
 
 /* ★ 按需组装世界书：根据玩家身份和当前局势挑选模块 */
+// 裸规则：只给规则、身份技能、局面、输出格式；说话指导、战术提示、经验库、狼盟密约、短发言补写全部关掉。
+//   用来测"不教的时候模型自己会怎么打"，和精简官方、完整官方对照。设置里「教学世界书 → 注入模式」切换。
+function bareRulesMode() {
+  try { return !!(window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' && window.TeachingWorldbooks.mode() === 'bare'); }
+  catch (_) { return false; }
+}
+const BARE_RECORDS_RULE = '\n\n【你的真实记录】你实际做过的行动、收到的反馈、还剩的资源以系统私密记录为准；你对外怎么说不会改变它。';
+// 裸规则下的白天发言任务：保留任务标题和局面事实，去掉【重要】之后的说话指导和第二轮的「必须反驳/改票/新角度」
+const BARE_SPEECH_TAIL = '\n【重要】<game>里写你真正要说出口的话。';
+function bareTask(t) {
+  if (!bareRulesMode()) return t;
+  return String(t).replace(/\n*【⚠️ 严禁复读第一轮】[\s\S]*$/, '').replace(/\n【重要】[\s\S]*$/, '') + BARE_SPEECH_TAIL;
+}
+const BARE_WIN_FACT = '\n\n【胜负】你的胜负只看阵营：阵营获胜，你出局了也算赢；阵营落败，你活到最后也算输。';
+
+const SEAT_POSITION_TIP = '\n【位置学常识（可参考）】发言顺序影响信息：前置位先开口，信息少但可以定调；后置位听完再说，信息多可以整合复盘。狼人阵营之间的座位分布也会影响票型的集中程度和配合难度——但这些信息你不会直接知道。';
 function buildWorldBook(p) {
   // 当前角色的完整能力由 guide 单独注入；其他角色只给公开的一行摘要。
   // 下方旧拼装逻辑暂时保留以便历史对照，但不再进入模型上下文。
@@ -4508,6 +4524,7 @@ function buildWorldBook(p) {
   };
   const officialOn = teachingMode === 'official' || teachingMode === 'hybrid';
   // 精简官方：只给规则事实和几条常见误读，不给方法论和按身份的战术层（实测两万字的审计手册会把发言带成挑错）
+  if (teachingMode === 'bare') return WB_RULES_COMPACT;
   if (teachingMode === 'lite') return WB_CORE_LITE + '\n\n' + WolfReasoningContext.disputeReview() + WB_RULES_COMPACT;
   const officialStrategy = officialOn && twb && typeof twb.buildOfficialKnowledge === 'function'
     ? twb.buildOfficialKnowledge(teachingContext) : '';
@@ -9037,7 +9054,7 @@ function buildSystemPrompt(p, taskContext) {
   const hdeath = $('m-hdeath').checked;
   const trialOn = $('m-trial').checked;
   const isHardcore = $('m-hardcore') && $('m-hardcore').checked;
-  const wb = buildWorldBook(p) + WB_STRATEGY_AUTONOMY + buildSheriffOrderRuleBlock();
+  const wb = buildWorldBook(p) + (bareRulesMode() ? BARE_RECORDS_RULE : WB_STRATEGY_AUTONOMY) + buildSheriffOrderRuleBlock();
   // 🌐 英文模式：让 AI 用英文思考与发言（世界书保持中文，模型照样看得懂）
   const langOutBlock = (window.WolfI18n && window.WolfI18n.isEnglish && window.WolfI18n.isEnglish())
     ? "\n\n[LANGUAGE — HIGHEST PRIORITY] This match is played in English. Write ALL of your output in natural, fluent English — your <thinking>/<draft> reasoning and especially your spoken <game> statement. Do NOT write in Chinese. Keep every tag (<draft>/<game>/<action>/<interrupt>/<plan>) exactly as specified. In <action>, copy the target player's name EXACTLY as shown in the roster (names may be non-English — reproduce them verbatim, do not translate them).\n\n" + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() : '')
@@ -9049,7 +9066,7 @@ function buildSystemPrompt(p, taskContext) {
   // “仅自定义/纯净”必须真正停用内置职业教学，而不是只关掉公共 WB 后又从
   // role.guide 把官方打法整段塞回来。内置角色此时只保留身份、阵营和技能说明；
   // 自创角色的 guide 可能就是玩家定义的机制本身，必须完整保留。
-  let guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean' || currentTeachingMode === 'lite') && !customMechanicRole
+  let guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean' || currentTeachingMode === 'lite' || currentTeachingMode === 'bare') && !customMechanicRole
     ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${roleFactionClassLabel(p.role)}。${roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。'}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
     : (roleDef.guide || '');
   const roleClassRule = p.role.team === 'good'
@@ -9059,12 +9076,12 @@ function buildSystemPrompt(p, taskContext) {
     : `【身份分类·硬规则】你属于${roleFactionClassLabel(p.role)}，不属于好人方的神职或民牌。`;
   guide = roleClassRule + '\n' + guide;
   // 只把实际同场角色的专项交互教给 AI，避免不存在的角色进入它的推理范围。
-  if (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' &&
+  if (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' && currentTeachingMode !== 'bare' &&
       p.role.id === 'fox' && S.players.some(x => x.role && x.role.id === 'mechwolf')) {
     guide += FOX_MECH_INTERACTION_GUIDE;
   }
   const counterclaimDecoyCorrectionBlock =
-    currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' && p.role.team === 'good'
+    currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' && currentTeachingMode !== 'bare' && p.role.team === 'good'
       ? `\n\n【同身份声明校正·最高优先级】
 本段覆盖角色旧说明中“记录不同就是铁狼”“出现同身份就必须立刻对跳”等绝对句。你能确定对方不是真正的唯一身份，只能证明其身份声明为假，不能直接证明其阵营是狼人。（例外的强信号：对跳预言家并给真人发查杀的，挡刀好人几乎没有理由这样污染，按悍跳狼优先盘。）
 怎么分辨悍跳狼和挡刀好人，按上面【对跳者是悍跳狼还是挡刀好人】那三条信号（污染、抢归票、压测后退不退水）来算；不要把“如果是我不会这么玩”当作排他证据。
@@ -9076,7 +9093,7 @@ function buildSystemPrompt(p, taskContext) {
   // 身份声明必须使用同一证据标尺。这个短块不属于“推荐打法”，即使关闭教学层也保留，
   // 防止模型把无法排他验证的平民自报当成默认好人，却把别人暂认神职误判成“开视角”。
   // 官方/混合教学层里已有同一条（【身份声明同标尺】），那时不再重复发。
-  if (currentTeachingMode !== 'official' && currentTeachingMode !== 'hybrid' && currentTeachingMode !== 'lite') guide += `\n\n【身份声明同标尺·硬约束】
+  if (currentTeachingMode !== 'official' && currentTeachingMode !== 'hybrid' && currentTeachingMode !== 'lite' && currentTeachingMode !== 'bare') guide += `\n\n【身份声明同标尺·硬约束】
 自报平民和自报神职都只是声明，不是系统翻牌。多人平民板不存在“无人对跳即坐实平民”：没有人能靠对跳排他验证平民牌；跳平民者只能暂留观察，不能自动获得好人身份，也不能仅凭自称替别人认证平民。
 允许玩家依据逐夜记录、对跳情况、技能兑现和票型暂认一名神职；“认得快、说得满、愿意跟票”本身不构成视角漏洞。要因此提高其狼面，必须指出他当时无权知道的具体私密信息、忽略的硬反证，或持续明确的狼队收益。
 攻击别人过快认神之前，先检查自己和场上是否也在无验证地接某张平民牌、以及此前是否已经按同一神职路线投过票。两边使用同一证据门槛；这不要求机械怀疑所有平民，只禁止默认接平民却单独惩罚暂认神职。`;
@@ -9120,6 +9137,7 @@ function buildSystemPrompt(p, taskContext) {
   // 身份：没事别报；要提全桌一个词；要么跳全要么藏全。
   //   "平民"和"好人牌"在 AI 桌上成了字典：真平民说"平民"，神职不肯撒谎就改说"好人牌"，狼只要听用词就能圈出神。
     + '\n\n【身份·没事别报，要提就全桌一个词】没人问你身份就别报。"我是平民""我是好人牌""底牌是好人""身上干净"这类话帮不了你，只会把神职圈给狼看。真要提自己（被查杀要自证、残局要排坑），好人不管是不是神职都只用"平民"两个字，不要用"好人牌""底牌是好人"这种绕开"平民"的说法——那等于告诉全场你有身份。要么跳全，要么藏全：决定跳就把身份和信息一起摆出来；决定藏就连视角一起藏，"我没救""我验到""我守的"这种只有某个身份才说得出的话一个字都别带。';
+  if (bareRulesMode()) styleBlock = '';
   if (selectedPrompt && selectedPrompt.content) styleBlock += '\n\n[MODEL-SPECIFIC INSTRUCTION · HIGHEST PRIORITY]\n' + selectedPrompt.content.trim();
   // ★「性情」开关此前只控制卡片上显不显示标签，根本不控制提示词注入——
   //   用户以为关掉了，其实人格设定照样全量注入。这里让它名副其实。
@@ -9736,7 +9754,7 @@ ${userPersona}
   const speakOrderBlock = S._daySpeakOrder && S._daySpeakOrder.length > 0
     ? `\n【今天发言顺序】${S._daySpeakOrder.map((pl,i)=>`${i+1}.${pl.name}(P${pl.id+1})`).join(' → ')}`
     : '';
-  const seatBlock = `\n\n【座位信息】全场${totalPlayers}人围坐一圈，座位号P1~P${totalPlayers}按顺序排列。你是P${mySlot}，左邻是${leftNeighbor.name}(P${leftNeighbor.id+1})，右邻是${rightNeighbor.name}(P${rightNeighbor.id+1})。${speakOrderBlock}\n【位置学常识（可参考）】发言顺序影响信息：前置位先开口，信息少但可以定调；后置位听完再说，信息多可以整合复盘。狼人阵营之间的座位分布也会影响票型的集中程度和配合难度——但这些信息你不会直接知道。`;
+  const seatBlock = `\n\n【座位信息】全场${totalPlayers}人围坐一圈，座位号P1~P${totalPlayers}按顺序排列。你是P${mySlot}，左邻是${leftNeighbor.name}(P${leftNeighbor.id+1})，右邻是${rightNeighbor.name}(P${rightNeighbor.id+1})。${speakOrderBlock}` + (bareRulesMode() ? '' : SEAT_POSITION_TIP);
 
   // ★ 模型适配：统一一套通用提示（实测各家主流模型都能正确执行）
   // 斗蛐蛐模式(isPureAI)保留thinking作为观战看点；普通模式去掉thinking省token
@@ -9810,7 +9828,7 @@ ${userPersona}
     + '\n\n[TAG BOUNDARIES] <draft>/<game>/<action>/<interrupt>/<plan> are independent fields and must never be nested. Use an exact candidate name only when the current task explicitly requests <action>.'
     + buildPhaseOutputContract(taskContext, isPureAI);
 
-  modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。说清本轮想推动什么，给一条最硬的依据就够，别把想到的理由全摆出来；被质疑时优先处理最强且会改变票型的一点。没有成立的新狼点时可以提问、保护、协调或保留意见，不要为了完成格式凭空攻击。投票、技能确认和夜间私密选择只提交系统要求的动作。';
+  if (!bareRulesMode()) modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。说清本轮想推动什么，给一条最硬的依据就够，别把想到的理由全摆出来；被质疑时优先处理最强且会改变票型的一点。没有成立的新狼点时可以提问、保护、协调或保留意见，不要为了完成格式凭空攻击。投票、技能确认和夜间私密选择只提交系统要求的动作。';
   modelAdapt += hdeath
     ? '\n\n【隐死亡的自然表达·不要复读规则】未由系统公开验证的死者身份仍未知，但这是你在内心控制置信度的边界，不是每轮发言都要念出的免责声明。请根据无人对跳、记录吻合、技能兑现、票型和行为形成“暂认、偏信、待验、目前不信”的工作判断，并据此站边和投票。只有当某人明确把自报身份或未翻牌死者写成系统铁证时，才简短纠正一次；否则不要主动说“死者身份不公开”或“跳了不等于真神”。'
     : '\n\n【身份公开】系统翻出的死亡身份可以直接作为事实，不要继续把已经翻明的身份说成待验。';
@@ -13039,7 +13057,7 @@ async function proc(players, promptFn, label, opts) {
   opts = opts || {};
   // 公开讨论不是动作确认：短到只剩一句结论时，模型几乎没有对线和争取票型的空间。
   // 默认要求至少 80 字；调用方可以按特殊公开环节调低，但不能低于 30 字。
-  const minSpeechChars = Math.max(30, Number(opts.minSpeechChars) || 50);
+  const minSpeechChars = bareRulesMode() ? 1 : Math.max(30, Number(opts.minSpeechChars) || 50);   // 裸规则不替模型补写
   const trialOn = $('m-trial').checked && !opts.wolfOnly && !opts.noTrial;
   const waitForPlayerConfig = waitForPlayerConfigDialog;
   // 发言生成故障的询问流程提到了顶层（recoverTechnicalSpeechFor），密谈和遗言也用同一套。
@@ -18437,7 +18455,7 @@ const PhaseHandlers = {
       const ws = alive.filter(p => p.role.team==='bad' && p.role.id!=='mechwolf' && p.role.id!=='gargoyle');
       if (ws.length >= 2) {
         // 狼盟密约：独立提案 → 投票 → 拍板（替代轮流密谈，避免复读）
-        await nightStep('wolf-strategy', () => wolfStrategyDiscuss(ws));
+        if (!bareRulesMode()) await nightStep('wolf-strategy', () => wolfStrategyDiscuss(ws));
       } else if (ws.length === 1) {
         // 只有一只狼时无法投票，记一行日志即可
         await nightStep('wolf-strategy', async () => Render.log('night-detail','🐺 独狼局，无需密约。'));
@@ -19077,7 +19095,9 @@ const PhaseHandlers = {
     // ★ 单轮/双轮：第一轮 prompt 措辞随发言制切换
     // ★ 夜间任务提示词一直带「第N夜」，白天的却从来不带天数。第4天时模型的对话里
     //   躺着四条几乎逐字相同的【白天发言·第一轮】，它无法把哪一条对应到时间轴的哪一天。
-    const _r1Lead = S.singleRound
+    const _r1Lead = bareRulesMode()
+      ? (S.singleRound ? `【第${S.round}天·白天发言】这是第${S.round}天投票前唯一的一次发言，没有第二轮。` : `【第${S.round}天·白天发言·第一轮】这是第${S.round}天的第一轮发言，还有第二轮。`)
+      : S.singleRound
       ? `【第${S.round}天·白天发言】这是第${S.round}天投票前唯一的一次发言机会，没有第二轮。把你的判断、怀疑对象和理由一次说清楚。前面已经有人把你要说的理由说过了，就一句"同意谁，理由同他"带过，篇幅留给他没说到的东西；全桌把同一条逻辑复述五遍，不会让它更对。`
       : `【第${S.round}天·白天发言·第一轮】说说你的想法和猜测。这是第${S.round}天的第一轮发言，还有第二轮机会。`;
     let result;
@@ -19085,9 +19105,9 @@ const PhaseHandlers = {
       // ★ v9.9.24 修复：接住 mcProcDay 的返回值——此前写死 result=null，
       //   导致主持人模式下白狼王自爆后主流程收不到 'whitewolf_explode'，
       //   不会直接入夜，发言面板还停在第二轮。
-      result = await mcProcDay(speakOrder, p => _r1Lead+buildNowFacts(p)+buildSpeakOrderFact(p)+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写过渡语或草稿。别只甩一句结论，把想推动的事和理由说清即可，长短随你；没有成立的狼点就直说"暂时没看出问题"，不要硬凑一个人来怀疑。', S.singleRound ? '发言' : '第一轮') || null;
+      result = await mcProcDay(speakOrder, p => bareTask(_r1Lead+buildNowFacts(p)+buildSpeakOrderFact(p)+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写过渡语或草稿。别只甩一句结论，把想推动的事和理由说清即可，长短随你；没有成立的狼点就直说"暂时没看出问题"，不要硬凑一个人来怀疑。'), S.singleRound ? '发言' : '第一轮') || null;
     } else {
-      result = await proc(speakOrder, p => _r1Lead+buildNowFacts(p)+buildSpeakOrderFact(p)+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。发言必须说清你这一轮想推动什么——推谁出局、保谁、要谁回答什么——以及凭什么；有成立的狼点就点名并给理由。'+(p.role.team==='good'&&p.role.id!=='villager'?'隐藏身份的神职，理由只能来自台面上人人可见的信息，不得无意识半跳泄露私密视角；若有明确战术，也可以暂缓、部分披露或使用符合规则的公开假口径，不必机械交出全部真记录。无论公开怎么说，内部真账本不得改写，并把它能换来的（吸刀、诱出悍跳、藏住真记录）和误导好人、暴露保护空档、后续对跳成本放在一起算。':'')+'别只甩一句结论，把想推动的事和理由说清即可，长短随你；没有成立的狼点就直说"暂时没看出问题"，不要硬凑一个人来怀疑。', '发言');
+      result = await proc(speakOrder, p => bareTask(_r1Lead+buildNowFacts(p)+buildSpeakOrderFact(p)+duelPendingNote+'\n【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。发言必须说清你这一轮想推动什么——推谁出局、保谁、要谁回答什么——以及凭什么；有成立的狼点就点名并给理由。'+(p.role.team==='good'&&p.role.id!=='villager'?'隐藏身份的神职，理由只能来自台面上人人可见的信息，不得无意识半跳泄露私密视角；若有明确战术，也可以暂缓、部分披露或使用符合规则的公开假口径，不必机械交出全部真记录。无论公开怎么说，内部真账本不得改写，并把它能换来的（吸刀、诱出悍跳、藏住真记录）和误导好人、暴露保护空档、后续对跳成本放在一起算。':'')+'别只甩一句结论，把想推动的事和理由说清即可，长短随你；没有成立的狼点就直说"暂时没看出问题"，不要硬凑一个人来怀疑。'), '发言');
     }
     if (result && result.startsWith('trial:') && result !== 'trial:tie') {
       if (!await checkEnd()) {
@@ -19143,14 +19163,14 @@ const PhaseHandlers = {
       const r1Echo = myR1
         ? `\n\n【你第一轮说过的话（仅供参照，禁止复读）】\n「${myR1.text.length > 200 ? myR1.text.slice(0, 200) + '…' : myR1.text}」`
         : '';
-      return `【第${S.round}天·白天发言·第二轮】第${S.round}天第一轮所有人都说完了。这是本日投票前最后的发言机会。${r1Echo}${buildNowFacts(p)}${buildSpeakOrderFact(p)}
+      return bareTask(`【第${S.round}天·白天发言·第二轮】第${S.round}天第一轮所有人都说完了。这是本日投票前最后的发言机会。${r1Echo}${buildNowFacts(p)}${buildSpeakOrderFact(p)}
 
 【⚠️ 严禁复读第一轮】不要把第一轮的核心观点换个说法再说一遍。第二轮必须做以下三件事中至少一件：
 ① 针对某个具体玩家的具体一句话做正面反驳——点名+引用他的原话+你的反驳理由
 ② 公开改票或站边——比如"我第一轮怀疑X，听完Y的发言我现在改投Z，因为……"
 ③ 提供第一轮没说过的新角度——票型异常、获利链分析、视角矛盾、对跳互殴的判断
 
-【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。必须针对刚才听到的发言给出具体回应，并明确你的投票倾向。别只甩一句结论，把核心论据说清，说完就停。`;
+【重要】<game>标签里必须写完整的正式发言，直接开口说话，不能写"好，开始写"或任何过渡语草稿。必须针对刚才听到的发言给出具体回应，并明确你的投票倾向。别只甩一句结论，把核心论据说清，说完就停。`);
     };
     let result2;
     if (isMC()) {
@@ -21442,7 +21462,7 @@ async function trialWolfPact() {
     if (ws.length < 2) Render.log('system', en ? `This setup has ${ws.length} wolf in the pack, so there is no pact to try.` : `这个板子狼队只有 ${ws.length} 只狼，没有狼盟密约可试。`);
     else {
       Render.log('system', (en ? '🐺 Wolves: ' : '🐺 本局狼队：') + ws.map(w => w.name + '【' + w.role.name + '】').join('、'));
-      await wolfStrategyDiscuss(ws);
+      if (!bareRulesMode()) await wolfStrategyDiscuss(ws);
     }
   } catch (e) {
     Render.log('system', (en ? '⚠️ Pact trial failed: ' : '⚠️ 试跑出错：') + ((e && e.message) || e));

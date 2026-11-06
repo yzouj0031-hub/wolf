@@ -66,7 +66,7 @@ for (const path of ['../index.html','../en/index.html']) {
     'twb.buildOfficialKnowledge(teachingContext)',
     'const customTeaching = twb && typeof twb.buildInjection',
     'return officialTeaching + customTeaching + WB_RULES_COMPACT',
-    "(currentTeachingMode === 'custom' || currentTeachingMode === 'clean' || currentTeachingMode === 'lite') && !customMechanicRole",
+    "(currentTeachingMode === 'custom' || currentTeachingMode === 'clean' || currentTeachingMode === 'lite' || currentTeachingMode === 'bare') && !customMechanicRole",
     'const counterclaimDecoyCorrectionBlock',
     '本段覆盖角色旧说明中“记录不同就是铁狼”',
     'guide += counterclaimDecoyCorrectionBlock',

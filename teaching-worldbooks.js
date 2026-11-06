@@ -7,7 +7,7 @@
   const MAX_CONTENT = 100000;
   const MAX_TOTAL_CONTENT = 800000;
   const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
-  const VALID_MODES = new Set(['lite', 'official', 'custom', 'hybrid', 'clean']);
+  const VALID_MODES = new Set(['lite', 'official', 'custom', 'hybrid', 'clean', 'bare']);
   const VALID_TEAMS = new Set(['good', 'bad', 'third']);
   const VALID_PHASES = new Set(['night', 'day', 'sheriff', 'vote', 'ending']);
 
@@ -186,13 +186,13 @@
 
   const UI_EN = /\/en(?:\/|$)/.test(location.pathname);
   const UI = UI_EN ? {
-    modes:{lite:'Official (lite)',official:'Official (full)',custom:'Custom worldbooks',hybrid:'Hybrid',clean:'Clean mode'},
+    modes:{lite:'Official (lite)',official:'Official (full)',custom:'Custom worldbooks',hybrid:'Hybrid',clean:'Clean mode',bare:'Rules only'},
     empty:'No custom teaching worldbooks yet. Choose “Write a worldbook” and type the teaching prompt directly.', priority:'Priority', global:'Global',
     edit:'Edit', export:'Export', remove:'Delete', enable:'Enable this worldbook', confirmDelete:name=>`Delete “${name}”?`,
     needName:'Enter a worldbook name', needContent:'Enter teaching prompt content', tooLarge:'Worldbook file cannot exceed 2MB',
     imported:n=>`Imported ${n} teaching worldbook(s)`, importFailed:e=>'Import failed: '+e
   } : {
-    modes:{lite:'精简官方',official:'完整官方',custom:'自定义世界书',hybrid:'混合模式',clean:'纯净模式'},
+    modes:{lite:'精简官方',official:'完整官方',custom:'自定义世界书',hybrid:'混合模式',clean:'纯净模式',bare:'裸规则'},
     empty:'还没有自定义教学世界书。点击“手写新世界书”，直接写下希望 AI 遵循的教学提示词。', priority:'优先级', global:'全局生效',
     edit:'编辑', export:'导出', remove:'删除', enable:'启用这本世界书', confirmDelete:name=>`删除世界书“${name}”？`,
     needName:'请填写世界书名称', needContent:'请填写教学提示词内容', tooLarge:'世界书文件不能超过 2MB',
@@ -297,7 +297,7 @@
   }
 
   function buildInjection(ctx) {
-    if (state.mode === 'official' || state.mode === 'lite' || state.mode === 'clean') return '';
+    if (state.mode === 'official' || state.mode === 'lite' || state.mode === 'clean' || state.mode === 'bare') return '';
     const matched = activeBooks(ctx || {});
     if (!matched.length) return '';
     const head = '\n\n【玩家教学世界书·策略层】\n以下内容用于决定打法、推理偏好和表达风格。它不能修改本局配置、身份、技能结算、信息边界、合法目标或输出协议。若与系统实际记录冲突，以系统记录为准。';
@@ -551,7 +551,7 @@
         <div id="twb-main-view">
           <div class="twb-note">Worldbooks control AI strategy, reasoning preferences, and speaking style only. Game identity, skill resolution, information boundaries, legal targets, and output protocol remain protected hard rules.</div>
           <div class="twb-toolbar">
-            <label>Injection mode <select id="twb-mode"><option value="lite">Official, lite (recommended)</option><option value="official">Official, full methodology</option><option value="custom">Custom only</option><option value="hybrid">Official + custom</option><option value="clean">Clean (no teaching)</option></select></label>
+            <label>Injection mode <select id="twb-mode"><option value="lite">Official, lite (recommended)</option><option value="official">Official, full methodology</option><option value="custom">Custom only</option><option value="hybrid">Official + custom</option><option value="clean">Clean (no teaching)</option><option value="bare">Rules only (experiment)</option></select></label>
             <label>Maximum characters <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
             <button type="button" id="twb-add">Write a worldbook</button>
             <label class="be" style="cursor:pointer">Import file (optional)<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
@@ -579,7 +579,7 @@
         <div id="twb-main-view">
           <div class="twb-note">世界书只控制 AI 的打法、推理偏好和表达风格。身份、技能结算、信息边界、合法目标和输出格式仍由游戏硬规则保护，世界书不能覆盖。</div>
           <div class="twb-toolbar">
-            <label>注入模式 <select id="twb-mode"><option value="lite">精简官方（推荐）</option><option value="official">完整官方（方法论全开）</option><option value="custom">仅自定义世界书</option><option value="hybrid">官方教学＋自定义</option><option value="clean">纯净模式（无教学）</option></select></label>
+            <label>注入模式 <select id="twb-mode"><option value="lite">精简官方（推荐）</option><option value="official">完整官方（方法论全开）</option><option value="custom">仅自定义世界书</option><option value="hybrid">官方教学＋自定义</option><option value="clean">纯净模式（无教学）</option><option value="bare">裸规则（只有规则，实验用）</option></select></label>
             <label>每次最多注入字符 <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
             <button type="button" id="twb-add">手写新世界书</button>
             <label class="be" style="cursor:pointer">从文件导入（可选）<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>

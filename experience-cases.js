@@ -174,7 +174,7 @@
     // 只有「纯净」模式关掉；自己手写的世界书也配经验库，案例和规则书是两回事
     const twb = root.TeachingWorldbooks;
     const mode = twb && typeof twb.mode === 'function' ? twb.mode() : 'official';
-    return mode !== 'clean';
+    return mode !== 'clean' && mode !== 'bare';
   }
 
   // ── 云端案例：管理员从玩家上传的真实对局里提炼、审核过的「别人打过的牌」，和内置案例一起参与挑选 ──
