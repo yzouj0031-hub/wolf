@@ -26,7 +26,7 @@ function openingBuilder(src, file) {
   const body = slice(
     src, file,
     '      const _myIdx = speakOrder.indexOf(p);',
-    '      const prompt = killBlocked ?',
+    '      const prompt = (bareRulesMode() && !killBlocked) ?',
     '开场位置感知代码块',
   );
   const ctx = {};

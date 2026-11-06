@@ -4471,7 +4471,7 @@ function buildActiveRoleTimingBlock(players) {
   const covered = new Set(activeSteps.flatMap(step => step.roles || step.any || step.all || []));
   const noNight = [...ids].filter(id => !covered.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name).sort();
   const lines = [
-    '【本局角色公开行动与结算顺序·所有玩家必须遵守】',
+    (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【夜间行动顺序】' : '【本局角色公开行动与结算顺序·所有玩家必须遵守】',
     '夜间固定顺序：' + nightLabels.join(' → '),
     '“先行动”表示先选择目标并先产生会影响后续行动的状态；最终死亡仍在夜末统一结算，除非技能明确写成立即结算。'
   ];
@@ -4487,7 +4487,7 @@ function buildActiveRoleTimingBlock(players) {
 // 每个 AI 都会收到；只根据实际配置生成，未上场角色不会进入提示。
 function buildActivePublicInteractionRules() {
   return buildActiveRoleTimingBlock(S && S.players)
-    + WolfReasoningContext.nightRules((S.players || []).map(p => p.role && p.role.id));
+    + ((typeof bareRulesMode === 'function' && bareRulesMode()) ? bareNightRules : WolfReasoningContext.nightRules)((S.players || []).map(p => p.role && p.role.id));
 }
 
 function buildWolfChoiceHint() {
@@ -4504,14 +4504,74 @@ function bareRulesMode() {
   try { return !!(window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' && window.TeachingWorldbooks.mode() === 'bare'); }
   catch (_) { return false; }
 }
-const BARE_RECORDS_RULE = '\n\n【你的真实记录】你实际做过的行动、收到的反馈、还剩的资源以系统私密记录为准；你对外怎么说不会改变它。';
+const BARE_RECORDS_RULE = '';
 // 裸规则下的白天发言任务：保留任务标题和局面事实，去掉【重要】之后的说话指导和第二轮的「必须反驳/改票/新角度」
 const BARE_SPEECH_TAIL = '\n【重要】<game>里写你真正要说出口的话。';
+// 裸规则的对局记录：标签只说"谁说的/系统公布的"，不再给每条发言贴"只是提议/声称"、给系统事件贴"事实"。
+function bareTimelineStatus(status) {
+  const st = String(status || '');
+  if (st.indexOf('狼队私密发言') === 0) return '狼队私聊';
+  if (st.indexOf('公开发言') === 0) { const parts = st.split('·'); return parts.length > 2 ? parts[1] : '发言'; }
+  if (st === '当前边界') return '现在';
+  if (st === '你的私密系统记录') return '你的私密记录';
+  return '系统';
+}
+function bareTimelineText(text) {
+  return String(text)
+    .replace(/^时间轴到此为止；本条之后的夜晚、发言和技能都尚未发生。$/, '记录到此为止。')
+    .replace(/^本局开始，身份已分发；此时还没有进入第1夜，场上没有任何夜间或白天信息。$/, '发牌，游戏开始。')
+    .replace(/^第1夜开始：[\s\S]*$/, '第1夜。')
+    .replace(/^第(\d+)夜开始：[\s\S]*$/, '第$1夜。')
+    .replace(/^天亮，进入警长竞选。[\s\S]*$/, '天亮，先进行警长竞选，竞选结束后公布昨夜出局的人。')
+    .replace(/^(.+?)已在第(\d+)天白天死亡，不能进入第\d+夜；[\s\S]*$/, '')
+    .replace(/；这不会验证任何一方原身份或阵营。$/, '。')
+    .replace(/（死于第(\d+)夜，天亮后才公布；公布之前没有人知道）$/, '（第$1夜）')
+    .replace(/（不验阵营）/g, '');
+}
 function bareTask(t) {
   if (!bareRulesMode()) return t;
   return String(t).replace(/\n*【⚠️ 严禁复读第一轮】[\s\S]*$/, '').replace(/\n【重要】[\s\S]*$/, '') + BARE_SPEECH_TAIL;
 }
 const BARE_WIN_FACT = '\n\n【胜负】你的胜负只看阵营：阵营获胜，你出局了也算赢；阵营落败，你活到最后也算输。';
+// 裸规则的规则正文：只写规则本身，不写"所以你不能推出什么""以系统为准"这类提醒。
+//   每条单独一行：缺席角色的整行会被裁掉，混在一行会把同行的其他规则一起裁掉。
+const WB_RULES_BARE = `
+
+【基本流程】
+- 每晚先进行夜间行动，天亮后公布昨夜出局的人，然后白天发言、投票放逐一人。
+- 被狼刀、被守护、被解药救的玩家本人不会收到通知。
+- 出局的玩家不能再行动。
+- 守卫不能连续两晚守同一人。
+- 被毒死的猎人不能开枪。
+- 被毒死的狼王不能带人。
+- 骑士白天可以发起一次决斗：对方是狼，狼出局；对方不是狼，骑士出局。决斗结算后白天继续。
+- 白狼王可以在白天自爆并带走一人，随后直接进入黑夜。`;
+// 裸规则下「规则」按钮和网页接力看到的规则：只有配置、胜负、流程、角色技能和结算，不附推理建议。
+function buildBareRulesText(players, viewerP) {
+  const ids = [...new Set(players.filter(p => p && p.role).map(p => p.role.id))];
+  const hiddenDeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
+  const lines = ['【本局规则】', `配置：${players.length}人｜${getRoleList()}`, '',
+    S.killEdgeMode
+      ? '胜负：屠边。狼人杀光所有神职，或杀光所有平民，或存活狼人数不少于存活好人数，狼人获胜；狼人全部出局，好人获胜。'
+      : '胜负：屠城。存活狼人数不少于存活好人数，狼人获胜；狼人全部出局，好人获胜。',
+    `流程：夜间行动 → ${(S.round === 1 && players.length >= 12) ? '首日先警长竞选 → ' : ''}公布昨夜出局的人 → 白天${S.singleRound ? '每人发言一次' : '每人发言两轮'} → 投票放逐一人。`,
+    hiddenDeath ? '出局玩家不翻牌。' : '出局玩家翻牌公开身份。',
+    '', '【在场角色】'];
+  uniqueActiveRoleObjects(players).forEach(r => lines.push(`· ${r.emoji}${r.name}（${roleFactionClassLabel(r)}）：${activeRoleDescriptionForExport(r, ids)}`));
+  if (viewerP && viewerP.role) lines.push('', `【你的身份】${viewerP.role.emoji}${viewerP.role.name}`);
+  const prune = buildAbsentRolePruner(players);
+  lines.push(prune(WB_RULES_BARE), buildActiveRoleTimingBlock(players), bareNightRules(ids));
+  return lines.join('\n');
+}
+function bareNightRules(roleIds) {
+  const ids = new Set(roleIds || []);
+  const lines = ['【夜间结算】夜间所有行动结束后统一结算出局，再判定胜负。'];
+  if (ids.has('witch')) lines.push('女巫当晚被刀仍然可以用药，她用的毒照常生效。');
+  if (ids.has('guard')) lines.push('守卫可以守自己。');
+  if (ids.has('guard') && ids.has('witch')) lines.push('同一人当晚既被守护又被解药救，会出局。');
+  if (ids.has('magician')) lines.push('魔术师交换两人后，狼刀其中一人，实际出局的是另一人。');
+  return '\n\n' + lines.join('\n');
+}
 
 const SEAT_POSITION_TIP = '\n【位置学常识（可参考）】发言顺序影响信息：前置位先开口，信息少但可以定调；后置位听完再说，信息多可以整合复盘。狼人阵营之间的座位分布也会影响票型的集中程度和配合难度——但这些信息你不会直接知道。';
 function buildWorldBook(p) {
@@ -4528,7 +4588,7 @@ function buildWorldBook(p) {
   };
   const officialOn = teachingMode === 'official' || teachingMode === 'hybrid';
   // 精简官方：只给规则事实和几条常见误读，不给方法论和按身份的战术层（实测两万字的审计手册会把发言带成挑错）
-  if (teachingMode === 'bare') return WB_RULES_COMPACT;
+  if (teachingMode === 'bare') return WB_RULES_BARE;
   if (teachingMode === 'lite') return WB_CORE_LITE + '\n\n' + WolfReasoningContext.disputeReview() + WB_RULES_COMPACT;
   const officialStrategy = officialOn && twb && typeof twb.buildOfficialKnowledge === 'function'
     ? twb.buildOfficialKnowledge(teachingContext) : '';
@@ -5727,6 +5787,7 @@ function getFullRoleBrief(p) {
           : ' 👈【这就是你！你只有这个角色的能力，不是同阵营其他角色】')
         : '';
       const team = roleFactionClassLabel(r, window.WolfI18n && WolfI18n.isEnglish());
+      if (typeof bareRulesMode === 'function' && bareRulesMode() && !(window.WolfI18n && WolfI18n.isEnglish())) return `${r.emoji}${shown.name}(${team}): ${activeRoleDescriptionForExport(r, (S.players || []).map(x => x.role && x.role.id))}${isSelf ? ' 👈你' : ''}`;
       return `${r.emoji}${shown.name}(${team}): ${shown.desc}${selfMark}`;
     }).join('\n');
 }
@@ -5934,6 +5995,7 @@ function buildRulesExport() {
     const hiddenDeath = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
     return WolfI18n.buildEnglishRules({players, edge:!!S.killEdgeMode, singleRound:!!S.singleRound, hiddenDeath});
   }
+  if (typeof bareRulesMode === 'function' && bareRulesMode()) return buildBareRulesText(players);
 
   const ids = [...new Set(players.filter(p => p.role).map(p => p.role.id))];
   const has = id => ids.includes(id);
@@ -6022,6 +6084,7 @@ function buildWebRulesExport(viewerP, options) {
   if (window.WolfI18n && WolfI18n.isEnglish()) {
     return WolfI18n.buildEnglishRules({players:S.players || [], edge:isEdge, singleRound:!!S.singleRound, hiddenDeath:hdeath, hardRulesOnly});
   }
+  if (typeof bareRulesMode === 'function' && bareRulesMode()) return buildBareRulesText(S.players || [], viewerP);
   const ids = [...new Set((S.players || []).filter(x => x.role).map(x => x.role.id))];
   const has = id => ids.includes(id);
   const teamNames = {bad:'狼人阵营', good:'好人阵营', third:'第三阵营'};
@@ -9100,14 +9163,14 @@ function buildSystemPrompt(p, taskContext) {
   // role.guide 把官方打法整段塞回来。内置角色此时只保留身份、阵营和技能说明；
   // 自创角色的 guide 可能就是玩家定义的机制本身，必须完整保留。
   let guide = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean' || currentTeachingMode === 'lite' || currentTeachingMode === 'bare') && !customMechanicRole
-    ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${roleFactionClassLabel(p.role)}。${roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。'}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
+    ? `【你的身份与技能·硬信息】你是${roleDef.name || p.role.name}，属于${roleFactionClassLabel(p.role)}。${(bareRulesMode() && !p.role.customId) ? activeRoleDescriptionForExport(p.role, (S.players || []).map(x => x.role && x.role.id)) : (roleDef.desc || p.role.desc || '具体技能以系统行动提示和实际结算为准。')}\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。`
     : (roleDef.guide || '');
   const roleClassRule = p.role.team === 'good'
     ? (isGoodVillagerRole(p.role)
       ? '【身份分类·硬规则】你是好人阵营的【平民/民牌】，屠边局计入屠民，不计入屠神。'
       : '【身份分类·硬规则】你是好人阵营的【神职】，屠边局计入屠神，不计入屠民。')
     : `【身份分类·硬规则】你属于${roleFactionClassLabel(p.role)}，不属于好人方的神职或民牌。`;
-  guide = roleClassRule + '\n' + guide;
+  guide = bareRulesMode() ? guide.replace(/\n你的合法行动、目标和结算以系统当下给出的私密操作提示为准。[^\n]*/, '') : roleClassRule + '\n' + guide;
   // 只把实际同场角色的专项交互教给 AI，避免不存在的角色进入它的推理范围。
   if (currentTeachingMode !== 'custom' && currentTeachingMode !== 'clean' && currentTeachingMode !== 'lite' && currentTeachingMode !== 'bare' &&
       p.role.id === 'fox' && S.players.some(x => x.role && x.role.id === 'mechwolf')) {
@@ -9330,6 +9393,7 @@ ${userPersona}
   let _timelineSpeechCount = 0;
   const _pushTimeline = (phase, status, text) => {
     _eventSeq++;
+    if (bareRulesMode()) { const _bt = bareTimelineText(String(text || '')).replace(/\s+/g,' ').trim(); if (_bt) _timelineLines.push(`[${phase}][${bareTimelineStatus(status)}] ${_bt}`); return; }
     _timelineLines.push(`[E${String(_eventSeq).padStart(3,'0')}][${phase}][${status}] ${String(text || '').replace(/\s+/g,' ').trim()}`);
   };
   for (const r of (gameRecord || [])) {
@@ -9435,6 +9499,7 @@ ${userPersona}
   //   并让协议与时间轴同生共死。
   const _timelineActive = _timelineLines.length > 1;
   if (_timelineActive) {
+    if (bareRulesMode()) hist = '【对局记录·按时间先后】\n' + _timelineLines.join('\n'); else
     hist = `【权威事件时间轴·严格按E编号从小到大阅读】\n`+
       `判定规则：①“公开/私密发言”只是当事人的说法或未来计划，不证明内容为真，也不代表行动已执行；②只有标成“已发生/已执行”的系统记录才是事实；③“系统自动取消”之后，该死者不可能再行动；④不得用较大E编号的信息评价较小E编号发言者当时是否知情。\n`+
       _timelineLines.join('\n');
@@ -9444,10 +9509,10 @@ ${userPersona}
   //   模型读完形成的印象是"这是一份带标签的聊天记录"，于是按最近性和叙事显著度去检索，
   //   而不是按标签。这里从【同一个数组】过滤出只含系统结算的子集，不引入任何新信息。
   const _hardFactLines = _timelineLines.filter(l => !l.includes('·只是提议/声称]'));
-  const hardFactDigest = (_timelineActive && _hardFactLines.length)
+  const hardFactDigest = (_timelineActive && _hardFactLines.length && !bareRulesMode())
     ? `\n\n【🔒 系统硬事实速查·E编号与上方时间轴一一对应，只列系统结算，不含任何发言】\n${_hardFactLines.join('\n')}\n本表是上方时间轴的严格子集，不是新信息。任何人的说法若与本表冲突，一律以本表为准。`
     : '';
-  const temporalExecutionBlock = !_timelineActive ? '' : `\n\n【⏱️ 权威时间轴判定协议·最高优先级】\n本条提到的“权威事件时间轴”在本提示词的【发言记录】一节（全文最末尾）。\n该时间轴已经把公开发言、系统事件、实际技能与死亡按真实结算顺序统一编号。发言只代表声称或计划；只有标成“已发生/已执行”的系统事件才是事实；角色一旦出现“系统自动取消”，其后续计划全部失效；“当前边界”之后的一切尚未发生。任何推理若与E编号顺序冲突，必须以时间轴为准。`;
+  const temporalExecutionBlock = (!_timelineActive || bareRulesMode()) ? '' : `\n\n【⏱️ 权威时间轴判定协议·最高优先级】\n本条提到的“权威事件时间轴”在本提示词的【发言记录】一节（全文最末尾）。\n该时间轴已经把公开发言、系统事件、实际技能与死亡按真实结算顺序统一编号。发言只代表声称或计划；只有标成“已发生/已执行”的系统事件才是事实；角色一旦出现“系统自动取消”，其后续计划全部失效；“当前边界”之后的一切尚未发生。任何推理若与E编号顺序冲突，必须以时间轴为准。`;
   // ★ 提取预言家/女巫等角色的关键信息（不会被memory挤掉）
   // ★ 关键信息：结构化状态直接注入（不依赖memory捞取，防止截断丢失）
   const keyParts = [];
@@ -9473,7 +9538,7 @@ ${userPersona}
     const witchHistory = p.memory.filter(m => m.role==='system' && m.content.includes('【女巫】')).map(m => m.content).join('\n');
     if (witchHistory) potionLines.push('\n【你的历次行动记录·逐夜精确记录】\n' + witchHistory);
     // ★ 反幻觉警告：防止女巫看到"有救药+有人死了"反推"一定是同守同救"
-    potionLines.push('\n⚠️ 铁律：以上行动记录是你实际做过的事的完整清单。如果记录里没写"使用救人药救了XX"，那就是你根本没救人。不要靠推理脑补"我一定救了"——如果你没明确看到救人记录，就是没救。同守同救要求你当夜实际使用解药；不能拿它解释没有执行的救人行动。');
+    if (!bareRulesMode()) potionLines.push('\n⚠️ 铁律：以上行动记录是你实际做过的事的完整清单。如果记录里没写"使用救人药救了XX"，那就是你根本没救人。不要靠推理脑补"我一定救了"——如果你没明确看到救人记录，就是没救。同守同救要求你当夜实际使用解药；不能拿它解释没有执行的救人行动。');
     keyParts.push('【女巫药水状态（实时·绝对准确）】\n' + potionLines.join('\n'));
   }
 
@@ -9539,7 +9604,7 @@ ${userPersona}
   }
   // The dated provisional pact is injected once via _buildPrivateInfoLines below.
   // Pack identity is private knowledge; support, distancing and counterclaims are choices.
-  if (_isTeamWolf) {
+  if (_isTeamWolf && !bareRulesMode()) {
     wolfPrivateBlock += '\n\n【狼队身份配合】已互认队友跳神职是伪装，不是真神。配合、倒钩、切割或另跳身份都可以，按当前票型、对方真实可见信息和团队收益决定，不要求一直硬保，也不要求必死才切割。若要另编技能记录，先检验它与已知刀口、公开结算能否并存，以及后置位的可能回应会不会拆穿它；对方的未公开行动仍未知。内部知道自己的假口径，不把它当成真实记录。';
   }
   // ★ v9.9.20 方案B：队友悍跳事实注入（确凿事实，不靠队友自己猜）
@@ -9853,7 +9918,7 @@ ${userPersona}
   const _absentClassics = ['seer','witch','guard','hunter','knight']
     .filter(id => !_presentRoleIds.has(id) && ALL_ROLES[id]).map(id => ALL_ROLES[id].name);
   const absentRoleRule = buildAbsentClassicRoleRule(_presentRoleIds, _capInspect, _absentClassics);
-  const strictRoleRule = '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!' + capabilityIndex + absentRoleRule;
+  const strictRoleRule = bareRulesMode() ? '\n\n【本局只有这些角色】' + activeRolesList + '。' : '\n\n【⚠️ STRICT WARNING·NO HALLUCINATION】The current game **ONLY** contains the following roles: [' + activeRolesList + ']. There are NO OTHER special roles!\nAbsolutely DO NOT mention, hint at, or search for any non-existent roles in your reasoning, disguise, or internal draft. If there is no Seer in this game, you must NEVER claim to be the Seer or look for one. If there is no Witch, never mention potions. DO NOT apply standard Werewolf templates from your memory!' + capabilityIndex + absentRoleRule;
 
   const isPureAI = S.pureAI;
   let modelAdapt = '\n\n[ROLE IMMERSION] You are not an assistant; you are ' + p.name + ' at the game table. Do not use assistant-like preambles.'
@@ -9862,12 +9927,15 @@ ${userPersona}
     + buildPhaseOutputContract(taskContext, isPureAI);
 
   if (!bareRulesMode()) modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。说清本轮想推动什么，给一条最硬的依据就够，别把想到的理由全摆出来；被质疑时优先处理最强且会改变票型的一点。没有成立的新狼点时可以提问、保护、协调或保留意见，不要为了完成格式凭空攻击。投票、技能确认和夜间私密选择只提交系统要求的动作。';
-  modelAdapt += hdeath
+  if (!bareRulesMode()) modelAdapt += hdeath
     ? '\n\n【隐死亡的自然表达·不要复读规则】未由系统公开验证的死者身份仍未知，但这是你在内心控制置信度的边界，不是每轮发言都要念出的免责声明。请根据无人对跳、记录吻合、技能兑现、票型和行为形成“暂认、偏信、待验、目前不信”的工作判断，并据此站边和投票。只有当某人明确把自报身份或未翻牌死者写成系统铁证时，才简短纠正一次；否则不要主动说“死者身份不公开”或“跳了不等于真神”。'
     : '\n\n【身份公开】系统翻出的死亡身份可以直接作为事实，不要继续把已经翻明的身份说成待验。';
+  else if (hdeath) modelAdapt += '\n\n【死者身份】本局出局玩家不翻牌。';
 
   // ★ v9.9.24：当前胜负规则说明（随屠边开关动态生成）
-  const winRuleBlock = S.killEdgeMode
+  const winRuleBlock = bareRulesMode()
+    ? (S.killEdgeMode ? '\n\n【胜负条件·屠边】狼人杀光所有神职，或杀光所有平民，或存活狼人数不少于存活好人数，狼人获胜。' : '\n\n【胜负条件·屠城】存活狼人数不少于存活好人数，狼人获胜。') + BARE_WIN_FACT
+    : S.killEdgeMode
     ? '\n\n【本局胜负规则·屠边局（重要）】狼人获胜条件（满足任一）：①杀光所有神职（预言家/女巫/守卫/猎人/骑士等有技能的好人）即“屠神”；②杀光所有平民（普通村民）即“屠民”；③或存活狼人数≥存活好人数。本局确实是屠边规则，“屠神”“屠民”是真实有效的获胜路径。'
     : '\\n\\n【本局胜负规则·屠城局（重要）】狼人获胜条件：将存活好人数压到≤存活狼人数（即“屠城”）。本局是屠城规则，没有“屠神”“屠民”的提前获胜条件——杀光神职或杀光平民都不会让狼提前获胜，只看场上总人数对比。不要按屠边板子规划“优先杀光神职”。';
 
@@ -9893,7 +9961,8 @@ ${userPersona}
   }
 
   // ★ 发言制说明（随单轮/双轮开关切换，覆盖核心规则里"白天两轮发言"的默认描述）
-  const speakRoundBlock = S.singleRound
+  const speakRoundBlock = S.singleRound && bareRulesMode() ? '\n\n【发言轮次】本局白天每人只发言一次，发完直接投票。'
+    : S.singleRound
     ? '\n\n【本局发言制·传统单轮（重要）】本局白天每人只发言一次，这一轮发完就直接投票，没有第二轮。请把跳身份、报信息、抛怀疑、表态投票都放在这唯一一次发言里说清楚——不要指望"留到第二轮再反驳/总结"，没有第二轮。'
     : '';
 
@@ -9927,7 +9996,7 @@ ${userPersona}
   try {
     const _priv = (typeof _buildPrivateInfoLines === 'function') ? _buildPrivateInfoLines(p) : null;
     if (_priv && _priv.length) {
-      privateActionBlock = '\n\n【你的私密信息（行动记录与计划分列）】\n'
+      privateActionBlock = bareRulesMode() ? '\n\n【你的私密记录】\n' + _priv.map(l => '• ' + l).join('\n') : '\n\n【你的私密信息（行动记录与计划分列）】\n'
         + _priv.map(l => '• ' + l).join('\n')
         + '\n实际行动与系统反馈按原记录保存；密约、计划属于预案，不是已执行事实。不得把公开说辞或推测写回真实账本，也不要补造未收到的反馈。';
     }
@@ -16456,7 +16525,7 @@ const NightActions = {
       const lastHint = lastP ? '\n注意：你昨晚守了'+lastP.name+'，今晚不能再守同一个人。' : '';
       const targets = ts.map(x => `P${x.id + 1}=${x.name}`).join('、');
       const isFirstNight = S.round === 1;
-      const contextPrompt = '【守卫·第'+S.round+'夜】\n可选目标：'+targets+lastHint+
+      const contextPrompt = bareRulesMode() ? '【守卫·第'+S.round+'夜】\n可选目标：'+targets+lastHint+'\n可以守自己，也可以不守。' : '【守卫·第'+S.round+'夜】\n可选目标：'+targets+lastHint+
         (isFirstNight
           ? '\n【第一夜同样没有固定答案】你不知道真实刀口，女巫却能看到刀口并可能选择救人；不能假定“女巫多半不用药”，也不能因为担心撞药就自动空守。请比较：①守中某人的概率与该目标价值；②女巫看到同一刀口后救他的概率；③同守同救会让目标死亡且浪费解药的损失；④空守时完全放弃本夜挡刀的代价；⑤守自己与守其他人的不同风险。根据本局配置和目标分布独立决定守人或空守。'
           : '\n【根据已有信息重新算，不沿用固定顺序】先推测狼队今晚最可能的1—2个刀口，再比较守目标、守自己和空守。把目标价值、自己是否暴露、女巫解药是否可能仍在、明显神职发生同守同救的概率、上夜守护与死亡结果，以及空守放弃防御的代价一起计算。女巫已无解药或已出局时撞药风险会下降，但这也不自动等于必须守人；每夜都由当前证据决定。')+
@@ -16973,7 +17042,15 @@ This instruction has priority over generic advice such as "do not waste the nigh
         : `【你的任务】你是第一个发言(队友的开场你还看不到)，独立给出：
 ① 提议刀谁(具体到名字)  ② 理由(基于上面的推演，不是"感觉他可疑")  ③ 这一刀配明天哪条线(谁起身份、谁站边、谁倒钩)
 你的开场没有被任何队友锚住：算下来若有一条别的线(自刀配身份、双起身份、空刀做平安夜)账不输常规，就现在带着账提出来——后发言的人很难再从零提起它。`;
-      const prompt = killBlocked ? `【狼队密谈·禁刀夜】这是狼队内部，直接说，不用伪装。
+      const prompt = (bareRulesMode() && !killBlocked) ? `【狼队夜聊·第${S.round}夜】只有狼队能看到。
+你的队友:${mates}
+可刀目标:${ts}${deadNote}
+狼队成员也可以刀；填 PASS 表示今晚不刀。${buildWolfNightRuleFacts().zh ? '\n' + buildWolfNightRuleFacts().zh : ''}
+
+${priorBlock}<thinking>你的分析</thinking>
+<game>说给队友的话</game>
+<action>目标完整名字 或 PASS（空刀）</action>
+<interrupt>no</interrupt>` : killBlocked ? `【狼队密谈·禁刀夜】这是狼队内部，直接说，不用伪装。
 系统已经确认：本夜全体狼人受到禁刀影响，无法造成狼刀击杀。今晚不需要、也不允许选择刀口；不要浪费时间讨论“刀谁”。
 你的队友:${mates}
 
@@ -17521,7 +17598,7 @@ ${mistDecisionHint}
         actionOptions.push('NO_POISON → 不用毒药');
       }
       if (actionOptions.length === 0) actionOptions.push('NO_ACTION → 今晚无药可用');
-      const contextPrompt = '【女巫·第'+S.round+'夜】\n'+ctx+'\n不能毒自己。（你可以毒任何其他活人，包括你看到的今晚刀口——若毒的正是刀口，那人会按"被毒"结算，无法发动死亡技能。）'+
+      const contextPrompt = bareRulesMode() ? '【女巫·第'+S.round+'夜】\n'+ctx+'\n不能毒自己。被毒死的人不能发动死亡技能。'+((S.witchPotions.save && v && S.witchPotions.poison) ? '\n一晚只能用一瓶药：救了就不能再毒。' : '') : '【女巫·第'+S.round+'夜】\n'+ctx+'\n不能毒自己。（你可以毒任何其他活人，包括你看到的今晚刀口——若毒的正是刀口，那人会按"被毒"结算，无法发动死亡技能。）'+
         '\n\n【策略由本夜事实决定，不设首夜模板】若考虑救人，请同时比较：刀口的身份/带队价值、当前屠边或人数压力、守卫可能同守同救的概率、保留解药的价值（留给之后起跳、最可能挨刀的真预言家；解药在手每晚还能看到刀口，有人对跳后狼刀落向哪边也是一条线索），以及救人后形成真实“银水”行动记录并在警长竞选中报信息、争取带队的收益。银水不是铁好：首夜救人是狼算得到的常规，刀口也可能正是自刀的狼——救了就是替他发银水、再交掉解药。跳女巫带队还会暴露自己。若考虑毒人，则必须有足够硬的目标依据。救、不救、毒、完全不用药都必须来自这局的具体收益，不能因为第一夜或某句通用经验自动决定。'+
         ((S.witchPotions.save && v && S.witchPotions.poison) ? '\n\n⚠️【本局规则·一晚只能用一瓶药】今晚你救和毒【只能二选一】，不能同一晚既救又毒。选择救人(SAVE)，今晚就不能再用毒药；想用毒药，今晚就不能救人。请权衡这一刀口的价值，想清楚把这唯一的用药机会给"救"还是给"毒"，不要试图两个都用。' : '');
       // ★ 修复：明确要求 action 标签里必须写完整全名，不能用别名/简称/编号
