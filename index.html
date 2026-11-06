@@ -3461,6 +3461,7 @@ body.has-wp::after {
     <!-- 下拉列表 -->
     <div class="api-vault-pick" id="pcvault-pick-dropdown"></div>
   </div>
+  <div class="row"><label>渠道</label><select id="pc-apitype" style="flex:1"><option value="">自动（按这个座位的地址判断；没填地址就跟全局）</option></select></div>
   <div class="row"><label>API密钥</label><input type="password" id="pck" placeholder="留空用全局"></div>
   <div class="row"><label>模型</label><div style="display:flex;gap:4px;align-items:center"><input type="text" id="pcm" placeholder="留空用全局" style="flex:1"><button id="pcm-fetch" style="padding:4px 8px;font-size:0.7em;background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="拉取模型列表">📡</button><button id="pc-test-api" style="padding:4px 8px;font-size:0.7em;background:rgba(80,140,90,0.18);color:#90c8a0;border:1px solid #6ba070;border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="测试API是否能正常调用">🧪 测试</button></div></div>
   <div id="pc-test-result" style="display:none;margin:0 0 10px 0;padding:8px 10px;border-radius:var(--r);font-size:0.75em;line-height:1.5;font-family:var(--font-body);white-space:pre-wrap;word-break:break-word"></div>
@@ -6802,7 +6803,11 @@ function getAPI(i) {
   const c = playerConfigs[i] || {};
   const url = (c.url || $('g-url').value).replace(/\/$/, '');
   // 渠道优先级：玩家独立配置 > 全局选择 > 旧配置的域名推断
-  const picked = c.apiType || ($('g-apitype') && $('g-apitype').value) || '';
+  // 渠道：座位自己选的 > 座位用的就是全局地址时跟全局 > 座位单独配了别的地址时按它自己的地址判断。
+  //   以前座位只存地址不存渠道，全局一切到「Claude 官方」，所有单独配了中转的座位都用 Anthropic 格式去请求，全部失败。
+  const _ownUrl = String(c.url || '').trim().replace(/\/$/, '');
+  const _globalUrl = String($('g-url').value || '').trim().replace(/\/$/, '');
+  const picked = c.apiType || ((_ownUrl && _ownUrl !== _globalUrl) ? '' : (($('g-apitype') && $('g-apitype').value) || ''));
   const prov = getProvider(picked);
   return {
     url,
@@ -24968,8 +24973,11 @@ async function testAPIForPC() {
   // 接口格式以用户选的渠道为准。旧逻辑靠域名字符串猜，反代域名（例如 Gemini 中转）
   // 一律被猜成 OpenAI 兼容，于是测试用错格式、报一个和真实原因无关的失败。
   const urlLower = u.toLowerCase();
-  const _t = (c.apiType && getProvider(c.apiType) ? getProvider(c.apiType).type : '')
-          || (($('g-apitype') && getProvider($('g-apitype').value)) ? getProvider($('g-apitype').value).type : '')
+  const _seatPick = ($('pc-apitype') && $('pc-apitype').value) || c.apiType || '';
+  const _seatOwnUrl = String(($('pcu') && $('pcu').value) || c.url || '').trim().replace(/\/$/, '');
+  const _useGlobalType = !_seatOwnUrl || _seatOwnUrl === String($('g-url').value || '').trim().replace(/\/$/, '');
+  const _t = (_seatPick && getProvider(_seatPick) ? getProvider(_seatPick).type : '')
+          || ((_useGlobalType && $('g-apitype') && getProvider($('g-apitype').value)) ? getProvider($('g-apitype').value).type : '')
           || inferApiType(u);
   const isAnthropic = _t === 'anthropic';
   const isGeminiNative = _t === 'gemini';
@@ -26030,6 +26038,7 @@ function openPCfg(i) {
   $('pcn').innerText = 'P'+(i+1)+' '+(curNames[i]||'');
   $('pcname').value = c.name||'';
   $('pcu').value = c.url||'';
+  { const sel = $('pc-apitype'); if (sel) { if (sel.options.length <= 1) sel.insertAdjacentHTML('beforeend', API_PROVIDERS.map(pv => `<option value="${pv.id}">${pv.name}</option>`).join('')); sel.value = (c.apiType && getProvider(c.apiType)) ? c.apiType : ''; } }
   $('pck').value = c.key||'';
   $('pcm').value = c.model||'';
   $('pcpersona').value = c.persona||'';
@@ -26129,12 +26138,13 @@ function savePCfg() {
   const top_p = $('pc-topp-on').checked ? parseFloat($('pc-topp').value) : null;
   const frequency_penalty = $('pc-fp-on').checked ? parseFloat($('pc-fp').value) : null;
   const presence_penalty = $('pc-pp-on').checked ? parseFloat($('pc-pp').value) : null;
-  if (nm||u||k||m||persona||cot||disableFreeOutput||role||avatar||charBgm||muteBgm||reasoningMode!=='inherit'||temperature!==null||top_p!==null||frequency_penalty!==null||presence_penalty!==null||memLimit!==undefined) {
+  if (($('pc-apitype') && $('pc-apitype').value)||nm||u||k||m||persona||cot||disableFreeOutput||role||avatar||charBgm||muteBgm||reasoningMode!=='inherit'||temperature!==null||top_p!==null||frequency_penalty!==null||presence_penalty!==null||memLimit!==undefined) {
     if (!playerConfigs[currentCfgP]) playerConfigs[currentCfgP]={};
     if (maxTokens) playerConfigs[currentCfgP].maxTokens=maxTokens; else delete playerConfigs[currentCfgP].maxTokens;
     if (memLimit !== undefined) playerConfigs[currentCfgP].memLimit=memLimit; else delete playerConfigs[currentCfgP].memLimit;
     if (nm) playerConfigs[currentCfgP].name=nm; else delete playerConfigs[currentCfgP].name;
     if (u)  playerConfigs[currentCfgP].url=u;   else delete playerConfigs[currentCfgP].url;
+    { const at = $('pc-apitype') ? $('pc-apitype').value : ''; if (at) playerConfigs[currentCfgP].apiType = at; else delete playerConfigs[currentCfgP].apiType; }
     if (k)  playerConfigs[currentCfgP].key=k;   else delete playerConfigs[currentCfgP].key;
     if (m)  playerConfigs[currentCfgP].model=m;  else delete playerConfigs[currentCfgP].model;
     if (persona) playerConfigs[currentCfgP].persona=persona; else delete playerConfigs[currentCfgP].persona;
