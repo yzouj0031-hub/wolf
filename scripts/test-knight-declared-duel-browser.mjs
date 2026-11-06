@@ -52,6 +52,30 @@ for (const file of ['index.html', 'en/index.html']) {
       return { duelUsed: !!S._duelUsed, wolfAlive: wolf.alive, knightAlive: knight.alive };
     });
     assert.deepEqual(neg, { duelUsed: false, wolfAlive: true, knightAlive: true }, `${file}: "我不决斗X"被当成了决斗 ${JSON.stringify(neg)}`);
+    // 实际对局复现：发言里有"把票投出去"，解析器从发言里抽出 action「出去」。
+    //   以前只要 action 非空就认为"已经有行动"，宣布的决斗和另问的确认都被跳过，骑士只喊不打。
+    const junk = await page.evaluate(async () => {
+      const run = async (speech, confirmReply) => {
+        MODE_CONFIGS.simKnight3 = { name: 'sim', count: 6, roles: ['knight', 'werewolf', 'villager', 'villager', 'villager', 'werewolf'] };
+        for (const k in playerConfigs) delete playerConfigs[k];
+        for (let i = 0; i < 6; i++) playerConfigs[i] = { role: MODE_CONFIGS.simKnight3.roles[i] };
+        S.mode = 'simKnight3'; S._duelUsed = false; S._duelRound = -1; S.duelLog = []; startGame(); S.round = 1; S.phase = 'day';
+        const knight = S.players.find(x => x.role.id === 'knight'), wolf = S.players[1];
+        let asked = 0;
+        window.callAI = async (p, prompt) => /决斗确认/.test(String(prompt))
+          ? (asked++, { thinking: '', game: confirmReply(wolf), action: '' })
+          : { thinking: '', game: speech(wolf), action: '出去' };
+        const done = proc([knight], () => '【第1天·白天发言】这是第1天投票前唯一的一次发言。', '发言', {});
+        await Promise.race([done, new Promise(res => setTimeout(res, 20000))]);
+        return { duelUsed: !!S._duelUsed, wolfAlive: wolf.alive, asked };
+      };
+      return {
+        declared: await run(w => `如果让八个人凭感觉把票投出去，一旦投错代价太大。我以骑士身份，向${w.name}发起决斗。`, () => '暂不决斗'),
+        confirmed: await run(() => '如果让八个人凭感觉把票投出去，一旦投错代价太大。我是骑士，先听听。', w => `我决斗${w.name}`),
+      };
+    });
+    assert.deepEqual(junk.declared, { duelUsed: true, wolfAlive: false, asked: 0 }, `${file}: 发言里抽出了无关 action 时，宣布的决斗仍要执行 ${JSON.stringify(junk.declared)}`);
+    assert.deepEqual(junk.confirmed, { duelUsed: true, wolfAlive: false, asked: 1 }, `${file}: 发言里抽出了无关 action 时，仍要另问决斗确认 ${JSON.stringify(junk.confirmed)}`);
     assert.equal(errors.length, 0, errors.join('\n'));
     console.log(`${file}: declared duel parsed and executed; refusal respected`);
   });
