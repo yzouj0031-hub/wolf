@@ -54,7 +54,7 @@ for (const file of FILES) {
   // 协议和它指向的证据必须同生共死
   assert.ok(src.includes('const _timelineActive = _timelineLines.length > 1;'), `${file}: 时间轴启用门槛未改`);
   assert.ok(
-    src.includes("const temporalExecutionBlock = !_timelineActive ? '' :"),
+    src.includes("const temporalExecutionBlock = (!_timelineActive || bareRulesMode()) ? '' :"),
     `${file}: 时间轴不存在时仍然注入「必须以时间轴为准」的协议`,
   );
   assert.ok(!src.includes('if (_timelineSpeechCount > 0) {'), `${file}: 旧的"至少一条发言"门槛仍在`);

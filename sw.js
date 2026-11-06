@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v71-knight-duel';
+const CACHE_NAME = 'wolf-pwa-v72-bare-rules';
 const APP_SHELL = [
   './',
   './index.html',
