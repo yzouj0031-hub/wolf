@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v69-bare-rules';
+const CACHE_NAME = 'wolf-pwa-v70-seat-channel';
 const APP_SHELL = [
   './',
   './index.html',
