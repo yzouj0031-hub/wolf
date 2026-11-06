@@ -14637,10 +14637,13 @@ async function proc(players, promptFn, label, opts) {
         const _cardForceOff = !!_pCfg.disableFreeOutput;
         const _isFreeOutput = _cardForceOff ? false : (_cardForceOn || _globalFO);
         if (_isFreeOutput && !opts.wolfOnly && !p.isPlayer) {
-          const hasNoAction = !r.action || r.action.trim() === '' || r.action.trim().toLowerCase() === 'none';
+          // 白天发言没有要求 <action>；这里的 action 往往是解析器从发言里顺手抽出的"投X"片段
+          //   （实际对局：骑士说"把票投出去"被抽成 action「出去」，于是决斗确认整个被跳过）。
+          //   技能是否已经提交，只看 action 里有没有对应技能词，不看它是否为空。
+          const hasSkillAction = kw => !!(r.action && new RegExp(kw + '|TRIAL', 'i').test(r.action));
           // 骑士在发言里已经当众宣布决斗，就按宣布执行，不再另问一遍。
           //   另问时模型常常没把自己刚说的话当成已经做出的决定，结果只喊不打（实际对局里出现过）。
-          if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && hasNoAction) {
+          if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && !hasSkillAction('DUEL')) {
             const declared = parseDeclaredDuel(r.game || '', S.players.filter(x => x.alive && x.id !== p.id));
             if (declared) { r.action = 'DUEL:' + declared.name; Render.devLog('info', `[${p.name}] 发言中宣布决斗 → ${declared.name}`); }
           }
@@ -14713,7 +14716,7 @@ async function proc(players, promptFn, label, opts) {
           };
 
           // 白狼王：可以自爆
-          if (p.role.id === 'whitewolf' && !S._whitewolfUsed && hasNoAction) {
+          if (p.role.id === 'whitewolf' && !S._whitewolfUsed && !hasSkillAction('EXPLODE')) {
             const candidates = S.players.filter(x => x.alive && x.id !== p.id);
             const aliveTargets = candidates.map(x => x.name).join('、');
             const confirmR = await callAI(p,
@@ -14727,7 +14730,7 @@ async function proc(players, promptFn, label, opts) {
             }
           }
           // 骑士：可以发动决斗
-          if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && hasNoAction && !(r.action && /DUEL/i.test(r.action))) {
+          if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && !hasSkillAction('DUEL')) {
             const candidates = S.players.filter(x => x.alive && x.id !== p.id);
             const aliveTargets = candidates.map(x => x.name).join('、');
             const confirmR = await callAI(p,
@@ -20646,10 +20649,10 @@ const PhaseHandlers = {
     } else if (!action) {
       const alive2 = S.players.filter(x=>x.alive);
       duelAIResult = await callAI(knight,
-        '【决斗时机到了】两轮发言已结束，投票前这是你唯一的决斗机会，用完就没了。\n'
+        '【决斗时机到了】'+(S.singleRound ? '白天发言' : '两轮发言')+'已结束，投票前这是你今天最后的决斗机会。\n'
         +'存活玩家：'+alive2.filter(x=>x.id!==knight.id).map(x=>x.name+'(P'+(x.id+1)+')').join('、')+'\n'
-        +'\n你的决斗guide里说得很清楚：决斗门槛是「能说出他哪句话和已知事实矛盾」或「获利方向持续指向狼阵营」。'
-        +'如果场上有人满足这个条件，果断出手；如果真的没有足够把握，才选PASS。宁可冒险决斗一个七成怀疑位，也好过带着决斗机会白白出局。\n'
+        +((typeof bareRulesMode === 'function' && bareRulesMode()) ? '\n可以决斗一名存活玩家，也可以 PASS。\n' : '\n你的决斗guide里说得很清楚：决斗门槛是「能说出他哪句话和已知事实矛盾」或「获利方向持续指向狼阵营」。'
+        +'如果场上有人满足这个条件，果断出手；如果真的没有足够把握，才选PASS。宁可冒险决斗一个七成怀疑位，也好过带着决斗机会白白出局。\n')
         +'\n【私密确认】你的判断和理由都只留在<thinking>中，不进行额外公开发言。只有真正发动决斗后，系统才会公开固定的一句技能宣告；PASS必须完全静默。\n'
         +'<thinking>分析：谁的行为矛盾最明确？获利方向最像狼？值不值得现在决斗？</thinking>\n'
         +'<game></game>\n'
