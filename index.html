@@ -5666,6 +5666,31 @@ function findPlayerBySeatRef(value, pool) {
 //   返回该名字字符串，让调用方继续走 findPlayer。
 //   策略：在文本中查找池子里所有玩家名的出现位置，返回最后一个出现的名字
 //   （查验决定通常出现在思考末尾："...所以我决定查XXX"）。
+// 骑士在公开发言里明确宣布决斗（"我以骑士身份，向7号黑羽快斗发起决斗"）→ 返回目标玩家；否则 null。
+//   只认带动作的肯定句：句子里有「发起/发动决斗」「我（要/现在）决斗X」「决斗你」，且不含条件、否定、
+//   给别人的建议或以后的打算（如果/若/别/不/暂不/建议/明天/之后/会不会……）。
+function parseDeclaredDuel(text, candidates) {
+  const sentences = String(text || '').replace(/\[\s*\/?草稿\s*\][\s\S]*?\[\s*\/草稿\s*\]/g, '').split(/[。！？!?\n]+/);
+  const hedge = /如果|若是|若|假如|要是|万一|假设|别|不要|不会|不打算|不准备|暂不|暂时不|先不|没有|还没|建议|你们|大家|骑士[，,]|明天|之后|以后|晚点|下一轮|今晚|会不会|是否|要不要|可以考虑|考虑|准备好|能不能|出不出/;
+  const act = /(?:发起|发动|进行)\s*(?:骑士)?决斗|我(?:要|现在|当场|直接|就)?\s*决斗|决斗(?:你|他|她)|(?:现在|当场|立即|立刻)\s*决斗/;
+  for (const raw of sentences) {
+    const s = raw.trim();
+    if (!s || !/决斗/.test(s) || !act.test(s) || hedge.test(s)) continue;
+    const at = s.search(/决斗/);
+    let best = null, bestDist = Infinity;
+    for (const c of candidates) {
+      const i = s.indexOf(c.name);
+      if (i >= 0 && Math.abs(i - at) < bestDist) { best = c; bestDist = Math.abs(i - at); }
+    }
+    if (!best) {
+      const m = s.match(/(?:^|[^\d])(\d{1,2})\s*号/) || s.match(/[Pp](\d{1,2})/);
+      if (m) best = candidates.find(c => c.id === parseInt(m[1], 10) - 1) || null;
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
 function extractTargetName(text, pool) {
   if (!text || !pool || !pool.length) return null;
   // ① v9.9.1 修复：先尝试动词锚定匹配（"刀/杀/带走/咬/投/出/选 + 名字"）
@@ -14544,6 +14569,12 @@ async function proc(players, promptFn, label, opts) {
         const _isFreeOutput = _cardForceOff ? false : (_cardForceOn || _globalFO);
         if (_isFreeOutput && !opts.wolfOnly && !p.isPlayer) {
           const hasNoAction = !r.action || r.action.trim() === '' || r.action.trim().toLowerCase() === 'none';
+          // 骑士在发言里已经当众宣布决斗，就按宣布执行，不再另问一遍。
+          //   另问时模型常常没把自己刚说的话当成已经做出的决定，结果只喊不打（实际对局里出现过）。
+          if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && hasNoAction) {
+            const declared = parseDeclaredDuel(r.game || '', S.players.filter(x => x.alive && x.id !== p.id));
+            if (declared) { r.action = 'DUEL:' + declared.name; Render.devLog('info', `[${p.name}] 发言中宣布决斗 → ${declared.name}`); }
+          }
 
           // 通用解析器：从 confirmR 提取技能目标
           // 优先 <action> 标签，没有则从自然语言里抓关键词+玩家名
@@ -14580,6 +14611,11 @@ async function proc(players, promptFn, label, opts) {
               if (negExplode.test(text)) return null;
               // 进一步：把"不/别/暂不…自爆"所在的分句整体删掉，防止同段里其他玩家名被误抓
               text = text.replace(/(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝)[^。！？\n]*?(?:自爆|引爆|起爆)[^。！？\n]*[。！？\n]?/g, '');
+            }
+            // 决斗同理：「不决斗X」「先不决斗」「放弃决斗」是拒绝，不能因为句子里有决斗和人名就开打
+            if (skillKeyword === 'DUEL') {
+              const negDuel = /(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝|放弃)\s*(?:现在|这就|立即|马上|当场|今天)?\s*(?:发起|发动|进行)?\s*(?:决斗|DUEL)/i;
+              if (negDuel.test(text)) return null;
             }
             // 关键词检测（中文 + 英文）
             const skillWords = skillKeyword === 'EXPLODE'
@@ -14622,7 +14658,7 @@ async function proc(players, promptFn, label, opts) {
             }
           }
           // 骑士：可以发动决斗
-          if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && hasNoAction) {
+          if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && hasNoAction && !(r.action && /DUEL/i.test(r.action))) {
             const candidates = S.players.filter(x => x.alive && x.id !== p.id);
             const aliveTargets = candidates.map(x => x.name).join('、');
             const confirmR = await callAI(p,
