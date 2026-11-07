@@ -23,6 +23,7 @@ for (const file of ['index.html', 'en/index.html']) {
         out[mode + ':wolfHint'] = buildWolfChoiceHint();
         out[mode + ':brief'] = getFullRoleBrief(S.players.find(x => x.role.id === 'seer'));
         out[mode + ':rules'] = buildRulesExport();
+        out[mode + ':anchor'] = typeof buildDecisionAnchor === 'function' ? buildDecisionAnchor(S.players[0], 'day-vote', S.players, { allowPass: true }) : null;
         out[mode + ':webRules'] = buildWebRulesExport(S.players.find(x => x.role.id === 'seer'));
         out[mode + ':task'] = bareTask('【第2天·白天发言】这是第2天投票前唯一的一次发言。\n【当前局势】……\n【重要】<game>标签里必须写完整的正式发言。别只甩一句结论，不要硬凑一个人来怀疑。');
         out[mode + ':task2'] = bareTask('【第2天·白天发言·第二轮】……\n\n【⚠️ 严禁复读第一轮】① 正面反驳 ② 改票 ③ 新角度\n\n【重要】<game>标签里必须写完整的正式发言。');
@@ -44,6 +45,21 @@ for (const file of ['index.html', 'en/index.html']) {
     }
     assert.equal(r['bare:wolfHint'], '', `${file}: 裸规则不给狼队战术提示`);
     if (file === 'index.html') assert.ok(r['bare:brief'].includes('每晚查验一名其他玩家') && !r['bare:brief'].includes('每晚看一人知道好坏'), `${file}: 裸规则的角色说明应写清技能 ${r['bare:brief']}`);
+    if (r['lite:anchor'] !== null) {
+      assert.equal(r['bare:anchor'], '', `${file}: 裸规则不应附私密决策检查清单`);
+      assert.ok(r['lite:anchor'].includes('私密决策锚点'), `${file}: 其他模式的决策锚点不应被关`);
+    }
+    const B = "(typeof bareRulesMode === 'function' && bareRulesMode())";
+    for (const [label, needle] of [
+      ['自由输出发言指导', "finalPrompt += " + B + " ? '\\n\\n直接用第一人称说出你要对大家说的话。"],
+      ['公开发言要说完整', "if (isFreeOutput && !" + B + ") finalPrompt += '\\n\\n【公开发言要说完整】"],
+      ['白天投票', "callAI(p, " + B + " ? '【投票】投谁出局？\\n<thinking>思考</thinking>"],
+      ['狼队第二轮', "const prompt = " + B + " ? `【狼队夜聊·第二轮】"],
+      ['猎人开枪', "callAI(p, " + B + " ? '【猎人开枪】你已经出局"],
+      ['警长报名', "callAI(p, " + B + " ? '【警长竞选】天亮了"],
+      ['竞选发言', "proc(candidates, p => " + B + " ? '【竞选演讲】"],
+      ['狼队首夜事实的结论句', "(" + B + " ? '' : '所以今晚刀口死不死，都不影响他明天上警起跳。')"],
+    ]) assert.ok(src.includes(needle), `${file}: 裸规则下「${label}」应只给规则和选项`);
     if (file === 'index.html') {
       for (const k of ['bare:rules', 'bare:webRules']) {
         for (const gone of ['推理建议', '推理证据等级', '信息边界', '必须遵守', '不得', '你的目标函数', '不要'])
