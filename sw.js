@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v74-bare-prompts';
+const CACHE_NAME = 'wolf-pwa-v75-bare-scrub';
 const APP_SHELL = [
   './',
   './index.html',
