@@ -85,6 +85,37 @@ async function playOne(file, variant, seed) {
   return result;
 }
 
+// 读档续玩：存档会原样恢复每个 AI 的记忆，里面有旧版题目原文。裸规则下以前回合的题目只发标题，当前题目完整发送。
+await withOfflinePage(async (page, origin) => {
+  await page.goto(origin + '/index.html'); await page.waitForTimeout(2500);
+  const r = await page.evaluate(async () => {
+    TeachingWorldbooks.load({ mode: 'bare', liteMigrated: true });
+    $('g-url').value = 'https://api.example.test/v1'; $('g-key').value = 'k'; $('g-model').value = 'm';
+    if ($('g-apitype')) $('g-apitype').value = 'openai';
+    window.__DEMO__ = true; MODE_CONFIGS.auditLoad = { name: 'a', count: 6, roles: ['guard','werewolf','villager','villager','seer','werewolf'] };
+    for (const k in playerConfigs) delete playerConfigs[k];
+    S.mode = 'auditLoad'; S.pureAI = true; startGame(); window.__DEMO__ = false; S.round = 2; S.phase = 'day';
+    const g = S.players.find(x => x.role.id === 'guard');
+    g.memory.push({ role: 'user', isTaskPrompt: true, round: 1, phase: 'night', content: '【守卫·第1夜】\n可选目标：P1\n【第一夜同样没有固定答案】请比较①守中概率②撞药损失' },
+                  { role: 'assistant', round: 1, phase: 'night', content: '<action>P1</action>' });
+    let sent = '';
+    window.fetch = async (url, init) => {
+      sent = JSON.parse(init.body).messages.map(m => m.content).join('\n');
+      const content = '<game>我先听听。</game><action>None</action>';
+      return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    };
+    await callAI(g, '【第2天·白天发言】这是第2天投票前唯一的一次发言。\n【重要】<game>里写你真正要说出口的话。', {});
+    const bare = sent;
+    TeachingWorldbooks.load({ mode: 'lite', liteMigrated: true });
+    await callAI(g, '【第2天·白天发言】这是第2天投票前唯一的一次发言。', {});
+    return { bare, lite: sent };
+  });
+  assert.ok(r.bare.includes('【守卫·第1夜】') && !r.bare.includes('没有固定答案'), '读档后旧题目里的说教仍被发送');
+  assert.ok(r.bare.includes('这是第2天投票前唯一的一次发言'), '当前题目不应被截断');
+  assert.ok(r.lite.includes('没有固定答案'), '其他模式的记忆不应被改');
+  console.log('bare audit: restored memory sends only old task headers');
+});
+
 for (const [variant, seed] of [['a', 1], ['b', 11]]) {
   const { over, reqs, errors } = await playOne('index.html', variant, seed);
   assert.ok(over, `配置${variant}: 整局没有打完（${reqs.length} 次请求）`);
