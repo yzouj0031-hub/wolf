@@ -10764,10 +10764,10 @@ async function _callAIImpl(p, prompt, opts) {
       .replace(/\n?格式要求[\s\S]*?<\/action>/gi, '')
       .trim();
     // 只加一句自然语言引导，不强制格式
-    finalPrompt += '\n\n你是游戏中的一名玩家，现在轮到你发言。直接用第一人称对其他玩家说话，像在桌上聊天一样自然。公开发言不设短回复目标：要让别人听懂你现在想推动什么，以及你为什么这样判断；身份对跳、处于主要出局位或投票前需要翻盘时，优先回应真正会改变票型的最强指控。不要为了凑格式把所有人复述一遍，也不要为了显得强势凭空找一个人攻击。\n\n如果你需要先分析再发言，可以在 [草稿] 和 [/草稿] 之间写内心思考。这部分不会被其他玩家看到。先在草稿里比较至少两个不同方案，检查对手回应、下一手和退出条件，再选择一个。\n[草稿]\n方案一继续推P3，能压票但可能替最早带节奏的人完成工作；方案二先追P5的改票原因，信息增量更高。我选方案二，如果P5能给出具体依据就改查P3。\n[/草稿]\nP5，你上一轮还保P3，这轮突然跟票推他，改变判断的具体信息是什么？现在我不跟这张票，回答不出来我会优先投你。\n\n⚠️【格式铁律·否则你会沉默出局】用了 [草稿] 就必须写 [/草稿] 闭合；真正说出口的话必须写在 [/草稿] 之后，不能只留在草稿里。\n\n发言之后可以追加一份不会公开的长期备忘：[计划]目标；下一步；计划成立的前提；退出或改线条件[/计划]。有具体跨轮计划时才写；没有就省略，不要写“继续观察”。要投票请在公开发言最后一句说明，计划块放在最末尾。';
+    finalPrompt += (typeof bareRulesMode === 'function' && bareRulesMode()) ? '\n\n直接用第一人称说出你要对大家说的话。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。' : '\n\n你是游戏中的一名玩家，现在轮到你发言。直接用第一人称对其他玩家说话，像在桌上聊天一样自然。公开发言不设短回复目标：要让别人听懂你现在想推动什么，以及你为什么这样判断；身份对跳、处于主要出局位或投票前需要翻盘时，优先回应真正会改变票型的最强指控。不要为了凑格式把所有人复述一遍，也不要为了显得强势凭空找一个人攻击。\n\n如果你需要先分析再发言，可以在 [草稿] 和 [/草稿] 之间写内心思考。这部分不会被其他玩家看到。先在草稿里比较至少两个不同方案，检查对手回应、下一手和退出条件，再选择一个。\n[草稿]\n方案一继续推P3，能压票但可能替最早带节奏的人完成工作；方案二先追P5的改票原因，信息增量更高。我选方案二，如果P5能给出具体依据就改查P3。\n[/草稿]\nP5，你上一轮还保P3，这轮突然跟票推他，改变判断的具体信息是什么？现在我不跟这张票，回答不出来我会优先投你。\n\n⚠️【格式铁律·否则你会沉默出局】用了 [草稿] 就必须写 [/草稿] 闭合；真正说出口的话必须写在 [/草稿] 之后，不能只留在草稿里。\n\n发言之后可以追加一份不会公开的长期备忘：[计划]目标；下一步；计划成立的前提；退出或改线条件[/计划]。有具体跨轮计划时才写；没有就省略，不要写“继续观察”。要投票请在公开发言最后一句说明，计划块放在最末尾。';
   }
 
-  if (isFreeOutput) finalPrompt += '\n\n【公开发言要说完整】别只在草稿里想明白、嘴上只剩一句结论：把这轮想推动什么和凭什么说出来，有一个具体依据（谁说过什么、票投了谁、系统公布了什么）就够。被质疑时回应其中最强且会改变票型的一点；若现有指控确实拆不动，可以明确承认并转向提问、保护、协调或保留意见，不必硬造狼点。有效内容说完整即可，避免机械复读和无信息灌水。';
+  if (isFreeOutput && !(typeof bareRulesMode === 'function' && bareRulesMode())) finalPrompt += '\n\n【公开发言要说完整】别只在草稿里想明白、嘴上只剩一句结论：把这轮想推动什么和凭什么说出来，有一个具体依据（谁说过什么、票投了谁、系统公布了什么）就够。被质疑时回应其中最强且会改变票型的一点；若现有指控确实拆不动，可以明确承认并转向提问、保护、协调或保留意见，不必硬造狼点。有效内容说完整即可，避免机械复读和无信息灌水。';
 
   // 不只system prompt，当前任务与历史memory同样必须脱敏；否则动作候选/旧对话仍会把真名泄露给API。
   if (blindNamesOn()) finalPrompt = blindMaskAIInstructions(finalPrompt);
@@ -13814,7 +13814,7 @@ function buildWolfNightRuleFacts() {
   const zh = [], en = [];
   const hd = !!(typeof $ === 'function' && $('m-hdeath') && $('m-hdeath').checked);
   if (S.round === 1 && (S.players || []).length >= 12) {
-    zh.push('今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。所以今晚刀口死不死，都不影响他明天上警起跳。');
+    zh.push('今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。' + ((typeof bareRulesMode === 'function' && bareRulesMode()) ? '' : '所以今晚刀口死不死，都不影响他明天上警起跳。'));
     en.push('The Sheriff election happens after tonight and before tonight\'s deaths are announced: a player killed tonight (and not saved) still counts as present during the election — they can run, give a campaign speech, and vote. Whether tonight\'s target dies does not stop them from running and claiming tomorrow.');
   }
   if (hd) {
@@ -15369,7 +15369,7 @@ async function shoot(p) {
     const _hdNote = ($('m-hdeath') && $('m-hdeath').checked)
       ? '\n\n【隐死亡局·重要】本局是隐死亡：如果你开枪，全场会知道"猎人出手了"，你的猎人身份随之公开；如果你不开枪，你会像普通村民一样默默离场，没有人知道你是猎人——这条信息会被你带进棺材。所以"不开枪"在隐死亡局额外多了一层价值：保留"场上可能还有猎人"的迷雾，让狼继续提防。把这点算进你的决策。'
       : '';
-    const r = await callAI(p,'【猎人开枪】你已经死亡，现在需要做一个决定：开枪带走一人，或者选择不开枪。\n存活玩家：'+alive.map(x=>x.name).join('、')+tonightDeathInfo+_hdNote+'\n\n【先做局势识别——这一步决定了之后一切】\n在 thinking 里第一件事就是回答：现在场上还有"未被证实身份的活着的狼"吗？\n\n· 如果场上已经四狼全清在即（明牌身份+已死狼+即将兑现的殉情/连锁=确认狼方覆灭）→ 没有目标可打，PASS。开枪只会误伤好人。\n· 如果对手已经自曝身份、报出魅惑/咬人目标、明确"谢幕"了 → 游戏实质已经结束，PASS。\n· 如果场上还有狼藏着，或者你对某人有具体怀狼依据 → 进入下面的开枪判断。\n\n这一步是硬性前置检查。绝大多数"猎人胡乱开死好人"的事故都发生在这里——AI 没识别出残局已定，还按"猎人就是要开枪"的惯性扣扳机。\n\n【确认还有狼之后，再判断开不开】\n猎人这个角色在统计上偏向开枪——带枪进棺材确实大多浪费。所以默认倾向是开。但开之前在 thinking 里诚实回答两件事：\n\n1. 我最怀疑的那个人，我能说出具体依据吗？（哪句话、哪次投票、哪个行为）说不出就是软感觉。\n2. 如果他翻好人，我赔的是我的命+他的命，双倍亏损。我接受吗？\n\n硬依据 → 开，别犹豫。\n软感觉但场上轮次紧、不开枪好人就要崩 → 也可以开，赌一把比静默更有价值。\n软感觉且场上轮次还很宽松 → PASS 是合理选择。\n\n没有"猎人必须开枪"的规则，但也没有"宁可不开"的规则。具体看局势。\n\n【如果你最怀疑的人已经在今夜其他死者列表里】他已经死了，不能再为他开枪。重新考虑第二选择。\n\n必须在<action>里给明确答案：\n- 开枪：<action>目标名字</action>（必须是存活玩家里的某一个）\n- 不开枪：<action>None</action>\n\n不允许含糊。必须二选一立刻决定。thinking 里先判断场上狼方是否已经实质覆灭（是就 PASS），还有狼就看自己对谁有具体依据、够不够硬。game 里当众宣布决定：开枪就说目标和理由，不开枪就说为什么（残局已定，还是依据不够硬）。\n\n格式（标签里只放内容本身，不要抄说明文字）：\n<thinking>你的判断</thinking>\n<game>你当众说的话</game>\n<action>名字或None</action>',{skillConfirm:true});
+    const r = await callAI(p, (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【猎人开枪】你已经出局，可以开枪带走一名存活玩家，也可以不开枪。\n存活玩家：'+alive.map(x=>x.name).join('、')+tonightDeathInfo+'\n<thinking>你的判断</thinking>\n<game>你当众说的话</game>\n<action>名字或None</action>' : '【猎人开枪】你已经死亡，现在需要做一个决定：开枪带走一人，或者选择不开枪。\n存活玩家：'+alive.map(x=>x.name).join('、')+tonightDeathInfo+_hdNote+'\n\n【先做局势识别——这一步决定了之后一切】\n在 thinking 里第一件事就是回答：现在场上还有"未被证实身份的活着的狼"吗？\n\n· 如果场上已经四狼全清在即（明牌身份+已死狼+即将兑现的殉情/连锁=确认狼方覆灭）→ 没有目标可打，PASS。开枪只会误伤好人。\n· 如果对手已经自曝身份、报出魅惑/咬人目标、明确"谢幕"了 → 游戏实质已经结束，PASS。\n· 如果场上还有狼藏着，或者你对某人有具体怀狼依据 → 进入下面的开枪判断。\n\n这一步是硬性前置检查。绝大多数"猎人胡乱开死好人"的事故都发生在这里——AI 没识别出残局已定，还按"猎人就是要开枪"的惯性扣扳机。\n\n【确认还有狼之后，再判断开不开】\n猎人这个角色在统计上偏向开枪——带枪进棺材确实大多浪费。所以默认倾向是开。但开之前在 thinking 里诚实回答两件事：\n\n1. 我最怀疑的那个人，我能说出具体依据吗？（哪句话、哪次投票、哪个行为）说不出就是软感觉。\n2. 如果他翻好人，我赔的是我的命+他的命，双倍亏损。我接受吗？\n\n硬依据 → 开，别犹豫。\n软感觉但场上轮次紧、不开枪好人就要崩 → 也可以开，赌一把比静默更有价值。\n软感觉且场上轮次还很宽松 → PASS 是合理选择。\n\n没有"猎人必须开枪"的规则，但也没有"宁可不开"的规则。具体看局势。\n\n【如果你最怀疑的人已经在今夜其他死者列表里】他已经死了，不能再为他开枪。重新考虑第二选择。\n\n必须在<action>里给明确答案：\n- 开枪：<action>目标名字</action>（必须是存活玩家里的某一个）\n- 不开枪：<action>None</action>\n\n不允许含糊。必须二选一立刻决定。thinking 里先判断场上狼方是否已经实质覆灭（是就 PASS），还有狼就看自己对谁有具体依据、够不够硬。game 里当众宣布决定：开枪就说目标和理由，不开枪就说为什么（残局已定，还是依据不够硬）。\n\n格式（标签里只放内容本身，不要抄说明文字）：\n<thinking>你的判断</thinking>\n<game>你当众说的话</game>\n<action>名字或None</action>',{skillConfirm:true});
     logNightThinking(p, r);
     const decision = await resolveAIAction3(p, r, {
       label:'猎人开枪', candidates:alive, targetCount:1, allowPass:true,
@@ -15469,7 +15469,7 @@ async function transferBadge(d) {
   if (d.isPlayer) {
     tn = await waitChoice('警徽传给谁？','👑 警徽转移', alive.map(x=>({label:x.name,value:x.name})).concat({label:'销毁警徽',value:'None',abs:true}));
   } else {
-    const r = await callAI(d,'【警徽转移·死亡时点校验】你已在'+badgeDeathLabel+'死亡，现在必须立刻决定把警徽交给一名存活玩家，或销毁警徽。'+unexecutedPlanNote+'\n\n存活玩家：'+alive.map(x=>x.name).join('、')+'\n请只使用你死亡这一刻之前已经公开或已经实际获得的信息，不得用尚未开始的夜晚、未执行的警徽流或未来发言作为理由。\n<thinking>先确认哪些行动已完成、哪些只是计划，再决定警徽</thinking>\n<game>临终警徽决定与基于当时信息的理由</game>\n<action>名字或None</action>',{skillConfirm:true});
+    const r = await callAI(d, (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【警徽】你已出局，可以把警徽交给一名存活玩家，或者销毁警徽。\n存活玩家：'+alive.map(x=>x.name).join('、')+'\n<thinking>思考</thinking>\n<game>你说的话</game>\n<action>名字或None</action>' : '【警徽转移·死亡时点校验】你已在'+badgeDeathLabel+'死亡，现在必须立刻决定把警徽交给一名存活玩家，或销毁警徽。'+unexecutedPlanNote+'\n\n存活玩家：'+alive.map(x=>x.name).join('、')+'\n请只使用你死亡这一刻之前已经公开或已经实际获得的信息，不得用尚未开始的夜晚、未执行的警徽流或未来发言作为理由。\n<thinking>先确认哪些行动已完成、哪些只是计划，再决定警徽</thinking>\n<game>临终警徽决定与基于当时信息的理由</game>\n<action>名字或None</action>',{skillConfirm:true});
     logNightThinking(d, r);
     const decision = await resolveAIAction3(d, r, {
       label:'警徽传递', candidates:alive, targetCount:1, allowPass:true,
@@ -15529,7 +15529,7 @@ async function lastWords(p) {
           const hasDeathSkill0 = ['hunter', 'wolfking', 'whitewolf'].includes(p.role.id);
           const skillReminder0 = hasDeathSkill0
             ? ''
-            : `\n\n【⚠️ 重要提醒】你是【${p.role.name}】，${p.role.id === 'wolfbeauty' ? '你出局时被你魅惑的人会自动殉情（系统结算，不用你宣布）；' : '没有死亡技能；'}遗言里不要说"我开枪带走XX""我自爆带走XX""我决斗XX"这类话。${p.role.team === 'bad' ? '你是狼：遗言也是博弈，可以继续你的身份口径、替还活着的队友打掩护或把火力引向好人，不必认狼（除非你算过这样对狼队更有利）。' : p.role.team === 'good' ? '你是好人：遗言要留下能帮好人的东西——你掌握的真实信息（查验、用药、守护等记录）、你的站边、你最怀疑谁和理由。' : ''}`;
+            : (typeof bareRulesMode === 'function' && bareRulesMode()) ? ('\n\n' + (p.role.id === 'wolfbeauty' ? '你出局时，被你魅惑的人会跟着出局。' : '你没有死亡技能。')) : `\n\n【⚠️ 重要提醒】你是【${p.role.name}】，${p.role.id === 'wolfbeauty' ? '你出局时被你魅惑的人会自动殉情（系统结算，不用你宣布）；' : '没有死亡技能；'}遗言里不要说"我开枪带走XX""我自爆带走XX""我决斗XX"这类话。${p.role.team === 'bad' ? '你是狼：遗言也是博弈，可以继续你的身份口径、替还活着的队友打掩护或把火力引向好人，不必认狼（除非你算过这样对狼队更有利）。' : p.role.team === 'good' ? '你是好人：遗言要留下能帮好人的东西——你掌握的真实信息（查验、用药、守护等记录）、你的站边、你最怀疑谁和理由。' : ''}`;
           Render.setSpeaking(p.id, true);
           const willPrompt0 = '【遗言】你死了，最后说几句。'+skillReminder0+'\n<thinking>思考</thinking>\n<game>遗言</game>\n<action>None</action>';
           r0 = await callAI(p, willPrompt0);
@@ -15572,7 +15572,7 @@ async function lastWords(p) {
     const hasDeathSkill = ['hunter', 'wolfking', 'whitewolf'].includes(p.role.id);
     const skillReminder = hasDeathSkill
       ? ''
-      : `\n\n【⚠️ 重要提醒】你是【${p.role.name}】，${p.role.id === 'wolfbeauty' ? '你出局时被你魅惑的人会自动殉情（系统结算，不用你宣布）；' : '没有死亡技能；'}遗言里不要说"我开枪带走XX""我自爆带走XX""我决斗XX"这类话。${p.role.team === 'bad' ? '你是狼：遗言也是博弈，可以继续你的身份口径、替还活着的队友打掩护或把火力引向好人，不必认狼（除非你算过这样对狼队更有利）。' : p.role.team === 'good' ? '你是好人：遗言要留下能帮好人的东西——你掌握的真实信息（查验、用药、守护等记录）、你的站边、你最怀疑谁和理由。' : ''}`;
+      : (typeof bareRulesMode === 'function' && bareRulesMode()) ? ('\n\n' + (p.role.id === 'wolfbeauty' ? '你出局时，被你魅惑的人会跟着出局。' : '你没有死亡技能。')) : `\n\n【⚠️ 重要提醒】你是【${p.role.name}】，${p.role.id === 'wolfbeauty' ? '你出局时被你魅惑的人会自动殉情（系统结算，不用你宣布）；' : '没有死亡技能；'}遗言里不要说"我开枪带走XX""我自爆带走XX""我决斗XX"这类话。${p.role.team === 'bad' ? '你是狼：遗言也是博弈，可以继续你的身份口径、替还活着的队友打掩护或把火力引向好人，不必认狼（除非你算过这样对狼队更有利）。' : p.role.team === 'good' ? '你是好人：遗言要留下能帮好人的东西——你掌握的真实信息（查验、用药、守护等记录）、你的站边、你最怀疑谁和理由。' : ''}`;
     const willPromptAI = '【遗言】你死了，最后说几句。'+skillReminder+'\n<thinking>思考</thinking>\n<game>遗言</game>\n<action>None</action>';
     let r = await callAI(p, willPromptAI);
     Render.setSpeaking(p.id,false);
@@ -17161,7 +17161,18 @@ ${priorBlock}${taskBlock}
           : '';
         const ts = validWolfTargets.map(x => x.name).join(',');
 
-        const prompt = `【狼队密谈·回响轮】队友们刚才各自开场了；排在你之前进入回响的队友，其内容已经更新为回响后的最新表态。${myOpeningText}
+        const prompt = (typeof bareRulesMode === 'function' && bareRulesMode()) ? `【狼队夜聊·第二轮】${myOpeningText}
+
+【队友当前的说法】
+${mateOpenings || '(无)'}
+
+可刀目标:${ts}${mistDecisionHint}
+想强烈反对、打断讨论时，<interrupt> 写 yes。
+
+<thinking>你的分析</thinking>
+<game>你对队友说的话</game>
+<action>你最终支持的刀口名字 或 PASS（空刀）</action>
+<interrupt>yes 或 no</interrupt>` : `【狼队密谈·回响轮】队友们刚才各自开场了；排在你之前进入回响的队友，其内容已经更新为回响后的最新表态。${myOpeningText}
 
 【队友当前最新表态】
 ${mateOpenings || '(无)'}
@@ -17484,7 +17495,7 @@ ${mistDecisionHint}
         if (v!=='None') { const t = findPlayer(v, targets); if (t) S.nightData.wolfBeautyCharm = t.id; }
       } else {
         const _wbKill = (S.nightData && Number.isInteger(S.nightData.kill)) ? S.players[S.nightData.kill] : null;
-        const r = await callAI(wb,'【狼美人】今晚你可以魅惑一名玩家，也可以不魅惑。\n· 规则：被魅惑的人现在照常活着；你以任何方式出局（被投、被刀、被毒、被决斗、被带走——被毒、被决斗也照样连带）时，他会跟着殉情。红线持续到你下一次选择；今晚选"不魅惑"会清除原有红线。\n· 魅惑不是击杀，也不顶替夜刀：今晚的刀口已经定了'+(_wbKill ? ('（名义刀口：'+(_wbKill.id===wb.id?'你自己——女巫不救也没被挡下的话，你今晚就会带走红线上的人':_wbKill.name)+'）') : '')+'。\n· 红线是你出局那一刻的免费交换：挂得越值（真神、警长、或能让狼队离屠边更近的那一边），你被处理时狼队亏得越少。挂谁是秘密，别指望它吓住谁。\n可选：'+targets.map(x=>x.name).join(',')+'\n<thinking>思考：挂谁最值？</thinking>\n<game>发言</game>\n<action>名字或None</action>',{skillConfirm:true});
+        const r = await callAI(wb, (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【狼美人】今晚你可以魅惑一名玩家，也可以不魅惑。被魅惑的人照常活着；你以任何方式出局时，他会跟着出局。今晚不魅惑会清除原来的魅惑。\n可选：'+targets.map(x=>x.name).join(',')+'\n<thinking>思考</thinking>\n<game>发言</game>\n<action>名字或None</action>' : '【狼美人】今晚你可以魅惑一名玩家，也可以不魅惑。\n· 规则：被魅惑的人现在照常活着；你以任何方式出局（被投、被刀、被毒、被决斗、被带走——被毒、被决斗也照样连带）时，他会跟着殉情。红线持续到你下一次选择；今晚选"不魅惑"会清除原有红线。\n· 魅惑不是击杀，也不顶替夜刀：今晚的刀口已经定了'+(_wbKill ? ('（名义刀口：'+(_wbKill.id===wb.id?'你自己——女巫不救也没被挡下的话，你今晚就会带走红线上的人':_wbKill.name)+'）') : '')+'。\n· 红线是你出局那一刻的免费交换：挂得越值（真神、警长、或能让狼队离屠边更近的那一边），你被处理时狼队亏得越少。挂谁是秘密，别指望它吓住谁。\n可选：'+targets.map(x=>x.name).join(',')+'\n<thinking>思考：挂谁最值？</thinking>\n<game>发言</game>\n<action>名字或None</action>',{skillConfirm:true});
         logNightThinking(wb, r);
         const decision = await resolveAIAction3(wb, r, {
           label:'狼美人魅惑', candidates:targets, targetCount:1, allowPass:true,
@@ -17797,7 +17808,7 @@ ${mistDecisionHint}
       //   错写成"P7",findPlayer 走编号路径命中错误玩家 → 查验目标和 AI 本意不一致
       //   新逻辑明确给 AI 对照表,并要求 action 字段必须用玩家名而非 P 编号
       const targetList = ts.map(x => `P${x.id + 1} ${x.name}`).join('、');
-      const contextPrompt = '【预言家·第'+S.round+'夜】\n可查验玩家：'+targetList+'\n你必须查验一人，这是你唯一的情报来源。绝不能跳过。';
+      const contextPrompt = '【预言家·第'+S.round+'夜】\n可查验玩家：'+targetList+((typeof bareRulesMode === 'function' && bareRulesMode()) ? '\n查验一名玩家。' : '\n你必须查验一人，这是你唯一的情报来源。绝不能跳过。');
       const actionPrompt = '你决定查验谁？\n<action>玩家名（精确复制玩家名，不要只写P编号）</action>\n注意：必须用玩家名（例如"工藤新一"），不要写"P5"这种编号——避免歧义。';
       let r = await nightTwoStep(se, contextPrompt, actionPrompt);
       logNightThinking(se, r);
@@ -18727,7 +18738,7 @@ const PhaseHandlers = {
     }
     const _aiSignupPlayers = alive.filter(p => !p.isPlayer);
     await batchCall(_aiSignupPlayers, 'c-vote', async p => {
-      const r = await callAI(p, '【警长竞选】⏰ 昨晚的夜间行动（狼刀人、预言家查验、女巫用药、守卫守护）已经全部结束，现在天亮了，进入第一天的警长竞选环节。（注意：昨晚发生的一切此刻已成定局，无法改变；你接下来在竞选里说什么、做什么，都不会影响昨晚已经发生的结果。）\n现在是警长竞选环节。你要不要竞选警长？警长有1.5票，能决定每天的发言顺序并最后归票；参选要上台发言，也会成为焦点。预言家通常上警报验、留警徽流；狼也可以上警悍跳或抢警徽；其他人按你的身份和计划判断。\n<thinking>思考</thinking>\n<game>（此阶段无需公开发言）</game>\n<action>只写YES或NO，YES=参选，NO=不参选</action>', {noMemory:true, skillConfirm:true});
+      const r = await callAI(p, (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【警长竞选】天亮了，先进行警长竞选。警长有1.5票，决定每天的发言顺序并最后归票。你要不要参选？\n<thinking>思考</thinking>\n<game>（此阶段无需公开发言）</game>\n<action>只写YES或NO，YES=参选，NO=不参选</action>' : '【警长竞选】⏰ 昨晚的夜间行动（狼刀人、预言家查验、女巫用药、守卫守护）已经全部结束，现在天亮了，进入第一天的警长竞选环节。（注意：昨晚发生的一切此刻已成定局，无法改变；你接下来在竞选里说什么、做什么，都不会影响昨晚已经发生的结果。）\n现在是警长竞选环节。你要不要竞选警长？警长有1.5票，能决定每天的发言顺序并最后归票；参选要上台发言，也会成为焦点。预言家通常上警报验、留警徽流；狼也可以上警悍跳或抢警徽；其他人按你的身份和计划判断。\n<thinking>思考</thinking>\n<game>（此阶段无需公开发言）</game>\n<action>只写YES或NO，YES=参选，NO=不参选</action>', {noMemory:true, skillConfirm:true});
       logNightThinking(p, r);
       const decision = await resolveAIEnumAction(p, r, {label:'警长竞选报名', options:['YES','NO']});
       if (decision.status === 'execute' && decision.value === 'YES') _aiCandidateWilling[p.id] = true;
@@ -18752,11 +18763,11 @@ const PhaseHandlers = {
     const nonCandNames = alive.filter(p => !candidates.some(c => c.id === p.id)).map(p => p.name);
     const electFact = '【警长竞选·参选名单】本轮参选警长的是：' + (candNames.join('、') || '无')
       + '。' + (nonCandNames.length ? '未参选的玩家是：' + nonCandNames.join('、') + '。' : '')
-      + '【重要规则】竞选演讲阶段只有参选者发言，未参选的玩家本来就不发言——这是正常的弃权选择，不是"沉默"或"装死"，绝对不能把"某人没在竞选环节发言"当作怀疑他的理由。'
+      + ((typeof bareRulesMode === 'function' && bareRulesMode()) ? '' : '【重要规则】竞选演讲阶段只有参选者发言，未参选的玩家本来就不发言——这是正常的弃权选择，不是"沉默"或"装死"，绝对不能把"某人没在竞选环节发言"当作怀疑他的理由。')
       // ★ 无人参选时系统会随机抓一个人上台。此前记录里只写"警长报名：P6"，等于把一次
       //   掷骰子的结果写成了 P6 的主动意愿，之后所有"他一个人上警，要么真神要么悍跳"
       //   的推理都建立在一个不存在的动机上。
-      + (_forcedCandidate ? `【注意】本轮【无人主动报名】，系统随机指定了${_forcedCandidate}作为唯一候选人。${_forcedCandidate}并没有主动上警，绝对不能据此推断他的身份或动机。` : '');
+      + (_forcedCandidate ? (typeof bareRulesMode === 'function' && bareRulesMode()) ? `本轮无人报名，系统随机指定了${_forcedCandidate}作为候选人。` : `【注意】本轮【无人主动报名】，系统随机指定了${_forcedCandidate}作为唯一候选人。${_forcedCandidate}并没有主动上警，绝对不能据此推断他的身份或动机。` : '');
     gameRecord.push({
       type:'sheriff_roster', stage:'signup', round:S.round,
       candidates:candNames, nonCandidates:nonCandNames, forcedCandidate:_forcedCandidate,
@@ -18775,7 +18786,7 @@ const PhaseHandlers = {
     }
 
     // ★ 第二阶段：竞选演讲（只有候选人发言）
-    const sheriffSpeechResult = await proc(candidates, p => '【竞选演讲】⏰ 提醒：昨晚的夜间行动（狼刀人、神职查验/用药/守护）已经全部结束，现在是天亮后的第一天警长竞选。昨晚谁死了系统还【没有公布】，要等竞选结束才宣布——所以现在别提"昨晚谁死了/平安夜"。\n\n【时序硬限制·输出前逐句检查】如果你自称预言家或编造任何首夜夜间行动，首夜选择目标的理由只能来自当时已经存在的座位、直觉、随机选择或开局预设。绝不能说“因为他上警/没上警/竞选发言如何，所以我昨晚验他、守他或刀他”——上警名单和竞选发言都是今早才出现，不可能穿越回昨晚。可以分别说“昨晚我凭座位验了X；今天听完他上警发言后，我又如何看他”，但不能把后者当作前者的原因。系统会拒收并要求重写任何第一人称时序倒错。\n\n你正在竞选警长，有身份、有查验就报出来，并给出警徽流；没有的话，说清你的站边、你怀疑谁和理由，以及拿到警徽后打算怎么安排。别讲空泛的"我会带好大家"。\n注意：<game>标签里直接写完整的竞选发言。', '竞选', {enforceNightChronology:true});
+    const sheriffSpeechResult = await proc(candidates, p => (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【竞选演讲】你在竞选警长，现在轮到你发言。昨晚的死讯要等竞选结束才公布。\n<game>里写你真正要说出口的话。' : '【竞选演讲】⏰ 提醒：昨晚的夜间行动（狼刀人、神职查验/用药/守护）已经全部结束，现在是天亮后的第一天警长竞选。昨晚谁死了系统还【没有公布】，要等竞选结束才宣布——所以现在别提"昨晚谁死了/平安夜"。\n\n【时序硬限制·输出前逐句检查】如果你自称预言家或编造任何首夜夜间行动，首夜选择目标的理由只能来自当时已经存在的座位、直觉、随机选择或开局预设。绝不能说“因为他上警/没上警/竞选发言如何，所以我昨晚验他、守他或刀他”——上警名单和竞选发言都是今早才出现，不可能穿越回昨晚。可以分别说“昨晚我凭座位验了X；今天听完他上警发言后，我又如何看他”，但不能把后者当作前者的原因。系统会拒收并要求重写任何第一人称时序倒错。\n\n你正在竞选警长，有身份、有查验就报出来，并给出警徽流；没有的话，说清你的站边、你怀疑谁和理由，以及拿到警徽后打算怎么安排。别讲空泛的"我会带好大家"。\n注意：<game>标签里直接写完整的竞选发言。', '竞选', {enforceNightChronology:true});
     // ★ 白狼王在竞选演讲阶段自爆 → 竞选作废，强制入夜
     if (sheriffSpeechResult === 'whitewolf_explode' || S._sheriffAbortedByExplode) { if (await _abortSheriffIfExploded()) return; }
     if (sheriffSpeechResult && sheriffSpeechResult.startsWith('trial:') && sheriffSpeechResult !== 'trial:tie') {
@@ -18855,7 +18866,7 @@ const PhaseHandlers = {
       //   也没有 enforceNightChronology 校验的发言轮。悍跳狼因此可以在这里编一个
       //   用当天早上的信息解释的首夜行动（"因为他上警，我昨晚才验的他"），而这句话
       //   会被原样写进权威时间轴，之后的读者当成真实的预言家报点。
-      const finalSpeechResult = await proc(candidates, p => '【第' + S.round + '天·警长最终陈词】⏰ 仍处在天亮后的警长竞选阶段：昨晚的夜间行动已全部结束并成定局，但昨晚谁死了系统还【没有公布】，别提"昨晚谁死了/平安夜"。\n\n【时序硬限制】首夜任何夜间行动的理由只能来自当时已存在的座位、直觉、随机或开局预设，绝不能说"因为他上警/没上警/竞选发言如何，所以我昨晚验他、守他或刀他"——上警名单和竞选发言都是今早才出现的。\n\n退选环节已结束，你成功留在竞选中。这是投票前最后一次发言机会，说清你当警长会怎么做、为什么大家应该投你，并回应其他候选人最关键的竞争观点，做最后争取。\n<thinking>思考策略</thinking>\n<game>最终陈词，直接开口</game>\n<action>None</action>', '最终陈词', {enforceNightChronology:true});
+      const finalSpeechResult = await proc(candidates, p => (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【第' + S.round + '天·警长最终陈词】你仍在竞选，这是警长投票前最后一次发言。\n<thinking>思考</thinking>\n<game>最终陈词</game>\n<action>None</action>' : '【第' + S.round + '天·警长最终陈词】⏰ 仍处在天亮后的警长竞选阶段：昨晚的夜间行动已全部结束并成定局，但昨晚谁死了系统还【没有公布】，别提"昨晚谁死了/平安夜"。\n\n【时序硬限制】首夜任何夜间行动的理由只能来自当时已存在的座位、直觉、随机或开局预设，绝不能说"因为他上警/没上警/竞选发言如何，所以我昨晚验他、守他或刀他"——上警名单和竞选发言都是今早才出现的。\n\n退选环节已结束，你成功留在竞选中。这是投票前最后一次发言机会，说清你当警长会怎么做、为什么大家应该投你，并回应其他候选人最关键的竞争观点，做最后争取。\n<thinking>思考策略</thinking>\n<game>最终陈词，直接开口</game>\n<action>None</action>', '最终陈词', {enforceNightChronology:true});
       // ★ 白狼王在最终陈词阶段自爆 → 竞选作废，强制入夜
       if (finalSpeechResult === 'whitewolf_explode' || S._sheriffAbortedByExplode) { if (await _abortSheriffIfExploded()) return; }
 
@@ -18894,7 +18905,7 @@ const PhaseHandlers = {
                 + '核心原则：你投票的目的不是"帮队友赢警徽"，而是"让自己在好人眼里不像狼队"。一只被怀疑的狼比没警徽损失大得多。';
             }
           }
-          aiR[p.id] = await callAI(p,'【选警长投票】候选人：'+candNames+'。投谁当警长？'+wolfHint+'\n<thinking>思考</thinking>\n<game></game>\n<action>名字</action>',{noMemory:true, skillConfirm:true, requireGame:false});
+          aiR[p.id] = await callAI(p,'【选警长投票】候选人：'+candNames+'。投谁当警长？'+((typeof bareRulesMode === 'function' && bareRulesMode()) ? '' : wolfHint)+'\n<thinking>思考</thinking>\n<game></game>\n<action>名字</action>',{noMemory:true, skillConfirm:true, requireGame:false});
           logNightThinking(p, aiR[p.id]);
         });
         for (const p of aiVoters) {
@@ -18970,7 +18981,7 @@ const PhaseHandlers = {
           Render.log('sheriff','⚖️ 警长选举最高票平票！'+sheriffPkNames+' 进入PK，其他候选人淘汰。');
           const shuffledCands = shuffle(sheriffPkCandidates.slice());
           Render.log('sheriff','📢 随机发言顺序：'+shuffledCands.map(p=>p.name).join('→'));
-          const tieSpeechResult = await proc(shuffledCands, p => '【第' + S.round + '天·警长竞选追加发言】⏰ 仍处在天亮后的警长竞选阶段（昨晚死讯尚未公布，别提昨晚谁死）。首夜行动的理由只能来自当时已存在的信息，不能用今早的上警名单或竞选发言去解释昨晚的查验/守护/刀口。选举平票了，你还有最后一次机会说服大家投你。', '竞选', {enforceNightChronology:true});
+          const tieSpeechResult = await proc(shuffledCands, p => (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【第' + S.round + '天·警长竞选追加发言】警长投票平票，你再发言一次。' : '【第' + S.round + '天·警长竞选追加发言】⏰ 仍处在天亮后的警长竞选阶段（昨晚死讯尚未公布，别提昨晚谁死）。首夜行动的理由只能来自当时已存在的信息，不能用今早的上警名单或竞选发言去解释昨晚的查验/守护/刀口。选举平票了，你还有最后一次机会说服大家投你。', '竞选', {enforceNightChronology:true});
           // ★ 白狼王在平票追加发言阶段自爆 → 竞选作废，强制入夜
           if (tieSpeechResult === 'whitewolf_explode' || S._sheriffAbortedByExplode) { if (await _abortSheriffIfExploded()) return; }
           // 再投一轮
@@ -18987,7 +18998,7 @@ const PhaseHandlers = {
                 wolfHint2 = '\n\n【⚠️ 狼队视角·再投策略】候选人里有你的队友：'+myWolfCands.join('、')+'。第一轮已经平票，说明局势胶着。如果队友此时看起来明显处于下风（好人集中火力质疑队友、队友发言被压制），果断投好人方洗白自己比陪葬更划算。狼队四个人全压一个队友=明牌送人头。';
               }
             }
-            aiR2[p.id] = await callAI(p,'【警长PK再投票】只能从并列最高票者中选择：'+sheriffPkNames+'。再投一次，投谁当警长？'+wolfHint2+'\n<thinking>思考</thinking>\n<game></game>\n<action>名字</action>',{noMemory:true, skillConfirm:true, requireGame:false});
+            aiR2[p.id] = await callAI(p,'【警长PK再投票】只能从并列最高票者中选择：'+sheriffPkNames+'。再投一次，投谁当警长？'+((typeof bareRulesMode === 'function' && bareRulesMode()) ? '' : wolfHint2)+'\n<thinking>思考</thinking>\n<game></game>\n<action>名字</action>',{noMemory:true, skillConfirm:true, requireGame:false});
             logNightThinking(p, aiR2[p.id]);
           });
           for (const p of aiVoters2) {
@@ -19458,7 +19469,7 @@ const PhaseHandlers = {
       const whitewolfHint = isWhitewolfReady
         ? '\n\n【💥 你是白狼王·投票阶段自爆机会】\n你可以放弃这次投票,改为自爆带走一人。判断:你已经看到本轮发言和票意表态,如果票型已经锁死【你自己】、或锁死一个救不回且值得换的狼队友,自爆替代投票才是更高价值的动作。⚠️反过来,如果这轮票正指向一个【好人】,绝对不要自爆——好人马上要免费帮你除掉一个好人(0换1),你一炸就亲手取消了那次处决、把它做成1换1,还等于告诉全场狼很在乎这个人。详见系统提示里的白狼王决策数据包。\n要自爆:<action>EXPLODE:目标名</action> (替代正常投票,自爆瞬间结束本轮投票直接入夜)\n要投票:<action>玩家名</action> (正常投票)\n要弃权:<action>None</action>'
         : '';
-      aiR[p.id] = await callAI(p,'【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true, requireGame:false});
+      aiR[p.id] = await callAI(p, (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【投票】投谁出局？\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>' + (isWhitewolfReady ? '\n你是白狼王，也可以不投票，改为自爆带走一人：<action>EXPLODE:目标名</action>（自爆后本轮投票结束，直接入夜）。' : '') : '【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true, requireGame:false});
       logNightThinking(p, aiR[p.id]);
     });
     // ★ 白狼王投票阶段自爆检测:在统计票数前优先处理
