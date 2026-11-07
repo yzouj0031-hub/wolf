@@ -11903,7 +11903,11 @@ async function _callAIImpl(p, prompt, opts) {
     ? memSlice.map(m => ({...m, content: typeof m.content === 'string' ? blindMaskPublic(m.content) : m.content}))
     : memSlice;
   const _msgs0 = [{role:'system',content:sys}].concat(safeMemSlice, [{role:'user',content:finalPrompt}]);
-  const msgs = bareRulesMode() ? _msgs0.map(m => ({...m, content: typeof m.content === 'string' ? bareScrub(m.content, m.role) : m.content})) : _msgs0;
+  // 裸规则：记忆里以前回合的题目只留标题行（如【守卫·第1夜】）。旧版题目带着战术说教，读档续玩时会被原样恢复；
+  //   当前这一轮的题目（最后一条）完整保留，事件和发言都在系统提示的对局记录里，不会因此丢信息。
+  const _bareHeadOnly = (m, i) => (m.role === 'user' && i > 0 && i < _msgs0.length - 1 && typeof m.content === 'string')
+    ? {...m, content: (m.content.split('\n').find(l => l.trim()) || '').trim()} : m;
+  const msgs = bareRulesMode() ? _msgs0.map(_bareHeadOnly).map(m => ({...m, content: typeof m.content === 'string' ? bareScrub(m.content, m.role) : m.content})) : _msgs0;
   let forceFinalOnlyRetry = false;
 
   // 备选API由 getFallbacks() 动态获取（支持多个）
