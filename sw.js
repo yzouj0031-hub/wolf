@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v78-claude-stop';
+const CACHE_NAME = 'wolf-pwa-v79-claude-refusal-retry';
 const APP_SHELL = [
   './',
   './index.html',

@@ -10892,6 +10892,7 @@ async function _callAIImpl(p, prompt, opts) {
     catch (e) { w.end(_userStopped ? 'stop' : (e && e.name === 'AbortError' ? 'abort' : 'error')); throw e; }
     finally { if (_userStopCtrl === ctrl) _userStopCtrl = null; }
   };
+  let _claudeRefusalRetried = false;   // Claude 中途停止（refusal）先重问一次，仍被停才用截短版
   async function tryOnce(useApi, att, apiType) {
     if (S.gameId !== myGid) return null;
     apiType = apiType || 'openai';
@@ -11039,6 +11040,12 @@ async function _callAIImpl(p, prompt, opts) {
       const _anthStop = data.stop_reason || '';
       const _anthCut = _anthStop && !['end_turn', 'stop_sequence', 'tool_use'].includes(_anthStop);
       if (_anthCut) Render.devLog('warn', `[P${p.id+1}] Claude 停止原因：${_anthStop}`);
+      // refusal 有随机性，同样的请求重问一次通常能完整生成；只在还有重试机会时重问，避免把一次截断升级成失败流程。
+      if (_anthStop === 'refusal' && !_claudeRefusalRetried && att < (opts.maxRetries || 3)) {
+        _claudeRefusalRetried = true;
+        Render.log('system', `⚠️ ${p.name} 的回复被 Claude 中途停止（refusal），自动重问一次`);
+        throw new Error('Claude 中途停止生成（refusal），重问');
+      }
       const parsed = _anthCut
         ? salvageCutSpeech(parseAI(content, opts), p, _anthStop === 'max_tokens' ? '达到输出上限' : _anthStop === 'refusal' ? 'Claude 中途停止生成（refusal）' : ('停止原因 ' + _anthStop))
         : parseAI(content, opts);
