@@ -5663,11 +5663,14 @@ function findPlayerBySeatRef(value, pool) {
 //   给别人的建议或以后的打算（如果/若/别/不/暂不/建议/明天/之后/会不会……）。
 function parseDeclaredDuel(text, candidates) {
   const sentences = String(text || '').replace(/\[\s*\/?草稿\s*\][\s\S]*?\[\s*\/草稿\s*\]/g, '').split(/[。！？!?\n]+/);
-  const hedge = /如果|若是|若|假如|要是|万一|假设|别|不要|不会|不打算|不准备|暂不|暂时不|先不|没有|还没|建议|你们|大家|骑士[，,]|明天|之后|以后|晚点|下一轮|今晚|会不会|是否|要不要|可以考虑|考虑|准备好|能不能|出不出/;
-  const act = /(?:发起|发动|进行)\s*(?:骑士)?决斗|我(?:要|现在|当场|直接|就)?\s*决斗|决斗(?:你|他|她)|(?:现在|当场|立即|立刻)\s*决斗/;
+  const hedge = /如果|若是|若|假如|要是|万一|假设|别|不要|不会|不打算|不准备|暂不|暂时不|先不|没有|还没|建议|你们|大家|骑士[，,]|明天|之后|以后|晚点|下一轮|今晚|会不会|是否|要不要|可以考虑|考虑|准备好|能不能|出不出|倾向/;
+  // 「对X使用决斗」「决定决斗X」也是宣布（实际对局："我是骑士，决定对P5 Mello使用决斗。"以前没认出来）
+  const act = /(?:发起|发动|进行|使用|动用)\s*(?:骑士)?(?:的)?决斗|我(?:要|现在|当场|直接|就|决定)?\s*决斗|决定[^，,。；;]{0,24}决斗|对[^，,。；;]{0,24}(?:使用|发起|发动|进行)?\s*决斗|决斗(?:你|他|她)|(?:现在|当场|立即|立刻)\s*决斗/;
   for (const raw of sentences) {
     const s = raw.trim();
-    if (!s || !/决斗/.test(s) || !act.test(s) || hedge.test(s)) continue;
+    // "我是骑士，"是自报身份，不是在劝别人的骑士出手；判断条件和劝告时先去掉它
+    const sCore = s.replace(/我(?:是|就是|作为|以)?(?:本局的)?骑士(?:身份)?[，,]?/g, '');
+    if (!s || !/决斗/.test(s) || !act.test(sCore) || hedge.test(sCore)) continue;
     const at = s.search(/决斗/);
     let best = null, bestDist = Infinity;
     for (const c of candidates) {
@@ -13605,6 +13608,16 @@ async function proc(players, promptFn, label, opts) {
                 }
               }
               // action 里只有裸关键词（如 "DUEL" / "EXPLODE"）→ 继续走自然语言兜底
+            }
+            // 问的是"要不要对谁用技能"，<action> 里只填了一个合法目标（如 "Mello" / "P5"），就是在回答目标。
+            //   系统提示的输出契约要求操作题填 <action>，模型常常只写名字、不带技能词，以前因此被当成没决定。
+            if (confirmR.action && !/^(?:none|null|pass|no|无|不|跳过|放弃)$/i.test(confirmR.action.trim())) {
+              const bare = confirmR.action.trim().replace(/^(?:目标|target)\s*[：:]\s*/i, '').replace(/[。.！!]+$/, '').trim();
+              const negHere = /不|别|暂|先不|放弃|保留|PASS|NONE/i.test(confirmR.game || '');
+              const byName = candidates.find(x => x.name === bare);
+              const byNum = bare.match(/^[Pp]?(\d{1,2})号?$/);
+              const byId = byNum ? candidates.find(x => x.id === parseInt(byNum[1], 10) - 1) : null;
+              if (!negHere && (byName || byId)) return skillKeyword + ':' + (byName || byId).name;
             }
             // 方式2：自然语言里有关键词（自爆/炸/决斗）+ 玩家名
             const fullText = (confirmR.game || '') + ' ' + (confirmR.action || '');
