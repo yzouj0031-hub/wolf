@@ -8855,6 +8855,21 @@ function splitPrivatePlanBlocks(rawText) {
 //        正文以 "data: {...}" 开头,直接 .json() 会抛 "Unexpected token 'd'"。
 //   用法:替代 await res.json(),签名相同——传入 Response 对象,返回标准 OpenAI 非流式响应结构。
 //   兼容:① OpenAI Chat Completions 流式 ② OpenAI Responses API 流式 ③ 正常 JSON 直接走原路径
+// 回复在半句被截断（输出上限或连接中断）时，把公开发言截到最后一个完整的句子；剩下太短就按截断重问。
+//   以前只要发言超过 80 字就原样使用，于是会念出"……Also, the witch dec"这样断在单词中间的话。
+function salvageCutSpeech(parsed, p, why) {
+  if (!parsed || typeof parsed.game !== 'string') return parsed;
+  const g = parsed.game.trim();
+  const ENDS = '。！？!?…」』”"）)】*～~.';
+  if (!g || ENDS.includes(g[g.length - 1])) return parsed;
+  let cut = -1;
+  for (let i = g.length - 1; i >= 0; i--) if (ENDS.includes(g[i])) { cut = i; break; }
+  const kept = cut >= 0 ? g.slice(0, cut + 1).trim() : '';
+  if (kept.length < 20) throw new Error('响应截断');
+  try { Render.log('system', `⚠️ ${p && p.name || 'AI'} 的回复在半句被截断（${why}），已截到最后一个完整的句子。`); } catch (_) {}
+  return {...parsed, game: kept};
+}
+
 async function parseAPIResponseWithSSEFallback(res, opts) {
   opts = opts || {};
   const tag = opts.tag || '';  // 用于日志,如 "[P4]" 或 "[测试]"
@@ -8926,11 +8941,13 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
   let mergedReasoning = '';
   let lastFinish = null;
   let lastUsage = null;
+  let sawStreamEnd = false;   // 收到 [DONE] / finish_reason / response.completed 才算正常结束
   const lines = rawText.split(/\r?\n/);
   for (const line of lines) {
     if (!line.startsWith('data:')) continue;
     const payload = line.slice(5).trim();
-    if (!payload || payload === '[DONE]') continue;
+    if (payload === '[DONE]') { sawStreamEnd = true; continue; }
+    if (!payload) continue;
     let evt;
     try { evt = JSON.parse(payload); } catch(_) { continue; }
     const bridgeError = ClaudeBridgeCompat.failureFromEvent(evt);
@@ -8954,7 +8971,7 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
         const rc = d.reasoning_content || d.reasoning || d.thinking;
         if (typeof rc === 'string') mergedReasoning += rc;
       }
-      if (choice.finish_reason) lastFinish = choice.finish_reason;
+      if (choice.finish_reason) { lastFinish = choice.finish_reason; sawStreamEnd = true; }
     }
     // 2) OpenAI Responses API 流式:type=response.output_text.delta / .done
     if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') {
@@ -8964,6 +8981,7 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
       mergedReasoning += evt.delta;
     }
     if (evt.type === 'response.completed' && evt.response) {
+      sawStreamEnd = true;
       const out = evt.response.output;
       if (Array.isArray(out)) {
         for (const item of out) {
@@ -8993,7 +9011,8 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
         content: mergedContent,
         reasoning_content: mergedReasoning || undefined
       },
-      finish_reason: lastFinish || 'stop'
+      // 连接中途断开时既没有 [DONE] 也没有 finish_reason：不能当成正常说完
+      finish_reason: lastFinish || (sawStreamEnd ? 'stop' : 'incomplete')
     }],
     usage: lastUsage || undefined
   };
@@ -11015,7 +11034,7 @@ async function _callAIImpl(p, prompt, opts) {
           || (hasThinkingOpen && !hasThinkingClose && !hasGameTag);
         if (truncated) throw new Error('响应截断');
       }
-      const parsed = parseAI(content, opts);
+      const parsed = data.stop_reason === 'max_tokens' ? salvageCutSpeech(parseAI(content, opts), p, '达到输出上限') : parseAI(content, opts);
       // ★ fix：Anthropic路径同样检测复读/拒绝/元指令，与OpenAI路径行为一致
       if (parsed._isRepeatSilent) throw new Error('复读沉默');
       if (parsed._isRefusal) throw new Error('内容过滤拒绝');
@@ -11137,7 +11156,7 @@ async function _callAIImpl(p, prompt, opts) {
       //   真正的截断由上面的 finishReason === 'MAX_TOKENS' 检测覆盖；
       //   thinking 烧光预算的情况由 (isGemini3 && length < 40) 截断条件覆盖。
       //   极短但内容有效的回复 → 让 parseAI 正常处理。
-      const parsed = parseAI(content, opts);
+      const parsed = finishReason === 'MAX_TOKENS' ? salvageCutSpeech(parseAI(content, opts), p, '达到输出上限') : parseAI(content, opts);
       // ★ fix：Gemini路径同样检测复读/拒绝/元指令，与OpenAI路径行为一致
       if (parsed._isRepeatSilent) throw new Error('复读沉默');
       if (parsed._isRefusal) throw new Error('内容过滤拒绝');
@@ -11335,7 +11354,7 @@ async function _callAIImpl(p, prompt, opts) {
       // ★ 关键修复：只有模型"因长度上限被掐断"(finish_reason=length)才可能是真截断。
       //   若 finish_reason=stop（模型正常说完了），即使标签没闭合，也只是格式不规范，
       //   内容大概率能用——交给 parseAI 的兜底解析救回，绝不在这里整条丢弃（避免白扣钱判沉默）。
-      const finishedByLength = (finishReasonCompat === 'length');
+      const finishedByLength = (finishReasonCompat === 'length' || finishReasonCompat === 'incomplete');
       const miniThinkOpen = isMiniMaxThinking && /<think>/i.test(finalContent) && !/<\/think>/i.test(finalContent);
       const miniDraftOpen = isMiniMaxThinking && /\[草稿\]/.test(finalContent) && !/\[\/草稿\]/.test(finalContent);
       const miniNoFinal = isMiniMaxThinking && !!nativeThinking && !finalContent.trim();
@@ -11383,7 +11402,7 @@ async function _callAIImpl(p, prompt, opts) {
       //   ② content 里没套 <game> 标签的纯发言，走不到原生隔离的兜底提取。
       //   只在真的拿到原生思考时才设置——拿不到时保持原样，让既有的启发式检查继续生效。
       if (nativeThinking) opts._nativeThinking = nativeThinking; else delete opts._nativeThinking;
-      const parsed = parseAI(finalContent, opts);
+      const parsed = finishedByLength ? salvageCutSpeech(parseAI(finalContent, opts), p, finishReasonCompat === 'length' ? '达到输出上限' : '连接中途断开') : parseAI(finalContent, opts);
       if (!parsed.thinking && nativeThinking) parsed.thinking = nativeThinking;
       // ★ fix: GPT-5.5等模型content为null/空game时，从nativeThinking里捞action和game
       // ★ v9.9.2: parseAI 会把空 game 补成 "(沉默)"，所以不能只判断 !parsed.game，

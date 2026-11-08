@@ -459,7 +459,7 @@ for (const file of FILES) {
     `${file}: OpenAI 路径仍然没把原生思考交给 parseAI`,
   );
   const wireAt = src.indexOf('if (nativeThinking) opts._nativeThinking = nativeThinking;');
-  const parseAt = src.indexOf('const parsed = parseAI(finalContent, opts);', wireAt);
+  const parseAt = src.indexOf('const parsed = finishedByLength ? salvageCutSpeech(parseAI(finalContent, opts)', wireAt);
   assert.ok(wireAt >= 0 && parseAt > wireAt, `${file}: 原生思考的交接必须发生在 parseAI 之前`);
 }
 
