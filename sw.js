@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v80-duel-phrasing';
+const CACHE_NAME = 'wolf-pwa-v81-skill-confirm-format';
 const APP_SHELL = [
   './',
   './index.html',
