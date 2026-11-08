@@ -53,10 +53,10 @@ async function playOne(file, variant, seed) {
         else if (/SAVE/.test(last)) action = rand() < 0.5 ? 'SAVE' : 'NO_SAVE';
         else if (/CHARM\|P数字/.test(last)) action = 'CHARM|' + P;
         else if (/DUEL[|:]P数字 或 PASS|DUEL:名字 或 PASS/.test(last)) action = 'PASS';
+        else if (/技能确认/.test(last)) action = (B && /DUEL/.test(last)) ? 'DUEL:' + P : 'PASS';
         else if (/P编号 或 None/.test(last)) action = P;
         else if (/猎人开枪/.test(last)) action = B ? pick : 'None';
         let game = `我觉得${pick}有点可疑，先听后面的。`;
-        if (B && /决斗确认/.test(last)) game = `我决斗${pick}`;
         const content = `<thinking>想好了</thinking>\n<game>${game}</game>\n<action>${action}</action>\n<interrupt>no</interrupt>`;
         if (body.stream) return new Response('data: ' + JSON.stringify({ choices: [{ delta: { content } }] }) + '\n\ndata: [DONE]\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } });
         return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } });

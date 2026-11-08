@@ -14754,110 +14754,37 @@ async function proc(players, promptFn, label, opts) {
             if (declared) { r.action = 'DUEL:' + declared.name; Render.devLog('info', `[${p.name}] 发言中宣布决斗 → ${declared.name}`); }
           }
 
-          // 通用解析器：从 confirmR 提取技能目标
-          // 优先 <action> 标签，没有则从自然语言里抓关键词+玩家名
-          const parseSkillConfirm = (confirmR, skillKeyword, candidates) => {
-            if (!confirmR) return null;
-            // 方式1：action 里有 EXPLODE/DUEL 关键词——尝试解析目标
-            if (confirmR.action && new RegExp(skillKeyword, 'i').test(confirmR.action)) {
-              // 提取关键词后的目标名（"DUEL:灰原哀" / "决斗灰原" / "EXPLODE:中森青子"）
-              let tn = confirmR.action.replace(new RegExp(`.*${skillKeyword}[：:\\s]*`, 'i'), '').trim();
-              tn = tn.split(/[\n\r]/)[0].replace(/[（(].*?[)）]/g,'').replace(/[，,。.；;！!？?、].*$/,'').trim();
-              if (tn && !/^(none|null|无|跳过|pass|target|name|目标|名字)$/i.test(tn)) {
-                // 双向子串匹配（命中"灰原" → "灰原哀"，命中"灰原哀" → "灰原哀"）
-                const t = candidates.find(x => x.name === tn) ||
-                          candidates.find(x => x.name.includes(tn) || tn.includes(x.name));
-                if (t) return skillKeyword + ':' + t.name;
-                // 号位"P5"
-                const pNum = tn.match(/^[Pp]?(\d+)号?$/);
-                if (pNum) {
-                  const idx = parseInt(pNum[1]) - 1;
-                  const byId = candidates.find(x => x.id === idx);
-                  if (byId) return skillKeyword + ':' + byId.name;
-                }
-              }
-              // action 里只有裸关键词（如 "DUEL" / "EXPLODE"）→ 继续走自然语言兜底
+          // 白狼王 / 骑士：发言后单独提交一次固定格式的技能决定（<action>EXPLODE|DUEL:P数字 或 PASS），
+          //   不再从自然语言回答里猜。题目里附上它刚说的话，免得它把刚宣布的决定当成没发生；
+          //   回答不合格式时由 resolveAIAction3 统一做格式纠正（和投票、夜间技能同一套）。
+          //   未发动前不写任何公开记录：失败也只进开发者日志，避免泄露身份。
+          const askDaySkill = async (kw, label, ruleLine, passActionRe) => {
+            const candidates = S.players.filter(x => x.alive && x.id !== p.id);
+            const said = String(r.game || '').trim();
+            const saidTail = said.length > 300 ? '…' + said.slice(-300) : said;
+            const list = candidates.map(x => `P${x.id + 1} ${x.name}`).join('、');
+            const confirmR = await callAI(p,
+              `【${label}·技能确认】你刚才的发言：「${saidTail}」\n${ruleLine}\n可选目标：${list}\n现在发动，写 <action>${kw}:P数字</action>；不发动，写 <action>PASS</action>。只写这一行。`,
+              {noMemory: true, skillConfirm: true}
+            );
+            const decision = await resolveAIAction3(p, confirmR, {
+              label, candidates, targetCount: 1, allowPass: true, passActionRe,
+              formatHint: kw + '|P数字 或 PASS'
+            });
+            if (decision.status === 'execute') {
+              r.action = kw + ':' + decision.targets[0].name;
+              Render.devLog('info', `[${p.name}] ${label}确认 → ${decision.targets[0].name}`);
+            } else if (decision.status !== 'pass') {
+              Render.devLog('warn', `[${p.name}] ${label}确认没有形成合法决定；技能未消耗`);
             }
-            // 问的是"要不要对谁用技能"，<action> 里只填了一个合法目标（如 "Mello" / "P5"），就是在回答目标。
-            //   系统提示的输出契约要求操作题填 <action>，模型常常只写名字、不带技能词，以前因此被当成没决定。
-            if (confirmR.action && !/^(?:none|null|pass|no|无|不|跳过|放弃)$/i.test(confirmR.action.trim())) {
-              const bare = confirmR.action.trim().replace(/^(?:目标|target)\s*[：:]\s*/i, '').replace(/[。.！!]+$/, '').trim();
-              const negHere = /不|别|暂|先不|放弃|保留|PASS|NONE/i.test(confirmR.game || '');
-              const byName = candidates.find(x => x.name === bare);
-              const byNum = bare.match(/^[Pp]?(\d{1,2})号?$/);
-              const byId = byNum ? candidates.find(x => x.id === parseInt(byNum[1], 10) - 1) : null;
-              if (!negHere && (byName || byId)) return skillKeyword + ':' + (byName || byId).name;
-            }
-            // 方式2：自然语言里有关键词（自爆/炸/决斗）+ 玩家名
-            const fullText = (confirmR.game || '') + ' ' + (confirmR.action || '');
-            let text = fullText.replace(/\[\s*\/?草稿\s*\][\s\S]*?\[\s*\/草稿\s*\]/g, ''); // 排除草稿
-            // ★★ 关键修复：先剔除"否定型自爆表态"，避免把"不自爆/暂不自爆/继续观望/不炸"误判成要自爆。
-            //   过去 /自爆|炸|带走/ 这种正则只看有没有词，不看前面的否定，导致 AI 回答"不自爆"反而触发自爆。
-            if (skillKeyword === 'EXPLODE') {
-              // 命中明确的"不自爆"类表态 → 直接判定为不执行
-              const negExplode = /(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝)\s*(?:现在|这就|立即|马上|当场)?\s*(?:自爆|爆|炸|引爆|起爆)|继续(?:观望|潜伏|隐藏|深水)|保持(?:潜伏|深水|低调)|(?:再)?观望|按兵不动|保留(?:技能|底牌)|不(?:亮|揭)底牌/;
-              if (negExplode.test(text)) return null;
-              // 进一步：把"不/别/暂不…自爆"所在的分句整体删掉，防止同段里其他玩家名被误抓
-              text = text.replace(/(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝)[^。！？\n]*?(?:自爆|引爆|起爆)[^。！？\n]*[。！？\n]?/g, '');
-            }
-            // 决斗同理：「不决斗X」「先不决斗」「放弃决斗」是拒绝，不能因为句子里有决斗和人名就开打
-            if (skillKeyword === 'DUEL') {
-              const negDuel = /(?:不|别|无需|没必要|暂(?:时)?不|先不|不要|不会|不打算|不考虑|不准备|无意|拒绝|放弃)\s*(?:现在|这就|立即|马上|当场|今天)?\s*(?:发起|发动|进行)?\s*(?:决斗|DUEL)/i;
-              if (negDuel.test(text)) return null;
-            }
-            // 关键词检测（中文 + 英文）
-            const skillWords = skillKeyword === 'EXPLODE'
-              ? /(?:自爆|炸了?|爆了?|带走|同归|EXPLODE|BOOM)/i
-              : /(?:决斗|挑战|斩|DUEL|FIGHT|duel|challenge)/i;
-            if (!skillWords.test(text)) return null;
-            // ★ v9.9.2: 用 extractTargetName 支持简称匹配（如"决斗灰原" → 灰原哀）
-            const targetName = extractTargetName(text, candidates);
-            if (targetName) {
-              return skillKeyword + ':' + targetName;
-            }
-            // 兜底1：号位匹配（"决斗 P5"）
-            const pNumMatch = text.match(/[Pp](\d+)号?/);
-            if (pNumMatch) {
-              const idx = parseInt(pNumMatch[1]) - 1;
-              const byId = candidates.find(x => x.id === idx);
-              if (byId) return skillKeyword + ':' + byId.name;
-            }
-            // 兜底2：原有的全名子串匹配（兼容外文名/英文名）
-            for (const cand of candidates) {
-              if (text.includes(cand.name)) {
-                return skillKeyword + ':' + cand.name;
-              }
-            }
-            return null;
           };
-
-          // 白狼王：可以自爆
           if (p.role.id === 'whitewolf' && !S._whitewolfUsed && !hasSkillAction('EXPLODE')) {
-            const candidates = S.players.filter(x => x.alive && x.id !== p.id);
-            const aliveTargets = candidates.map(x => x.name).join('、');
-            const confirmR = await callAI(p,
-              `【白狼王技能·自爆确认】你刚才已经发言完毕。现在做一个独立决定：要不要立即自爆带走一人？\n存活玩家：${aliveTargets}\n\n如果你需要思考，可以用[草稿]...[/草稿]写下分析（不会被显示）。\n然后用一句话明确回答：\n· 不自爆 → "不自爆" 或 "继续观望"\n· 自爆 → "我自爆带走XXX" 或 "炸了，带XXX"\n\n直接说话，不需要任何标签。`,
-              {noMemory: true, skillConfirm: true}
-            );
-            const skillResult = parseSkillConfirm(confirmR, 'EXPLODE', candidates);
-            if (skillResult) {
-              r.action = skillResult;
-              Render.devLog('info', `[${p.name}] 自爆确认成功 → ${skillResult}`);
-            }
+            await askDaySkill('EXPLODE', '白狼王自爆', '白狼王可以现在自爆并带走一人，随后直接进入黑夜。',
+              /^(?:(?:现在|本轮|暂时|还是)?(?:选择|决定|就|先)?\s*)?(?:不自爆|暂不自爆|不爆|继续观望|保留自爆)$/i);
           }
-          // 骑士：可以发动决斗
           if (p.role.id === 'knight' && !S._duelUsed && S._duelRound !== S.round && !hasSkillAction('DUEL')) {
-            const candidates = S.players.filter(x => x.alive && x.id !== p.id);
-            const aliveTargets = candidates.map(x => x.name).join('、');
-            const confirmR = await callAI(p,
-              `【骑士技能·决斗确认】你刚才已经发言完毕。现在做一个独立决定：要不要立即发动决斗？\n决斗规则：成功带走狼人，失败自己死亡。\n存活玩家：${aliveTargets}\n\n如果需要思考，可以用[草稿]...[/草稿]写下分析（不会被显示）。\n然后用一句话明确回答：\n· 不决斗 → "暂不决斗" 或 "时机不到"\n· 决斗 → "我决斗XXX" 或 "向XXX挑战"\n\n直接说话，不需要任何标签。`,
-              {noMemory: true, skillConfirm: true}
-            );
-            const skillResult = parseSkillConfirm(confirmR, 'DUEL', candidates);
-            if (skillResult) {
-              r.action = skillResult;
-              Render.devLog('info', `[${p.name}] 决斗确认成功 → ${skillResult}`);
-            }
+            await askDaySkill('DUEL', '骑士决斗', '决斗规则：对方是狼，狼出局；对方不是狼，骑士出局。',
+              /^(?:(?:本轮|现在|暂时|还是)?(?:选择|决定|就|先)?\s*)?(?:不决斗|放弃决斗|暂不决斗|不出手|保留决斗)$/i);
           }
         }
       }
