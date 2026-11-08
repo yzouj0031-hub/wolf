@@ -41,7 +41,12 @@ for (const file of ['index.html', 'en/index.html']) {
             const out = await Promise.race([callAI(p, '【第1天·白天发言】说话。', { maxRetries: 1 }), new Promise(res => setTimeout(() => res({ game: 'TIMEOUT' }), 15000))]);
             return out.game;
           };
-          return { refusal: await runA(longCut, 'refusal'), maxTok: await runA(longCut, 'max_tokens'), normal: await runA('<game>我先听听后面的人怎么说。</game>', 'end_turn') };
+          // 还有重试机会时：refusal 先重问一次，第二次正常说完就用完整版
+          let n = 0;
+          window.fetch = async () => { n++; const first = n === 1;
+            return new Response(JSON.stringify({ content: [{ type: 'text', text: first ? longCut : '<game>我同意刀十二号，女巫那边我明天再说。</game>' }], stop_reason: first ? 'refusal' : 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } }); };
+          const retried = await Promise.race([callAI(p, '【第1天·白天发言】说话。', { maxRetries: 2 }), new Promise(res => setTimeout(() => res({ game: 'TIMEOUT' }), 20000))]);
+          return { refusal: await runA(longCut, 'refusal'), maxTok: await runA(longCut, 'max_tokens'), normal: await runA('<game>我先听听后面的人怎么说。</game>', 'end_turn'), retried: retried.game, retriedCalls: n };
         })(),
       };
     });
@@ -52,7 +57,7 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.equal(r.tooShort.game, '我同意刀十二号，先这样。', `${file}: 截完太短时应重问 ${JSON.stringify(r.tooShort)}`);
     assert.equal(r.tooShort.calls, 2, `${file}: 截完太短时应再请求一次`);
     const full = '我同意刀十二号。四个人选同一个目标，没什么好争的。第一夜谁都没有信息，刀谁都是赌，所以我不反对这一刀，也不打算再拖时间。';
-    assert.deepEqual(r.claude, { refusal: full, maxTok: full, normal: '我先听听后面的人怎么说。' }, `${file}: Claude 官方接口的中途停止没有处理 ${JSON.stringify(r.claude)}`);
+    assert.deepEqual(r.claude, { refusal: full, maxTok: full, normal: '我先听听后面的人怎么说。', retried: '我同意刀十二号，女巫那边我明天再说。', retriedCalls: 2 }, `${file}: Claude 官方接口的中途停止没有处理 ${JSON.stringify(r.claude)}`);
     assert.equal(errors.length, 0, errors.join('\n'));
     console.log(`${file}: cut-off replies trimmed to the last full sentence; normal replies untouched`);
   });
