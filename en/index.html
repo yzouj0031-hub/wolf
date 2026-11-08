@@ -11034,7 +11034,14 @@ async function _callAIImpl(p, prompt, opts) {
           || (hasThinkingOpen && !hasThinkingClose && !hasGameTag);
         if (truncated) throw new Error('响应截断');
       }
-      const parsed = data.stop_reason === 'max_tokens' ? salvageCutSpeech(parseAI(content, opts), p, '达到输出上限') : parseAI(content, opts);
+      // 除了正常结束（end_turn / stop_sequence），其他停止原因都说明正文没写完：
+      //   max_tokens = 输出上限；refusal = 模型在生成途中停下（官方接口的安全拦截也会这样，只返回已写的半段）。
+      const _anthStop = data.stop_reason || '';
+      const _anthCut = _anthStop && !['end_turn', 'stop_sequence', 'tool_use'].includes(_anthStop);
+      if (_anthCut) Render.devLog('warn', `[P${p.id+1}] Claude 停止原因：${_anthStop}`);
+      const parsed = _anthCut
+        ? salvageCutSpeech(parseAI(content, opts), p, _anthStop === 'max_tokens' ? '达到输出上限' : _anthStop === 'refusal' ? 'Claude 中途停止生成（refusal）' : ('停止原因 ' + _anthStop))
+        : parseAI(content, opts);
       // ★ fix：Anthropic路径同样检测复读/拒绝/元指令，与OpenAI路径行为一致
       if (parsed._isRepeatSilent) throw new Error('复读沉默');
       if (parsed._isRefusal) throw new Error('内容过滤拒绝');
