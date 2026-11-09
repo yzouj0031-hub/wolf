@@ -87,12 +87,11 @@ for (const q of r.reqs) {
   assert.ok(q.sys.includes('【你在打一局狼人杀】'), '系统提示缺少参与者框架');
   for (const gone of ['【发言记录】', '【对局记录', '权威时间轴', '时间轴', 'E编号', '【说人话', '【别人打过的几局', '【投票前证据校验', '决策锚点'])
     assert.ok(!q.sys.includes(gone), `系统提示里还有 ${gone}`);
-  // 同一轮的票型只会作为"自上次开口以来发生的事"进一次对话
-  const all = q.users.join('\n');
-  for (let d = 1; d <= r.round; d++) {
-    const hits = all.split(`── 第${d}天·投票 ──`).length - 1;
-    assert.ok(hits <= 1, `第${d}天的票型在一次请求里出现了 ${hits} 次`);
-  }
+  // 每一条票型记录只会作为"自上次开口以来发生的事"进一次对话。
+  //   平票时 PK 发言也落在投票阶段，同一天的"投票"小标题可以合法地出现两次，所以按整行票型去重。
+  const voteLines = q.users.join('\n').split('\n').filter(l => /^【(?:投票结果·逐人票型|PK投票结果|警长选举票型|审判票型)】/.test(l));
+  const dup = voteLines.find((l, i) => voteLines.indexOf(l) !== i);
+  assert.equal(dup, undefined, `同一条票型在一次请求里出现了两次：${dup}`);
 }
 const withEvents = r.reqs.filter(q => q.users.some(u => u.includes('【自你上次开口以来发生的事】'))).length;
 assert.ok(withEvents > 20, `带增量事件块的请求太少（${withEvents}）`);
