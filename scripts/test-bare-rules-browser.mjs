@@ -38,7 +38,7 @@ for (const file of ['index.html', 'en/index.html']) {
         assert.ok(!bare.includes(gone), `${file} ${role}: 裸规则里还有 ${gone}`);
       for (const gone of ['权威时间轴判定协议', '只是提议/声称', '系统硬事实速查', '严重警告·绝对禁止脑补', '本局能力索引', '⚠️ 铁律', '【狼队身份配合】', '规则不是今夜情报', '不等于"好人"', '所有玩家必须遵守', '身份分类·硬规则', '你的真实记录', '本局确实是屠边规则'])
         assert.ok(!bare.includes(gone), `${file} ${role}: 裸规则的规则部分还有说教 ${gone}`);
-      for (const keep of ['【本局配置】', '【当前局势】', '【基本流程】', '【对局记录·按时间先后】', '<game>'])
+      for (const keep of ['【本局配置】', '【当前局势】', '【基本流程】', '【对局记录·按时间先后】', '<game>', '每个人说话时只听到了排在他前面的发言'])
         assert.ok(bare.includes(keep), `${file} ${role}: 裸规则丢了 ${keep}`);
       assert.ok(bare.length < lite.length, `${file} ${role}: 裸规则应比精简官方短（${bare.length} vs ${lite.length}）`);
       assert.ok(lite.includes('【说人话') && lite.includes('【几件容易看错的事'), `${file} ${role}: 精简官方不应受影响`);
