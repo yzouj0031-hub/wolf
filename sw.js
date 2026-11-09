@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v81-skill-confirm-format';
+const CACHE_NAME = 'wolf-pwa-v82-speak-order-fact';
 const APP_SHELL = [
   './',
   './index.html',
