@@ -10800,11 +10800,12 @@ async function callAI(p, prompt, opts) {
   // 发请求前查一次；请求返回时再查一次——重开/读档那一刻已经发出去的请求照样会返回，
   // 只在发出前查，旧流程会趁这次返回再往下走一步（实测：新对局里多出一份报名记录）。
   const guarded = !(opts && opts.systemPromptOverride);
-  if (guarded && isStaleActor(p)) return haltStaleRun('callAI', p);
   const _memLenBefore = (p && Array.isArray(p.memory)) ? p.memory.length : -1;
+  if (guarded && isStaleActor(p)) return haltStaleRun('callAI', p);
   const r = await _callAIImpl(p, prompt, opts);
-  if (guarded && liveMode() && !(opts && opts.noMemory) && LIVE_PENDING_SEEN.has(p) && p.memory.length > _memLenBefore) { p._liveSeen = LIVE_PENDING_SEEN.get(p); LIVE_PENDING_SEEN.delete(p); }
   if (guarded && isStaleActor(p)) return haltStaleRun('callAI·返回时', p);
+  // 参与者模式：这次回答真的写进记忆之后，已读指针才前移
+  if (guarded && liveMode() && !(opts && opts.noMemory) && LIVE_PENDING_SEEN.has(p) && p.memory.length > _memLenBefore) { p._liveSeen = LIVE_PENDING_SEEN.get(p); LIVE_PENDING_SEEN.delete(p); }
   return r;
 }
 async function _callAIImpl(p, prompt, opts) {
