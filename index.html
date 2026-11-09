@@ -4588,7 +4588,7 @@ function buildActivePublicInteractionRules() {
 
 function buildWolfChoiceHint() {
   const mode = window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function'
-    ? window.TeachingWorldbooks.mode() : 'official';
+    ? teachingRulesMode(window.TeachingWorldbooks.mode()) : 'official';
   return mode === 'clean' || mode === 'custom' || mode === 'bare' ? ''
     : WolfReasoningContext.wolfChoice(S.players.map(x => x.role && x.role.id));
 }
@@ -4597,9 +4597,56 @@ function buildWolfChoiceHint() {
 // 裸规则：只给规则、身份技能、局面、输出格式；说话指导、战术提示、经验库、狼盟密约、短发言补写全部关掉。
 //   用来测"不教的时候模型自己会怎么打"，和精简官方、完整官方对照。设置里「教学世界书 → 注入模式」切换。
 function bareRulesMode() {
-  try { return !!(window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' && window.TeachingWorldbooks.mode() === 'bare'); }
+  try { const _m = window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' && window.TeachingWorldbooks.mode(); return _m === 'bare' || _m === 'live'; }
   catch (_) { return false; }
 }
+// ★ 参与者模式（live）：在裸规则的基础上，把"每次把整局记录平铺进系统提示"改成"逐轮只告诉它
+//   自上次开口以来发生了什么"。它以前的发言和想法就是对话里自己的上一轮，印象是一轮轮攒出来的，
+//   不再站在全知位置回头审别人的旧话；另外不跑时序正则、不过判官、不压缩记忆，投票跟着发言走。
+function liveMode() {
+  try { return !!(window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' && window.TeachingWorldbooks.mode() === 'live'); }
+  catch (_) { return false; }
+}
+// 规则文案这一层把参与者模式当裸规则处理（同一套只讲规则、不说教的文案）；
+//   记忆、投票、判官这些差别由 liveMode() 单独判断。
+function teachingRulesMode(m) { return m === 'live' ? 'bare' : m; }
+// 本次请求读到了记录的哪个位置：请求成功写进记忆后才转正为 p._liveSeen；放在 WeakMap 里，不进存档。
+const LIVE_PENDING_SEEN = new WeakMap();
+const LIVE_FRAMING_BLOCK = '\n\n【你在打一局狼人杀】\n你是这桌上的一个玩家，目标只有一个：让你的阵营赢。\n你是一轮一轮听过来的：对话里每一段"自你上次开口以来发生的事"就是你当时听到的东西，你以前说过的话和想法也都在对话里。印象是一点点攒出来的，听到新东西改主意很正常，别人改主意也一样，不用回头翻旧账。\n大胆点名、下注、吵架，判断错了也没关系，这就是这个游戏。要怀疑谁就说出来，要保谁也说出来，别在嘴上留后手。\n用自己的话说，像在桌上接着上一个人往下聊。不用复述所有人说了什么，也不用解释规则。';
+const LIVE_FREE_TAIL = '\n\n直接用第一人称说出你要对大家说的话，像在桌上接着上一个人往下聊。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。\n说完以后，可以在 [笔记] 和 [/笔记] 之间给自己记几句：对每个人现在的印象、下一步打算。别人看不到，下一轮会原样还给你。';
+function liveVotePrompt(isWhitewolfReady) {
+  return '【投票】发言都结束了，现在投票。按你刚才发言里的判断投；如果听完后面的人改了主意，在<thinking>里说一句为什么。\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>'
+    + (isWhitewolfReady ? '\n你是白狼王，也可以不投票，改为自爆带走一人：<action>EXPLODE:目标名</action>（自爆后本轮投票结束，直接入夜）。' : '');
+}
+// 自上次开口以来的公开记录：别人的发言、票型、审判、警长选举。自己的发言不重复（它就是对话里自己的上一轮）。
+function liveNewEventsBlock(p, upto) {
+  const hist = (S && Array.isArray(S.history)) ? S.history : [];
+  const end = Number.isFinite(upto) ? Math.min(upto, hist.length) : hist.length;
+  const from = Math.min(Math.max(0, (p && p._liveSeen) || 0), end);
+  const rows = hist.slice(from, end).filter(h => h && h.text && h.name !== p.name);
+  if (!rows.length) return '';
+  const tag = h => {
+    const rd = h.round || (S && S.round) || 1;
+    return h.phase === 'night' ? `第${rd}夜` : h.phase === 'sheriff' ? `第${rd}天·警长竞选` : h.phase === 'trial' ? `第${rd}天·审判` : h.phase === 'vote' ? `第${rd}天·投票` : `第${rd}天·白天`;
+  };
+  let last = '';
+  const lines = [];
+  for (const h of rows) {
+    const t = tag(h);
+    if (t !== last) { lines.push(`── ${t} ──`); last = t; }
+    lines.push(/^【/.test(h.name) ? `${h.name}${h.text}` : `${h.name}：${h.text}`);
+  }
+  return '【自你上次开口以来发生的事】\n' + lines.join('\n') + '\n';
+}
+// 事件块插在任务标题行之后：标题行要留在最前面，promptTaskKind / 决策类型都靠它识别。
+function liveInjectEvents(p, prompt, upto) {
+  const block = liveNewEventsBlock(p, upto);
+  const s = String(prompt == null ? '' : prompt);
+  if (!block) return s;
+  const nl = s.indexOf('\n');
+  return nl === -1 ? s + '\n\n' + block : s.slice(0, nl) + '\n\n' + block + s.slice(nl);
+}
+
 const BARE_RECORDS_RULE = '';
 // 裸规则下的白天发言任务：保留任务标题和局面事实，去掉【重要】之后的说话指导和第二轮的「必须反驳/改票/新角度」
 const BARE_SPEECH_TAIL = '\n【重要】<game>里写你真正要说出口的话。';
@@ -4690,7 +4737,7 @@ function bareTimelineText(text) {
 }
 function bareTask(t) {
   if (!bareRulesMode()) return t;
-  return String(t).replace(/\n*【⚠️ 严禁复读第一轮】[\s\S]*$/, '').replace(/\n【重要】[\s\S]*$/, '') + BARE_SPEECH_TAIL;
+  return String(t).replace(/\n*【⚠️ 严禁复读第一轮】[\s\S]*$/, '').replace(/\n【重要】[\s\S]*$/, '') + (liveMode() ? '' : BARE_SPEECH_TAIL);
 }
 const BARE_WIN_FACT = '\n\n【胜负】你的胜负只看阵营：阵营获胜，你出局了也算赢；阵营落败，你活到最后也算输。';
 // 裸规则的规则正文：只写规则本身，不写"所以你不能推出什么""以系统为准"这类提醒。
@@ -4739,7 +4786,7 @@ function buildWorldBook(p) {
   // 当前角色的完整能力由 guide 单独注入；其他角色只给公开的一行摘要。
   // 下方旧拼装逻辑暂时保留以便历史对照，但不再进入模型上下文。
   const twb = window.TeachingWorldbooks;
-  const teachingMode = twb && typeof twb.mode === 'function' ? twb.mode() : 'official';
+  const teachingMode = twb && typeof twb.mode === 'function' ? teachingRulesMode(twb.mode()) : 'official';
   const teachingContext = {
     roleId: p && p.role ? p.role.id : '',
     team: p && p.role ? p.role.team : '',
@@ -5381,7 +5428,9 @@ const SKILL_STATE_KEYS = ['_foolUsed','_shieldUsed','_lynchImmuneUsed','_rpUsed'
   // 补漏（以前缺席，读档后炼金魔女的未明之雾与法老之蛇会双双复活）：
   '_mistUsed','_serpentUsed',
   // 净魂师"不能连续两夜同一人"、摄梦人连梦判定、石像鬼苏醒与已窥视名单、守墓人已验墓
-  '_sanctuaryLastTarget','_dreamLastTarget','_gargoyleAwake','_gargoyleSeen','_gravekeeperSeen'];
+  '_sanctuaryLastTarget','_dreamLastTarget','_gargoyleAwake','_gargoyleSeen','_gravekeeperSeen',
+  // 参与者模式：已读到的公开记录位置、印象笔记
+  '_liveSeen','_liveNotes','_liveNotesRound'];
 function serializeSkillFlags(p){ const o={}; for(const k of SKILL_STATE_KEYS){ if(p[k]!==undefined && p[k]!==null) o[k]=p[k]; } return o; }
 
 function freshState(prev) {
@@ -9121,6 +9170,7 @@ function parseAI(c, opts) {
   const privateParts = splitPrivatePlanBlocks(c);
   c = privateParts.visible;
   let plan = privateParts.plan;
+  const liveNotes = privateParts.notes || '';
 
   // ★★ 核心修复：标签自动补闭合 ★★
   //   实测最高频的"沉默"成因：模型其实有完整输出，但标签开了没闭合/漏闭合，
@@ -9720,7 +9770,7 @@ function parseAI(c, opts) {
 
   // 模型到底有没有按协议输出（发言分诊 Tier 1 只在「完全没用协议」时才启动）
   const _noGameTag = !/<game>[\s\S]*?<\/game>/i.test(String(c || ''));
-  return { thinking, game, action, strategy, plan, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak, _monologueStripped, _noGameTag };
+  return { thinking, game, action, strategy, plan, notes: liveNotes, interrupt, _isRepeatSilent: isRepeatSilent, _isRefusal: isRefusal, _isMetaInstruction: isMetaInstruction, _isLeak: _isLeak, _monologueStripped, _noGameTag };
 }
 
 /* 退化尾巴截断：正常发言里连续 200+ 字符不出现任何句读(。！？.!?;；换行)几乎不可能，
@@ -9751,10 +9801,10 @@ function stripDegenerateTail(text) {
 // Unclosed blocks end only at an explicit sibling tag or the end of the reply.
 function splitPrivatePlanBlocks(rawText) {
   const text = String(rawText || '').replace(/__LT__|&lt;/g, '<').replace(/__GT__|&gt;/g, '>');
-  const open = /<\s*plan\s*>|[\[【]\s*(?:计划|plan)\s*[\]】]/gi;
-  const close = /<\s*\/\s*plan\s*>|[\[【]\s*\/\s*(?:计划|plan)\s*[\]】]/gi;
-  const sibling = /<\s*\/?\s*(?:thinking|draft|game|action|interrupt|strategy|plan)\s*>|[\[【]\s*\/?\s*(?:思考|草稿|thinking|draft|game|发言|公开发言|action|行动|投票|计划|plan)\s*[\]】]/gi;
-  const visible = [], plans = [];
+  const open = /<\s*(?:plan|notes)\s*>|[\[【]\s*(?:计划|plan|笔记|notes)\s*[\]】]/gi;
+  const close = /<\s*\/\s*(?:plan|notes)\s*>|[\[【]\s*\/\s*(?:计划|plan|笔记|notes)\s*[\]】]/gi;
+  const sibling = /<\s*\/?\s*(?:thinking|draft|game|action|interrupt|strategy|plan|notes)\s*>|[\[【]\s*\/?\s*(?:思考|草稿|thinking|draft|game|发言|公开发言|action|行动|投票|计划|plan|笔记|notes)\s*[\]】]/gi;
+  const visible = [], plans = [], notes = [];
   let cursor = 0, match;
   while ((match = open.exec(text))) {
     visible.push(text.slice(cursor, match.index));
@@ -9765,14 +9815,14 @@ function splitPrivatePlanBlocks(rawText) {
     const next = end ? null : sibling.exec(text);
     const bodyEnd = end ? end.index : next ? next.index : text.length;
     const body = text.slice(bodyStart, bodyEnd).trim();
-    if (body) plans.push(body);
+    if (body) (/笔记|notes/i.test(match[0]) ? notes : plans).push(body);
     cursor = end ? close.lastIndex : bodyEnd;
     open.lastIndex = cursor;
   }
   visible.push(text.slice(cursor));
   const plan = plans.join('\n');
   const junk = /^(none|无|暂无|继续观察|再看看|观察局势|保持潜伏|继续潜伏|看情况|随机应变|见机行事|正常发言|继续|等待|待定|tbd|n\/a)[。.\s]*$/i;
-  return {visible:visible.join('\n').trim(), plan:plan.length >= 8 && !junk.test(plan) ? plan : ''};
+  return {visible:visible.join('\n').trim(), plan:plan.length >= 8 && !junk.test(plan) ? plan : '', notes:notes.join('\n').trim()};
 }
 
 
@@ -10175,7 +10225,7 @@ function buildSystemPrompt(p, taskContext) {
     : "";
   const trialBlock = (!S.pureAI && trialOn) ? TRIAL_BOOK : '';
   const roleDef = ALL_ROLES[p.role.id] || p.role || {};
-  const currentTeachingMode = window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' ? window.TeachingWorldbooks.mode() : 'official';
+  const currentTeachingMode = window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function' ? teachingRulesMode(window.TeachingWorldbooks.mode()) : 'official';
   const customMechanicRole = !!(p.role && (p.role.customId || (Array.isArray(p.role.customAbilities) && p.role.customAbilities.length)));
   // “仅自定义/纯净”必须真正停用内置职业教学，而不是只关掉公共 WB 后又从
   // role.guide 把官方打法整段塞回来。内置角色此时只保留身份、阵营和技能说明；
@@ -10260,7 +10310,7 @@ function buildSystemPrompt(p, taskContext) {
   // 身份：没事别报；要提全桌一个词；要么跳全要么藏全。
   //   "平民"和"好人牌"在 AI 桌上成了字典：真平民说"平民"，神职不肯撒谎就改说"好人牌"，狼只要听用词就能圈出神。
     + '\n\n【身份·没事别报，要提就全桌一个词】没人问你身份就别报。"我是平民""我是好人牌""底牌是好人""身上干净"这类话帮不了你，只会把神职圈给狼看。真要提自己（被查杀要自证、残局要排坑），好人不管是不是神职都只用"平民"两个字，不要用"好人牌""底牌是好人"这种绕开"平民"的说法——那等于告诉全场你有身份。要么跳全，要么藏全：决定跳就把身份和信息一起摆出来；决定藏就连视角一起藏，"我没救""我验到""我守的"这种只有某个身份才说得出的话一个字都别带。';
-  if (bareRulesMode()) styleBlock = '';
+  if (bareRulesMode()) styleBlock = liveMode() ? LIVE_FRAMING_BLOCK : '';
   if (selectedPrompt && selectedPrompt.content) styleBlock += '\n\n【模型专属指令（最高优先级）】\n' + selectedPrompt.content.trim();
   // ★「性情」开关此前只控制卡片上显不显示标签，根本不控制提示词注入——
   //   用户以为关掉了，其实人格设定照样全量注入。这里让它名副其实。
@@ -11036,6 +11086,8 @@ ${userPersona}
   if (p._plan) {
     planBlock = `\n\n【你上一手给自己留的作战计划（第${p._planRound||'?'}轮时写的）】\n"${p._plan}"\n（这是你自己的备忘，不是别人的话。先检查计划前提；仍成立就继续推进，已经失效就更新。结构化输出写在 <plan>，自由输出写在 [计划] 中。）`;
   }
+  // ★ 参与者模式：它上一轮给自己写的印象笔记原样还给它，印象是攒出来的，不是每轮从记录里重算。
+  if (liveMode() && p._liveNotes) planBlock += `\n\n【你自己上一轮写的私密笔记（第${p._liveNotesRound || '?'}轮）】\n${p._liveNotes}\n（只有你看得到；想改就在这轮的 [笔记] 里重写。）`;
   wolfPrivateBlock = planBlock + loverPrivateBlock + wolfPrivateBlock;
 
   // ★ 私密行动史统一重注入：memory 默认只保留最近 40 条（见 g-mem / memSlice），长局里
@@ -11062,7 +11114,7 @@ ${userPersona}
       ? buildPublicClaimsBlock(p) : '';
   const _prune = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean') ? null : buildAbsentRolePruner(S.players);
   const _tp = t => _prune ? _prune(t) : t;
-  return `${_tp(wb)}${trialBlock}\n\n${_tp(SOCIAL_GAME_COGNITION_RULES)}\n\n${_tp(guide)}${mbtiBlock}${_tp(styleBlock)}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'':'死者身份公开（出局后翻牌）'}${_tp(winRuleBlock)}${_tp(knightChainBlock)}${_tp(speakRoundBlock)}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${publicClaimsBlock}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${_tp(fmt)}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。\n\n【发言记录】\n${histTimeOrderNote}${hist||'暂无'}${hardFactDigest}${langOutBlock}`;
+  return `${_tp(wb)}${trialBlock}\n\n${_tp(SOCIAL_GAME_COGNITION_RULES)}\n\n${_tp(guide)}${mbtiBlock}${_tp(styleBlock)}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'':'死者身份公开（出局后翻牌）'}${_tp(winRuleBlock)}${_tp(knightChainBlock)}${_tp(speakRoundBlock)}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${publicClaimsBlock}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${_tp(fmt)}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。${liveMode() ? '' : '\n\n【发言记录】\n' + histTimeOrderNote + (hist||'暂无') + hardFactDigest}${langOutBlock}`;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
@@ -11797,7 +11849,9 @@ async function callAI(p, prompt, opts) {
   // 只在发出前查，旧流程会趁这次返回再往下走一步（实测：新对局里多出一份报名记录）。
   const guarded = !(opts && opts.systemPromptOverride);
   if (guarded && isStaleActor(p)) return haltStaleRun('callAI', p);
+  const _memLenBefore = (p && Array.isArray(p.memory)) ? p.memory.length : -1;
   const r = await _callAIImpl(p, prompt, opts);
+  if (guarded && liveMode() && !(opts && opts.noMemory) && LIVE_PENDING_SEEN.has(p) && p.memory.length > _memLenBefore) { p._liveSeen = LIVE_PENDING_SEEN.get(p); LIVE_PENDING_SEEN.delete(p); }
   if (guarded && isStaleActor(p)) return haltStaleRun('callAI·返回时', p);
   return r;
 }
@@ -11808,12 +11862,18 @@ async function _callAIImpl(p, prompt, opts) {
   if (!opts.systemPromptOverride) assertPrivateViewer(p);
   // 技能确认（投票、选刀等只选一个选项的动作）压低随机性，保证格式和选择稳定；
   // 但写战术方案需要创意（opts.creative），不压——压低后每只狼写出的方案趋同、偏保守。
-  const rationalCap = (opts.skillConfirm && !opts.creative) ? 0.5 : Infinity;
+  const rationalCap = (opts.skillConfirm && !opts.creative && !(opts.decisionKind === 'day-vote' && liveMode())) ? 0.5 : Infinity; // 参与者模式的投票和发言同温
   const myGid = S.gameId;
   const api = getAPI(p.id);
   if (!api.key) return {thinking:'', game:'(未配置API)', action:''};
   // ★ opts.systemPromptOverride：给"谁是卧底"等复用 callAI 的其他游戏用——它们有
   //   自己的 system prompt，不能走狼人杀的 buildSystemPrompt。狼人杀不传此参数，行为不变。
+  // ★ 参与者模式：公开记录不平铺进系统提示，而是作为"自你上次开口以来发生的事"跟着这一轮任务进对话。
+  //   指针在 callAI 外层、这次回答真的写进记忆之后才前移，失败重试不会丢事件。
+  if (liveMode() && !opts.systemPromptOverride) {
+    LIVE_PENDING_SEEN.set(p, S.history.length);
+    prompt = liveInjectEvents(p, prompt, LIVE_PENDING_SEEN.get(p));
+  }
   const promptTaskContext = {prompt, opts};
   const sys = (opts && opts.systemPromptOverride) || buildSystemPrompt(p, promptTaskContext);
   // 提示词是由世界书、角色说明和多层包装动态拼出来的；在真正请求模型前做一次
@@ -11858,7 +11918,7 @@ async function _callAIImpl(p, prompt, opts) {
   //   ② slice 可能把一对 user/assistant 拦腰切断，让整段对话以 assistant 开头。
   //      Anthropic Messages API 要求首条必须是 user，请求会被直接拒绝，而 callAI
   //      的 catch 会把它当成"API 故障"去走 fallback——一个纯粹自找的失败。
-  let memSlice = memLimit > 0 ? filteredMemory.slice(-memLimit) : filteredMemory;
+  let memSlice = (memLimit > 0 && !liveMode()) ? filteredMemory.slice(-memLimit) : filteredMemory; // 参与者模式：对话就是它的全部经历，不开窗口
   const _memDropped = filteredMemory.length - memSlice.length;
   // 半对开头（孤儿 assistant）会被模型读成"我现在正在主张这个结论"，而它其实是三天前的回答
   while (memSlice.length && memSlice[0].role === 'assistant') memSlice = memSlice.slice(1);
@@ -11884,7 +11944,7 @@ async function _callAIImpl(p, prompt, opts) {
   // 决策锚点必须晚于自定义 CoT 注入，避免被 finalPrompt = prompt + cot 覆盖；
   // 其他小游戏使用 systemPromptOverride 时不注入狼人杀状态。
   const inferredDecisionKind = opts.decisionKind || (/^【猎人开枪】/.test(String(prompt || '')) ? 'hunter' : '');
-  if (inferredDecisionKind && !opts.systemPromptOverride) {
+  if (inferredDecisionKind && !opts.systemPromptOverride && !liveMode()) {
     const anchor = buildDecisionAnchor(p, inferredDecisionKind, opts.decisionCandidates || (inferredDecisionKind === 'hunter' ? S.players.filter(x=>x.alive) : null), {
       allowPass: opts.decisionAllowPass
     });
@@ -11915,7 +11975,7 @@ async function _callAIImpl(p, prompt, opts) {
       .replace(/\n?格式要求[\s\S]*?<\/action>/gi, '')
       .trim();
     // 只加一句自然语言引导，不强制格式
-    finalPrompt += (typeof bareRulesMode === 'function' && bareRulesMode()) ? '\n\n直接用第一人称说出你要对大家说的话。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。' : '\n\n你是游戏中的一名玩家，现在轮到你发言。直接用第一人称对其他玩家说话，像在桌上聊天一样自然。公开发言不设短回复目标：要让别人听懂你现在想推动什么，以及你为什么这样判断；身份对跳、处于主要出局位或投票前需要翻盘时，优先回应真正会改变票型的最强指控。不要为了凑格式把所有人复述一遍，也不要为了显得强势凭空找一个人攻击。\n\n如果你需要先分析再发言，可以在 [草稿] 和 [/草稿] 之间写内心思考。这部分不会被其他玩家看到。先在草稿里比较至少两个不同方案，检查对手回应、下一手和退出条件，再选择一个。\n[草稿]\n方案一继续推P3，能压票但可能替最早带节奏的人完成工作；方案二先追P5的改票原因，信息增量更高。我选方案二，如果P5能给出具体依据就改查P3。\n[/草稿]\nP5，你上一轮还保P3，这轮突然跟票推他，改变判断的具体信息是什么？现在我不跟这张票，回答不出来我会优先投你。\n\n⚠️【格式铁律·否则你会沉默出局】用了 [草稿] 就必须写 [/草稿] 闭合；真正说出口的话必须写在 [/草稿] 之后，不能只留在草稿里。\n\n发言之后可以追加一份不会公开的长期备忘：[计划]目标；下一步；计划成立的前提；退出或改线条件[/计划]。有具体跨轮计划时才写；没有就省略，不要写“继续观察”。要投票请在公开发言最后一句说明，计划块放在最末尾。';
+    finalPrompt += liveMode() ? LIVE_FREE_TAIL : (typeof bareRulesMode === 'function' && bareRulesMode()) ? '\n\n直接用第一人称说出你要对大家说的话。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。' : '\n\n你是游戏中的一名玩家，现在轮到你发言。直接用第一人称对其他玩家说话，像在桌上聊天一样自然。公开发言不设短回复目标：要让别人听懂你现在想推动什么，以及你为什么这样判断；身份对跳、处于主要出局位或投票前需要翻盘时，优先回应真正会改变票型的最强指控。不要为了凑格式把所有人复述一遍，也不要为了显得强势凭空找一个人攻击。\n\n如果你需要先分析再发言，可以在 [草稿] 和 [/草稿] 之间写内心思考。这部分不会被其他玩家看到。先在草稿里比较至少两个不同方案，检查对手回应、下一手和退出条件，再选择一个。\n[草稿]\n方案一继续推P3，能压票但可能替最早带节奏的人完成工作；方案二先追P5的改票原因，信息增量更高。我选方案二，如果P5能给出具体依据就改查P3。\n[/草稿]\nP5，你上一轮还保P3，这轮突然跟票推他，改变判断的具体信息是什么？现在我不跟这张票，回答不出来我会优先投你。\n\n⚠️【格式铁律·否则你会沉默出局】用了 [草稿] 就必须写 [/草稿] 闭合；真正说出口的话必须写在 [/草稿] 之后，不能只留在草稿里。\n\n发言之后可以追加一份不会公开的长期备忘：[计划]目标；下一步；计划成立的前提；退出或改线条件[/计划]。有具体跨轮计划时才写；没有就省略，不要写“继续观察”。要投票请在公开发言最后一句说明，计划块放在最末尾。';
   }
 
   if (isFreeOutput && !(typeof bareRulesMode === 'function' && bareRulesMode())) finalPrompt += '\n\n【公开发言要说完整】别只在草稿里想明白、嘴上只剩一句结论：把这轮想推动什么和凭什么说出来，有一个具体依据（谁说过什么、票投了谁、系统公布了什么）就够。被质疑时回应其中最强且会改变票型的一点；若现有指控确实拆不动，可以明确承认并转向提问、保护、协调或保留意见，不必硬造狼点。有效内容说完整即可，避免机械复读和无信息灌水。';
@@ -11930,7 +11990,7 @@ async function _callAIImpl(p, prompt, opts) {
   //   当前这一轮的题目（最后一条）完整保留，事件和发言都在系统提示的对局记录里，不会因此丢信息。
   const _bareHeadOnly = (m, i) => (m.role === 'user' && i > 0 && i < _msgs0.length - 1 && typeof m.content === 'string')
     ? {...m, content: (m.content.split('\n').find(l => l.trim()) || '').trim()} : m;
-  const msgs = bareRulesMode() ? _msgs0.map(_bareHeadOnly).map(m => ({...m, content: typeof m.content === 'string' ? bareScrub(m.content, m.role) : m.content})) : _msgs0;
+  const msgs = bareRulesMode() ? _msgs0.map(liveMode() ? (m => m) : _bareHeadOnly).map(m => ({...m, content: typeof m.content === 'string' ? bareScrub(m.content, m.role) : m.content})) : _msgs0;
   let forceFinalOnlyRetry = false;
 
   // 备选API由 getFallbacks() 动态获取（支持多个）
@@ -11984,7 +12044,7 @@ async function _callAIImpl(p, prompt, opts) {
         const thinkLen = String(parsed && parsed.thinking || '').trim().length;
         throw new Error(`异常过短：有思考但无有效发言（thinking=${thinkLen}字）`);
       }
-      if (opts.enforceNightChronology && hasFirstPersonNightChronologyError(parsed && parsed.game)) {
+      if (opts.enforceNightChronology && !liveMode() && hasFirstPersonNightChronologyError(parsed && parsed.game)) {
         Render.devLog && Render.devLog('warn', `[P${p.id+1} ${p.name}] 拒收时序穿越发言：把今早竞选信息当成昨夜夜间行动理由`);
         throw new Error('夜间行动理由时序倒错');
       }
@@ -13438,6 +13498,11 @@ async function streamSpeak(player, label, result, isWolfChat, noUndo) {
       player._plan = result.plan;
       player._planRound = S.round;
     }
+    // ★ 参与者模式的印象笔记：写了就整段替换，没写就沿用上一条。
+    if (result && result.notes) {
+      player._liveNotes = result.notes;
+      player._liveNotesRound = S.round;
+    }
   }
 
   // ★ 撤回按钮绑定（必须在 gameRecord.push 之后，因为撤回时要 pop 这条）
@@ -14489,7 +14554,7 @@ async function proc(players, promptFn, label, opts) {
       {
         // ★ 抢先朗读只在"发言并发=1的公开发言"时开启:并发>1会造成多人同时开口、乱序
         let _lastRejectedGame = '';   // 判官/正则否掉的最后一版原文：技术故障弹框里给用户"照用原话"
-        const _judgeMode = S.debugDisableSpeechJudge ? 'off'
+        const _judgeMode = (S.debugDisableSpeechJudge || liveMode()) ? 'off'
           : (($('m-speech-judge') && $('m-speech-judge').value) || 'all');
         const _liveOK = _judgeMode === 'off' && batch.length === 1 && !opts.wolfOnly && !opts.silent;
         let _r = factCheck(p, await callAI(p, promptFn(p), {...opts, liveTTS:_liveOK}));
@@ -20791,7 +20856,7 @@ const PhaseHandlers = {
       const whitewolfHint = isWhitewolfReady
         ? '\n\n【💥 你是白狼王·投票阶段自爆机会】\n你可以放弃这次投票,改为自爆带走一人。判断:你已经看到本轮发言和票意表态,如果票型已经锁死【你自己】、或锁死一个救不回且值得换的狼队友,自爆替代投票才是更高价值的动作。⚠️反过来,如果这轮票正指向一个【好人】,绝对不要自爆——好人马上要免费帮你除掉一个好人(0换1),你一炸就亲手取消了那次处决、把它做成1换1,还等于告诉全场狼很在乎这个人。详见系统提示里的白狼王决策数据包。\n要自爆:<action>EXPLODE:目标名</action> (替代正常投票,自爆瞬间结束本轮投票直接入夜)\n要投票:<action>玩家名</action> (正常投票)\n要弃权:<action>None</action>'
         : '';
-      aiR[p.id] = await callAI(p, (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【投票】投谁出局？\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>' + (isWhitewolfReady ? '\n你是白狼王，也可以不投票，改为自爆带走一人：<action>EXPLODE:目标名</action>（自爆后本轮投票结束，直接入夜）。' : '') : '【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true, requireGame:false, decisionKind:'day-vote', decisionCandidates:alive, decisionAllowPass:true});
+      aiR[p.id] = await callAI(p, liveMode() ? liveVotePrompt(isWhitewolfReady) : (typeof bareRulesMode === 'function' && bareRulesMode()) ? '【投票】投谁出局？\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>' + (isWhitewolfReady ? '\n你是白狼王，也可以不投票，改为自爆带走一人：<action>EXPLODE:目标名</action>（自爆后本轮投票结束，直接入夜）。' : '') : '【投票】投谁出局？'+voteEvidenceReminder+'\n<thinking>先拆解目标的事实、来源、前提、推导和结论，指出具体断点；再把行为模型作为低权重辅助</thinking>\n<game></game>\n<action>名字/None</action>'+duelReminder+whitewolfHint,{noMemory:true, skillConfirm:true, requireGame:false, decisionKind:'day-vote', decisionCandidates:alive, decisionAllowPass:true});
       logNightThinking(p, aiR[p.id]);
     });
     // ★ 白狼王投票阶段自爆检测:在统计票数前优先处理
@@ -21275,6 +21340,7 @@ ${toCompress.map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content.
 }
 
 async function compressAllMemories() {
+  if (liveMode()) return; // 参与者模式：对话本身就是记忆，不交给摘要模型改写
   // ★ 记忆压缩总开关：关闭时完整保留所有发言原文（不喂摘要模型），杜绝摘要串发言/身份错乱
   const memCompressEl = $('mem-compress-enable');
   if (memCompressEl && !memCompressEl.checked) return;
@@ -28125,7 +28191,7 @@ ${p.role && p.role.team === 'good' ? '\n发言/投票前，仍按最初那条里
   //   这边原来只看 A/B 旗标，导致「纯净 / 仅自定义」模式下网页位仍被注入官方挡刀教学与
   //   默认立场，同一个玩家在两条路径上拿到的世界不一样。
   const _webTeachingMode = (window.TeachingWorldbooks && typeof window.TeachingWorldbooks.mode === 'function')
-    ? window.TeachingWorldbooks.mode() : 'official';
+    ? teachingRulesMode(window.TeachingWorldbooks.mode()) : 'official';
   if (!opts.noTeaching && _webTeachingMode !== 'custom' && _webTeachingMode !== 'clean' && _webTeachingMode !== 'bare') {
     try {
       const _rfIds = new Set((S.players || []).map(x => x && x.role && x.role.id).filter(Boolean));
