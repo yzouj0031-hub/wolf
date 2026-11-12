@@ -188,7 +188,7 @@ for (const file of FILES) {
     assert.ok(src.includes(opt), `${file}: 「发言分诊」缺少档位 → ${opt}`);
   }
   assert.ok(
-    src.includes("const _judgeMode = S.debugDisableSpeechJudge ? 'off'")
+    src.includes("const _judgeMode = (S.debugDisableSpeechJudge || liveMode()) ? 'off'")
     && src.includes("if (!_judgeRejected && needsSpeechJudge(_r, opts, _judgeMode)) {"),
     `${file}: 档位没有接上分诊调用点`,
   );

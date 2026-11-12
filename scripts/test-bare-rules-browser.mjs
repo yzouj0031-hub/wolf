@@ -51,9 +51,9 @@ for (const file of ['index.html', 'en/index.html']) {
     }
     const B = "(typeof bareRulesMode === 'function' && bareRulesMode())";
     for (const [label, needle] of [
-      ['自由输出发言指导', "finalPrompt += " + B + " ? '\\n\\n直接用第一人称说出你要对大家说的话。"],
+      ['自由输出发言指导', B + " ? '\\n\\n直接用第一人称说出你要对大家说的话。"],
       ['公开发言要说完整', "if (isFreeOutput && !" + B + ") finalPrompt += '\\n\\n【公开发言要说完整】"],
-      ['白天投票', "callAI(p, " + B + " ? '【投票】投谁出局？\\n<thinking>思考</thinking>"],
+      ['白天投票', B + " ? '【投票】投谁出局？\\n<thinking>思考</thinking>"],
       ['狼队第二轮', "const prompt = " + B + " ? `【狼队夜聊·第二轮】"],
       ['猎人开枪', "callAI(p, " + B + " ? '【猎人开枪】你已经出局"],
       ['警长报名', "callAI(p, " + B + " ? '【警长竞选】天亮了"],
