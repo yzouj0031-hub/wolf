@@ -33,6 +33,9 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext([
+  functionSource('nameAppearsIn'),
+  functionSource('nameHitPositions'),
+  functionSource('textMentionsPlayer'),
   functionSource('_cleanMachineAction'),
   functionSource('_isExplicitMachinePass'),
   functionSource('_extractMachineTargets'),

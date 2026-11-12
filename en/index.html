@@ -5619,6 +5619,38 @@ function blindMaskElementText(root) {
 }
 const shuffle  = a => a.slice().sort(() => Math.random() - .5);
 
+// ★ 名字出现在一段文字里：名字两端如果是英文字母或数字，就必须整词出现。
+//   以前用的是纯子串匹配：默认名字池里有个玩家叫「L」，而 DUEL / EXPLODE / KILL / LEARN / LINK 这些指令词里都有 L，
+//   于是「DUEL:P3」被读成同时指了 L 和 P3 两个人，判成格式错误——骑士怎么答都决斗不出去。
+//   英文页的 Light Yagami、Levi Ackerman 同理（名字里含 L）。
+function nameAppearsIn(text, name) {
+  const s = String(text == null ? '' : text), n = String(name == null ? '' : name);
+  if (!n) return false;
+  return nameHitPositions(s, n).length > 0;
+}
+function nameHitPositions(s, n) {
+  const edge = c => !!c && /[A-Za-z0-9]/.test(c);
+  const out = [];
+  let from = 0;
+  while (n && from <= s.length) {
+    const i = s.indexOf(n, from);
+    if (i < 0) break;
+    const headOK = !(edge(n[0]) && edge(s[i - 1]));
+    const tailOK = !(edge(n[n.length - 1]) && edge(s[i + n.length]));
+    if (headOK && tailOK) { out.push(i); from = i + n.length; } else from = i + 1;
+  }
+  return out;
+}
+// 文字里是否点到了这名玩家（整词的名字，或他的 P 号；P1 不会被 P12 误中）。
+function textMentionsPlayer(text, pl) {
+  if (!pl) return false;
+  const s = String(text == null ? '' : text);
+  return nameAppearsIn(s, pl.name) || new RegExp('(?:^|[^A-Za-z0-9])P\\s*#?\\s*' + (pl.id + 1) + '(?=$|[^0-9])', 'i').test(s);
+}
+// 行动里明确写了放弃类的词（PASS / WAIT / NOW / NONE 作为独立的词）；名字里碰巧含这些字母（Snow、Nowak）不算。
+function actionHasDeclineWord(action) {
+  return /(?:^|[^A-Za-z])(?:PASS|WAIT|NOW|NONE)(?:$|[^A-Za-z])/i.test(String(action == null ? '' : action));
+}
 function findPlayer(name, pool) {
   if (!name) return null;
   const src = pool || S.players.filter(p => p.alive);
@@ -5639,7 +5671,9 @@ function findPlayer(name, pool) {
   const exact = src.find(x => x.name === name);
   if (exact) return exact;
   // 模糊匹配兜底（双向 includes）
-  const fuzzy = src.find(x => x.name.includes(name) || name.includes(x.name));
+  // 先找完整名字出现在这段文字里的人（整词、取最长的那个），再退到「写了名字的一部分」
+  const fuzzy = src.filter(x => nameAppearsIn(name, x.name)).sort((a, b) => b.name.length - a.name.length)[0]
+    || src.find(x => x.name.includes(name));
   if (fuzzy && typeof Render !== 'undefined' && Render.devLog && name.length <= 2) {
     // 短名(≤2字符)模糊匹配风险高,记录日志便于排查
     Render.devLog('warn', `[findPlayer] 短名模糊匹配 "${name}" → P${fuzzy.id+1} ${fuzzy.name}(可能有歧义)`);
@@ -13079,7 +13113,7 @@ async function execWhitewolfExplodeIfAny(p, r) {
     target = findPlayer(targetName, S.players.filter(x => x.alive && x.id !== p.id));
     if (!target) {
       for (const cand of S.players.filter(x => x.alive && x.id !== p.id)) {
-        if (r.action.includes(cand.name) || r.action.includes('P'+(cand.id+1))) { target = cand; break; }
+        if (textMentionsPlayer(r.action, cand)) { target = cand; break; }
       }
     }
     if (!target && !p.isPlayer) {
@@ -13191,13 +13225,13 @@ async function execKnightDuelIfAny(p, r) {
   let target = null;
 
   // 路径A：标准 DUEL:xxx 格式（决斗按钮提交的就是这种）
-  if (r.action && /DUEL\b/i.test(r.action) && !/PASS|WAIT|NOW|NONE/i.test(r.action)) {
+  if (r.action && /DUEL\b/i.test(r.action) && !actionHasDeclineWord(r.action)) {
     let tn = r.action.replace(/.*DUEL[：:\s]*/i, '').trim();
     tn = tn.split(/[\n\r]/)[0].replace(/[（(].*?[)）]/g,'').replace(/[，,。.；;！!？?、].*$/,'').trim();
     target = tn ? findPlayer(tn, aliveCandidates) : null;
     if (!target) {
       for (const cand of aliveCandidates) {
-        if (r.action.includes(cand.name) || r.action.includes('P'+(cand.id+1))) { target = cand; break; }
+        if (textMentionsPlayer(r.action, cand)) { target = cand; break; }
       }
     }
   }
@@ -13253,14 +13287,14 @@ async function resolveMechDuel(mw, t) {
 async function execMechDuelIfAny(p, r) {
   if (!mechCanDuel(p)) return false;
   if (!r || !r.action) return false;
-  if (!/DUEL\b/i.test(r.action) || /PASS|WAIT|NOW|NONE/i.test(r.action)) return false;
+  if (!/DUEL\b/i.test(r.action) || actionHasDeclineWord(r.action)) return false;
   const aliveCandidates = S.players.filter(x => x.alive && x.id !== p.id);
   let tn = r.action.replace(/.*DUEL[：:\s]*/i, '').trim();
   tn = tn.split(/[\n\r]/)[0].replace(/[（(].*?[)）]/g,'').replace(/[，,。.；;！!？?、].*$/,'').trim();
   let target = tn ? (findPlayerBySeatRef(tn, aliveCandidates) || findPlayer(tn, aliveCandidates)) : null;
   if (!target) {
     for (const cand of aliveCandidates) {
-      if (r.action.includes(cand.name) || r.action.includes('P'+(cand.id+1))) { target = cand; break; }
+      if (textMentionsPlayer(r.action, cand)) { target = cand; break; }
     }
   }
   if (!target && !p.isPlayer) {
@@ -13699,7 +13733,7 @@ async function proc(players, promptFn, label, opts) {
           // 兜底：从整个action里找
           if (!target) {
             for (const cand of S.players.filter(x => x.alive && x.id !== p.id)) {
-              if (r.action.includes(cand.name) || r.action.includes('P'+(cand.id+1))) { target = cand; break; }
+              if (textMentionsPlayer(r.action, cand)) { target = cand; break; }
             }
           }
           if (target && target.id !== p.id) {
@@ -13770,7 +13804,7 @@ async function proc(players, promptFn, label, opts) {
         // ★ 兜底：从整个action里找玩家名
         if (!target) {
           for (const cand of S.players.filter(x => x.alive && x.id !== p.id)) {
-            if (r.action.includes(cand.name) || r.action.includes('P'+(cand.id+1))) { target = cand; break; }
+            if (textMentionsPlayer(r.action, cand)) { target = cand; break; }
           }
         }
         if (!target && !p.isPlayer) {
@@ -13821,13 +13855,13 @@ async function proc(players, promptFn, label, opts) {
       }
       // ★ 骑士在发言阶段宣布决斗检测：AI/玩家在发言的action里直接输出DUEL:名字
       //   现在改为：发言回合内立即结算决斗（与白狼王自爆同一时机），不再延迟到独立决斗阶段
-      if (p.role.id === 'knight' && p.alive && !S._duelUsed && S._duelRound !== S.round && r.action && /DUEL[：:\s]/i.test(r.action) && !/PASS|WAIT|NOW|NONE/i.test(r.action)) {
+      if (p.role.id === 'knight' && p.alive && !S._duelUsed && S._duelRound !== S.round && r.action && /DUEL[：:\s]/i.test(r.action) && !actionHasDeclineWord(r.action)) {
         let dtn = r.action.replace(/.*DUEL[：:\s]+/i,'').trim();
         dtn = dtn.split(/[\n\r]/)[0].replace(/[（(].*?[)）]/g,'').replace(/[，,。.；;！!？?、].*$/,'').trim();
         let dtarget = findPlayer(dtn, S.players.filter(x => x.alive && x.id !== p.id));
         if (!dtarget) {
           for (const cand of S.players.filter(x => x.alive && x.id !== p.id)) {
-            if (r.action.includes(cand.name) || r.action.includes('P'+(cand.id+1))) { dtarget = cand; break; }
+            if (textMentionsPlayer(r.action, cand)) { dtarget = cand; break; }
           }
         }
         if (!dtarget && !p.isPlayer) {
@@ -13845,7 +13879,7 @@ async function proc(players, promptFn, label, opts) {
         }
       }
       // ★ 机械狼（学到骑士）在发言阶段宣布决斗
-      else if (mechCanDuel(p) && r.action && /DUEL[：:\s]/i.test(r.action) && !/PASS|WAIT|NOW|NONE/i.test(r.action)) {
+      else if (mechCanDuel(p) && r.action && /DUEL[：:\s]/i.test(r.action) && !actionHasDeclineWord(r.action)) {
         await execMechDuelIfAny(p, r);
       }
     }
@@ -14576,15 +14610,7 @@ function _extractMachineTargets(text, pool, count) {
   const hits = [];
   for (const p of candidates) {
     const name = String(p.name || '');
-    if (name) {
-      let from = 0;
-      while (from <= src.length) {
-        const idx = src.indexOf(name, from);
-        if (idx < 0) break;
-        hits.push({p, pos:idx, strength:2});
-        from = idx + Math.max(1, name.length);
-      }
-    }
+    if (name) for (const idx of nameHitPositions(src, name)) hits.push({p, pos:idx, strength:2, len:name.length});
     const seatRe = new RegExp('(?:^|[^A-Za-z0-9])P\\s*#?\\s*'+(p.id+1)+'(?=$|[^0-9])', 'gi');
     let m;
     while ((m = seatRe.exec(src)) !== null) {
@@ -14592,6 +14618,10 @@ function _extractMachineTargets(text, pool, count) {
       hits.push({p, pos:m.index + Math.max(0, offset), strength:3});
     }
   }
+  // 「李明」出现在「李明珠」里面时，只算点到了李明珠
+  const nameHits = hits.filter(h => h.len);
+  const kept = hits.filter(h => !h.len || !nameHits.some(o => o.p !== h.p && o.len > h.len && o.pos <= h.pos && o.pos + o.len >= h.pos + h.len));
+  hits.length = 0; hits.push(...kept);
   hits.sort((a,b) => a.pos - b.pos || a.strength - b.strength);
   const picked = [];
   const seen = new Set();
@@ -16927,7 +16957,7 @@ This instruction has priority over generic advice such as "do not waste the nigh
       const lastName = extractWolfTargetName(cleaned, pool);
       if (lastName) return pool.find(x => x.name === lastName) || null;
       // 最后兜底:子串匹配(可能误判,但总比 null 好)
-      return pool.find(x => cleaned.includes(x.name)) || null;
+      return pool.filter(x => nameAppearsIn(cleaned, x.name)).sort((a, b) => b.name.length - a.name.length)[0] || null;
     }
     // 统一调度狼人发言(AI 走 callAI,人类走 waitInput)
     async function speakOneWolf(p, prompt, isOpening) {
@@ -19546,7 +19576,7 @@ const PhaseHandlers = {
       // ★ 最后兜底：从整个action里找玩家名
       if (!t) {
         for (const cand of alive.filter(x => x.id !== knight.id)) {
-          if (action.includes(cand.name) || action.includes('P'+(cand.id+1))) { t = cand; break; }
+          if (textMentionsPlayer(action, cand)) { t = cand; break; }
         }
       }
       if (t) {
@@ -19608,7 +19638,7 @@ const PhaseHandlers = {
           let target = findPlayer(targetName, S.players.filter(x => x.alive && x.id !== wwAlive.id));
           if (!target) {
             for (const cand of S.players.filter(x => x.alive && x.id !== wwAlive.id)) {
-              if (explodeAction.includes(cand.name) || explodeAction.includes('P'+(cand.id+1))) { target = cand; break; }
+              if (textMentionsPlayer(explodeAction, cand)) { target = cand; break; }
             }
           }
           if (target) {

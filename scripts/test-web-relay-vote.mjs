@@ -13,7 +13,10 @@ assert.ok(helperStart >= 0 && helperEnd > helperStart && pasteStart >= 0 && past
 const planStart = html.indexOf('function splitPrivatePlanBlocks(rawText)');
 const planEnd = html.indexOf('// ★ v9.6 抽出全局 SSE', planStart);
 assert.ok(planStart >= 0 && planEnd > planStart, 'private plan splitter is missing');
-const source = html.slice(planStart, planEnd) + '\n' + html.slice(helperStart, helperEnd) + '\n' + html.slice(pasteStart, pasteEnd) + '\n' + html.slice(parserStart, parserEnd);
+const nameStart = html.indexOf('function nameAppearsIn(text, name)');
+const nameEnd = html.indexOf('function findPlayer(name, pool)', nameStart);
+assert.ok(nameStart >= 0 && nameEnd > nameStart, 'whole-word name helpers are missing');
+const source = html.slice(nameStart, nameEnd) + '\n' + html.slice(planStart, planEnd) + '\n' + html.slice(helperStart, helperEnd) + '\n' + html.slice(pasteStart, pasteEnd) + '\n' + html.slice(parserStart, parserEnd);
 const parseAI = text => ({action:(text.match(/<action>([\s\S]*?)<\/action>/i)||[])[1] || ''});
 const findPlayer = (text, candidates) => {
   const value = String(text || '').trim();
