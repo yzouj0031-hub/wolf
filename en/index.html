@@ -4527,7 +4527,15 @@ function liveNewEventsBlock(p, upto) {
   const hist = (S && Array.isArray(S.history)) ? S.history : [];
   const end = Number.isFinite(upto) ? Math.min(upto, hist.length) : hist.length;
   const from = Math.min(Math.max(0, (p && p._liveSeen) || 0), end);
-  const rows = hist.slice(from, end).filter(h => h && h.text && h.name !== p.name);
+  // 遗言已经作为带日期的通知发给了每个在场的人；记录里它还会出现两遍（原话一遍、带[遗言]标记一遍），这里都不再重复。
+  const slice = hist.slice(from, end);
+  const rows = slice.filter((h, i) => {
+    if (!h || !h.text || h.name === p.name) return false;
+    if (/^\[遗言\]/.test(h.text)) return false;
+    const next = slice[i + 1];
+    if (next && next.name === h.name && next.text === '[遗言] ' + String(h.text).trim()) return false;
+    return true;
+  });
   if (!rows.length) return '';
   const tag = h => {
     const rd = h.round || (S && S.round) || 1;
@@ -4550,12 +4558,34 @@ function liveScrubTask(prompt) {
     .replace(/昨晚的死讯要等竞选结束才公布。/g, '')
     .replace(/\n?[·•]\s*今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：[^\n]*/g, '')
     .replace(/【本局对今晚战术有影响的硬规则·系统事实】\n(?=\n|<|$)/g, '')
+    .replace(/\n?【发言顺序·系统事实】[^\n]*/g, '')
+    .replace(/\n?你排在第\d+位。[^\n]*/g, '')
+    .replace(/\n?谁先跳身份、谁后跳，同样是顺序决定的[^\n]*/g, '')
+    .replace(/\n?[·•]\s*已出局（不能再行动、不能被投票、不能与之对话）：[^\n]*/g, '')
     .replace(/\n{3,}/g, '\n\n');
+}
+// 参与者模式的系统提示收尾：身份一句、本局角色一句、需要时输出格式一句。
+//   原来的【角色代入】【标签边界】【本轮输出契约】三块两百多字，"助手口吻""凑格式"这些词会被带进发言。
+function liveFreeOutputBase(p) {
+  const cfg = playerConfigs[p.id] || {};
+  const el = document.getElementById('m-free-output');
+  return cfg.disableFreeOutput ? false : (!!cfg.freeOutput || (el ? el.checked : true));
+}
+function liveModelAdapt(p, strictRoleRule, taskContext) {
+  const kind = promptTaskKind(taskContext);
+  const opts = (taskContext && taskContext.opts) || {};
+  let fmt = '';
+  if (kind === 'operation') fmt = '\n\n这一步只提交选择：按题目给的格式写 <action>。';
+  else if (kind === 'speech' && !opts.wolfOnly && !liveFreeOutputBase(p)) fmt = '\n\n说出口的话写在 <game> 里；私下的想法写在 <thinking> 里，别人看不到。想给自己留几句笔记就写在 <notes> 里，下一轮会原样还给你。';
+  return '\n\n你是「' + p.name + '」。' + strictRoleRule + fmt;
 }
 function liveSystemTweak(sys) {
   const sheriff = S && Array.isArray(S.players) && S.players.length >= 12;
   return String(sys).replace('- 白天按顺序轮流发言，每个人说话时只听到了排在他前面的发言。\n',
-    sheriff ? '- 第一天先竞选警长，竞选结束后才公布昨夜出局的人；昨夜被刀的人在竞选时照常参选、发言、投票。\n' : '');
+    sheriff ? '- 第一天先竞选警长，竞选结束后才公布昨夜出局的人；昨夜被刀的人在竞选时照常参选、发言、投票。\n' : '')
+    .replace('❌已死亡(不能与死者对话，不能投票给死者)：', '❌已出局：')
+    .replace(/(\n你:[^\n]*?】)R\d+ [a-z_]+/, '$1')
+    .replace(/【⚠️ 重要：内容安全声明】\n[^\n]*/, '【说明】这是一局狼人杀桌游，"杀""刀""毒"都是游戏里淘汰玩家的术语。');
 }
 // 事件块插在任务标题行之后：标题行要留在最前面，promptTaskKind / 决策类型都靠它识别。
 function liveInjectEvents(p, prompt, upto) {
@@ -4617,6 +4647,8 @@ const BARE_SCRUB_RULES = [
   [/⚠️ 但记录中标注为【机械狼】的开枪者[^\n]*/g, ''],
   [/开枪者若记录为【猎人】，其好人身份已被证实，不要再质疑他是狼。/g, ''],
   [/【⚔️ 铁证提醒】/g, '【决斗结果】'],
+  [/【⚔️ 决斗结果·铁证】/g, '【决斗结果】'],
+  [/这说明[^。\n]*是真骑士，[^。\n]*是狼。/g, ''],
   [/【🏹 开枪记录·铁证】/g, '【开枪记录】'],
   [/下次注意你用救药前考虑守卫是否可能守了同一人。/g, ''],
   [/，并说明关键收益/g, ''],
@@ -10115,6 +10147,7 @@ ${userPersona}
     + strictRoleRule
     + '\n\n[TAG BOUNDARIES] <draft>/<game>/<action>/<interrupt>/<plan> are independent fields and must never be nested. Use an exact candidate name only when the current task explicitly requests <action>.'
     + buildPhaseOutputContract(taskContext, isPureAI);
+  if (liveMode()) modelAdapt = liveModelAdapt(p, strictRoleRule, taskContext);
 
   if (!bareRulesMode()) modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。说清本轮想推动什么，给一条最硬的依据就够，别把想到的理由全摆出来；被质疑时优先处理最强且会改变票型的一点。没有成立的新狼点时可以提问、保护、协调或保留意见，不要为了完成格式凭空攻击。投票、技能确认和夜间私密选择只提交系统要求的动作。';
   if (!bareRulesMode()) modelAdapt += hdeath
