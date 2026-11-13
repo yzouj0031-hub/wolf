@@ -16,6 +16,7 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.ok(/callAI\(p, liveMode\(\) \? liveVotePrompt\(isWhitewolfReady\)/.test(src), `${file}: 参与者模式用自己的投票题`);
   if (file === 'index.html') assert.ok(/inferredDecisionKind && !opts\.systemPromptOverride && !liveMode\(\)/.test(src), `${file}: 参与者模式不加决策锚点`);
 
+  assert.ok(/if \(liveMode\(\) && opts && opts\.skillConfirm && !opts\.reasoningStage && !\/格式纠正\/\.test\(String\(prompt \|\| ''\)\)\) opts = \{\.\.\.opts, reasoningStage: 'normal'\};/.test(src), `${file}: 参与者模式的投票和技能决定应与发言同档思考`);
   await withOfflinePage(async (page, origin) => {
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.goto(origin + '/' + file); await page.waitForTimeout(2500);
@@ -63,10 +64,14 @@ for (const file of ['index.html', 'en/index.html']) {
       out.withNotes = buildSystemPrompt(villager, task);
       out.task = bareTask('【第2天·白天发言】这是第2天投票前唯一的一次发言。\n【重要】<game>标签里必须写完整的正式发言。');
       out.vote = liveVotePrompt(false); out.voteWW = liveVotePrompt(true);
+      out.stageVote = resolveAIReasoning(villager, '【投票】', { skillConfirm: true, decisionKind: 'day-vote' }).stage;
+      out.stageFix = resolveAIReasoning(villager, '【骑士决斗·行动格式纠正】', { skillConfirm: true }).stage;
+      out.stageSpeech = resolveAIReasoning(villager, '【第2天·白天发言】', {}).stage;
       // 回归：精简官方不受影响
       TeachingWorldbooks.load({ mode: 'lite', liteMigrated: true });
       out['lite:villager'] = buildSystemPrompt(villager, task);
       out.liteBare = bareRulesMode(); out.liteLive = liveMode();
+      out.liteStageVote = resolveAIReasoning(villager, '【投票】', { skillConfirm: true, decisionKind: 'day-vote' }).stage;
       TeachingWorldbooks.load({ mode: 'bare', liteMigrated: true });
       out['bare:villager'] = buildSystemPrompt(villager, task);
       out.bareTask = bareTask('【第2天·白天发言】……\n【重要】<game>标签里必须写完整的正式发言。');
@@ -108,8 +113,10 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.equal(r.task, '【第2天·白天发言】这是第2天投票前唯一的一次发言。', `${file}: 参与者模式的任务不带标签提醒`);
     assert.ok(r.vote.startsWith('【投票】') && r.vote.includes('<action>名字/None</action>') && !r.vote.includes('EXPLODE'), `${file}: 投票题`);
     assert.ok(r.voteWW.includes('EXPLODE:目标名'), `${file}: 白狼王投票题带自爆`);
+    assert.deepEqual([r.stageVote, r.stageFix, r.stageSpeech], ['normal', 'quick', 'normal'], `${file}: 参与者模式下决定与发言同档，格式纠正保持最低档`);
     assert.ok(r['lite:villager'].includes('【发言记录】') && !r['lite:villager'].includes('【你在打一局狼人杀】'), `${file}: 精简官方不受影响`);
     assert.ok(!r.liteBare && !r.liteLive, `${file}: 精简官方下两个开关都为假`);
+    assert.equal(r.liteStageVote, 'quick', `${file}: 其他模式的思考分流不变`);
     assert.ok(r['bare:villager'].includes('【发言记录】') && !r['bare:villager'].includes('【你在打一局狼人杀】'), `${file}: 裸规则不受影响`);
     assert.ok(r.bareTask.endsWith('【重要】<game>里写你真正要说出口的话。'), `${file}: 裸规则的任务尾巴照旧`);
     if (dumpTo && file === 'index.html') fs.writeFileSync(dumpTo, r['live:villager'] + '\n\n=====\n\n' + r.injected);

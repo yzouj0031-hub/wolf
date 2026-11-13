@@ -9953,6 +9953,7 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
   let lastFinish = null;
   let lastUsage = null;
   let sawStreamEnd = false;   // 收到 [DONE] / finish_reason / response.completed 才算正常结束
+  let servedModel = '';       // 流里回报的实际作答模型
   const lines = rawText.split(/\r?\n/);
   for (const line of lines) {
     if (!line.startsWith('data:')) continue;
@@ -10008,6 +10009,7 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
       if (evt.response.usage) lastUsage = evt.response.usage;
     }
     if (evt.usage) lastUsage = evt.usage;
+    if (!servedModel) servedModel = (typeof evt.model === 'string' && evt.model) || (evt.response && typeof evt.response.model === 'string' && evt.response.model) || '';
   }
 
   ClaudeBridgeCompat.assertStreamResult({
@@ -10025,7 +10027,8 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
       // 连接中途断开时既没有 [DONE] 也没有 finish_reason：不能当成正常说完
       finish_reason: lastFinish || (sawStreamEnd ? 'stop' : 'incomplete')
     }],
-    usage: lastUsage || undefined
+    usage: lastUsage || undefined,
+    model: servedModel || undefined
   };
 }
 
@@ -11606,6 +11609,8 @@ function syncFullReasoningUI() {
   if (sel) { sel.disabled = on; sel.title = on ? '已由「全力推理」接管：一律最高档' : ''; }
 }
 function resolveAIReasoning(p, prompt, opts) {
+  // 参与者模式：投票和夜间技能是真正的决定，和发言用同一档思考；只有"把刚才的决定改写成规定格式"保持最低档。
+  if (liveMode() && opts && opts.skillConfirm && !opts.reasoningStage && !/格式纠正/.test(String(prompt || ''))) opts = {...opts, reasoningStage: 'normal'};
   if (fullReasoningOn()) return ReasoningControl.resolveMode({globalMode: 'max', playerMode: 'inherit', prompt, opts});
   return ReasoningControl.resolveMode({
     globalMode: $('g-reasoning-mode') ? $('g-reasoning-mode').value : 'smart',
@@ -11625,6 +11630,45 @@ function _degradeReasoning(mode, att) {
 // ★ 思考模型家族识别：此前这段逻辑在【两个地方各写了一份】——callAI 的主路径和"测试连接"
 //   按钮——而且两份并不一致（测试那份的 Qwen/GLM 判定更松，还完全没有 Grok/DeepSeek/通用后缀）。
 //   加新家族时只改一处就会悄悄漂移，所以收敛成唯一的来源。
+// ★ 实际作答的模型。接口每次回复里都带着"这一条是谁答的"，以前完全不读：中转站把请求换给别的渠道、
+//   或厂商的安全分类器把这一条交给替补模型时，界面上仍然显示座位配置的那个名字，用户只能凭"感觉变笨了"去猜。
+//   这里只做如实显示，不做任何规避：名字对不上就在对局日志里说一次，之后同样的情况只记开发日志。
+function normalizeModelName(name) {
+  return String(name == null ? '' : name).toLowerCase().trim()
+    .replace(/^\[[^\]]*\]\s*/, '')      // 中转站加在前面的 [官] [逆] 之类标签
+    .replace(/^.*\//, '')                 // provider/ 或 models/ 前缀
+    .replace(/[\s_@:]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+// 同一个模型的不同写法（带日期快照、preview、思考档位后缀）算一致；opus-5 和 opus-5-5、gpt-5 和 gpt-5-mini 不算。
+function sameServedModel(requested, served) {
+  const a = normalizeModelName(requested), b = normalizeModelName(served);
+  if (!a || !b || a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (!long.startsWith(short + '-')) return false;
+  const rest = long.slice(short.length + 1);
+  return /^(?:\d{6,8}|\d{4}-\d{2}-\d{2}|\d{2}-\d{2}|\d{3,4}|latest|preview(?:-[\w.-]+)?|exp(?:-[\w.-]+)?|thinking(?:-[\w.-]+)?|nothinking|minimal|low|medium|high|xhigh|max|search|v\d+(?:-[\w.-]+)?)$/.test(rest);
+}
+const SERVED_MODEL_SEEN = new Map();
+// info.fallbackFrom：Claude 回复里的 fallback 块指明"原模型没有回答这一条，由替补代答"。
+function noteServedModel(p, requested, served, info) {
+  try {
+    const from = info && info.fallbackFrom;
+    if (!served || (!from && sameServedModel(requested, served))) return false;
+    const key = (S && S.gameId) + '|' + (p && p.id) + '|' + normalizeModelName(served) + '|' + (from ? 'fb' : 'sw');
+    const n = (SERVED_MODEL_SEEN.get(key) || 0) + 1;
+    SERVED_MODEL_SEEN.set(key, n);
+    Render.devLog && Render.devLog('warn', `[P${p.id+1} ${p.name}] 实际作答模型与请求不一致：请求 ${requested}，作答 ${served}${from ? '（' + from + ' 拒绝后由替补代答）' : ''}，本局第 ${n} 次`);
+    if (n === 1) {
+      const en = typeof uiEnglish === 'function' && uiEnglish();
+      Render.log('system', from
+        ? (en ? `🔀 ${p.name}: ${from} did not answer this one (declined by a safety classifier); ${served} answered instead. Further cases this game go to the developer log only.`
+              : `🔀 ${p.name}：${from} 没有回答这一条（被安全分类器拦下），由 ${served} 代答。本局之后同样的情况只记在开发日志里。`)
+        : (en ? `🔀 ${p.name}: requested ${requested}, but the API reports ${served} answered. Further cases this game go to the developer log only.`
+              : `🔀 ${p.name}：请求的模型是 ${requested}，接口回报实际作答的是 ${served}。本局之后同样的情况只记在开发日志里。`));
+    }
+    return true;
+  } catch (_) { return false; }
+}
 function detectThinkingFlags(modelName, endpointUrl) {
   const mn = String(modelName || '').toLowerCase();
   const url = String(endpointUrl || '').toLowerCase();
@@ -12175,6 +12219,10 @@ async function _callAIImpl(p, prompt, opts) {
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
       const data = await res.json();
+      {
+        const _fb = Array.isArray(data.content) ? data.content.filter(b => b && b.type === 'fallback').pop() : null;
+        noteServedModel(p, useApi.model, data.model, _fb ? {fallbackFrom: (_fb.from && _fb.from.model) || useApi.model} : null);
+      }
       // ★ 两个问题一起修：
       //   ① 只取【第一个】text 块。Anthropic 会返回多个内容块，开了思考时更是常见
       //      （thinking → text → text）。后面的 text 块被整段丢掉，<game>/<action>
@@ -12281,6 +12329,7 @@ async function _callAIImpl(p, prompt, opts) {
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
       const data = await res.json();
+      noteServedModel(p, useApi.model, data.modelVersion);
       // ★★ 核心修复：用 Gemini 原生 thought 字段隔离思考，不再依赖 AI 自己打 <thinking>/<game> 标签 ★★
       //   Gemini 3 thinking 模型会把响应分成多个 part：带 thought:true 的是思考，不带的是正式输出。
       //   这是模型层面的硬隔离——无论 AI 打不打标签、标签闭不闭合，思考都能被干净分开。
@@ -12494,6 +12543,7 @@ async function _callAIImpl(p, prompt, opts) {
         onDelta: _live ? (d => _live.push(d)) : null
       });
       if (_live) _live.end();
+      noteServedModel(p, useApi.model, data && data.model);
       // ★ 部分中转把 Claude/Gemini 的分块响应原样透传，content 会是
       //   [{type:'text',text:'…'}, …] 而不是字符串。后面所有 .includes('<game>')
       //   之类的检查在数组上都会静默失效（数组的 includes 比的是元素相等），
