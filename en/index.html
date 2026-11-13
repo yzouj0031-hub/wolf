@@ -11173,6 +11173,22 @@ async function _callAIImpl(p, prompt, opts) {
         .map(b => typeof b.thinking === 'string' ? b.thinking : '').filter(Boolean).join('\n').trim();
       // 显式设置或清除：opts 在重试之间是复用的，留着上一次的思考会张冠李戴
       if (_anthThought) opts._nativeThinking = _anthThought; else delete opts._nativeThinking;
+      // ★ 一个字正文都没有、停止原因是 refusal：Claude 的安全分类器在开口之前就拒绝了这一条
+      //   （官方接口的行为：HTTP 200、content 为空、stop_reason=refusal，两三秒就返回）。
+      //   以前先查"有没有正文"，这种情况被报成"无有效响应内容"，重试时还去降思考档位——原因说错了，降档也没用。
+      if (!content && data.stop_reason === 'refusal') {
+        const _cat = (data.stop_details && data.stop_details.category) ? String(data.stop_details.category) : '';
+        const _catZh = _cat ? '（类别：' + _cat + '）' : '';
+        Render.devLog('err', `[P${p.id+1}] Claude 拒绝回答：stop_reason=refusal${_cat ? ' category=' + _cat : ''}，正文为空。这是安全分类器的拦截，不是网络、格式或思考预算问题。`);
+        if (!_claudeRefusalRetried && att < (opts.maxRetries || 3)) {
+          _claudeRefusalRetried = true;
+          Render.log('system', `⚠️ ${p.name}：Claude 的安全分类器拒绝回答这一条${_catZh}，自动重问一次`);
+          throw new Error('Claude 拒绝回答（refusal），重问');
+        }
+        Render.log('system', `⚠️ ${p.name}：Claude 的安全分类器再次拒绝回答这一条${_catZh}。这不是网络或格式故障；可以给这个座位换一个模型。`);
+        throw new Error('内容过滤拒绝：Claude 安全分类器（refusal' + (_cat ? ' / ' + _cat : '') + '）');
+      }
+      if (!content) Render.devLog('err', `[P${p.id+1}] Claude 返回里没有正文：stop_reason=${data.stop_reason || '?'}，内容块=[${_anthBlocks.map(b => b && b.type).join(',')}]`);
       if (!content) throw new Error(_anthThought ? '思考烧光了输出预算，没有产出正式回复' : '无有效响应内容');
       // ★ fix：检测 Anthropic stop_reason，max_tokens 且回复明显不完整才算截断
       if (data.stop_reason === 'max_tokens') {
@@ -11730,7 +11746,7 @@ async function _callAIImpl(p, prompt, opts) {
           continue;
         }
         // ★ fix：复读/拒绝/元指令/截断/异常过短 均直接跳备用API，不在同一模型上浪费重试
-        if ((e.message.includes('复读沉默') || e.message.includes('内容过滤拒绝') || e.message.includes('元指令输出') || e.message.includes('响应截断') || e.message.includes('异常过短')) && getFallbacks().length > 0) {
+        if (e.message.includes('Claude 安全分类器') || (e.message.includes('复读沉默') || e.message.includes('内容过滤拒绝') || e.message.includes('元指令输出') || e.message.includes('响应截断') || e.message.includes('异常过短')) && getFallbacks().length > 0) {
           silentDetected = true;
           silentReason = e.message.split('：')[0] || '主API异常';
           break;
