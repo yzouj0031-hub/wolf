@@ -11155,6 +11155,14 @@ async function _callAIImpl(p, prompt, opts) {
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
       const data = await res.json();
+      // ★ 有些中转站把上游的报错（没有这个模型的权限、额度不能用于该模型……）包在 HTTP 200 里返回。
+      //   以前这种回复里没有正文块，被报成"无有效响应内容"，真正的原因一个字都看不到。
+      if (data && (data.type === 'error' || (data.error && !Array.isArray(data.content)))) {
+        const _e = data.error || {};
+        const _msg = String((typeof _e === 'string' ? _e : (_e.message || _e.type || JSON.stringify(_e))) || '').slice(0, 200);
+        Render.log('system', `⚠️ ${p.name}：接口返回了错误而不是回答：${_msg || '（没有说明）'}`);
+        throw new Error('接口返回错误：' + (_msg || '未说明'));
+      }
       {
         const _fb = Array.isArray(data.content) ? data.content.filter(b => b && b.type === 'fallback').pop() : null;
         noteServedModel(p, useApi.model, data.model, _fb ? {fallbackFrom: (_fb.from && _fb.from.model) || useApi.model} : null);

@@ -34,7 +34,8 @@ for (const file of ['index.html', 'en/index.html']) {
       };
       const refused = { id: 'm', type: 'message', role: 'assistant', model: 'claude-fable-5-2', content: [], stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber' }, usage: { input_tokens: 1, output_tokens: 0 } };
       const ok = { id: 'm', type: 'message', role: 'assistant', model: 'claude-fable-5-2', content: [{ type: 'text', text: '<game>我先听听大家怎么说。</game>' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 5 } };
-      return { once: await run([refused, ok]), always: await run([refused]) };
+      const wrapped = { type: 'error', error: { type: 'permission_error', message: 'This credit balance cannot be used with claude-fable-5-2' } };
+      return { once: await run([refused, ok]), always: await run([refused]), wrapped: await run([wrapped]) };
     });
     assert.equal(errors.length, 0, `${file}: ${errors.join('\n')}`);
     const once = r.once, always = r.always;
@@ -47,6 +48,8 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.equal(always.calls, 2, `${file}: 连续被拒只重问一次，不白白重试三次（实际 ${always.calls} 次）`);
     assert.ok(always.sys.some(t => /再次拒绝回答这一条/.test(t)), `${file}: 第二次被拒要说明 ${JSON.stringify(always.sys)}`);
     assert.ok(!/我先听听/.test(always.game || ''), `${file}: 一直被拒不应凭空产生发言`);
+    assert.ok(r.wrapped.sys.some(x => /接口返回了错误而不是回答/.test(x) && /cannot be used with claude-fable-5-2/.test(x)), `${file}: 包在 200 里的接口报错要原样显示 ${JSON.stringify(r.wrapped.sys)}`);
+    assert.ok(!r.wrapped.sys.some(x => /安全分类器/.test(x)), `${file}: 接口报错不应被说成安全分类器拒绝`);
     console.log(`${file}: pre-output Claude refusal is reported as a refusal, retried once, then handed off`);
   });
 }
