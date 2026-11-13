@@ -4516,8 +4516,8 @@ function liveMode() {
 function teachingRulesMode(m) { return m === 'live' ? 'bare' : m; }
 // 本次请求读到了记录的哪个位置：请求成功写进记忆后才转正为 p._liveSeen；放在 WeakMap 里，不进存档。
 const LIVE_PENDING_SEEN = new WeakMap();
-const LIVE_FRAMING_BLOCK = '\n\n【你在打一局狼人杀】\n你是这桌上的一个玩家，目标只有一个：让你的阵营赢。\n你是一轮一轮听过来的：对话里每一段"自你上次开口以来发生的事"就是你当时听到的东西，你以前说过的话和想法也都在对话里。印象是一点点攒出来的，听到新东西改主意很正常，别人改主意也一样，不用回头翻旧账。\n大胆点名、下注、吵架，判断错了也没关系，这就是这个游戏。要怀疑谁就说出来，要保谁也说出来，别在嘴上留后手。\n用自己的话说，像在桌上接着上一个人往下聊。不用复述所有人说了什么，也不用解释规则。';
-const LIVE_FREE_TAIL = '\n\n直接用第一人称说出你要对大家说的话，像在桌上接着上一个人往下聊。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。\n说完以后，可以在 [笔记] 和 [/笔记] 之间给自己记几句：对每个人现在的印象、下一步打算。别人看不到，下一轮会原样还给你。';
+const LIVE_FRAMING_BLOCK = '\n\n【你在打一局狼人杀】\n你是这桌上的一个玩家，目标只有一个：让你的阵营赢。\n大胆点名、下注、吵架，判断错了也没关系。\n说话像真人在牌桌上那样，通常几句话就够。';
+const LIVE_FREE_TAIL = '\n\n直接用第一人称说出你要对大家说的话。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。\n说完以后，可以在 [笔记] 和 [/笔记] 之间给自己记几句，别人看不到，下一轮会原样还给你。';
 function liveVotePrompt(isWhitewolfReady) {
   return '【投票】发言都结束了，现在投票。按你刚才发言里的判断投；如果听完后面的人改了主意，在<thinking>里说一句为什么。\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>'
     + (isWhitewolfReady ? '\n你是白狼王，也可以不投票，改为自爆带走一人：<action>EXPLODE:目标名</action>（自爆后本轮投票结束，直接入夜）。' : '');
@@ -4541,6 +4541,21 @@ function liveNewEventsBlock(p, upto) {
     lines.push(/^【/.test(h.name) ? `${h.name}${h.text}` : `${h.name}：${h.text}`);
   }
   return '【自你上次开口以来发生的事】\n' + lines.join('\n') + '\n';
+}
+// ★ 参与者模式下，流程性的事实只在规则里说一次，不跟在每一道题后面。
+//   实测：竞选题里那句"昨晚的死讯要等竞选结束才公布"让八个候选人轮流向全桌宣讲"死讯还没公布"；
+//   狼队题里的同一条事实让每只狼都叮嘱一遍"刀口还能发言不等于被救了"。题目紧挨着发言，写什么它们就讲什么。
+function liveScrubTask(prompt) {
+  return String(prompt == null ? '' : prompt)
+    .replace(/昨晚的死讯要等竞选结束才公布。/g, '')
+    .replace(/\n?[·•]\s*今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：[^\n]*/g, '')
+    .replace(/【本局对今晚战术有影响的硬规则·系统事实】\n(?=\n|<|$)/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+function liveSystemTweak(sys) {
+  const sheriff = S && Array.isArray(S.players) && S.players.length >= 12;
+  return String(sys).replace('- 白天按顺序轮流发言，每个人说话时只听到了排在他前面的发言。\n',
+    sheriff ? '- 第一天先竞选警长，竞选结束后才公布昨夜出局的人；昨夜被刀的人在竞选时照常参选、发言、投票。\n' : '');
 }
 // 事件块插在任务标题行之后：标题行要留在最前面，promptTaskKind / 决策类型都靠它识别。
 function liveInjectEvents(p, prompt, upto) {
@@ -10196,7 +10211,7 @@ buildSystemPrompt = function(p, taskContext) {
   const exceptions = [];
   if (hasMech) exceptions.push('机械狼学到平民且伪装生效后会显示好人');
   if (hasGoodReadingThird) exceptions.push('小丑和连环杀手会显示好人，但他们仍是第三方');
-  return out.replace(
+  return (liveMode() ? liveSystemTweak(out) : out).replace(
     '注意：本局没有隐狼，预言家查验结果完全可信。',
     exceptions.length
       ? '注意：预言家的查验是“狼人/好人显示”，不是精确身份翻牌。本局明确例外：' + exceptions.join('；') + '。'
@@ -10918,7 +10933,7 @@ async function _callAIImpl(p, prompt, opts) {
   //   指针在 callAI 外层、这次回答真的写进记忆之后才前移，失败重试不会丢事件。
   if (liveMode() && !opts.systemPromptOverride) {
     LIVE_PENDING_SEEN.set(p, S.history.length);
-    prompt = liveInjectEvents(p, prompt, LIVE_PENDING_SEEN.get(p));
+    prompt = liveInjectEvents(p, liveScrubTask(prompt), LIVE_PENDING_SEEN.get(p));
   }
   const promptTaskContext = {prompt, opts};
   const sys = buildSystemPrompt(p, promptTaskContext);
