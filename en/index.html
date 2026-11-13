@@ -10700,6 +10700,22 @@ function noteServedModel(p, requested, served, info) {
     return true;
   } catch (_) { return false; }
 }
+// ★ 测试连接时读 Claude 的回复。以前只读第一个内容块的 text：思考常开的模型（Fable 5.x、Opus 5.5 等）
+//   第一块是 thinking，没有 text，于是 reply 是 undefined，后面 .slice 直接抛
+//   "Cannot read properties of undefined (reading 'slice')"，被显示成"网络错误"——其实请求是成功的。
+//   另外测试只给 10~20 个输出 token，思考一用就没了，根本轮不到正文。
+function anthropicTestReply(data) {
+  const blocks = Array.isArray(data && data.content) ? data.content : [];
+  const text = blocks.filter(b => b && b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('').trim();
+  if (text) return text;
+  const stop = (data && data.stop_reason) || '';
+  if (stop === 'refusal') {
+    const cat = data.stop_details && data.stop_details.category;
+    return '（接口连通，但模型拒绝回答：refusal' + (cat ? ' / ' + cat : '') + '）';
+  }
+  if (stop === 'max_tokens') return '（接口连通；测试的输出额度被思考用完，没有正文）';
+  return '（接口连通，但回复里没有正文：stop_reason=' + (stop || '?') + '，内容块=[' + blocks.map(b => b && b.type).join(',') + ']）';
+}
 function detectThinkingFlags(modelName, endpointUrl) {
   const mn = String(modelName || '').toLowerCase();
   const url = String(endpointUrl || '').toLowerCase();
@@ -23885,10 +23901,10 @@ async function testAPIForPC() {
       res = await fetch(anthropicBase(u)+'/v1/messages', {
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body: JSON.stringify({model: m, max_tokens:20, messages:[{role:'user',content:'回复"测试通过"四个字'}]})
+        body: JSON.stringify({model: m, max_tokens:1024, messages:[{role:'user',content:'回复"测试通过"四个字'}]})
       });
       const data = await res.json();
-      if (res.ok) { ok=true; reply = data.content && data.content[0] ? data.content[0].text : '(无内容)'; }
+      if (res.ok) { ok=true; reply = anthropicTestReply(data); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,200)); }
     } else if (isGeminiNative) {
       const gemUrl = geminiBase(u)+'/v1beta/models/'+m+':generateContent?key='+k;
@@ -23985,7 +24001,7 @@ async function testAPIForPC() {
       const compatWarn = '';
       resultEl.style.background = 'rgba(80,160,100,0.15)';
       resultEl.style.color = '#90d8a0';
-      resultEl.textContent = '✅ 连通成功 [' + fmt + '] · ' + ms + 'ms\n模型：' + m + '\n回复：' + reply.slice(0, 100) + compatWarn;
+      resultEl.textContent = '✅ 连通成功 [' + fmt + '] · ' + ms + 'ms\n模型：' + m + '\n回复：' + String(reply == null ? '' : reply).slice(0, 100) + compatWarn;
     } else {
       // 针对常见错误码给出排查提示
       let hint = '';
@@ -24114,10 +24130,10 @@ async function testAPI() {
   try {
     let res, ok = false, detail = '';
     if (isAnthropic) {
-      const body = JSON.stringify({model: m||'claude-haiku-4-5-20251001', max_tokens:10, messages:[{role:'user',content:'hi'}]});
+      const body = JSON.stringify({model: m||'claude-haiku-4-5-20251001', max_tokens:1024, messages:[{role:'user',content:'hi'}]});
       res = await fetch(anthropicBase(u)+'/v1/messages', {method:'POST', headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:body});
       const data = await res.json();
-      if (res.ok) { ok=true; detail='回复：'+(data.content&&data.content[0]?data.content[0].text:'ok'); }
+      if (res.ok) { ok=true; detail='回复：'+anthropicTestReply(data); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
     } else if (isGeminiNative) {
       const modelName = m||'gemini-2.0-flash';
