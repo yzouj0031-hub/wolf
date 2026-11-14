@@ -4612,8 +4612,8 @@ function liveMode() {
 function teachingRulesMode(m) { return m === 'live' ? 'bare' : m; }
 // 本次请求读到了记录的哪个位置：请求成功写进记忆后才转正为 p._liveSeen；放在 WeakMap 里，不进存档。
 const LIVE_PENDING_SEEN = new WeakMap();
-const LIVE_FRAMING_BLOCK = '\n\n【你在打一局狼人杀】\n你是这桌上的一个玩家，目标只有一个：让你的阵营赢。\n你是一轮一轮听过来的：对话里每一段"自你上次开口以来发生的事"就是你当时听到的东西，你以前说过的话和想法也都在对话里。印象是一点点攒出来的，听到新东西改主意很正常，别人改主意也一样，不用回头翻旧账。\n大胆点名、下注、吵架，判断错了也没关系，这就是这个游戏。要怀疑谁就说出来，要保谁也说出来，别在嘴上留后手。\n用自己的话说，像在桌上接着上一个人往下聊。不用复述所有人说了什么，也不用解释规则。';
-const LIVE_FREE_TAIL = '\n\n直接用第一人称说出你要对大家说的话，像在桌上接着上一个人往下聊。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。\n说完以后，可以在 [笔记] 和 [/笔记] 之间给自己记几句：对每个人现在的印象、下一步打算。别人看不到，下一轮会原样还给你。';
+const LIVE_FRAMING_BLOCK = '\n\n【你在打一局狼人杀】\n你是这桌上的一个玩家，目标只有一个：让你的阵营赢。\n大胆点名、下注、吵架，判断错了也没关系。\n说话像真人在牌桌上那样，通常几句话就够。';
+const LIVE_FREE_TAIL = '\n\n直接用第一人称说出你要对大家说的话。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。\n说完以后，可以在 [笔记] 和 [/笔记] 之间给自己记几句，别人看不到，下一轮会原样还给你。';
 function liveVotePrompt(isWhitewolfReady) {
   return '【投票】发言都结束了，现在投票。按你刚才发言里的判断投；如果听完后面的人改了主意，在<thinking>里说一句为什么。\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>'
     + (isWhitewolfReady ? '\n你是白狼王，也可以不投票，改为自爆带走一人：<action>EXPLODE:目标名</action>（自爆后本轮投票结束，直接入夜）。' : '');
@@ -4623,7 +4623,15 @@ function liveNewEventsBlock(p, upto) {
   const hist = (S && Array.isArray(S.history)) ? S.history : [];
   const end = Number.isFinite(upto) ? Math.min(upto, hist.length) : hist.length;
   const from = Math.min(Math.max(0, (p && p._liveSeen) || 0), end);
-  const rows = hist.slice(from, end).filter(h => h && h.text && h.name !== p.name);
+  // 遗言已经作为带日期的通知发给了每个在场的人；记录里它还会出现两遍（原话一遍、带[遗言]标记一遍），这里都不再重复。
+  const slice = hist.slice(from, end);
+  const rows = slice.filter((h, i) => {
+    if (!h || !h.text || h.name === p.name) return false;
+    if (/^\[遗言\]/.test(h.text)) return false;
+    const next = slice[i + 1];
+    if (next && next.name === h.name && next.text === '[遗言] ' + String(h.text).trim()) return false;
+    return true;
+  });
   if (!rows.length) return '';
   const tag = h => {
     const rd = h.round || (S && S.round) || 1;
@@ -4637,6 +4645,43 @@ function liveNewEventsBlock(p, upto) {
     lines.push(/^【/.test(h.name) ? `${h.name}${h.text}` : `${h.name}：${h.text}`);
   }
   return '【自你上次开口以来发生的事】\n' + lines.join('\n') + '\n';
+}
+// ★ 参与者模式下，流程性的事实只在规则里说一次，不跟在每一道题后面。
+//   实测：竞选题里那句"昨晚的死讯要等竞选结束才公布"让八个候选人轮流向全桌宣讲"死讯还没公布"；
+//   狼队题里的同一条事实让每只狼都叮嘱一遍"刀口还能发言不等于被救了"。题目紧挨着发言，写什么它们就讲什么。
+function liveScrubTask(prompt) {
+  return String(prompt == null ? '' : prompt)
+    .replace(/昨晚的死讯要等竞选结束才公布。/g, '')
+    .replace(/\n?[·•]\s*今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：[^\n]*/g, '')
+    .replace(/【本局对今晚战术有影响的硬规则·系统事实】\n(?=\n|<|$)/g, '')
+    .replace(/\n?【发言顺序·系统事实】[^\n]*/g, '')
+    .replace(/\n?你排在第\d+位。[^\n]*/g, '')
+    .replace(/\n?谁先跳身份、谁后跳，同样是顺序决定的[^\n]*/g, '')
+    .replace(/\n?[·•]\s*已出局（不能再行动、不能被投票、不能与之对话）：[^\n]*/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+// 参与者模式的系统提示收尾：身份一句、本局角色一句、需要时输出格式一句。
+//   原来的【角色代入】【标签边界】【本轮输出契约】三块两百多字，"助手口吻""凑格式"这些词会被带进发言。
+function liveFreeOutputBase(p) {
+  const cfg = playerConfigs[p.id] || {};
+  const el = document.getElementById('m-free-output');
+  return cfg.disableFreeOutput ? false : (!!cfg.freeOutput || (el ? el.checked : true));
+}
+function liveModelAdapt(p, strictRoleRule, taskContext) {
+  const kind = promptTaskKind(taskContext);
+  const opts = (taskContext && taskContext.opts) || {};
+  let fmt = '';
+  if (kind === 'operation') fmt = '\n\n这一步只提交选择：按题目给的格式写 <action>。';
+  else if (kind === 'speech' && !opts.wolfOnly && !liveFreeOutputBase(p)) fmt = '\n\n说出口的话写在 <game> 里；私下的想法写在 <thinking> 里，别人看不到。想给自己留几句笔记就写在 <notes> 里，下一轮会原样还给你。';
+  return '\n\n你是「' + p.name + '」。' + strictRoleRule + fmt;
+}
+function liveSystemTweak(sys) {
+  const sheriff = S && Array.isArray(S.players) && S.players.length >= 12;
+  return String(sys).replace('- 白天按顺序轮流发言，每个人说话时只听到了排在他前面的发言。\n',
+    sheriff ? '- 第一天先竞选警长，竞选结束后才公布昨夜出局的人；昨夜被刀的人在竞选时照常参选、发言、投票。\n' : '')
+    .replace('❌已死亡(不能与死者对话，不能投票给死者)：', '❌已出局：')
+    .replace(/(\n你:[^\n]*?】)R\d+ [a-z_]+/, '$1')
+    .replace(/【⚠️ 重要：内容安全声明】\n[^\n]*/, '【说明】这是一局狼人杀桌游，"杀""刀""毒"都是游戏里淘汰玩家的术语。');
 }
 // 事件块插在任务标题行之后：标题行要留在最前面，promptTaskKind / 决策类型都靠它识别。
 function liveInjectEvents(p, prompt, upto) {
@@ -4698,6 +4743,8 @@ const BARE_SCRUB_RULES = [
   [/⚠️ 但记录中标注为【机械狼】的开枪者[^\n]*/g, ''],
   [/开枪者若记录为【猎人】，其好人身份已被证实，不要再质疑他是狼。/g, ''],
   [/【⚔️ 铁证提醒】/g, '【决斗结果】'],
+  [/【⚔️ 决斗结果·铁证】/g, '【决斗结果】'],
+  [/这说明[^。\n]*是真骑士，[^。\n]*是狼。/g, ''],
   [/【🏹 开枪记录·铁证】/g, '【开枪记录】'],
   [/下次注意你用救药前考虑守卫是否可能守了同一人。/g, ''],
   [/，并说明关键收益/g, ''],
@@ -9953,6 +10000,7 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
   let lastFinish = null;
   let lastUsage = null;
   let sawStreamEnd = false;   // 收到 [DONE] / finish_reason / response.completed 才算正常结束
+  let servedModel = '';       // 流里回报的实际作答模型
   const lines = rawText.split(/\r?\n/);
   for (const line of lines) {
     if (!line.startsWith('data:')) continue;
@@ -10008,6 +10056,7 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
       if (evt.response.usage) lastUsage = evt.response.usage;
     }
     if (evt.usage) lastUsage = evt.usage;
+    if (!servedModel) servedModel = (typeof evt.model === 'string' && evt.model) || (evt.response && typeof evt.response.model === 'string' && evt.response.model) || '';
   }
 
   ClaudeBridgeCompat.assertStreamResult({
@@ -10025,7 +10074,8 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
       // 连接中途断开时既没有 [DONE] 也没有 finish_reason：不能当成正常说完
       finish_reason: lastFinish || (sawStreamEnd ? 'stop' : 'incomplete')
     }],
-    usage: lastUsage || undefined
+    usage: lastUsage || undefined,
+    model: servedModel || undefined
   };
 }
 
@@ -11061,6 +11111,7 @@ ${userPersona}
     + strictRoleRule
     + '\n\n【标签边界】<draft>/<game>/<action>/<interrupt>/<plan>彼此独立，不得嵌套。目标姓名只有在当前任务明确要求<action>时才按候选名单完整填写。'
     + buildPhaseOutputContract(taskContext, isPureAI);
+  if (liveMode()) modelAdapt = liveModelAdapt(p, strictRoleRule, taskContext);
 
   if (!bareRulesMode()) modelAdapt += '\n\n【公开讨论的表达底线】如果当前任务是白天发言、竞选、PK自救、额外发言或公开辩护，<game>不能只给一句结论。说清本轮想推动什么，给一条最硬的依据就够，别把想到的理由全摆出来；被质疑时优先处理最强且会改变票型的一点。没有成立的新狼点时可以提问、保护、协调或保留意见，不要为了完成格式凭空攻击。投票、技能确认和夜间私密选择只提交系统要求的动作。';
   if (!bareRulesMode()) modelAdapt += hdeath
@@ -11162,7 +11213,7 @@ buildSystemPrompt = function(p, taskContext) {
   const exceptions = [];
   if (hasMech) exceptions.push('机械狼学到平民且伪装生效后会显示好人');
   if (hasGoodReadingThird) exceptions.push('小丑和连环杀手会显示好人，但他们仍是第三方');
-  return out.replace(
+  return (liveMode() ? liveSystemTweak(out) : out).replace(
     '注意：本局没有隐狼，预言家查验结果完全可信。',
     exceptions.length
       ? '注意：预言家的查验是“狼人/好人显示”，不是精确身份翻牌。本局明确例外：' + exceptions.join('；') + '。'
@@ -11606,6 +11657,8 @@ function syncFullReasoningUI() {
   if (sel) { sel.disabled = on; sel.title = on ? '已由「全力推理」接管：一律最高档' : ''; }
 }
 function resolveAIReasoning(p, prompt, opts) {
+  // 参与者模式：投票和夜间技能是真正的决定，和发言用同一档思考；只有"把刚才的决定改写成规定格式"保持最低档。
+  if (liveMode() && opts && opts.skillConfirm && !opts.reasoningStage && !/格式纠正/.test(String(prompt || ''))) opts = {...opts, reasoningStage: 'normal'};
   if (fullReasoningOn()) return ReasoningControl.resolveMode({globalMode: 'max', playerMode: 'inherit', prompt, opts});
   return ReasoningControl.resolveMode({
     globalMode: $('g-reasoning-mode') ? $('g-reasoning-mode').value : 'smart',
@@ -11625,6 +11678,61 @@ function _degradeReasoning(mode, att) {
 // ★ 思考模型家族识别：此前这段逻辑在【两个地方各写了一份】——callAI 的主路径和"测试连接"
 //   按钮——而且两份并不一致（测试那份的 Qwen/GLM 判定更松，还完全没有 Grok/DeepSeek/通用后缀）。
 //   加新家族时只改一处就会悄悄漂移，所以收敛成唯一的来源。
+// ★ 实际作答的模型。接口每次回复里都带着"这一条是谁答的"，以前完全不读：中转站把请求换给别的渠道、
+//   或厂商的安全分类器把这一条交给替补模型时，界面上仍然显示座位配置的那个名字，用户只能凭"感觉变笨了"去猜。
+//   这里只做如实显示，不做任何规避：名字对不上就在对局日志里说一次，之后同样的情况只记开发日志。
+function normalizeModelName(name) {
+  return String(name == null ? '' : name).toLowerCase().trim()
+    .replace(/^\[[^\]]*\]\s*/, '')      // 中转站加在前面的 [官] [逆] 之类标签
+    .replace(/^.*\//, '')                 // provider/ 或 models/ 前缀
+    .replace(/[\s_@:]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+// 同一个模型的不同写法（带日期快照、preview、思考档位后缀）算一致；opus-5 和 opus-5-5、gpt-5 和 gpt-5-mini 不算。
+function sameServedModel(requested, served) {
+  const a = normalizeModelName(requested), b = normalizeModelName(served);
+  if (!a || !b || a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (!long.startsWith(short + '-')) return false;
+  const rest = long.slice(short.length + 1);
+  return /^(?:\d{6,8}|\d{4}-\d{2}-\d{2}|\d{2}-\d{2}|\d{3,4}|latest|preview(?:-[\w.-]+)?|exp(?:-[\w.-]+)?|thinking(?:-[\w.-]+)?|nothinking|minimal|low|medium|high|xhigh|max|search|v\d+(?:-[\w.-]+)?)$/.test(rest);
+}
+const SERVED_MODEL_SEEN = new Map();
+// info.fallbackFrom：Claude 回复里的 fallback 块指明"原模型没有回答这一条，由替补代答"。
+function noteServedModel(p, requested, served, info) {
+  try {
+    const from = info && info.fallbackFrom;
+    if (!served || (!from && sameServedModel(requested, served))) return false;
+    const key = (S && S.gameId) + '|' + (p && p.id) + '|' + normalizeModelName(served) + '|' + (from ? 'fb' : 'sw');
+    const n = (SERVED_MODEL_SEEN.get(key) || 0) + 1;
+    SERVED_MODEL_SEEN.set(key, n);
+    Render.devLog && Render.devLog('warn', `[P${p.id+1} ${p.name}] 实际作答模型与请求不一致：请求 ${requested}，作答 ${served}${from ? '（' + from + ' 拒绝后由替补代答）' : ''}，本局第 ${n} 次`);
+    if (n === 1) {
+      const en = typeof uiEnglish === 'function' && uiEnglish();
+      Render.log('system', from
+        ? (en ? `🔀 ${p.name}: ${from} did not answer this one (declined by a safety classifier); ${served} answered instead. Further cases this game go to the developer log only.`
+              : `🔀 ${p.name}：${from} 没有回答这一条（被安全分类器拦下），由 ${served} 代答。本局之后同样的情况只记在开发日志里。`)
+        : (en ? `🔀 ${p.name}: requested ${requested}, but the API reports ${served} answered. Further cases this game go to the developer log only.`
+              : `🔀 ${p.name}：请求的模型是 ${requested}，接口回报实际作答的是 ${served}。本局之后同样的情况只记在开发日志里。`));
+    }
+    return true;
+  } catch (_) { return false; }
+}
+// ★ 测试连接时读 Claude 的回复。以前只读第一个内容块的 text：思考常开的模型（Fable 5.x、Opus 5.5 等）
+//   第一块是 thinking，没有 text，于是 reply 是 undefined，后面 .slice 直接抛
+//   "Cannot read properties of undefined (reading 'slice')"，被显示成"网络错误"——其实请求是成功的。
+//   另外测试只给 10~20 个输出 token，思考一用就没了，根本轮不到正文。
+function anthropicTestReply(data) {
+  const blocks = Array.isArray(data && data.content) ? data.content : [];
+  const text = blocks.filter(b => b && b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('').trim();
+  if (text) return text;
+  const stop = (data && data.stop_reason) || '';
+  if (stop === 'refusal') {
+    const cat = data.stop_details && data.stop_details.category;
+    return '（接口连通，但模型拒绝回答：refusal' + (cat ? ' / ' + cat : '') + '）';
+  }
+  if (stop === 'max_tokens') return '（接口连通；测试的输出额度被思考用完，没有正文）';
+  return '（接口连通，但回复里没有正文：stop_reason=' + (stop || '?') + '，内容块=[' + blocks.map(b => b && b.type).join(',') + ']）';
+}
 function detectThinkingFlags(modelName, endpointUrl) {
   const mn = String(modelName || '').toLowerCase();
   const url = String(endpointUrl || '').toLowerCase();
@@ -11908,7 +12016,7 @@ async function _callAIImpl(p, prompt, opts) {
   //   指针在 callAI 外层、这次回答真的写进记忆之后才前移，失败重试不会丢事件。
   if (liveMode() && !opts.systemPromptOverride) {
     LIVE_PENDING_SEEN.set(p, S.history.length);
-    prompt = liveInjectEvents(p, prompt, LIVE_PENDING_SEEN.get(p));
+    prompt = liveInjectEvents(p, liveScrubTask(prompt), LIVE_PENDING_SEEN.get(p));
   }
   const promptTaskContext = {prompt, opts};
   const sys = (opts && opts.systemPromptOverride) || buildSystemPrompt(p, promptTaskContext);
@@ -12175,6 +12283,18 @@ async function _callAIImpl(p, prompt, opts) {
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
       const data = await res.json();
+      // ★ 有些中转站把上游的报错（没有这个模型的权限、额度不能用于该模型……）包在 HTTP 200 里返回。
+      //   以前这种回复里没有正文块，被报成"无有效响应内容"，真正的原因一个字都看不到。
+      if (data && (data.type === 'error' || (data.error && !Array.isArray(data.content)))) {
+        const _e = data.error || {};
+        const _msg = String((typeof _e === 'string' ? _e : (_e.message || _e.type || JSON.stringify(_e))) || '').slice(0, 200);
+        Render.log('system', `⚠️ ${p.name}：接口返回了错误而不是回答：${_msg || '（没有说明）'}`);
+        throw new Error('接口返回错误：' + (_msg || '未说明'));
+      }
+      {
+        const _fb = Array.isArray(data.content) ? data.content.filter(b => b && b.type === 'fallback').pop() : null;
+        noteServedModel(p, useApi.model, data.model, _fb ? {fallbackFrom: (_fb.from && _fb.from.model) || useApi.model} : null);
+      }
       // ★ 两个问题一起修：
       //   ① 只取【第一个】text 块。Anthropic 会返回多个内容块，开了思考时更是常见
       //      （thinking → text → text）。后面的 text 块被整段丢掉，<game>/<action>
@@ -12189,6 +12309,22 @@ async function _callAIImpl(p, prompt, opts) {
         .map(b => typeof b.thinking === 'string' ? b.thinking : '').filter(Boolean).join('\n').trim();
       // 显式设置或清除：opts 在重试之间是复用的，留着上一次的思考会张冠李戴
       if (_anthThought) opts._nativeThinking = _anthThought; else delete opts._nativeThinking;
+      // ★ 一个字正文都没有、停止原因是 refusal：Claude 的安全分类器在开口之前就拒绝了这一条
+      //   （官方接口的行为：HTTP 200、content 为空、stop_reason=refusal，两三秒就返回）。
+      //   以前先查"有没有正文"，这种情况被报成"无有效响应内容"，重试时还去降思考档位——原因说错了，降档也没用。
+      if (!content && data.stop_reason === 'refusal') {
+        const _cat = (data.stop_details && data.stop_details.category) ? String(data.stop_details.category) : '';
+        const _catZh = _cat ? '（类别：' + _cat + '）' : '';
+        Render.devLog('err', `[P${p.id+1}] Claude 拒绝回答：stop_reason=refusal${_cat ? ' category=' + _cat : ''}，正文为空。这是安全分类器的拦截，不是网络、格式或思考预算问题。`);
+        if (!_claudeRefusalRetried && att < (opts.maxRetries || 3)) {
+          _claudeRefusalRetried = true;
+          Render.log('system', `⚠️ ${p.name}：Claude 的安全分类器拒绝回答这一条${_catZh}，自动重问一次`);
+          throw new Error('Claude 拒绝回答（refusal），重问');
+        }
+        Render.log('system', `⚠️ ${p.name}：Claude 的安全分类器再次拒绝回答这一条${_catZh}。这不是网络或格式故障；可以给这个座位换一个模型。`);
+        throw new Error('内容过滤拒绝：Claude 安全分类器（refusal' + (_cat ? ' / ' + _cat : '') + '）');
+      }
+      if (!content) Render.devLog('err', `[P${p.id+1}] Claude 返回里没有正文：stop_reason=${data.stop_reason || '?'}，内容块=[${_anthBlocks.map(b => b && b.type).join(',')}]`);
       if (!content) throw new Error(_anthThought ? '思考烧光了输出预算，没有产出正式回复' : '无有效响应内容');
       // ★ fix：检测 Anthropic stop_reason，max_tokens 且回复明显不完整才算截断
       if (data.stop_reason === 'max_tokens') {
@@ -12281,6 +12417,7 @@ async function _callAIImpl(p, prompt, opts) {
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
       const data = await res.json();
+      noteServedModel(p, useApi.model, data.modelVersion);
       // ★★ 核心修复：用 Gemini 原生 thought 字段隔离思考，不再依赖 AI 自己打 <thinking>/<game> 标签 ★★
       //   Gemini 3 thinking 模型会把响应分成多个 part：带 thought:true 的是思考，不带的是正式输出。
       //   这是模型层面的硬隔离——无论 AI 打不打标签、标签闭不闭合，思考都能被干净分开。
@@ -12494,6 +12631,7 @@ async function _callAIImpl(p, prompt, opts) {
         onDelta: _live ? (d => _live.push(d)) : null
       });
       if (_live) _live.end();
+      noteServedModel(p, useApi.model, data && data.model);
       // ★ 部分中转把 Claude/Gemini 的分块响应原样透传，content 会是
       //   [{type:'text',text:'…'}, …] 而不是字符串。后面所有 .includes('<game>')
       //   之类的检查在数组上都会静默失效（数组的 includes 比的是元素相等），
@@ -12746,7 +12884,7 @@ async function _callAIImpl(p, prompt, opts) {
           continue;
         }
         // ★ fix：复读/拒绝/元指令/截断/异常过短 均直接跳备用API，不在同一模型上浪费重试
-        if ((e.message.includes('复读沉默') || e.message.includes('内容过滤拒绝') || e.message.includes('元指令输出') || e.message.includes('响应截断') || e.message.includes('异常过短')) && getFallbacks().length > 0) {
+        if (e.message.includes('Claude 安全分类器') || (e.message.includes('复读沉默') || e.message.includes('内容过滤拒绝') || e.message.includes('元指令输出') || e.message.includes('响应截断') || e.message.includes('异常过短')) && getFallbacks().length > 0) {
           silentDetected = true;
           silentReason = e.message.split('：')[0] || '主API异常';
           break;
@@ -25268,10 +25406,10 @@ async function testAPIForPC() {
       res = await fetch(anthropicBase(u)+'/v1/messages', {
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body: JSON.stringify({model: m, max_tokens:20, messages:[{role:'user',content:'回复"测试通过"四个字'}]})
+        body: JSON.stringify({model: m, max_tokens:1024, messages:[{role:'user',content:'回复"测试通过"四个字'}]})
       });
       const data = await res.json();
-      if (res.ok) { ok=true; reply = data.content && data.content[0] ? data.content[0].text : '(无内容)'; }
+      if (res.ok) { ok=true; reply = anthropicTestReply(data); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,200)); }
     } else if (isGeminiNative) {
       const gemUrl = geminiBase(u)+'/v1beta/models/'+m+':generateContent?key='+k;
@@ -25368,7 +25506,7 @@ async function testAPIForPC() {
       const compatWarn = '';
       resultEl.style.background = 'rgba(80,160,100,0.15)';
       resultEl.style.color = '#90d8a0';
-      resultEl.textContent = '✅ 连通成功 [' + fmt + '] · ' + ms + 'ms\n模型：' + m + '\n回复：' + reply.slice(0, 100) + compatWarn;
+      resultEl.textContent = '✅ 连通成功 [' + fmt + '] · ' + ms + 'ms\n模型：' + m + '\n回复：' + String(reply == null ? '' : reply).slice(0, 100) + compatWarn;
     } else {
       // 针对常见错误码给出排查提示
       let hint = '';
@@ -25497,10 +25635,10 @@ async function testAPI() {
   try {
     let res, ok = false, detail = '';
     if (isAnthropic) {
-      const body = JSON.stringify({model: m||'claude-haiku-4-5-20251001', max_tokens:10, messages:[{role:'user',content:'hi'}]});
+      const body = JSON.stringify({model: m||'claude-haiku-4-5-20251001', max_tokens:1024, messages:[{role:'user',content:'hi'}]});
       res = await fetch(anthropicBase(u)+'/v1/messages', {method:'POST', headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:body});
       const data = await res.json();
-      if (res.ok) { ok=true; detail='回复：'+(data.content&&data.content[0]?data.content[0].text:'ok'); }
+      if (res.ok) { ok=true; detail='回复：'+anthropicTestReply(data); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
     } else if (isGeminiNative) {
       const modelName = m||'gemini-2.0-flash';
