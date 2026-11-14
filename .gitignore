@@ -9,3 +9,6 @@ assets/action-cg/*
 *.apk
 *.jks
 *.keystore
+
+# 千屿行安装包的 Pages 镜像（release 下载在部分网络打不开）
+!downloads/qianyuxing.apk
