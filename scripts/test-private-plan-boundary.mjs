@@ -90,6 +90,10 @@ for (const file of ['index.html', 'en/index.html']) {
   // The English page does not yet have the incremental choice-only relay.
   if (choicesStart < 0) continue;
   const choicesEnd = html.indexOf('// ── 网页端 prompt 弹窗', choicesStart);
+  const nameStart = html.indexOf('function nameAppearsIn(text, name)');
+  const nameEnd = html.indexOf('function findPlayer(name, pool)', nameStart);
+  assert.ok(nameStart >= 0 && nameEnd > nameStart, `${file}: whole-word name helpers are missing`);
+  vm.runInContext(html.slice(nameStart, nameEnd), ctx);
   vm.runInContext(html.slice(choicesStart, choicesEnd), ctx);
   const candidates = [{id:0,name:'快斗'}, {id:1,name:'白马'}];
   ctx.findPlayer = (name, players) => players.find(p => p.name === name) || null;

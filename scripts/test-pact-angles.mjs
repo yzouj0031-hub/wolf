@@ -11,7 +11,7 @@ for (const file of ['index.html', 'en/index.html']) {
   const src = fs.readFileSync(file, 'utf8');
 
   // ① 温度
-  assert.ok(src.includes('const rationalCap = (opts.skillConfirm && !opts.creative) ? 0.5 : Infinity;'), `${file}: creative 没有放开温度上限`);
+  assert.ok(src.includes("const rationalCap = (opts.skillConfirm && !opts.creative && !(opts.decisionKind === 'day-vote' && liveMode())) ? 0.5 : Infinity;"), `${file}: creative 没有放开温度上限`);
   assert.equal((src.match(/callAI\(w, proposalPrompt\(w\), \{noMemory: true, skillConfirm: true, creative: true,/g) || []).length, 2,
     `${file}: 两处 AI 提案（AI 狼 / 真人"让 AI 替我写"）都应带 creative`);
   assert.ok(!/【狼盟密约·投票】[^\n]*\n[\s\S]{0,400}creative: true/.test(src), `${file}: 投票不该放开温度`);

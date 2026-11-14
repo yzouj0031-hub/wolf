@@ -362,7 +362,7 @@ for (const file of FILES) {
     src.includes("const _hardFactLines = _timelineLines.filter(l => !l.includes('·只是提议/声称]'));"),
     `${file}: 没有生成只含系统结算的硬事实子集`,
   );
-  assert.ok(src.includes('${hist||\'暂无\'}${hardFactDigest}${langOutBlock}'), `${file}: 硬事实速查表没有接进提示词`);
+  assert.ok(src.includes("(hist||'暂无') + hardFactDigest}${langOutBlock}"), `${file}: 硬事实速查表没有接进提示词`);
   assert.match(src, /本表是上方时间轴的严格子集，不是新信息/, `${file}: 速查表没有声明自己不是新信息`);
 
   // 过滤规则必须真的能把发言行剔掉、把系统行留下
