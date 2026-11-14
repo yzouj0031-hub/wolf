@@ -10059,7 +10059,9 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
     if (!servedModel) servedModel = (typeof evt.model === 'string' && evt.model) || (evt.response && typeof evt.response.model === 'string' && evt.response.model) || '';
   }
 
-  ClaudeBridgeCompat.assertStreamResult({
+  // 以 content_filter 结束且什么都没返回：这是接口拒绝回答，不是空回复故障。原样交给调用方处理。
+  const _filteredEmpty = lastFinish === 'content_filter' && !mergedContent && !mergedReasoning && !observedStreamError;
+  if (!_filteredEmpty) ClaudeBridgeCompat.assertStreamResult({
     content: mergedContent,
     reasoning: mergedReasoning,
     streamError: observedStreamError
@@ -11760,12 +11762,33 @@ function claudeNativeText(text, role) {
     .replace(/\n{3,}/g, '\n\n');
 }
 function claudeNativeMessages(msgs) {
-  return (msgs || []).map(m => (typeof m.content === 'string') ? {...m, content: claudeNativeText(m.content, m.role)} : m);
+  // 消息对象上附带的 thinking / reasoning_content 字段（上一轮思考的存档）也不随请求发出
+  return (msgs || []).map(m => { const {thinking, reasoning_content, ...rest} = m || {}; return (typeof rest.content === 'string') ? {...rest, content: claudeNativeText(rest.content, rest.role)} : rest; });
 }
 // 思考默认开启的型号才要摘要；老型号省略 thinking 就是不思考，这里不替它们打开。
 function claudeWantsThinkingSummary(model) {
   const mn = String(model || '').toLowerCase();
   return /fable|mythos|opus-5|sonnet-5|haiku-5/.test(mn);
+}
+// ★ 被拒绝后自动退一步：不再要求思考过程，而不是一直拒绝下去。
+//   任何渠道的模型拒绝回答时（Claude 的 refusal、Gemini 的安全拦截、OpenAI 兼容的 content_filter 或拒绝式回复），
+//   游戏把这个 (地址|模型) 记下来，之后发给它的请求都去掉"把思考写出来"的要求和历史里的思考回放，
+//   Claude 还会一并撤掉思考摘要参数；然后自动重问。思考栏可能因此为空，但对局不会卡在反复拒绝上。
+//   这只是不再向模型要它不愿给的东西；如果它拒绝的是别的原因，重问仍会被拒，照旧交给备用 / 询问流程。
+const PLAIN_REASONING_ENDPOINTS = new Set();
+function plainReasoningKey(api) { return ((api && api.url) || '') + '|' + ((api && api.model) || ''); }
+function switchToPlainReasoning(p, api, why) {
+  const key = plainReasoningKey(api);
+  if (PLAIN_REASONING_ENDPOINTS.has(key)) return false;   // 已经不要思考了还被拒：不是这个原因
+  PLAIN_REASONING_ENDPOINTS.add(key);
+  try {
+    const en = typeof uiEnglish === 'function' && uiEnglish();
+    Render.devLog && Render.devLog('warn', `[P${p.id+1} ${p.name}] ${api.model} 拒绝回答（${why || '未说明'}）；此后对该模型不再要求思考过程`);
+    Render.log('system', en
+      ? `🧩 ${p.name}: ${api.model} declined this request. From now on the game will not ask this model to show its reasoning (its thinking panel may stay empty); retrying.`
+      : `🧩 ${p.name}：${api.model} 拒绝了这条请求。之后不再要求这个模型给出思考过程（它的思考栏可能为空），正在重问。`);
+  } catch (_) {}
+  return true;
 }
 function detectThinkingFlags(modelName, endpointUrl) {
   const mn = String(modelName || '').toLowerCase();
@@ -12200,6 +12223,10 @@ async function _callAIImpl(p, prompt, opts) {
   };
   let _claudeRefusalRetried = false;   // Claude 中途停止（refusal）先重问一次，仍被停才用截短版
   async function tryOnce(useApi, att, apiType) {
+    // 这个 (地址|模型) 之前拒绝过：发给它的内容不再带"写出思考"的要求和思考回放
+    const _plainNow = PLAIN_REASONING_ENDPOINTS.has(plainReasoningKey(useApi));
+    const tmsgs = _plainNow ? claudeNativeMessages(msgs) : msgs;
+    const _RETRY_PLAIN = '模型拒绝回答，改为不要求思考过程后重问';
     if (S.gameId !== myGid) return null;
     apiType = apiType || 'openai';
     // ★ v9.9.24：格式失败自动重试。AI 没按 <thinking>/<game> 格式输出时，
@@ -12285,7 +12312,7 @@ async function _callAIImpl(p, prompt, opts) {
     let res;
     if (apiType === 'anthropic') {
       // Anthropic 格式
-      const _claudeMsgs = claudeNativeMessages(msgs);
+      const _claudeMsgs = claudeNativeMessages(tmsgs);
       const anthMsgs = WolfReasoningContext.providerHistory(_claudeMsgs);
       const sysContent = _claudeMsgs.find(m => m.role === 'system')?.content || '';
       // ★ 启用 prompt 缓存：system prompt 通常占输入80%+且每次都一样，缓存后只按10%价格收费
@@ -12297,7 +12324,7 @@ async function _callAIImpl(p, prompt, opts) {
       const body = {model: useApi.model, max_tokens: maxTk, messages: anthMsgs, system: systemBlocks};
       const anthropicEffort = ReasoningControl.anthropicEffort(reasoning.effective);
       if (anthropicEffort) body.output_config = {effort: anthropicEffort};
-      if (claudeWantsThinkingSummary(useApi.model) && !_claudeThinkingRejected.has((useApi.url || '') + '|' + (useApi.model || ''))) body.thinking = {type: 'adaptive', display: 'summarized'};
+      if (!_plainNow && claudeWantsThinkingSummary(useApi.model) && !_claudeThinkingRejected.has((useApi.url || '') + '|' + (useApi.model || ''))) body.thinking = {type: 'adaptive', display: 'summarized'};
       res = await fetch(anthropicBase(useApi.url) + '/v1/messages', {
         method: 'POST',
         headers: {'Content-Type':'application/json','x-api-key': useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -12367,6 +12394,8 @@ async function _callAIImpl(p, prompt, opts) {
         const _cat = (data.stop_details && data.stop_details.category) ? String(data.stop_details.category) : '';
         const _catZh = _cat ? '（类别：' + _cat + '）' : '';
         Render.devLog('err', `[P${p.id+1}] Claude 拒绝回答：stop_reason=refusal${_cat ? ' category=' + _cat : ''}，正文为空。这是安全分类器的拦截，不是网络、格式或思考预算问题。`);
+        // 类别是"套取推理过程"或没给类别：先退一步，不要思考过程再问。其他类别（cyber、bio 等）与思考无关，不走这一步。
+        if ((!_cat || _cat === 'reasoning_extraction') && switchToPlainReasoning(p, useApi, 'refusal' + (_cat ? ' / ' + _cat : ''))) throw new Error(_RETRY_PLAIN);
         if (!_claudeRefusalRetried && att < (opts.maxRetries || 3)) {
           _claudeRefusalRetried = true;
           Render.log('system', `⚠️ ${p.name}：Claude 的安全分类器拒绝回答这一条${_catZh}，自动重问一次`);
@@ -12402,7 +12431,7 @@ async function _callAIImpl(p, prompt, opts) {
         : parseAI(content, opts);
       // ★ fix：Anthropic路径同样检测复读/拒绝/元指令，与OpenAI路径行为一致
       if (parsed._isRepeatSilent) throw new Error('复读沉默');
-      if (parsed._isRefusal) throw new Error('内容过滤拒绝');
+      if (parsed._isRefusal) { if (switchToPlainReasoning(p, useApi, '拒绝式回复')) throw new Error(_RETRY_PLAIN); throw new Error('内容过滤拒绝'); }
       if (parsed._isMetaInstruction) throw new Error('元指令输出');
       if (parsed._isLeak) throw new Error('内心戏泄漏到发言');
       // ★ token usage 日志（Anthropic 字段名不同：input_tokens / output_tokens）
@@ -12422,11 +12451,11 @@ async function _callAIImpl(p, prompt, opts) {
 
     } else if (apiType === 'gemini') {
       // Gemini 原生格式
-      const gemMsgs = WolfReasoningContext.providerHistory(msgs).map(m => ({
+      const gemMsgs = WolfReasoningContext.providerHistory(tmsgs).map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{text: m.content}]
       }));
-      const sysContent = msgs.find(m => m.role === 'system')?.content || '';
+      const sysContent = tmsgs.find(m => m.role === 'system')?.content || '';
       // ★ Gemini 3 修复：Gemini 3 是 thinking 模型，maxOutputTokens 同时包含 thinking+输出
       //   默认 4K 会被 thinking 烧光导致短回复/截断。需要：
       //   ① 单独设置 thinkingConfig.thinkingBudget 限制思考预算
@@ -12494,7 +12523,18 @@ async function _callAIImpl(p, prompt, opts) {
       } else {
         content = _allParts[0]?.text || data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       }
-      if (!content) throw new Error('无有效响应内容');
+      if (!content) {
+        const _gemBlock = (data.promptFeedback && data.promptFeedback.blockReason) || '';
+        const _gemFinish = data.candidates?.[0]?.finishReason || '';
+        if (_gemBlock || /SAFETY|PROHIBITED|BLOCKLIST|RECITATION|SPII|OTHER/.test(_gemFinish)) {
+          const _why = _gemBlock || _gemFinish;
+          Render.devLog('err', `[P${p.id+1}] Gemini 拒绝回答：${_why}，正文为空`);
+          if (switchToPlainReasoning(p, useApi, _why)) throw new Error(_RETRY_PLAIN);
+          Render.log('system', `⚠️ ${p.name}：Gemini 拒绝回答这一条（${_why}）。这不是网络或格式故障；可以给这个座位换一个模型。`);
+          throw new Error('内容过滤拒绝：Gemini（' + _why + '）');
+        }
+        throw new Error('无有效响应内容');
+      }
       // ★ fix：检测 Gemini finishReason，MAX_TOKENS 且回复明显不完整才算截断
       //   Gemini 3 专属加强检测：thinking 模型烧光预算会返回极短但"看似完整"的响应
       const finishReason = data.candidates?.[0]?.finishReason;
@@ -12525,7 +12565,7 @@ async function _callAIImpl(p, prompt, opts) {
       const parsed = finishReason === 'MAX_TOKENS' ? salvageCutSpeech(parseAI(content, opts), p, '达到输出上限') : parseAI(content, opts);
       // ★ fix：Gemini路径同样检测复读/拒绝/元指令，与OpenAI路径行为一致
       if (parsed._isRepeatSilent) throw new Error('复读沉默');
-      if (parsed._isRefusal) throw new Error('内容过滤拒绝');
+      if (parsed._isRefusal) { if (switchToPlainReasoning(p, useApi, '拒绝式回复')) throw new Error(_RETRY_PLAIN); throw new Error('内容过滤拒绝'); }
       if (parsed._isMetaInstruction) throw new Error('元指令输出');
       if (parsed._isLeak) throw new Error('内心戏泄漏到发言');
       clearTimeout(timeoutId);
@@ -12566,8 +12606,8 @@ async function _callAIImpl(p, prompt, opts) {
 
       // ★ Gemini3(含 pro-high 等高推理档)在 OpenAI 兼容端常拒绝 temperature/top_p，传了会 400 INVALID_ARGUMENT，故不传
       const requestMsgs = forceFinalOnlyRetry
-        ? msgs.concat([{role:'user',content:'【技术补发·最高优先级】上一份回复把输出额度耗在思考中，正式发言没有完成。不要重新分析、不要复述推理、不要写草稿或 thinking。立即只输出本轮最终公开发言和必要的 action；发言控制在300字以内，必须完整收尾。'}])
-        : msgs;
+        ? tmsgs.concat([{role:'user',content:'【技术补发·最高优先级】上一份回复把输出额度耗在思考中，正式发言没有完成。不要重新分析、不要复述推理、不要写草稿或 thinking。立即只输出本轮最终公开发言和必要的 action；发言控制在300字以内，必须完整收尾。'}])
+        : tmsgs;
       let body = isGemini3Compat
         ? {model:useApi.model, messages:requestMsgs}
         : {model:useApi.model, messages:requestMsgs, temperature:pTemp, top_p:pTopP, max_tokens:compatMaxTk, stream: true};
@@ -12705,6 +12745,12 @@ async function _callAIImpl(p, prompt, opts) {
       if (!content && !nativeThinking) {
         const inTk = data.usage?.prompt_tokens || data.usage?.input_tokens || 0;
         const outTk = data.usage?.completion_tokens || data.usage?.output_tokens || 0;
+        if (data.choices?.[0]?.finish_reason === 'content_filter') {
+          Render.devLog('err', `[P${p.id+1}] 接口以 content_filter 结束且没有正文`);
+          if (switchToPlainReasoning(p, useApi, 'content_filter')) throw new Error(_RETRY_PLAIN);
+          Render.log('system', `⚠️ ${p.name}：接口拒绝回答这一条（content_filter）。这不是网络或格式故障；可以给这个座位换一个模型。`);
+          throw new Error('内容过滤拒绝：content_filter');
+        }
         Render.log('system', `⚠️ ${p.name} API返回空内容 (in=${inTk} out=${outTk} finish=${data.choices?.[0]?.finish_reason||'?'})`);
         throw new Error('无有效响应内容');
       }
@@ -12793,7 +12839,7 @@ async function _callAIImpl(p, prompt, opts) {
       // ★ v9.9.7: 与 Anthropic/Gemini 路径一致——检测复读/拒绝/元指令/内心戏泄漏
       //   原本只在 Anthropic/Gemini 路径里有 throw,OpenAI 主路径漏了这个统一检测
       if (parsed._isRepeatSilent) throw new Error('复读沉默');
-      if (parsed._isRefusal) throw new Error('内容过滤拒绝');
+      if (parsed._isRefusal) { if (switchToPlainReasoning(p, useApi, '拒绝式回复')) throw new Error(_RETRY_PLAIN); throw new Error('内容过滤拒绝'); }
       if (parsed._isMetaInstruction) throw new Error('元指令输出');
       if (parsed._isLeak) throw new Error('内心戏泄漏到发言');
       clearTimeout(timeoutId);
