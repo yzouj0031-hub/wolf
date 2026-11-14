@@ -525,7 +525,10 @@
     const style = document.createElement('style');
     style.id = 'twb-style';
     style.textContent = `
-      .twb-toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:9px 0}.twb-toolbar select,.twb-toolbar input{min-width:120px}
+      .twb-toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:9px 0}
+      /* 这个对话框里的按钮没有带样式类，全局 button 又不设底色和字色：在部分设备上会显示成白底、字几乎看不见 */
+      #twb-main-view button:not([class]),#twb-edit-view button:not([class]),.twb-actions button:not(.danger){color:#bbb4d1;background:linear-gradient(180deg,rgba(31,29,48,.9),rgba(20,19,34,.94));border:1px solid rgba(139,130,183,.32);border-radius:8px;padding:7px 12px}
+      #twb-main-view .btns button:not([class]){padding:9px}.twb-toolbar select,.twb-toolbar input{min-width:120px}
       .twb-note{padding:9px 11px;border:1px solid rgba(184,154,91,.28);background:rgba(184,154,91,.06);border-radius:8px;color:#a9a0ba;font-size:.72em;line-height:1.6}
       .twb-list{display:flex;flex-direction:column;gap:7px;max-height:42vh;overflow:auto;margin-top:10px}.twb-empty{padding:28px;text-align:center;color:#777087;border:1px dashed rgba(184,154,91,.22);border-radius:9px}
       .twb-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid rgba(184,154,91,.2);background:rgba(20,17,28,.72);border-radius:9px}.twb-row>input{min-width:auto;width:auto}
