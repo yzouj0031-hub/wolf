@@ -102,6 +102,8 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 /* ---- 摇杆与按键 ---- */
 #joy { position: fixed; width: 132px; height: 132px; margin: -66px 0 0 -66px; border-radius: 50%; background: radial-gradient(circle, rgba(239, 230, 207, 0.06) 40%, rgba(239, 230, 207, 0.16) 70%, rgba(239, 230, 207, 0.04) 71%); box-shadow: inset 0 0 0 1.5px rgba(239, 230, 207, 0.4); pointer-events: none; opacity: 0; transition: opacity 0.2s; }
 #joy.on { opacity: 1; }
+/* 手柄在菜单里移动的高亮 */
+.pad-focus { outline: 3px solid #e8b04a !important; outline-offset: 3px; box-shadow: 0 0 0 6px rgba(232, 176, 74, 0.25) !important; }
 #joy-k { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, rgba(239, 230, 207, 0.75), rgba(239, 230, 207, 0.45)); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
 #joy-hint { position: fixed; left: calc(var(--gl) + 40px); bottom: calc(var(--gb) + 46px); font-size: 12px; color: rgba(239, 230, 207, 0.6); pointer-events: none; letter-spacing: 0.1em; }
 #acts { position: fixed; right: var(--gr); bottom: var(--gb); width: 214px; height: 196px; pointer-events: none; }
@@ -4113,7 +4115,7 @@ function initInput() {
 }
 // 移动输入（屏幕空间：x 右、y 前）
 function moveInput() {
-  let x = IN.joy.x, y = IN.joy.y;
+  let x = IN.joy.x + PAD.lx, y = IN.joy.y + PAD.ly;
   const k = IN.keys;
   if (k.KeyW || k.ArrowUp) y += 1; if (k.KeyS || k.ArrowDown) y -= 1;
   if (k.KeyD || k.ArrowRight) x += 1; if (k.KeyA || k.ArrowLeft) x -= 1;
@@ -4121,7 +4123,115 @@ function moveInput() {
   if (l > 1) { x /= l; y /= l; }
   return { x, y, mag: Math.min(1, l), kb: !!(k.KeyW || k.KeyS || k.KeyA || k.KeyD || k.ArrowUp || k.ArrowDown || k.ArrowLeft || k.ArrowRight) };
 }
-function sprintHeld() { return !!(IN.keys.ShiftLeft || IN.keys.ShiftRight || IN.btn.dash); }
+function sprintHeld() { return !!(IN.keys.ShiftLeft || IN.keys.ShiftRight || IN.btn.dash || PAD.dash); }
+
+// ---------- 手柄（W3C 标准布局：Xbox / PlayStation / Switch Pro 都按按键位置对应） ----------
+//   游戏中：左摇杆移动、右摇杆视角、A 跳、X 攻击、Y 互动、B 冲刺（轻点闪避，按住疾跑）、LB 攀爬松手、
+//           LT / RT 拉近 / 拉远镜头、菜单键（☰ / Start）打开菜单、视图键（⧉ / Select）地图、RB 背包、右摇杆按下 任务。
+//   菜单、标题、对话选项：十字键或左摇杆移动高亮，A 确认，B 返回；对话中 A 翻页。
+const PAD = {
+  B: { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 },
+  connected: false, prev: [], lx: 0, ly: 0, dash: false, focus: null, navT: 0, gp: null,
+};
+function padDead(v, d) { d = d || 0.18; return Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d); }
+function padHeld(gp, i) { const b = gp.buttons[i]; return !!b && (b.pressed || b.value > 0.5); }
+function padRumble(ms, strong) {
+  const a = PAD.gp && PAD.gp.vibrationActuator;
+  try { if (a && a.playEffect) a.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: strong * 0.6 }); } catch (_) {}
+}
+// 当前可以用手柄点的界面：对话选项 > 打开的面板 > 标题画面；都没有就是在游戏里
+function padMenuRoot() {
+  if (GAME.ui.dialog) { const o = document.getElementById('dlg-opts'); return o && o.children.length ? o : null; }
+  if (GAME.ui.modal) return document.getElementById(GAME.ui.modal);
+  if (GAME.state === 'title') return document.getElementById('title');
+  return null;
+}
+function padTargets(root) {
+  return [...root.querySelectorAll('button, .opt, [data-pad]')].filter((el) => !el.disabled && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+}
+function padSetFocus(el) {
+  if (PAD.focus) PAD.focus.classList.remove('pad-focus');
+  PAD.focus = el || null;
+  if (el) { el.classList.add('pad-focus'); try { el.scrollIntoView({ block: 'nearest' }); } catch (_) {} }
+}
+// 按方向找最近的下一个按钮（同方向上越近、越不偏离越优先）
+function padMoveFocus(list, dx, dy) {
+  if (!PAD.focus || !list.includes(PAD.focus)) { padSetFocus(list[0]); return; }
+  const r0 = PAD.focus.getBoundingClientRect(), cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+  let best = null, bestS = Infinity;
+  for (const el of list) {
+    if (el === PAD.focus) continue;
+    const r = el.getBoundingClientRect(), ex = r.left + r.width / 2 - cx, ey = r.top + r.height / 2 - cy;
+    const along = ex * dx + ey * dy; if (along <= 2) continue;
+    const side = Math.abs(ex * dy - ey * dx), sc = along + side * 2.2;
+    if (sc < bestS) { bestS = sc; best = el; }
+  }
+  if (best) padSetFocus(best);
+}
+function pollGamepad(dt) {
+  const list = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const g of list) if (g && g.connected) { gp = g; break; }
+  PAD.gp = gp;
+  if (!gp) {
+    if (PAD.connected) { PAD.connected = false; PAD.lx = PAD.ly = 0; if (PAD.dash) IN.pressed.dashUp = true; PAD.dash = false; padSetFocus(null); }
+    return;
+  }
+  if (!PAD.connected) { PAD.connected = true; PAD.prev = []; }
+  const B = PAD.B, held = (i) => padHeld(gp, i);
+  const hit = (i) => held(i) && !PAD.prev[i];
+  const any = gp.buttons.some((b, i) => hit(i));
+  if (any) AUDIO.unlock();
+  const ax = (i) => padDead(gp.axes[i] || 0);
+  const dpx = (held(B.RIGHT) ? 1 : 0) - (held(B.LEFT) ? 1 : 0), dpy = (held(B.DOWN) ? 1 : 0) - (held(B.UP) ? 1 : 0);
+  const root = padMenuRoot();
+  if (root) {
+    // 菜单模式：不移动角色，十字键 / 左摇杆移动高亮
+    PAD.lx = PAD.ly = 0;
+    if (PAD.dash) { PAD.dash = false; IN.pressed.dashUp = true; }
+    const list = padTargets(root);
+    if (PAD.focus && !list.includes(PAD.focus)) padSetFocus(null);
+    let nx = dpx, ny = dpy;
+    if (!nx && !ny) { const sx = ax(0), sy = ax(1); if (Math.abs(sx) > 0.5 || Math.abs(sy) > 0.5) { if (Math.abs(sx) > Math.abs(sy)) nx = Math.sign(sx); else ny = Math.sign(sy); } }
+    PAD.navT -= dt;
+    if ((nx || ny) && list.length) {
+      const fresh = hit(B.UP) || hit(B.DOWN) || hit(B.LEFT) || hit(B.RIGHT);
+      if (fresh || PAD.navT <= 0) { padMoveFocus(list, nx, ny); PAD.navT = fresh ? 0.35 : 0.14; AUDIO.sfx('tick'); }
+    } else PAD.navT = 0;
+    if (!PAD.focus && list.length && (any || nx || ny)) padSetFocus(list[0]);
+    if (hit(B.A)) { if (PAD.focus) PAD.focus.click(); else if (GAME.ui.dialog) UI.dlgAdvance(); }
+    if (hit(B.B) || hit(B.START)) { if (GAME.ui.modal) UI.close(); }
+  } else {
+    padSetFocus(null);
+    if (GAME.ui.dialog) {
+      // 对话：A 翻页，人物不动
+      PAD.lx = PAD.ly = 0;
+      if (hit(B.A) || hit(B.B) || hit(B.Y)) UI.dlgAdvance();
+    } else if (GAME.state === 'play') {
+      PAD.lx = ax(0) + dpx; PAD.ly = -(ax(1) + dpy);
+      const rx = ax(2), ry = ax(3);
+      if (rx || ry) { IN.camDX += rx * 620 * dt; IN.camDY += ry * 480 * dt; IN.lastCamInput = GAME.time; }
+      const lt = (gp.buttons[B.LT] && gp.buttons[B.LT].value) || 0, rt = (gp.buttons[B.RT] && gp.buttons[B.RT].value) || 0;
+      if (lt > 0.1 || rt > 0.1) IN.zoom += (rt - lt) * 3 * dt;
+      if (hit(B.A)) press('jump');
+      if (hit(B.X)) press('atk');
+      if (hit(B.Y)) press('act');
+      if (hit(B.LB)) press('drop');
+      if (hit(B.B)) { press('dash'); IN.btnT = IN.btnT || {}; IN.btnT.dash = GAME.time; }
+      const dashNow = held(B.B);
+      if (PAD.dash && !dashNow) IN.pressed.dashUp = true;
+      PAD.dash = dashNow;
+      if (hit(B.START)) UI.escape();
+      if (hit(B.BACK)) UI.toggle('p-map');
+      if (hit(B.RB)) UI.toggle('p-bag');
+      if (hit(B.R3)) UI.toggle('p-quest');
+    }
+  }
+  PAD.prev = gp.buttons.map((b, i) => held(i));
+}
+addEventListener('gamepadconnected', (e) => {
+  try { UI.toast('柄', '已连接手柄：左摇杆移动 · 右摇杆视角 · A 跳 · X 攻击 · Y 互动 · B 冲刺 · ☰ 菜单 · ⧉ 地图 · RB 背包'); } catch (_) {}
+});
 
 // ---------- 镜头 ----------
 const CAM = { yaw: Math.PI, pitch: 0.32, dist: 6.4, distT: 6.4, zoomUser: 0, target: new THREE.Vector3(), pos: new THREE.Vector3(), shake: 0, fovT: 58 };
@@ -5976,7 +6086,7 @@ const UI = {
     this.el.fx.appendChild(d);
     setTimeout(() => d.remove(), 900);
   },
-  hurt() { const h = this.el.hurt; h.style.transition = 'none'; h.style.opacity = '1'; requestAnimationFrame(() => { h.style.transition = 'opacity .6s'; h.style.opacity = '0'; }); },
+  hurt() { padRumble(180, 0.7); const h = this.el.hurt; h.style.transition = 'none'; h.style.opacity = '1'; requestAnimationFrame(() => { h.style.transition = 'opacity .6s'; h.style.opacity = '0'; }); },
   bossBar(e) {
     if (!e) { if (!this.el.boss.classList.contains('hide')) this.el.boss.classList.add('hide'); return; }
     this.el.boss.classList.remove('hide');
@@ -6779,6 +6889,8 @@ async function boot(hotData) {
   last = performance.now();
   requestAnimationFrame(frame);
   window.__ready = true;
+  // 只读状态快照，给自动测试用（不改任何东西）
+  window.__qyxState = () => ({ state: GAME.state, modal: GAME.ui.modal, dialog: !!GAME.ui.dialog, pos: [PL.pos.x, PL.pos.z], pstate: PL.state, yaw: CAM.yaw, focus: PAD.focus ? PAD.focus.textContent : null, padOn: PAD.connected });
 }
 function applySave() {
   const S = GAME.save;
@@ -6908,6 +7020,7 @@ let last = 0, miniT = 0, revealT = 0, saveT = 0, fpsT = 0, fpsN = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  pollGamepad(dt);
   // 动态分辨率
   fpsT += dt; fpsN++;
   if (fpsT > 2.5) {

@@ -105,6 +105,7 @@
     "test:knight-duel": "node scripts/test-knight-declared-duel-browser.mjs",
     "test:bare-audit": "node scripts/test-bare-audit-browser.mjs",
     "test:cut-speech": "node scripts/test-cut-speech-browser.mjs",
+    "test:qianyuxing-gamepad": "node scripts/test-qianyuxing-gamepad-browser.mjs",
     "test:gravekeeper": "node scripts/test-gravekeeper.mjs"
   },
   "devDependencies": {
