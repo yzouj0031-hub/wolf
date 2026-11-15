@@ -87,6 +87,7 @@ for (const file of ['index.html', 'en/index.html']) {
       villager._wasFree = $('m-free-output') ? $('m-free-output').checked : true;
       out.sysOp = buildSystemPrompt(villager, { prompt: '【投票】', opts: { skillConfirm: true } });
       if ($('m-free-output')) { $('m-free-output').checked = false; out.sysTag = buildSystemPrompt(villager, task); $('m-free-output').checked = villager._wasFree; }
+      out.scrubDayNew = liveScrubTask('【第2天·白天发言】这是第2天投票前唯一的一次发言。\n\n【现在】\n· 现在是第2天白天。\n【发言顺序】1.P3→2.P4→3.P5。\n你排在第2位。排在你之后的 P5 还没发言。');
       out.scrubSheriff = liveScrubTask('【竞选演讲】你在竞选警长，现在轮到你发言。昨晚的死讯要等竞选结束才公布。\n<game>里写你真正要说出口的话。');
       out.scrubWolf = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n· 本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；同一夜不能同时用两瓶药；救药一旦用掉（不论救的是谁），她此后再也看不到刀口。\n· 本局开启隐死亡：出局者不翻牌、不公布身份。\n\n<thinking>你的分析</thinking>');
       out.leakParen = parseAI('（请在内部完成判断，不要输出内部判断或内部判断。）\n*站起来*\n\n翻牌！昨晚我验了' + other + '。').game;
@@ -157,6 +158,7 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.equal(r.scNight, '· “先行动”不是这句\n夜间固定顺序：守卫 → 狼\n白天/触发型技能：', `${file}: 夜间顺序后面的解释句去掉：${JSON.stringify(r.scNight)}`);
     assert.ok(!/大胆点名|下注|吵架/.test(r['live:villager']) && r['live:villager'].includes('目标只有一个：让你的阵营赢。'), `${file}: 开场不再有"大胆点名、下注、吵架"`);
     assert.equal(r.scrubDay, '【第2天·白天发言】这是第2天投票前唯一的一次发言。\n\n【现在】\n· 现在是第2天白天。', `${file}: 白天题里不再重复发言顺序和出局名单：${JSON.stringify(r.scrubDay)}`);
+    assert.equal(r.scrubDayNew, '【第2天·白天发言】这是第2天投票前唯一的一次发言。\n\n【现在】\n· 现在是第2天白天。', `${file}: 裸规则新标签的发言顺序行也不跟在题目后面：${JSON.stringify(r.scrubDayNew)}`);
     assert.ok(r.lastWords.includes('收到。') && !r.lastWords.includes('我是好人'), `${file}: 遗言已有通知，不在事件块里再出现两遍：${r.lastWords}`);
     assert.ok(/这一步只提交选择/.test(r.sysOp), `${file}: 纯操作请求只留一句格式说明`);
     if (r.sysTag) assert.ok(/说出口的话写在 <game> 里/.test(r.sysTag), `${file}: 关掉自由输出时要有一句标签说明`);

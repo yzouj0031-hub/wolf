@@ -31,6 +31,7 @@ await withOfflinePage(async (page, origin) => {
       };
       // 关掉方案结果弹窗的等待
       const tick = setInterval(() => { const o = document.getElementById('wsOverlay'); if (o && o.classList.contains('show')) document.getElementById('wsClose').click(); }, 50);
+      TeachingWorldbooks.load({ mode: 'lite', liteMigrated: true });   // 默认已是裸规则，密约只在带教学的模式里跑
       selectMode('super', true);
       $('g-url').value = 'http://127.0.0.1:9/v1'; $('g-key').value = 'k'; $('g-model').value = 'm'; try { saveCfg(); } catch (e) {}
       // 一份"真实存档"，试跑后不能被覆盖

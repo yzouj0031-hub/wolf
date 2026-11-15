@@ -79,6 +79,7 @@ await withOfflinePage(async (page, origin) => {
       await WolfLearning.loadRemoteCases(true);
       // 新的一局里，预言家的 system prompt 应能看到云端案例
       S.gameOver = false; S.round = 1; S.history = [];
+      TeachingWorldbooks.load({ mode: 'lite', liteMigrated: true });   // 默认已是裸规则，经验案例只进带教学的模式
       const sys = buildSystemPrompt(S.players[0], { prompt: '【第1天·白天发言·第一轮】', opts: {} });
       return {
         dialogShown, needConsent, alert: window.__alert || '', donateStatus,

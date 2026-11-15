@@ -19,8 +19,8 @@ for (const file of ['index.html', 'en/index.html']) {
       for (const m of ['lite', 'official']) for (const role of ['villager', 'seer', 'werewolf']) out[m + ':' + role] = build(m, role);
       return out;
     });
-    assert.equal(r.fresh, 'lite', `${file}: 新用户默认应是精简官方`);
-    assert.equal(r.migrated, 'lite', `${file}: 旧存档的官方教学应迁移到精简官方`);
+    assert.equal(r.fresh, 'bare', `${file}: 新用户默认应是裸规则`);
+    assert.equal(r.migrated, 'bare', `${file}: 没有迁移标记的旧「官方教学」应迁到裸规则`);
     assert.equal(r.keptFull, 'official', `${file}: 迁移过后手动选的完整官方要保留`);
     assert.equal(r.keptClean, 'clean', `${file}: 其他模式不受迁移影响`);
     for (const role of ['villager', 'seer', 'werewolf']) {
