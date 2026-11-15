@@ -107,8 +107,13 @@ for (const file of FILES) {
     `${file}: 「性情」开关仍然不控制人格注入`,
   );
   assert.ok(
-    src.includes('const mbtiBlock = (p.mbti && !cosplayOn && personaTagOn) ?'),
+    src.includes('const mbtiBlock = (p.mbti && !(cosplayOn && hasPersona) && personaTagOn) ?'),
     `${file}: 人格注入没有接上开关`,
+  );
+  // 「Cosplay」默认是开着的：只看开关会让没写人设的 AI（默认全 AI 局就是全部 AI）一个人格都拿不到
+  assert.ok(
+    !src.includes('(p.mbti && !cosplayOn && personaTagOn)'),
+    `${file}: 人格注入又只看 Cosplay 开关了——默认设置下全 AI 局会一个人格都没有`,
   );
 
   // 全 AI 局也要分人格、也要注入，否则所有 AI 退回同一副助手腔

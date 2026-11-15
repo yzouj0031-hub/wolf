@@ -76,6 +76,8 @@ for (const file of ['index.html', 'en/index.html']) {
       out.scrubSheriff = liveScrubTask('【竞选演讲】你在竞选警长，现在轮到你发言。昨晚的死讯要等竞选结束才公布。\n<game>里写你真正要说出口的话。');
       out.scrubWolf = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n· 本局有女巫：救药还在时她每晚能看到刀口。\n\n<thinking>你的分析</thinking>');
       out.scrubWolfOnly = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n\n<thinking>你的分析</thinking>');
+      out.scrubPK = liveScrubTask('【PK投票 - 关键决战】\n刚才投票出现平票（A、B 票数相同），PK 候选人已经完成最后自救发言。\n\n你现在必须从 A、B 中选择一人放逐。\n\n\n这是流程强制二选一，不代表平票者中必然有狼；两人都可能是好人，也可能包含狼人。\n重新比较两人的硬事实矛盾、信息时点、此前票型和放逐收益。不要因已经投过而机械重复。\n\n<thinking>思考</thinking>\n<game></game>\n<action>玩家完整名字</action>');
+      out.scrubPKOld = liveScrubTask('【PK投票 - 关键决战】\n你现在要做的是：从 A、B 中选一个放逐。\n\n【⚠️ 重要：不要弃权】\n· 弃权 = 让平票再次发生\n· 不要因为"两个都像好人"就弃权——平票就意味着至少有一个是狼\n\n【判断重点】\n① 谁的 PK 自救发言更有逻辑漏洞？\n② 谁如果是好人，狼队会因此更安全？\n\n<thinking>思考</thinking>\n<action>玩家完整名字</action>');
       out.stageVote = resolveAIReasoning(villager, '【投票】', { skillConfirm: true, decisionKind: 'day-vote' }).stage;
       out.stageFix = resolveAIReasoning(villager, '【骑士决斗·行动格式纠正】', { skillConfirm: true }).stage;
       out.stageSpeech = resolveAIReasoning(villager, '【第2天·白天发言】', {}).stage;
@@ -133,11 +135,22 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.equal(r.scrubSheriff, '【竞选演讲】你在竞选警长，现在轮到你发言。\n<game>里写你真正要说出口的话。', `${file}: 竞选题不带死讯提醒`);
     assert.ok(!r.scrubWolf.includes('今晚过后先进行警长竞选') && r.scrubWolf.includes('· 本局有女巫') && r.scrubWolf.includes('【本局对今晚战术有影响的硬规则·系统事实】'), `${file}: 狼队题只去掉竞选那条：${r.scrubWolf}`);
     assert.ok(!r.scrubWolfOnly.includes('硬规则·系统事实') && r.scrubWolfOnly.includes('<thinking>你的分析</thinking>'), `${file}: 事实列表空了就连标题一起去掉：${r.scrubWolfOnly}`);
+    // PK 投票题只留局面和选项；"怎么比较两个人"的指导、"平票必有狼"这类说法在参与者模式里去掉
+    for (const [k, pk] of [['scrubPK', r.scrubPK], ['scrubPKOld', r.scrubPKOld]]) {
+      for (const gone of ['流程强制二选一', '重新比较两人', '不要弃权', '判断重点', '逻辑漏洞', '至少有一个是狼'])
+        assert.ok(!pk.includes(gone), `${file} ${k}: PK 投票题里还有「${gone}」：${JSON.stringify(pk)}`);
+      assert.ok(pk.includes('中选') && pk.includes('<action>玩家完整名字</action>') && !/\n{3,}/.test(pk), `${file} ${k}: 选项和格式要保留：${JSON.stringify(pk)}`);
+    }
     for (const role of ['villager', 'seer', 'werewolf']) {
       const sys = r['live:' + role];
       assert.ok(sys.includes('第一天先竞选警长，竞选结束后才公布昨夜出局的人'), `${file} ${role}: 竞选在公布死讯之前这条规则应在规则里`);
+      // 默认设置（性情开、Cosplay 开、没写人设）下每个 AI 都要拿到自己的牌桌人格，否则十二个 AI 只差一个身份
+      assert.ok(/\n\n【你这个人】你在牌桌上是这样的人：[^\n]+/.test(sys), `${file} ${role}: 参与者模式默认设置下没有注入牌桌人格`);
+      assert.ok(!sys.includes('这种风格要付的代价') && !sys.includes('【边界·最重要的一条】'), `${file} ${role}: 参与者模式的人格只说是什么样的人，不带代价和护栏说明`);
+      // 下面查的是框架用语；人格自己的习惯（比如"爱翻旧账"）是人设，不算框架
+      const frame = sys.replace(/\n\n【你这个人】[^\n]*/, '');
       for (const gone of ['只听到了排在他前面的发言', '一轮一轮', '翻旧账', '解释规则', '印象', '助手', '【标签边界】', '输出契约', '凑格式', '内容安全声明', '不要拒绝', '不能与死者对话'])
-        assert.ok(!sys.includes(gone), `${file} ${role}: 参与者框架里不应再有「${gone}」`);
+        assert.ok(!frame.includes(gone), `${file} ${role}: 参与者框架里不应再有「${gone}」`);
     }
     assert.deepEqual([r.stageVote, r.stageFix, r.stageSpeech], ['normal', 'quick', 'normal'], `${file}: 参与者模式下决定与发言同档，格式纠正保持最低档`);
     assert.ok(r['lite:villager'].includes('【发言记录】') && !r['lite:villager'].includes('【你在打一局狼人杀】'), `${file}: 精简官方不受影响`);
