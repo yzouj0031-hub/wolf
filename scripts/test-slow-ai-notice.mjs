@@ -28,7 +28,11 @@ for (const page of ['index.html', 'en/index.html']) {
   has("if (_userStopCtrl) _userStopCtrl.signal.addEventListener('abort', () => ctrl.abort());", '「不等了」没有合并进请求的 abort 信号');
 
   // 超时分支
-  has("const _isCut = !_userStopped && _waited < _limit * 0.8;", '超时分支没有区分用户叫停');
+  has("const _isCut = !_userStopped && (timeoutMs <= 0 || _waited < _limit * 0.8);", '超时分支没有区分用户叫停（不限时等待时没有上限，凡不是用户叫停的中断都算连接被掐）');
+  // 不限时等待：默认开，不挂超时计时器
+  has('id="t-nolimit" checked', '「不限时等待」应默认勾选');
+  has("const timeoutId = timeoutMs > 0 ? setTimeout(() => timeoutCtrl.abort(), timeoutMs) : null;", '不限时等待时不应挂超时计时器');
+  has("const _noLimitNow = () => noTimeLimitOn() && (!opts.timeoutMs || !!opts.decisionKind);", '不限时等待的适用范围不对');
   has("if (_hasFb || isManualRetryEnabled() || _userStopped) {", '开了手动重试却仍要先默默重试');
   assert.equal(count('秒），尝试备用模型`'), 0, `${page}: 超时日志仍一律写"尝试备用模型"`);
   has("silentReason = (_userStopped ? '用户停止等待' : (_isCut ? '连接被掐断' : '主API超时')) + `（已等 ${_waited} 秒）`;", '对话框原因没带等待秒数');
