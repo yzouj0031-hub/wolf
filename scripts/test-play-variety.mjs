@@ -32,7 +32,7 @@ for (const file of FILES) {
   const src = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 
   // ── 1. ★ 自刀账：两行对等，救/不救两支都写 ──────────────────────────────────
-  const hint = between(src, 'const tacticalSacrificeHint = `', '`;');
+  const hint = between(src, "const tacticalSacrificeHint = bareRulesMode() ? '' : `", '`;');
   assert.ok(!hint.includes('${'), `${file}: tacticalSacrificeHint 必须是纯静态文本（原注释要求）`);
   assert.match(hint, /和刀好人记在同一张账上/, `${file}: 自刀没有和刀好人记在同一张账上`);
   assert.match(hint, /哪行都不预设赢：刀好人不因“常规”免算，刀自己人不因“新奇”加分/, `${file}: 缺少"两行都不预设赢"`);

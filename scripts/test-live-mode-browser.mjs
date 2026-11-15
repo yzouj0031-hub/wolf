@@ -64,6 +64,20 @@ for (const file of ['index.html', 'en/index.html']) {
       out.withNotes = buildSystemPrompt(villager, task);
       out.task = bareTask('【第2天·白天发言】这是第2天投票前唯一的一次发言。\n【重要】<game>标签里必须写完整的正式发言。');
       out.vote = liveVotePrompt(false); out.voteWW = liveVotePrompt(true);
+      // 最后一道过滤：事实留下，判断指导、时间注解、强调词去掉
+      const sc = t => liveScrub(bareScrub(t, 'user'), 'user');
+      out.scPkVote = sc('【PK投票 - 关键决战】\n刚才投票出现平票（A、B 票数相同），PK 候选人已经完成最后自救发言。\n\n你现在必须从 A、B 中选择一人放逐。\n\n\n这是流程强制二选一，不代表平票者中必然有狼；两人都可能是好人，也可能包含狼人。\n重新比较两人的硬事实矛盾、信息时点、此前票型和放逐收益。不要因已经投过而机械重复，也不要因谁措辞更差就自动惩罚谁。若证据都薄，选择误伤风险更低、其好人解释更不自然的一方，但不要虚构铁证。\n\n<thinking>比较两个候选人的硬证据、好人解释与投错代价，决定投谁</thinking>\n<game></game>\n<action>玩家完整名字（必须从 A、B 中选一个，不要写 None）</action>');
+      out.scPkSpeech = sc('【PK发言】你和其他人平票了，这是你最后的自救机会，说服大家不要投你！\n\n【自你上次开口以来发生的事】\nA：过\n\n注意：<game>标签里直接写完整的自救发言，全力说服大家不要投你。\n\n直接用第一人称说。');
+      out.scDay = sc('【第2天·白天发言】这是第2天投票前唯一的一次发言，没有第二轮。\n\n【现在】\n· 现在是第2天白天（第2夜的结果已经公布）。\n· 第2夜的结果：A出局。');
+      out.scAnn = sc('【公告·第2天】A夜晚出局（死于第1夜，第2天天亮才公布）。（身份未公开）') + '|' + sc('【公告·第2天】B被投票放逐（死于第2天白天）。（身份未公开）');
+      out.scLw = sc('【遗言·第2天】A在第1夜死亡、第2天天亮公布死讯后留下遗言：「我是好人」') + '|' + sc('【遗言·第2天】B在第2天被投票放逐出局前留下遗言：「过」');
+      out.scCharm = sc('【公告】魅惑连带已触发，A随之殒命。这说明已有一名狼美人出局，但狼美人具体是哪名死者、双方真实身份均不公开。');
+      out.scDuel = sc('【决斗结果】A（骑士）向B发起决斗。A认错了人，A已死亡！B存活。这说明B不属于狼人阵营。');
+      out.scLabels = sc('【你的身份与技能·硬信息】你是村民\n【查验结果·内部真实完整记录】\n第1夜：查验了A\n【查验结果·重要】你尝试查验A→好人显示。\n【你的历次行动记录·逐夜精确记录】\n狼队刀口记录（绝密）：\n守卫：基于你上面的推演做决定：守谁？\n【狼队平票追加讨论】平票目标：A、B。从中选一个最终刀口，快速表态！');
+      out.scWolfHd = sc('【狼队夜聊·第1夜】只有狼队能看到。\n可刀目标:A,B\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 本局开启隐死亡：出局者不翻牌、不公布身份。\n\n<thinking>你的分析</thinking>');
+      out.scWolfOther = sc('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 本局开启隐死亡：出局者不翻牌、不公布身份。\n· 本局有守墓人：他每晚只读到上一个白天被放逐者的阵营。\n\n<thinking>你的分析</thinking>');
+      out.scOwn = liveScrub('我觉得这是你最后的自救机会，快速表态！（死于第1夜，第2天天亮才公布）', 'assistant');
+      out.scNight = sc('· “先行动”不是这句\n夜间固定顺序：守卫 → 狼\n“先行动”表示先选择目标并先产生会影响后续行动的状态；最终死亡仍在夜末统一结算，除非技能明确写成立即结算。\n白天/触发型技能：');
       out.scrubDay = liveScrubTask('【第2天·白天发言】这是第2天投票前唯一的一次发言。\n\n【现在】\n· 现在是第2天白天。\n· 已出局（不能再行动、不能被投票、不能与之对话）：P1[第1夜]。\n【发言顺序·系统事实】今天的发言顺序由系统指定（座位/警长定序）：1.P3→2.P4。\n你排在第2位。排在你之后的 P5 还没发言。');
       {
         const keep = S.history.length;
@@ -73,8 +87,12 @@ for (const file of ['index.html', 'en/index.html']) {
       villager._wasFree = $('m-free-output') ? $('m-free-output').checked : true;
       out.sysOp = buildSystemPrompt(villager, { prompt: '【投票】', opts: { skillConfirm: true } });
       if ($('m-free-output')) { $('m-free-output').checked = false; out.sysTag = buildSystemPrompt(villager, task); $('m-free-output').checked = villager._wasFree; }
+      out.scrubDayNew = liveScrubTask('【第2天·白天发言】这是第2天投票前唯一的一次发言。\n\n【现在】\n· 现在是第2天白天。\n【发言顺序】1.P3→2.P4→3.P5。\n你排在第2位。排在你之后的 P5 还没发言。');
       out.scrubSheriff = liveScrubTask('【竞选演讲】你在竞选警长，现在轮到你发言。昨晚的死讯要等竞选结束才公布。\n<game>里写你真正要说出口的话。');
-      out.scrubWolf = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n· 本局有女巫：救药还在时她每晚能看到刀口。\n\n<thinking>你的分析</thinking>');
+      out.scrubWolf = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n· 本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；同一夜不能同时用两瓶药；救药一旦用掉（不论救的是谁），她此后再也看不到刀口。\n· 本局开启隐死亡：出局者不翻牌、不公布身份。\n\n<thinking>你的分析</thinking>');
+      out.leakParen = parseAI('（请在内部完成判断，不要输出内部判断或内部判断。）\n*站起来*\n\n翻牌！昨晚我验了' + other + '。').game;
+      out.keepParen = parseAI('（笑）我先说一句，昨晚是平安夜。').game;
+      out.keepMidParen = parseAI('我投' + other + '。（不要输出那种眼神啦）继续。').game;
       out.scrubWolfOnly = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n\n<thinking>你的分析</thinking>');
       out.stageVote = resolveAIReasoning(villager, '【投票】', { skillConfirm: true, decisionKind: 'day-vote' }).stage;
       out.stageFix = resolveAIReasoning(villager, '【骑士决斗·行动格式纠正】', { skillConfirm: true }).stage;
@@ -125,13 +143,34 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.equal(r.task, '【第2天·白天发言】这是第2天投票前唯一的一次发言。', `${file}: 参与者模式的任务不带标签提醒`);
     assert.ok(r.vote.startsWith('【投票】') && r.vote.includes('<action>名字/None</action>') && !r.vote.includes('EXPLODE'), `${file}: 投票题`);
     assert.ok(r.voteWW.includes('EXPLODE:目标名'), `${file}: 白狼王投票题带自爆`);
+    assert.ok(!/按你刚才|改了主意/.test(r.vote), `${file}: 投票题只说现在投票：${r.vote}`);
+    assert.equal(r.scPkVote, '【PK投票】\n刚才投票出现平票（A、B 票数相同），两人已经做了PK发言。\n\n你现在必须从 A、B 中选择一人放逐。\n\n<thinking>思考</thinking>\n<game></game>\n<action>玩家完整名字（必须从 A、B 中选一个，不要写 None）</action>', `${file}: 平票重投只说从谁里面选：${JSON.stringify(r.scPkVote)}`);
+    assert.equal(r.scPkSpeech, '【PK发言】你和其他人平票了，再发一次言，然后大家在平票的人里重新投票。\n\n【自你上次开口以来发生的事】\nA：过\n\n直接用第一人称说。', `${file}: PK 发言题（中间隔着事件记录也要去干净）：${JSON.stringify(r.scPkSpeech)}`);
+    assert.equal(r.scDay, '【第2天·白天发言】轮到你发言。\n\n【现在】\n· 现在是第2天白天。\n· 第2夜的结果：A出局。', `${file}: 白天题不再强调"唯一一次""已经公布"：${JSON.stringify(r.scDay)}`);
+    assert.equal(r.scAnn, '【公告·第2天】A夜晚出局。（身份未公开）|【公告·第2天】B被投票放逐。（身份未公开）', `${file}: 公告不再带"死于何时、何时公布"：${r.scAnn}`);
+    assert.equal(r.scLw, '【遗言·第2天】A（第1夜出局）留下遗言：「我是好人」|【遗言·第2天】B（第2天被放逐）留下遗言：「过」', `${file}: 遗言：${r.scLw}`);
+    assert.equal(r.scCharm, '【公告】魅惑连带已触发，A随之殒命。', `${file}: 公告不替玩家下结论：${r.scCharm}`);
+    assert.equal(r.scDuel, '【决斗结果】A（骑士）向B发起决斗。A认错了人，A已死亡！B存活。', `${file}: 决斗公告不替玩家下结论：${r.scDuel}`);
+    assert.equal(r.scLabels, '【你的身份与技能】你是村民\n【查验结果】\n第1夜：查验了A\n【查验结果】你尝试查验A→好人显示。\n【你的历次行动记录】\n狼队刀口记录：\n守卫：守谁？\n【狼队平票追加讨论】平票目标：A、B。从中选一个最终刀口。', `${file}: 标签上的强调词：${JSON.stringify(r.scLabels)}`);
+    assert.equal(r.scWolfHd, '【狼队夜聊·第1夜】只有狼队能看到。\n可刀目标:A,B\n\n<thinking>你的分析</thinking>', `${file}: 夜聊题后面不重复隐死亡规则：${JSON.stringify(r.scWolfHd)}`);
+    assert.ok(r.scWolfOther.includes('【和今晚有关的规则】\n· 本局有守墓人') && !r.scWolfOther.includes('隐死亡'), `${file}: 其余角色规则保留：${r.scWolfOther}`);
+    assert.equal(r.scOwn, '我觉得这是你最后的自救机会，快速表态！（死于第1夜，第2天天亮才公布）', `${file}: 模型自己说过的话原样保留`);
+    assert.equal(r.scNight, '· “先行动”不是这句\n夜间固定顺序：守卫 → 狼\n白天/触发型技能：', `${file}: 夜间顺序后面的解释句去掉：${JSON.stringify(r.scNight)}`);
+    assert.ok(!/大胆点名|下注|吵架/.test(r['live:villager']) && r['live:villager'].includes('目标只有一个：让你的阵营赢。'), `${file}: 开场不再有"大胆点名、下注、吵架"`);
     assert.equal(r.scrubDay, '【第2天·白天发言】这是第2天投票前唯一的一次发言。\n\n【现在】\n· 现在是第2天白天。', `${file}: 白天题里不再重复发言顺序和出局名单：${JSON.stringify(r.scrubDay)}`);
+    assert.equal(r.scrubDayNew, '【第2天·白天发言】这是第2天投票前唯一的一次发言。\n\n【现在】\n· 现在是第2天白天。', `${file}: 裸规则新标签的发言顺序行也不跟在题目后面：${JSON.stringify(r.scrubDayNew)}`);
     assert.ok(r.lastWords.includes('收到。') && !r.lastWords.includes('我是好人'), `${file}: 遗言已有通知，不在事件块里再出现两遍：${r.lastWords}`);
     assert.ok(/这一步只提交选择/.test(r.sysOp), `${file}: 纯操作请求只留一句格式说明`);
     if (r.sysTag) assert.ok(/说出口的话写在 <game> 里/.test(r.sysTag), `${file}: 关掉自由输出时要有一句标签说明`);
     // 流程事实只在规则里说一次，不跟在题目后面；框架里不出现描述过程的话（写什么它们就讲什么）
     assert.equal(r.scrubSheriff, '【竞选演讲】你在竞选警长，现在轮到你发言。\n<game>里写你真正要说出口的话。', `${file}: 竞选题不带死讯提醒`);
-    assert.ok(!r.scrubWolf.includes('今晚过后先进行警长竞选') && r.scrubWolf.includes('· 本局有女巫') && r.scrubWolf.includes('【本局对今晚战术有影响的硬规则·系统事实】'), `${file}: 狼队题只去掉竞选那条：${r.scrubWolf}`);
+    // 女巫几时看刀口、几时决定，规则里的夜间顺序和女巫牌面已经写了；放在夜聊题目后面，狼会把它当台词念出来（实际对局出现过）
+    assert.ok(!r.scrubWolf.includes('今晚过后先进行警长竞选') && !r.scrubWolf.includes('本局有女巫') && r.scrubWolf.includes('【本局对今晚战术有影响的硬规则·系统事实】\n· 本局开启隐死亡'), `${file}: 狼队题去掉竞选和女巫两条，其余事实保留：${r.scrubWolf}`);
+    if (file === 'index.html') assert.ok(r['live:werewolf'].includes('女巫在解药仍在时查看最终狼刀'), `${file}: 女巫看刀口的时机仍在规则里`);
+    // 模型念给自己听的整句括号提醒不是桌上的话；普通的括号动作、句中的括号照旧
+    assert.ok(!/请在内部|不要输出/.test(r.leakParen) && r.leakParen.startsWith('*站起来*'), `${file}: 发言开头的自我提醒要去掉：${r.leakParen}`);
+    assert.equal(r.keepParen, '（笑）我先说一句，昨晚是平安夜。', `${file}: 普通括号动作不动`);
+    assert.ok(r.keepMidParen.includes('（不要输出那种眼神啦）'), `${file}: 句中的括号不动：${r.keepMidParen}`);
     assert.ok(!r.scrubWolfOnly.includes('硬规则·系统事实') && r.scrubWolfOnly.includes('<thinking>你的分析</thinking>'), `${file}: 事实列表空了就连标题一起去掉：${r.scrubWolfOnly}`);
     for (const role of ['villager', 'seer', 'werewolf']) {
       const sys = r['live:' + role];

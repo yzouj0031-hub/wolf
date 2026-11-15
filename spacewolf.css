@@ -29,8 +29,19 @@
 .sw-grid input,.sw-grid select{font-size:.95em;padding:6px 8px}
 .sw-grid label.row{flex-direction:row;align-items:center;gap:8px}
 .sw-grid label.row input{width:auto;min-width:auto}
-.sw-api-row{display:grid;grid-template-columns:150px 1fr 1fr 1fr;gap:8px;align-items:end;margin-top:8px}
-.sw-api-row label{display:flex;flex-direction:column;gap:4px;color:#aeb3c5;font-size:.74em}
+/* 填 API 的那几格：宽屏并排，手机上一行一格，不会顶出面板 */
+.sw-api-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 12px;margin-top:8px}
+.sw-api-form label{display:flex;flex-direction:column;gap:4px;color:#aeb3c5;font-size:.76em;min-width:0}
+.sw-api-form input,.sw-api-form select{font-size:.95em;padding:7px 8px;min-width:0;width:100%;box-sizing:border-box}
+.sw-api-form.sw-fast{margin-top:14px}
+.sw-check{display:flex;align-items:center;gap:8px;color:#d6d9e6;font-size:.84em;margin-top:4px;cursor:pointer}
+.sw-check input{width:auto;min-width:auto;flex:none}
+.sw-api-now{font-size:.8em;color:#8fe0a8;margin:6px 0 0 24px;line-height:1.6}
+.sw-api-now:empty{display:none}
+.sw-api-now.warn{color:#e8b878}
+.sw-adv{margin-top:12px;border-top:1px solid rgba(140,160,220,.14);padding-top:10px}
+.sw-adv>summary,.sw-r-more>summary{cursor:pointer;color:#8b90a8;font-size:.78em}
+.sw-adv[open]>summary{margin-bottom:8px}
 .sw-api-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
 .sw-api-out{font-size:.74em;color:#9fb3d8;margin-top:6px;min-height:1.2em;white-space:pre-wrap}
 .sw-start-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
@@ -138,16 +149,15 @@
   .sw-game{grid-template-columns:1fr;grid-template-rows:minmax(220px,42vh) minmax(0,1fr)}
   .sw-top{flex-wrap:wrap;gap:6px}
   .sw-taskbar{order:9;flex-basis:100%;max-width:none}
-  .sw-api-row{grid-template-columns:1fr 1fr}
 }
 
 /* 多模型同桌 */
 .sw-model{font-style:normal;font-size:.72em;padding:1px 6px;border-radius:999px;border:1px solid rgba(140,160,220,.35);background:rgba(140,160,220,.12);color:#b9c0dc;margin-left:4px;vertical-align:1px}
 .sw-av-model{fill:#b9c0dc;font-size:9px;text-anchor:middle;paint-order:stroke;stroke:#000;stroke-width:2.5px}
-.sw-r-row{display:grid;grid-template-columns:auto 150px 1.4fr 1fr 1.1fr auto;gap:8px;align-items:center;margin-top:8px;padding:8px;border:1px solid rgba(140,160,220,.16);border-radius:8px;background:rgba(255,255,255,.03)}
-.sw-r-row input,.sw-r-row select{font-size:.9em;padding:6px 8px;min-width:0;width:100%}
+.sw-r-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-top:8px;padding:8px;border:1px solid rgba(140,160,220,.16);border-radius:8px;background:rgba(255,255,255,.03)}
+.sw-r-row input,.sw-r-row select{font-size:.9em;padding:6px 8px;min-width:0;width:100%;box-sizing:border-box}
+.sw-r-row .sw-r-more{grid-column:1/-1}
 .sw-r-row .sw-r-on-wrap{display:flex;align-items:center;gap:6px;color:#aeb3c5;font-size:.8em;white-space:nowrap}
 .sw-r-row .sw-r-on-wrap input{width:auto;min-width:auto}
 .sw-r-row .sw-r-btns{display:flex;gap:6px}
-@media (max-width:900px){.sw-r-row{grid-template-columns:auto 1fr}.sw-r-row .sw-r-on-wrap{order:0}.sw-r-row .sw-r-model{order:1}.sw-r-row .sw-r-prov{order:2;max-width:130px}.sw-r-row .sw-r-url{order:3}.sw-r-row .sw-r-key{order:4;grid-column:1/-1}.sw-r-row .sw-r-btns{order:5;grid-column:1/-1;justify-content:flex-end}}
 .sw-model-sum{margin-top:8px;font-size:.8em;line-height:1.7;color:#c9cde0}

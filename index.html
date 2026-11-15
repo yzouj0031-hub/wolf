@@ -4612,10 +4612,10 @@ function liveMode() {
 function teachingRulesMode(m) { return m === 'live' ? 'bare' : m; }
 // 本次请求读到了记录的哪个位置：请求成功写进记忆后才转正为 p._liveSeen；放在 WeakMap 里，不进存档。
 const LIVE_PENDING_SEEN = new WeakMap();
-const LIVE_FRAMING_BLOCK = '\n\n【你在打一局狼人杀】\n你是这桌上的一个玩家，目标只有一个：让你的阵营赢。\n大胆点名、下注、吵架，判断错了也没关系。\n说话像真人在牌桌上那样，通常几句话就够。';
+const LIVE_FRAMING_BLOCK = '\n\n【你在打一局狼人杀】\n你是这桌上的一个玩家，目标只有一个：让你的阵营赢。\n说话像真人在牌桌上那样，通常几句话就够。';
 const LIVE_FREE_TAIL = '\n\n直接用第一人称说出你要对大家说的话。想先打草稿，就写在 [草稿] 和 [/草稿] 之间（别人看不到），说出口的话写在 [/草稿] 之后。\n说完以后，可以在 [笔记] 和 [/笔记] 之间给自己记几句，别人看不到，下一轮会原样还给你。';
 function liveVotePrompt(isWhitewolfReady) {
-  return '【投票】发言都结束了，现在投票。按你刚才发言里的判断投；如果听完后面的人改了主意，在<thinking>里说一句为什么。\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>'
+  return '【投票】发言都结束了，现在投票。\n<thinking>思考</thinking>\n<game></game>\n<action>名字/None</action>'
     + (isWhitewolfReady ? '\n你是白狼王，也可以不投票，改为自爆带走一人：<action>EXPLODE:目标名</action>（自爆后本轮投票结束，直接入夜）。' : '');
 }
 // 自上次开口以来的公开记录：别人的发言、票型、审判、警长选举。自己的发言不重复（它就是对话里自己的上一轮）。
@@ -4653,8 +4653,9 @@ function liveScrubTask(prompt) {
   return String(prompt == null ? '' : prompt)
     .replace(/昨晚的死讯要等竞选结束才公布。/g, '')
     .replace(/\n?[·•]\s*今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：[^\n]*/g, '')
+    .replace(/\n?[·•]\s*本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；[^\n]*/g, '')
     .replace(/【本局对今晚战术有影响的硬规则·系统事实】\n(?=\n|<|$)/g, '')
-    .replace(/\n?【发言顺序·系统事实】[^\n]*/g, '')
+    .replace(/\n?【发言顺序(?:·系统事实)?】[^\n]*/g, '')
     .replace(/\n?你排在第\d+位。[^\n]*/g, '')
     .replace(/\n?谁先跳身份、谁后跳，同样是顺序决定的[^\n]*/g, '')
     .replace(/\n?[·•]\s*已出局（不能再行动、不能被投票、不能与之对话）：[^\n]*/g, '')
@@ -4760,6 +4761,46 @@ function bareScrub(text, role) {
   for (const [re, to] of BARE_SCRUB_RULES) out = out.replace(re, to);
   // 题目里的思考占位常常夹着"该比较什么"；模型自己写过的思考（assistant）原样保留。
   if (role !== 'assistant') out = out.replace(/<thinking>[^<\n]{9,}<\/thinking>/g, '<thinking>思考</thinking>');
+  return out.replace(/\n{3,}/g, '\n\n');
+}
+
+// 参与者模式在裸规则那道过滤之后再过一遍：事实留下，跟在事实后面的"怎么想"、反复强调的时间先后、
+//   标签上的"硬信息 / 重要 / 绝密 / 铁证"去掉。模型自己说过的话（assistant）不动；每条规则都是整句，碰不到别人的发言。
+const LIVE_SCRUB_RULES = [
+  // 平票重投：只说从谁里面选
+  [/【PK投票 - 关键决战】/g, '【PK投票】'],
+  [/PK 候选人已经完成最后自救发言。/g, '两人已经做了PK发言。'],
+  [/\n?这是流程强制二选一，不代表平票者中必然有狼；两人都可能是好人，也可能包含狼人。\n重新比较两人的硬事实矛盾、信息时点、此前票型和放逐收益。[^\n]*/g, ''],
+  [/【PK发言】你和其他人平票了，这是你最后的自救机会，说服大家不要投你！/g, '【PK发言】你和其他人平票了，再发一次言，然后大家在平票的人里重新投票。'],
+  [/\n?注意：<game>标签里直接写完整的自救发言，全力说服大家不要投你。/g, ''],
+  [/基于你上面的推演做决定：守谁？/g, '守谁？'],
+  [/从中选一个最终刀口，快速表态！/g, '从中选一个最终刀口。'],
+  [/(【第\d+天·白天发言】)这是第\d+天投票前唯一的一次发言(?:，没有第二轮)?。/g, '$1轮到你发言。'],
+  // 时间先后：哪天公布的看公告开头的"第N天"就够了
+  [/(现在是第\d+天白天)（第\d+夜的结果已经公布）/g, '$1'],
+  [/（死于第\d+夜，第\d+天天亮才公布）/g, ''],
+  [/（死于第\d+天白天）/g, ''],
+  [/在第(\d+)夜死亡、第\d+天天亮公布死讯后留下遗言：/g, '（第$1夜出局）留下遗言：'],
+  [/在第(\d+)天被投票放逐出局前留下遗言：/g, '（第$1天被放逐）留下遗言：'],
+  [/在第(\d+)天白天出局前留下遗言：/g, '（第$1天白天出局）留下遗言：'],
+  // 替玩家做的推理
+  [/这说明已有一名狼美人出局，但狼美人具体是哪名死者、双方真实身份均不公开。/g, ''],
+  [/这说明[^。\n]{1,24}不属于狼人阵营。/g, ''],
+  [/\n?“先行动”表示先选择目标并先产生会影响后续行动的状态；最终死亡仍在夜末统一结算，除非技能明确写成立即结算。/g, ''],
+  // 狼队夜聊题目后面的规则：系统提示里已经有【死者身份】
+  [/\n?[·•]\s*本局开启隐死亡：出局者不翻牌、不公布身份。/g, ''],
+  [/\n*【本局对今晚战术有影响的硬规则·系统事实】(?=\n\n|\n<|\n?$)/g, ''],
+  [/【本局对今晚战术有影响的硬规则·系统事实】/g, '【和今晚有关的规则】'],
+  // 标签上的强调词
+  [/【你的身份与技能·硬信息】/g, '【你的身份与技能】'],
+  [/【查验结果·内部真实完整记录】|【查验结果·重要】/g, '【查验结果】'],
+  [/【你的历次行动记录·逐夜精确记录】/g, '【你的历次行动记录】'],
+  [/狼队刀口记录（绝密）/g, '狼队刀口记录']
+];
+function liveScrub(text, role) {
+  let out = String(text);
+  if (role === 'assistant') return out;
+  for (const [re, to] of LIVE_SCRUB_RULES) out = out.replace(re, to);
   return out.replace(/\n{3,}/g, '\n\n');
 }
 
@@ -9579,6 +9620,8 @@ function parseAI(c, opts) {
     game = game.replace(/\n{3,}/g, '\n\n').trim();          // 多余换行
     // 系统prompt泄露（整段以【系统】等开头）
     if (/^【(?:系统|当前局势|本局配置|存活玩家|格式要求)】/.test(game)) game = '';
+    // 发言开头整句括号里的自我提醒（实际对局出现过：「（请在内部完成判断，不要输出内部判断或内部判断。）」）是模型念给自己听的，不是桌上的话
+    game = game.replace(/^\s*[（(][^（()）\n]{0,80}(?:不要输出|请在内部|内部完成|do not output|internally)[^（()）\n]{0,80}[)）]\s*/i, '').trim();
     // 明显的meta指令行（AI在解释自己要做什么而非角色发言）
     game = game.replace(/^.*(?:发言稿|发言框架|示范.*发言|以下是我.*分析|你要我帮你|需要我帮).*$/gm, '').trim();
   }
@@ -12214,7 +12257,7 @@ async function _callAIImpl(p, prompt, opts) {
   //   当前这一轮的题目（最后一条）完整保留，事件和发言都在系统提示的对局记录里，不会因此丢信息。
   const _bareHeadOnly = (m, i) => (m.role === 'user' && i > 0 && i < _msgs0.length - 1 && typeof m.content === 'string')
     ? {...m, content: (m.content.split('\n').find(l => l.trim()) || '').trim()} : m;
-  const msgs = bareRulesMode() ? _msgs0.map(liveMode() ? (m => m) : _bareHeadOnly).map(m => ({...m, content: typeof m.content === 'string' ? bareScrub(m.content, m.role) : m.content})) : _msgs0;
+  const msgs = bareRulesMode() ? _msgs0.map(liveMode() ? (m => m) : _bareHeadOnly).map(m => ({...m, content: typeof m.content === 'string' ? (liveMode() ? liveScrub(bareScrub(m.content, m.role), m.role) : bareScrub(m.content, m.role)) : m.content})) : _msgs0;
   let forceFinalOnlyRetry = false;
 
   // 备选API由 getFallbacks() 动态获取（支持多个）

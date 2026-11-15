@@ -35,6 +35,47 @@ await withOfflinePage(async (page, origin) => {
   assert.equal(parsed[1].plan, 'hunt'); assert.equal(parsed[1].kill.target, '蓝');
   assert.equal(parsed[2], '{"rooms":["食堂"]}');
 
+  // ── 场景 0：设置页默认直接沿用狼人杀的 API，不用再填一遍；走位的快模型只填一个模型名 ──
+  await page.evaluate(() => {
+    localStorage.removeItem('wg_spacewolf_v1');
+    $('g-apitype').value = 'anthropic'; $('g-url').value = 'https://api.anthropic.com'; $('g-key').value = 'sk-main'; $('g-model').value = 'claude-main';
+    SpaceWolf.open();
+  });
+  await page.waitForSelector('#sw-start');
+  const s0 = await page.evaluate(() => {
+    const vis = id => !!($(id) && $(id).offsetParent);
+    const out = { checked: $('sw-a-main').checked, formShown: vis('sw-a-url'), now: $('sw-a-now').textContent, advOpen: $('sw-adv').open, jargon: /会议脑|行动脑|两颗脑/.test($('sw-setup').innerText) };
+    out.meeting = SpaceWolf._apiFor('meeting'); out.action = SpaceWolf._apiFor('action');
+    $('sw-b-model').value = 'fast-x'; $('sw-b-model').dispatchEvent(new Event('change'));
+    out.actionFast = SpaceWolf._apiFor('action'); out.meetingAfterFast = SpaceWolf._apiFor('meeting').model;
+    // 狼人杀那边改了模型，这里跟着变
+    $('g-model').value = 'claude-main-2'; out.follows = SpaceWolf._apiFor('meeting').model; $('g-model').value = 'claude-main';
+    // 取消勾选：先把狼人杀的那份填进来当底稿，之后以这里填的为准
+    $('sw-a-main').checked = false; $('sw-a-main').dispatchEvent(new Event('change'));
+    out.prefilled = [$('sw-a-prov').value, $('sw-a-url').value, $('sw-a-key').value, $('sw-a-model').value]; out.formShownAfter = vis('sw-a-url'); out.nowAfter = $('sw-a-now').textContent;
+    $('sw-a-model').value = 'own-model'; $('sw-a-model').dispatchEvent(new Event('change'));
+    out.own = SpaceWolf._apiFor('meeting').model; out.ownAction = SpaceWolf._apiFor('action').model;
+    // 复原，别影响后面的场景
+    $('sw-b-model').value = ''; $('sw-b-model').dispatchEvent(new Event('change'));
+    $('sw-a-main').checked = true; $('sw-a-main').dispatchEvent(new Event('change'));
+    out.back = SpaceWolf._apiFor('meeting').model; out.backAction = SpaceWolf._apiFor('action').model;
+    SpaceWolf.close();
+    return out;
+  });
+  assert.ok(s0.checked && !s0.formShown, '默认应勾着「和狼人杀用同一个 API」，不摆出地址密钥那几格');
+  assert.ok(s0.now.includes('claude-main') && s0.now.includes('Claude'), '应写明现在用的是哪个渠道、哪个模型：' + s0.now);
+  assert.ok(!s0.advOpen, '高级设置默认收起');
+  assert.ok(!s0.jargon, '设置页不应再出现"会议脑 / 行动脑 / 两颗脑"');
+  assert.deepEqual([s0.meeting.url, s0.meeting.key, s0.meeting.model, s0.meeting.type], ['https://api.anthropic.com', 'sk-main', 'claude-main', 'anthropic'], '发言应直接用狼人杀的 API');
+  assert.equal(s0.action.model, 'claude-main', '没填快模型时走位和发言用同一个');
+  assert.deepEqual([s0.actionFast.url, s0.actionFast.key, s0.actionFast.model, s0.actionFast.type], ['https://api.anthropic.com', 'sk-main', 'fast-x', 'anthropic'], '填了快模型名：只换模型，地址密钥照旧');
+  assert.equal(s0.meetingAfterFast, 'claude-main', '快模型不影响发言用的模型');
+  assert.equal(s0.follows, 'claude-main-2', '狼人杀那边换了模型，这里应跟着变');
+  assert.deepEqual(s0.prefilled, ['anthropic', 'https://api.anthropic.com', 'sk-main', 'claude-main'], '取消勾选时应把狼人杀的那份填进来当底稿');
+  assert.ok(s0.formShownAfter && s0.nowAfter === '', '取消勾选后摆出那几格');
+  assert.deepEqual([s0.own, s0.ownAction], ['own-model', 'fast-x'], '取消勾选后以这里填的为准，快模型照旧只换模型名');
+  assert.deepEqual([s0.back, s0.backAction], ['claude-main', 'claude-main'], '重新勾上又回到狼人杀的 API');
+
   // ── 场景 1：纯脚本演示，8 倍速跑到终局 ──
   await page.evaluate(() => { localStorage.removeItem('wg_spacewolf_v1'); SpaceWolf.open(); });
   await page.waitForSelector('#sw-view.on');
@@ -129,8 +170,8 @@ await withOfflinePage(async (page, origin) => {
     };
     $('sw-c-players').value = '7'; $('sw-c-imps').value = '1'; $('sw-c-tasks').value = '3'; $('sw-c-cd').value = '15';
     $('sw-c-demo').checked = false; $('sw-c-interval').value = '4'; $('sw-c-conc').value = '8';
-    $('sw-a-prov').value = 'custom'; $('sw-a-url').value = 'http://127.0.0.1:9/v1'; $('sw-a-key').value = 'k'; $('sw-a-model').value = 'stub';
-    ['sw-c-players', 'sw-c-imps', 'sw-c-tasks', 'sw-c-cd', 'sw-c-demo', 'sw-c-interval', 'sw-c-conc', 'sw-a-prov', 'sw-a-url', 'sw-a-key', 'sw-a-model'].forEach(id => $(id).dispatchEvent(new Event('change')));
+    $('sw-a-main').checked = false; $('sw-a-prov').value = 'custom'; $('sw-a-url').value = 'http://127.0.0.1:9/v1'; $('sw-a-key').value = 'k'; $('sw-a-model').value = 'stub';
+    ['sw-c-players', 'sw-c-imps', 'sw-c-tasks', 'sw-c-cd', 'sw-c-demo', 'sw-c-interval', 'sw-c-conc', 'sw-a-main', 'sw-a-prov', 'sw-a-url', 'sw-a-key', 'sw-a-model'].forEach(id => $(id).dispatchEvent(new Event('change')));
   });
   await page.click('#sw-start');
   await page.waitForSelector('#sw-game .sw-av');
@@ -178,8 +219,8 @@ await withOfflinePage(async (page, origin) => {
   await page.waitForSelector('#sw-start');
   assert.ok(await page.$('#sw-r-empty'), '没填模型时应有提示');
   await page.evaluate(() => {
-    $('sw-a-prov').value = 'custom'; $('sw-a-url').value = 'http://127.0.0.1:9/v1'; $('sw-a-key').value = 'k'; $('sw-a-model').value = 'stub';
-    ['sw-a-prov', 'sw-a-url', 'sw-a-key', 'sw-a-model'].forEach(id => $(id).dispatchEvent(new Event('change')));
+    $('sw-a-main').checked = false; $('sw-a-prov').value = 'custom'; $('sw-a-url').value = 'http://127.0.0.1:9/v1'; $('sw-a-key').value = 'k'; $('sw-a-model').value = 'stub';
+    ['sw-a-main', 'sw-a-prov', 'sw-a-url', 'sw-a-key', 'sw-a-model'].forEach(id => $(id).dispatchEvent(new Event('change')));
   });
   await page.click('#sw-r-add');
   await page.click('#sw-r-add');
@@ -207,7 +248,7 @@ await withOfflinePage(async (page, origin) => {
   assert.deepEqual(await page.evaluate(() => SpaceWolf._cfg().roster.models.map(m => m.model)), ['model-x', 'model-y'], '删除应去掉那一行');
   await page.evaluate(() => { $('sw-r-mode').value = 'manual'; $('sw-r-mode').dispatchEvent(new Event('change')); });
   assert.equal(await page.$eval('#sw-r-manual', e => e.style.display), '', '按座位指定时应显示座位表');
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#sw-r-manual select')[0].options].map(o => o.textContent)), ['共用会议脑', 'model-x', 'model-y'], '座位下拉应列出填的模型');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#sw-r-manual select')[0].options].map(o => o.textContent)), ['和大家一样', 'model-x', 'model-y'], '座位下拉应列出填的模型');
   await page.evaluate(() => { $('sw-r-mode').value = 'pool'; $('sw-r-mode').dispatchEvent(new Event('change')); });
   await page.evaluate(() => {
     window.__speakers = {};
@@ -252,8 +293,46 @@ await withOfflinePage(async (page, origin) => {
   assert.ok(end.sum && end.sumRows === 2, '两个模型同桌应有按模型汇总：' + JSON.stringify(end));
   assert.deepEqual(end.exported.filter(Boolean).length, 7, '导出的回放应带每人的模型');
 
+  // Claude 原生接口不要求把思考写进回复（新模型会因此直接拒答）；别的渠道照旧
+  const think = await page.evaluate(() => {
+    const p = SpaceWolf._state.G.players[0], keep = p.api;
+    p.api = { url: 'https://api.anthropic.com', key: 'k', model: 'claude-x', provider: 'anthropic' }; const claude = SpaceWolf._meetingSystem(p);
+    p.api = { url: 'http://127.0.0.1:9/v1', key: 'k', model: 'gpt-x', provider: 'custom' }; const other = SpaceWolf._meetingSystem(p);
+    p.api = keep; return { claude, other };
+  });
+  assert.ok(!think.claude.includes('<thinking>') && think.claude.includes('<say>当众说的话</say>'), 'Claude 原生接口的会议提示不应要求写 <thinking>');
+  assert.ok(think.other.includes('先在 <thinking> 里盘算'), '其他渠道的会议提示照旧');
+
+  // 「测试能不能用」：回复上限要给足，自带思考的模型上限太小会一个字都回不出来；发言和走位两个模型一起测
+  await page.click('#sw-restart');
+  await page.waitForSelector('#sw-start');
+  const tested = await page.evaluate(async () => {
+    const seen = []; const keep = window.AuxGameAPI.request;
+    window.AuxGameAPI.request = async (api, sys, user, signal, maxTokens) => { seen.push([api.model, maxTokens]); return 'OK'; };
+    $('sw-b-model').value = 'fast-y'; $('sw-b-model').dispatchEvent(new Event('change'));
+    $('sw-a-test').click(); await new Promise(r => setTimeout(r, 300));
+    const text = $('sw-api-out').textContent;
+    $('sw-b-model').value = ''; $('sw-b-model').dispatchEvent(new Event('change'));
+    window.AuxGameAPI.request = keep; return { seen, text };
+  });
+  assert.deepEqual(tested.seen, [['stub', 1024], ['fast-y', 1024]], '测试按钮应把发言和走位两个模型都试一遍，上限 1024：' + JSON.stringify(tested.seen));
+  assert.ok(/✅ 发言模型 stub 能用/.test(tested.text) && /✅ 走位模型 fast-y 能用/.test(tested.text), '测试结果应说人话：' + tested.text);
+
   await page.evaluate(() => SpaceWolf.close());
   assert.ok(await page.$eval('#mm', e => e.style.display !== 'none'), '关闭后应回到大厅');
+
+  // 旧存档：以前在这里填过自己的地址的继续用自己的；单独配过走位模型的把模型名带过来；只是照抄了狼人杀那份的改成跟随
+  const migrate = async (saved) => {
+    await page.evaluate(v => localStorage.setItem('wg_spacewolf_v1', JSON.stringify(v)), saved);
+    await page.reload();
+    await page.waitForFunction(() => window.SpaceWolf && window.SpaceWolfEngine && window.AuxGameAPI);
+    return page.evaluate(() => { $('g-apitype').value = 'custom'; $('g-url').value = 'http://main/v1'; $('g-key').value = 'km'; $('g-model').value = 'main-model'; const c = SpaceWolf._cfg(); return { useMain: c.api.useMain, fast: c.api.fastModel, meeting: SpaceWolf._apiFor('meeting').model, action: SpaceWolf._apiFor('action') }; });
+  };
+  const own = await migrate({ api: { default: { provider: 'custom', url: 'http://own/v1', key: 'ko', model: 'own-model' }, action: { provider: 'custom', url: 'http://fast/v1', key: 'kf', model: 'fast-model' }, actionSeparate: true } });
+  assert.deepEqual([own.useMain, own.fast, own.meeting, own.action.url, own.action.model], [false, 'fast-model', 'own-model', 'http://fast/v1', 'fast-model'], '旧存档里自己填的 API 和单独的走位模型应原样保留：' + JSON.stringify(own));
+  const copied = await migrate({ api: { default: { provider: 'custom', url: 'http://main/v1', key: 'km', model: 'main-model' }, action: { provider: 'custom', url: 'http://main/v1', key: 'km', model: 'old-copy' }, actionSeparate: false } });
+  assert.deepEqual([copied.useMain, copied.fast, copied.action.model], [true, '', 'main-model'], '旧存档里只是照抄狼人杀的那份：改成跟随，走位不沿用当时顺手存下的旧模型名：' + JSON.stringify(copied));
+  await page.evaluate(() => localStorage.removeItem('wg_spacewolf_v1'));
 
   const bad = errors.filter(e => !/favicon|ERR_FAILED|supabase/i.test(e));
   assert.equal(bad.length, 0, '页面报错：' + bad.join('\n'));
