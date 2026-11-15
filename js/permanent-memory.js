@@ -179,6 +179,7 @@ openPCfg = function(i) {
 const _origBuildSysPrompt = buildSystemPrompt;
 buildSystemPrompt = function(p, taskContext) {
   let base = _origBuildSysPrompt(p, taskContext);
+  if (typeof bareRulesMode === 'function' && bareRulesMode()) return base;
   const memText = PermanentMemory.getMemoryText(p.name, p.id);
   if (memText) base += memText;
   return base;

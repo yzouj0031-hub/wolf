@@ -199,7 +199,7 @@
     imported:n=>`已导入 ${n} 本教学世界书`, importFailed:e=>'导入失败：'+e
   };
 
-  let state = { mode: 'lite', maxChars: 12000, books: [] };
+  let state = { mode: 'bare', maxChars: 12000, books: [] };
   let onChange = function () {};
   let getContext = function () { return {}; };
   let generateDraft = null;
@@ -250,11 +250,15 @@
       total += book.content.length;
       return true;
     });
+    const hasExplicitProps = Boolean(raw.liteMigrated || raw.bareMigrated || Array.isArray(raw.books));
     return {
-      // 精简官方成为默认后的一次性迁移：之前存的「官方教学」多半就是当时的默认值，改到精简官方；
-      // 迁移过一次就记下，之后玩家手动选回完整官方会被保留。
-      mode: raw.mode === 'official' && !raw.liteMigrated ? 'lite' : (VALID_MODES.has(raw.mode) ? raw.mode : 'lite'),
+      // 裸规则成为默认后的一次性迁移：未显式指定迁移标记的旧默认（official / lite）自动迁移到裸规则（bare）；
+      // 迁移过一次或玩家手动切换后会被保留。
+      mode: (!hasExplicitProps && (!raw.mode || raw.mode === 'official' || raw.mode === 'lite'))
+        ? 'bare'
+        : (VALID_MODES.has(raw.mode) ? raw.mode : 'bare'),
       liteMigrated: true,
+      bareMigrated: true,
       maxChars: clamp(raw.maxChars, 1000, 50000, 12000),
       books: normalizedBooks
     };
@@ -554,7 +558,7 @@
         <div id="twb-main-view">
           <div class="twb-note">Worldbooks control AI strategy, reasoning preferences, and speaking style only. Game identity, skill resolution, information boundaries, legal targets, and output protocol remain protected hard rules.</div>
           <div class="twb-toolbar">
-            <label>Injection mode <select id="twb-mode"><option value="lite">Official, lite (recommended)</option><option value="official">Official, full methodology</option><option value="custom">Custom only</option><option value="hybrid">Official + custom</option><option value="clean">Clean (no teaching)</option><option value="bare">Rules only (experiment)</option><option value="live">Participant (rules only + turn-by-turn memory, no coaching)</option></select></label>
+            <label>Injection mode <select id="twb-mode"><option value="bare">Rules only (recommended)</option><option value="lite">Official, lite</option><option value="official">Official, full methodology</option><option value="custom">Custom only</option><option value="hybrid">Official + custom</option><option value="clean">Clean (no teaching)</option><option value="live">Participant (rules only + turn-by-turn memory, no coaching)</option></select></label>
             <label>Maximum characters <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
             <button type="button" id="twb-add">Write a worldbook</button>
             <label class="be" style="cursor:pointer">Import file (optional)<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
@@ -582,7 +586,7 @@
         <div id="twb-main-view">
           <div class="twb-note">世界书只控制 AI 的打法、推理偏好和表达风格。身份、技能结算、信息边界、合法目标和输出格式仍由游戏硬规则保护，世界书不能覆盖。</div>
           <div class="twb-toolbar">
-            <label>注入模式 <select id="twb-mode"><option value="lite">精简官方（推荐）</option><option value="official">完整官方（方法论全开）</option><option value="custom">仅自定义世界书</option><option value="hybrid">官方教学＋自定义</option><option value="clean">纯净模式（无教学）</option><option value="bare">裸规则（只有规则，实验用）</option><option value="live">参与者（只有规则，逐轮记忆，不说教）</option></select></label>
+            <label>注入模式 <select id="twb-mode"><option value="bare">裸规则（只保留规则，默认）</option><option value="lite">精简官方</option><option value="official">完整官方（方法论全开）</option><option value="custom">仅自定义世界书</option><option value="hybrid">官方教学＋自定义</option><option value="clean">纯净模式（无教学）</option><option value="live">参与者（只有规则，逐轮记忆，不说教）</option></select></label>
             <label>每次最多注入字符 <input id="twb-max-chars" type="number" min="1000" max="50000" step="500" value="12000"></label>
             <button type="button" id="twb-add">手写新世界书</button>
             <label class="be" style="cursor:pointer">从文件导入（可选）<input type="file" id="twb-import-file" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
@@ -625,7 +629,7 @@
     el('twb-edit-cancel').addEventListener('click', closeEditor);
     el('twb-edit-save').addEventListener('click', saveEditor);
     el('twb-ai-polish').addEventListener('click', polishDraft);
-    el('twb-mode').addEventListener('change', e => { state.mode = VALID_MODES.has(e.target.value) ? e.target.value : 'lite'; notifyChanged(); });
+    el('twb-mode').addEventListener('change', e => { state.mode = VALID_MODES.has(e.target.value) ? e.target.value : 'bare'; notifyChanged(); });
     el('twb-max-chars').addEventListener('change', e => { state.maxChars = clamp(e.target.value,1000,50000,12000); e.target.value=state.maxChars; notifyChanged(); });
     el('twb-export-all').addEventListener('click', () => download('狼人杀教学世界书.json', exportPayload(state.books)));
     el('twb-import-file').addEventListener('change', async e => {
