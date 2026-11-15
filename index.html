@@ -4653,6 +4653,7 @@ function liveScrubTask(prompt) {
   return String(prompt == null ? '' : prompt)
     .replace(/昨晚的死讯要等竞选结束才公布。/g, '')
     .replace(/\n?[·•]\s*今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：[^\n]*/g, '')
+    .replace(/\n?[·•]\s*本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；[^\n]*/g, '')
     .replace(/【本局对今晚战术有影响的硬规则·系统事实】\n(?=\n|<|$)/g, '')
     .replace(/\n?【发言顺序·系统事实】[^\n]*/g, '')
     .replace(/\n?你排在第\d+位。[^\n]*/g, '')
@@ -9575,6 +9576,8 @@ function parseAI(c, opts) {
     game = game.replace(/\n{3,}/g, '\n\n').trim();          // 多余换行
     // 系统prompt泄露（整段以【系统】等开头）
     if (/^【(?:系统|当前局势|本局配置|存活玩家|格式要求)】/.test(game)) game = '';
+    // 发言开头整句括号里的自我提醒（实际对局出现过：「（请在内部完成判断，不要输出内部判断或内部判断。）」）是模型念给自己听的，不是桌上的话
+    game = game.replace(/^\s*[（(][^（()）\n]{0,80}(?:不要输出|请在内部|内部完成|do not output|internally)[^（()）\n]{0,80}[)）]\s*/i, '').trim();
     // 明显的meta指令行（AI在解释自己要做什么而非角色发言）
     game = game.replace(/^.*(?:发言稿|发言框架|示范.*发言|以下是我.*分析|你要我帮你|需要我帮).*$/gm, '').trim();
   }

@@ -74,7 +74,10 @@ for (const file of ['index.html', 'en/index.html']) {
       out.sysOp = buildSystemPrompt(villager, { prompt: '【投票】', opts: { skillConfirm: true } });
       if ($('m-free-output')) { $('m-free-output').checked = false; out.sysTag = buildSystemPrompt(villager, task); $('m-free-output').checked = villager._wasFree; }
       out.scrubSheriff = liveScrubTask('【竞选演讲】你在竞选警长，现在轮到你发言。昨晚的死讯要等竞选结束才公布。\n<game>里写你真正要说出口的话。');
-      out.scrubWolf = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n· 本局有女巫：救药还在时她每晚能看到刀口。\n\n<thinking>你的分析</thinking>');
+      out.scrubWolf = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n· 本局有女巫：救药还在时她每晚能看到刀口，并在白天任何人起跳之前就决定救不救；同一夜不能同时用两瓶药；救药一旦用掉（不论救的是谁），她此后再也看不到刀口。\n· 本局开启隐死亡：出局者不翻牌、不公布身份。\n\n<thinking>你的分析</thinking>');
+      out.leakParen = parseAI('（请在内部完成判断，不要输出内部判断或内部判断。）\n*站起来*\n\n翻牌！昨晚我验了' + other + '。').game;
+      out.keepParen = parseAI('（笑）我先说一句，昨晚是平安夜。').game;
+      out.keepMidParen = parseAI('我投' + other + '。（不要输出那种眼神啦）继续。').game;
       out.scrubWolfOnly = liveScrubTask('【狼队夜聊·第1夜】只有狼队能看到。\n\n【本局对今晚战术有影响的硬规则·系统事实】\n· 今晚过后先进行警长竞选，竞选结束才公布今晚的死讯：今晚被刀、且没被救下的人，在竞选阶段仍被当作在场——照常报名上警、发竞选言、投票。\n\n<thinking>你的分析</thinking>');
       out.stageVote = resolveAIReasoning(villager, '【投票】', { skillConfirm: true, decisionKind: 'day-vote' }).stage;
       out.stageFix = resolveAIReasoning(villager, '【骑士决斗·行动格式纠正】', { skillConfirm: true }).stage;
@@ -131,7 +134,13 @@ for (const file of ['index.html', 'en/index.html']) {
     if (r.sysTag) assert.ok(/说出口的话写在 <game> 里/.test(r.sysTag), `${file}: 关掉自由输出时要有一句标签说明`);
     // 流程事实只在规则里说一次，不跟在题目后面；框架里不出现描述过程的话（写什么它们就讲什么）
     assert.equal(r.scrubSheriff, '【竞选演讲】你在竞选警长，现在轮到你发言。\n<game>里写你真正要说出口的话。', `${file}: 竞选题不带死讯提醒`);
-    assert.ok(!r.scrubWolf.includes('今晚过后先进行警长竞选') && r.scrubWolf.includes('· 本局有女巫') && r.scrubWolf.includes('【本局对今晚战术有影响的硬规则·系统事实】'), `${file}: 狼队题只去掉竞选那条：${r.scrubWolf}`);
+    // 女巫几时看刀口、几时决定，规则里的夜间顺序和女巫牌面已经写了；放在夜聊题目后面，狼会把它当台词念出来（实际对局出现过）
+    assert.ok(!r.scrubWolf.includes('今晚过后先进行警长竞选') && !r.scrubWolf.includes('本局有女巫') && r.scrubWolf.includes('【本局对今晚战术有影响的硬规则·系统事实】\n· 本局开启隐死亡'), `${file}: 狼队题去掉竞选和女巫两条，其余事实保留：${r.scrubWolf}`);
+    if (file === 'index.html') assert.ok(r['live:werewolf'].includes('女巫在解药仍在时查看最终狼刀'), `${file}: 女巫看刀口的时机仍在规则里`);
+    // 模型念给自己听的整句括号提醒不是桌上的话；普通的括号动作、句中的括号照旧
+    assert.ok(!/请在内部|不要输出/.test(r.leakParen) && r.leakParen.startsWith('*站起来*'), `${file}: 发言开头的自我提醒要去掉：${r.leakParen}`);
+    assert.equal(r.keepParen, '（笑）我先说一句，昨晚是平安夜。', `${file}: 普通括号动作不动`);
+    assert.ok(r.keepMidParen.includes('（不要输出那种眼神啦）'), `${file}: 句中的括号不动：${r.keepMidParen}`);
     assert.ok(!r.scrubWolfOnly.includes('硬规则·系统事实') && r.scrubWolfOnly.includes('<thinking>你的分析</thinking>'), `${file}: 事实列表空了就连标题一起去掉：${r.scrubWolfOnly}`);
     for (const role of ['villager', 'seer', 'werewolf']) {
       const sys = r['live:' + role];
