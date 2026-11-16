@@ -1,6 +1,7 @@
 // 一条坏消息不该让一个座位此后每次请求都被接口 400 退回：
 //   ① 落单的半个表情符号（按固定长度截断时刀口落在表情中间）发出去前去掉；
 //   ② Claude 原生接口：内容不能为空、第一条必须是 user；
+//   ④ 申请的输出上限超过型号允许的最大值：按接口报的数字重来并记住；预设的"128K"是 128000。
 //   ③ 400 的原因要进日志——以前判断"是不是思考强度的问题"时把响应正文读掉了，日志只剩"HTTP 400"。
 import assert from 'node:assert/strict';
 import { withOfflinePage } from './lib/offline-browser.mjs';
@@ -51,6 +52,19 @@ for (const file of ['index.html', 'en/index.html']) {
       Render.devLog = realDev;
       out.err = { game: b && b.game, calls: calls400, hadEffort, shown: dev.some(t => /HTTP 400/.test(t) && /no low surrogate in string/.test(t)), dev: dev.filter(t => /HTTP 400/.test(t)).slice(0, 2) };
 
+      // ── 输出上限超过型号允许的最大值：按接口报的上限重来，并记住 ──
+      out.preset = $('g-maxtk').value;
+      p = setup('anthropic', 'claude-fable-5-2');
+      $('g-maxtk').value = 'custom'; $('g-maxtk-custom').value = '131072';
+      const sent = [];
+      window.fetch = async (url, init) => { const bd = JSON.parse(init.body); sent.push(bd.max_tokens);
+        if (bd.max_tokens > 128000) return new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'max_tokens: ' + bd.max_tokens + ' > 128000, which is the maximum allowed number of output tokens for claude-fable-5-2' }, request_id: 'req_x' }), { status: 400, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ id: 'm', type: 'message', role: 'assistant', model: 'claude-fable-5-2', content: [{ type: 'text', text: '<game>我先听听。</game>' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 5 } }), { status: 200, headers: { 'content-type': 'application/json' } }); };
+      const m1 = await callAI(p, '【第2天·白天发言】轮到你发言。', { noMemory: true, maxRetries: 1 });
+      const m2 = await callAI(p, '【第2天·白天发言】轮到你发言。', { noMemory: true, maxRetries: 1 });
+      out.cap = { games: [m1 && m1.game, m2 && m2.game], sent, dialog: !!document.querySelector('button[data-v="retry-main"]') };
+      $('g-maxtk').value = '128000'; $('g-maxtk-custom').value = '';
+
       // ── 其他渠道同样不带半个表情 ──
       p = setup('openai', 'm');
       p.memory = [{ role: 'user', content: '【第1天·白天发言】轮到你发言。' }, { role: 'assistant', content: half }];
@@ -72,6 +86,9 @@ for (const file of ['index.html', 'en/index.html']) {
     assert.ok(r.claude.kept, `${file}: 去掉半个表情后其余文字要保留`);
     assert.ok(r.err.hadEffort, `${file}: 这个场景应带着思考强度参数（否则没测到正文被读掉的那条路）`);
     assert.ok(r.err.shown, `${file}: 400 的原因没有进日志：${JSON.stringify(r.err.dev)}`);
+    assert.equal(r.preset, '128000', `${file}: 预设里的"128K"应是 128000（131072 超过 Claude 这一代型号的输出上限）`);
+    assert.deepEqual(r.cap.sent, [131072, 128000, 128000], `${file}: 超限后应按接口报的上限重来一次，之后直接用它：${JSON.stringify(r.cap.sent)}`);
+    assert.ok(r.cap.games.every(g => /我先听听/.test(g || '')) && !r.cap.dialog, `${file}: 超限不该变成失败或弹窗：${JSON.stringify(r.cap)}`);
     assert.equal(r.openai.lone, false, `${file}: 发给 OpenAI 兼容接口的消息里还有落单的半个表情`);
     assert.ok(r.openai.kept && /我先听听/.test(r.openai.game || ''), `${file}: OpenAI 兼容接口照常工作`);
     console.log(`${file}: lone surrogates stripped, Claude message guards, 400 detail visible OK`);
