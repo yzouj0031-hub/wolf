@@ -17,6 +17,8 @@ const SpaceWolf = (() => {
     players: 8, impostors: 2, tasksPerCrew: 6, killCooldownSec: 45, pace: 'standard', confirmEjects: false, discussionRounds: 1,
     speed: 2, demo: false,
     actionMinIntervalSec: 10, actionMaxConcurrent: 3, actionTimeoutSec: 25, meetingTimeoutSec: 600,
+    // 会议发言 / 投票默认一直等到模型回复；关掉才按 meetingTimeoutSec 掐
+    meetingNoLimit: true,
     // useMain：直接用狼人杀设置面板里的 API（默认）；fastModel：走位用的快模型名，留空就和发言用同一个
     api: { default: null, action: null, actionSeparate: false, useMain: true, fastModel: '' },
     // 每人一个会议脑：shared 共用 / pool 把下面填的模型轮流分给每个人 / manual 按座位指定
@@ -320,7 +322,8 @@ const SpaceWolf = (() => {
         <label>走位：同一个人两次询问至少隔几秒 <input type="number" id="sw-c-interval" min="4" max="60" value="${c.actionMinIntervalSec}"></label>
         <label>走位：最多同时问几个人 <input type="number" id="sw-c-conc" min="1" max="8" value="${c.actionMaxConcurrent}"></label>
         <label>走位：等几秒算超时 <input type="number" id="sw-c-atimeout" min="8" max="120" value="${c.actionTimeoutSec}"></label>
-        <label>发言：等几秒算超时 <input type="number" id="sw-c-mtimeout" min="30" max="1800" value="${c.meetingTimeoutSec}"></label>
+        <label class="row"><input type="checkbox" id="sw-c-mnolimit"${c.meetingNoLimit !== false ? ' checked' : ''}> 发言和投票不限时，一直等到 AI 回复</label>
+        <label>发言：等几秒算超时 <input type="number" id="sw-c-mtimeout" min="30" max="1800" value="${c.meetingTimeoutSec}"${c.meetingNoLimit !== false ? ' disabled' : ''}></label>
       </div>
     </details>
   </div>
@@ -359,7 +362,7 @@ const SpaceWolf = (() => {
       c.tasksPerCrew = clamp(+q('sw-c-tasks').value, 2, 8); c.killCooldownSec = clamp(+q('sw-c-cd').value, 10, 90);
       c.discussionRounds = +q('sw-c-rounds').value; c.confirmEjects = q('sw-c-confirm').checked; c.demo = q('sw-c-demo').checked;
       c.actionMinIntervalSec = clamp(+q('sw-c-interval').value, 4, 60); c.actionMaxConcurrent = clamp(+q('sw-c-conc').value, 1, 8);
-      c.actionTimeoutSec = clamp(+q('sw-c-atimeout').value, 8, 120); c.meetingTimeoutSec = clamp(+q('sw-c-mtimeout').value, 30, 1800);
+      c.actionTimeoutSec = clamp(+q('sw-c-atimeout').value, 8, 120); c.meetingTimeoutSec = clamp(+q('sw-c-mtimeout').value, 30, 1800); c.meetingNoLimit = q('sw-c-mnolimit').checked; q('sw-c-mtimeout').disabled = c.meetingNoLimit;
       c.api.useMain = q('sw-a-main').checked;
       c.api.default = { provider: q('sw-a-prov').value, url: q('sw-a-url').value.trim(), key: q('sw-a-key').value.trim(), model: q('sw-a-model').value.trim() };
       c.api.actionSeparate = q('sw-b-sep').checked; c.api.fastModel = q('sw-b-model').value.trim();
@@ -714,7 +717,7 @@ ${said || '（你是第一个发言的）'}
     while (true) {
       const t0 = Date.now();
       try {
-        const raw = await askWithWait(apiFor('meeting', p), meetingSystem(p), meetingUser(p, m, round, sinceT), c.meetingTimeoutSec * 1000, 4096, p, '发言');
+        const raw = await askWithWait(apiFor('meeting', p), meetingSystem(p), meetingUser(p, m, round, sinceT), meetingLimitMs(c), 4096, p, '发言');
         const say = tagOf(raw, 'say') || stripTags(raw);
         if (!say.trim()) throw new Error('没有解析出发言');
         let claims = null;
@@ -745,7 +748,7 @@ ${E().timelineText(G, p, { since: G.meetings.length > 1 ? G.meetings[G.meetings.
 ${apiFor('meeting', p).type === 'anthropic' ? '只输出' : '先 <thinking> 简短盘算，然后只输出'} <vote>颜色</vote> 或 <vote>skip</vote>。`;
     while (true) {
       try {
-        const raw = await askWithWait(apiFor('meeting', p), meetingSystem(p), user, c.meetingTimeoutSec * 1000, 4096, p, '投票');
+        const raw = await askWithWait(apiFor('meeting', p), meetingSystem(p), user, meetingLimitMs(c), 4096, p, '投票');
         const v = tagOf(raw, 'vote') || stripTags(raw).slice(-30);
         if (/skip|弃票|弃权|不投/i.test(v)) return 'skip';
         const t = E().resolvePlayer(G, v);
@@ -762,19 +765,32 @@ ${apiFor('meeting', p).type === 'anthropic' ? '只输出' : '先 <thinking> 简�
     }
   }
   // 会议请求：顶栏显示谁在想、想了多久；超时按会议发言超时
+  // 会议请求：顶栏显示谁在想、想了多久。默认不限时，一直等到模型回复；timeoutMs 为 0 就不挂计时器。
+  //   连接真卡死时用顶栏的「不等了」中断这一次等待，之后照样弹窗问怎么处理，不会悄悄跳过。
+  const meetingLimitMs = c => (c.meetingNoLimit !== false ? 0 : c.meetingTimeoutSec * 1000);
+  const waitStops = new Set();
   async function askWithWait(api, sys, user, timeoutMs, maxTokens, p, what) {
     const ctrl = new AbortController();
     const onAbort = () => ctrl.abort(); V.abort && V.abort.signal.addEventListener('abort', onAbort);
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const timer = timeoutMs > 0 ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    const stop = () => ctrl.abort(); waitStops.add(stop);
     const t0 = Date.now();
     const tick = setInterval(() => setWait(`${p.color} 正在想${what}… ${Math.round((Date.now() - t0) / 1000)}s`), 1000);
     try { V.stats.calls++; return await kit().request(api, sys, user, ctrl.signal, maxTokens); }
-    finally { clearTimeout(timer); clearInterval(tick); V.abort && V.abort.signal.removeEventListener('abort', onAbort); }
+    finally { if (timer) clearTimeout(timer); clearInterval(tick); waitStops.delete(stop); V.abort && V.abort.signal.removeEventListener('abort', onAbort); }
   }
   const tagOf = (raw, tag) => { const m = String(raw || '').match(new RegExp('<' + tag + '>([\\s\\S]*?)</' + tag + '>', 'i')); return m ? m[1].trim() : ''; };
   const stripTags = raw => String(raw || '').replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/<claims>[\s\S]*?<\/claims>/gi, '').replace(/<\/?[a-z]+>/gi, '').trim();
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  function setWait(t) { const el = q('sw-wait'); if (el) el.textContent = t || ''; }
+  function setWait(t) {
+    const el = q('sw-wait'); if (!el) return;
+    let txt = el.querySelector('span'), btn = el.querySelector('button');
+    if (!txt) { el.textContent = ''; txt = document.createElement('span'); el.appendChild(txt); }
+    txt.textContent = t || '';
+    const need = !!t && waitStops.size > 0;
+    if (need && !btn) { btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sw-btn ghost'; btn.id = 'sw-wait-stop'; btn.style.marginLeft = '8px'; btn.textContent = '不等了'; btn.title = '只中断这一次等待，接下来会问你怎么处理'; btn.onclick = () => { [...waitStops].forEach(f => f()); }; el.appendChild(btn); }
+    else if (!need && btn) btn.remove();
+  }
   function swAsk(title, text, buttons) {
     return new Promise(resolve => {
       const ov = q('sw-overlay');
@@ -1093,7 +1109,7 @@ ${apiFor('meeting', p).type === 'anthropic' ? '只输出' : '先 <thinking> 简�
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
 
-  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf, _rp: RP, _rpSeek: rpSeek, _rpJump: rpJump, _rpTogglePlay: rpTogglePlay, _rpImport: rpImport, _exportData: exportData, _assignRoster: assignRoster, _apiFor: apiFor, _meetingSystem: meetingSystem, _vaultEntries: vaultEntries, _rosterEntries: rosterEntries, _modelLabel: modelLabel };
+  return { open, close, startGame, stopGame, _state: V, _cfg: loadCfg, _parseJson: parseJson, _tag: tagOf, _rp: RP, _rpSeek: rpSeek, _rpJump: rpJump, _rpTogglePlay: rpTogglePlay, _rpImport: rpImport, _exportData: exportData, _assignRoster: assignRoster, _apiFor: apiFor, _meetingLimitMs: meetingLimitMs, _meetingSystem: meetingSystem, _vaultEntries: vaultEntries, _rosterEntries: rosterEntries, _modelLabel: modelLabel };
 })();
 function openSpaceWolf() { SpaceWolf.open(); }
 if (typeof window !== 'undefined') window.SpaceWolf = SpaceWolf;

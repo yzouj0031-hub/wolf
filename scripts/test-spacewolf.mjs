@@ -44,7 +44,7 @@ await withOfflinePage(async (page, origin) => {
   await page.waitForSelector('#sw-start');
   const s0 = await page.evaluate(() => {
     const vis = id => !!($(id) && $(id).offsetParent);
-    const out = { checked: $('sw-a-main').checked, formShown: vis('sw-a-url'), now: $('sw-a-now').textContent, advOpen: $('sw-adv').open, jargon: /会议脑|行动脑|两颗脑/.test($('sw-setup').innerText) };
+    const out = { noLimit: [$('sw-c-mnolimit').checked, $('sw-c-mtimeout').disabled, SpaceWolf._meetingLimitMs({ meetingNoLimit: true, meetingTimeoutSec: 600 }), SpaceWolf._meetingLimitMs({ meetingTimeoutSec: 600 }), SpaceWolf._meetingLimitMs({ meetingNoLimit: false, meetingTimeoutSec: 600 })], checked: $('sw-a-main').checked, formShown: vis('sw-a-url'), now: $('sw-a-now').textContent, advOpen: $('sw-adv').open, jargon: /会议脑|行动脑|两颗脑/.test($('sw-setup').innerText) };
     out.meeting = SpaceWolf._apiFor('meeting'); out.action = SpaceWolf._apiFor('action');
     $('sw-b-model').value = 'fast-x'; $('sw-b-model').dispatchEvent(new Event('change'));
     out.actionFast = SpaceWolf._apiFor('action'); out.meetingAfterFast = SpaceWolf._apiFor('meeting').model;
@@ -65,6 +65,8 @@ await withOfflinePage(async (page, origin) => {
   assert.ok(s0.checked && !s0.formShown, '默认应勾着「和狼人杀用同一个 API」，不摆出地址密钥那几格');
   assert.ok(s0.now.includes('claude-main') && s0.now.includes('Claude'), '应写明现在用的是哪个渠道、哪个模型：' + s0.now);
   assert.ok(!s0.advOpen, '高级设置默认收起');
+  assert.deepEqual(s0.noLimit, [true, true, 0, 0, 600000], '会议发言和投票默认不限时等待（旧存档没有这一项也按不限时），关掉才按秒数掐：' + JSON.stringify(s0.noLimit));
+  assert.ok(js.includes("btn.textContent = '不等了'") && js.includes('const timer = timeoutMs > 0 ? setTimeout(() => ctrl.abort(), timeoutMs) : null;'), '不限时等待要留一个「不等了」，且不挂计时器');
   assert.ok(!s0.jargon, '设置页不应再出现"会议脑 / 行动脑 / 两颗脑"');
   assert.deepEqual([s0.meeting.url, s0.meeting.key, s0.meeting.model, s0.meeting.type], ['https://api.anthropic.com', 'sk-main', 'claude-main', 'anthropic'], '发言应直接用狼人杀的 API');
   assert.equal(s0.action.model, 'claude-main', '没填快模型时走位和发言用同一个');

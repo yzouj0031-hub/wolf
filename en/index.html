@@ -3174,6 +3174,8 @@ body.has-wp::after {
         </div>
       </details>
       <details class="conc-det"><summary>AI reasoning and timeouts</summary>
+        <label style="display:flex;align-items:center;gap:6px;margin:2px 0 4px;font-size:.74em;color:#a0e8d0"><input type="checkbox" id="t-nolimit" checked style="width:auto;min-width:auto" onchange="syncNoLimitUI();saveCfg()">⏳ No time limit: wait until the AI replies</label>
+        <div style="font-size:0.62em;color:#7068a0;padding:0 6px 6px;line-height:1.5">When ticked, a request is never cut off for taking too long and you are not asked whether to retry because of it; Request timeout is ignored. API errors and dropped connections are still reported. To give up on one reply, use the “Stop waiting” button in the corner.</div>
         <div class="conc-grid">
           <div class="conc-item"><label>💬 Request timeout</label><input type="number" id="t-single" value="600" min="30" max="1800"></div>
           <div class="conc-item"><label>⏳ Slow-reply alert</label><input type="number" id="t-slow" value="60" min="10" max="900" onchange="saveCfg()"></div>
@@ -7908,6 +7910,7 @@ function saveCfg() {
     reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
     fullReasoning:$('g-full-reasoning')?$('g-full-reasoning').checked:false,
     slowNotice:$('t-slow')?$('t-slow').value:'60',
+    noTimeLimit:$('t-nolimit')?$('t-nolimit').checked:true,
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     experience:$('m-experience')?$('m-experience').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
@@ -7987,6 +7990,8 @@ function loadCfg() {
     if (d.experience !== undefined && $('m-experience')) $('m-experience').checked = d.experience;
     if (d.manualRetry !== undefined && $('m-manual-retry')) $('m-manual-retry').checked = d.manualRetry;
     if (d.slowNotice && $('t-slow')) $('t-slow').value = d.slowNotice;
+    if (typeof d.noTimeLimit === 'boolean' && $('t-nolimit')) $('t-nolimit').checked = d.noTimeLimit;
+    if (typeof syncNoLimitUI === 'function') syncNoLimitUI();
     // 旧存档里这里是布尔（复选框时代）：true→分诊，false→关闭
     if (d.speechJudge !== undefined && $('m-speech-judge')) {
       const _sj = typeof d.speechJudge === 'boolean' ? (d.speechJudge ? 'all' : 'off') : d.speechJudge;
@@ -10488,6 +10493,7 @@ const AIWait = (() => {
   function waitingText(w, sec) {
     const i = w.info || {};
     const limit = i.limitMs ? Math.round(i.limitMs / 1000) : 0;
+    if (!limit) return `⏳ ${w.p.name} is still thinking (${fmt(sec)} so far); the game will keep waiting until it replies.`;
     return `⏳ ${w.p.name} has been thinking for ${fmt(sec)} and has not replied yet (attempt ${i.attempt || 1}/${i.maxAttempts || 1}${limit ? ', this attempt waits up to ' + limit + ' s' : ''}). Use the “Stop waiting” button in the corner if you do not want to wait.`;
   }
   function tick(w) {
@@ -10728,6 +10734,12 @@ async function handleManualWrite(p, prompt, opts) {
   }
 }
 
+// ★ 不限时等待（默认开）：模型在思考就一直等，不设"等满多少秒就掐掉、再问要不要重试"的上限。
+//   只管"等多久"：接口报错、连接被掐、用户点「不等了」仍按原来的路线处理。
+//   狼盟密约的提案 / 表决是并行批次，有自己的整体时限，不受这个开关影响。
+function noTimeLimitOn() { const el = (typeof document !== 'undefined') && document.getElementById('t-nolimit'); return !!(el && el.checked); }
+function syncNoLimitUI() { const on = noTimeLimitOn(); const el = document.getElementById('t-single'); if (el) { el.disabled = on; el.style.opacity = on ? '.45' : ''; } }
+if (typeof document !== 'undefined') { try { syncNoLimitUI(); } catch (_) {} }
 function isManualRetryEnabled() {
   const el = $('m-manual-retry');
   return el && el.checked;
@@ -11241,7 +11253,10 @@ async function _callAIImpl(p, prompt, opts) {
   // 超时时 catch 一引用就 ReferenceError，整条请求链路炸掉，发言随之悄悄消失）。
   let _reqStartTs = 0;
   let timeoutMs = 0;
+  // 不限时等待：普通请求和带决定类型的操作（投票、刀口）都不设上限；密约批次里显式给了时限的照旧
+  const _noLimitNow = () => noTimeLimitOn() && (!opts.timeoutMs || !!opts.decisionKind);
   const _plannedTimeoutMs = () => {
+    if (_noLimitNow()) return 0;
     let ui = 0;
     if (typeof document !== 'undefined') { const el = document.getElementById('t-single'); if (el && parseInt(el.value) > 0) ui = parseInt(el.value) * 1000; }
     const d = ui || (typeof window !== 'undefined' && window.AI_TIMEOUT_MS) || 600000;
@@ -11307,7 +11322,8 @@ async function _callAIImpl(p, prompt, opts) {
       : (opts.timeoutMs || defaultTimeout);
     _reqStartTs = Date.now();   // ★ 记录请求开始时间,用于报错时算真实耗时,区分"真超时"vs"连接被掐"
     const timeoutCtrl = new AbortController();
-    const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
+    if (_noLimitNow()) timeoutMs = 0;
+    const timeoutId = timeoutMs > 0 ? setTimeout(() => timeoutCtrl.abort(), timeoutMs) : null;
     // 合并游戏abort和超时abort
     const combinedSignal = (() => {
       const ctrl = new AbortController();
@@ -11946,7 +11962,7 @@ async function _callAIImpl(p, prompt, opts) {
           const _waited = Math.round((Date.now() - _reqStartTs) / 1000);
           const _limit = Math.round(timeoutMs / 1000);
           // 实际等待时间若明显短于设定上限(< 上限的80%),几乎一定是连接被掐,不是计时器到点
-          const _isCut = !_userStopped && _waited < _limit * 0.8;
+          const _isCut = !_userStopped && (timeoutMs <= 0 || _waited < _limit * 0.8);
           // 接下来会发生什么，要说给用户听：以前不管有没有备用 API 都写"尝试备用模型"，
           // 没配备用时用户以为换了模型，其实是在默默重试同一个。
           const _hasFb = getFallbacks().length > 0;
