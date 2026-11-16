@@ -36,6 +36,10 @@ for (const file of ['index.html', 'en/index.html']) {
       const other = S.players.find(x => x.id !== villager.id);
       const third = S.players.find(x => x.id !== villager.id && x.id !== other.id);
       for (const role of ['villager', 'seer', 'werewolf']) out['live:' + role] = buildSystemPrompt(S.players.find(x => x.role.id === role), task);
+      // 网页接力的那份战报在参与者模式下同样清理
+      for (const role of ['villager', 'werewolf']) out['web:' + role] = buildWebPrompt(S.players.find(x => x.role.id === role), {});
+      out.webRules = WEB_LIVE_SCRUB_RULES.length;
+      out.webSample = webLiveScrub('现在是警长竞选阶段。第1夜已经结束、夜间行动已成定局，结果在竞选后公布，此刻无人知道昨晚谁死了。当前候选人：A\n（竞选发生在第1夜【之后】、昨夜死讯公布【之前】：此时所有人都还不知道昨晚谁死了、是不是平安夜；竞选里说的任何话都不可能影响或解释昨夜已经完成的行动。）\n· 第1天白天☀️：A【身份未知】 — 被白天投票放逐；投票结果不会验证其真实阵营\n现在是狼人密谈阶段。请自行讨论并提交本轮提议；具体内容和打法由你决定。');
       // 增量事件：别人的发言和票型进块，自己的发言不重复，标题行留在最前
       S.history.push({ phase: 'day', round: 1, name: other.name, text: '我觉得' + third.name + '有点怪。' });
       S.history.push({ phase: 'day', round: 1, name: villager.name, text: '我先听听。' });
@@ -118,6 +122,7 @@ for (const file of ['index.html', 'en/index.html']) {
       TeachingWorldbooks.load({ mode: 'lite', liteMigrated: true });
       out['lite:villager'] = buildSystemPrompt(villager, task);
       out.liteBare = bareRulesMode(); out.liteLive = liveMode();
+      out.webLite = buildWebPrompt(S.players.find(x => x.role.id === 'villager'), {});
       out.liteStageVote = resolveAIReasoning(villager, '【投票】', { skillConfirm: true, decisionKind: 'day-vote' }).stage;
       TeachingWorldbooks.load({ mode: 'bare', liteMigrated: true });
       out['bare:villager'] = buildSystemPrompt(villager, task);
@@ -209,6 +214,15 @@ for (const file of ['index.html', 'en/index.html']) {
       for (const gone of ['只听到了排在他前面的发言', '一轮一轮', '翻旧账', '解释规则', '印象', '助手', '【标签边界】', '输出契约', '凑格式', '内容安全声明', '不要拒绝', '不能与死者对话'])
         assert.ok(!sys.includes(gone), `${file} ${role}: 参与者框架里不应再有「${gone}」`);
     }
+    // 英文页的网页接力是另一套英文战报，这里只查中文页
+    if (file === 'index.html') for (const role of ['villager', 'werewolf']) {
+      const web = r['web:' + role];
+      assert.ok(web.includes('你正在扮演一个狼人杀游戏的玩家。直接用第一人称说话。') && web.includes('━━━━ 场上局势 ━━━━') && web.includes('【本局规则】'), `${file} ${role}: 网页接力的战报骨架要在：${web.slice(0, 120)}`);
+      for (const gone of ['时间顺序铁律', '战报时间顺序', '事件阅读说明', '助手口吻', '旧发言只是当时观点', '不提供证据分级', '只听到了排在他前面的发言', '已成定局', '务必读全', '打法由你决定', '不会验证', '铁视角', '绝密'])
+        assert.ok(!web.includes(gone), `${file} ${role}: 参与者模式的网页接力战报里还有「${gone}」`);
+    }
+    assert.equal(r.webSample, '现在是警长竞选阶段。当前候选人：A\n· 第1天白天☀️：A【身份未知】 — 被白天投票放逐\n现在是狼人密谈阶段。轮到你说话并提交本轮提议。', `${file}: 网页接力清理：${JSON.stringify(r.webSample)}`);
+    assert.ok(r.webRules > 15 && (file !== 'index.html' || /时间顺序|时序/.test(r.webLite)), `${file}: 其他模式的网页接力战报不受影响`);
     assert.deepEqual([r.stageVote, r.stageFix, r.stageSpeech], ['normal', 'quick', 'normal'], `${file}: 参与者模式下决定与发言同档，格式纠正保持最低档`);
     assert.ok(r['lite:villager'].includes('【发言记录】') && !r['lite:villager'].includes('【你在打一局狼人杀】'), `${file}: 精简官方不受影响`);
     assert.ok(!r.liteBare && !r.liteLive, `${file}: 精简官方下两个开关都为假`);
