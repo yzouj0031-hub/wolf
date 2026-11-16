@@ -1761,7 +1761,16 @@ function groundAt(x, z, y, step) {
 }
 // 水平推出（竖直圆柱 p 半径 r 高 h）；返回最近一次碰撞法线（用于攀爬）
 const _push = { hit: false, nx: 0, nz: 0, c: null };
+// 推两遍：墙角处第一遍推出一面墙后可能又压进另一面
 function collPush(p, r, h) {
+  const a = collPush1(p, r, h);
+  if (!a.hit) return a;
+  const hx = a.nx, hz = a.nz, hc = a.c;
+  const b = collPush1(p, r, h);
+  if (!b.hit) { _push.hit = true; _push.nx = hx; _push.nz = hz; _push.c = hc; }
+  return _push;
+}
+function collPush1(p, r, h) {
   _push.hit = false; _push.c = null;
   const cs = collQuery(p.x, p.z, r + 2);
   for (let i = 0; i < cs.length; i++) {
@@ -1969,8 +1978,11 @@ function fScreen(P, x, z, ry, n) {
 function fRug(P, x, z, w, d, col) { P(T.box, x, 0.235, z, w, 0.012, d, col); P(T.box, x, 0.236, z, w - 0.2, 0.012, d - 0.2, mixRGB(col, [0.9, 0.8, 0.5], 0.25)); }
 
 // 室内陈设：kind = elder | home | noodle | kitchen | study | store | tea
-function furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll) {
+function furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll, dyn) {
   const hw = w / 2 - t, hd = d / 2 - t;
+  const fStool = (P_, x, z) => dyn('stool', x, z);
+  const fBarrel = (P_, x, z) => dyn('barrel', x, z);
+  const fJar = (P_, x, z, s, col) => dyn('kjar', x, z, col);
   const hang = (x, z, s) => lantern(gb, B, x, wh - 0.45, z, s || 0.5);
   if (kind === 'elder') {
     const bay = w / 3;
@@ -2011,7 +2023,7 @@ function furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll) {
     fTable(P, 0.6, 0.2, 1.0, 0.8, 0.78, ROSE2); coll(0.6, 0.2, 0.5, 0.4, 0.78);
     fStool(P, 0.0, 0.2); fStool(P, 1.2, 0.2); fStool(P, 0.6, 0.85);
     P(T.cyl12, 0.5, 0.82, 0.1, 0.11, 0.06, 0.11, [0.86, 0.84, 0.8], { smooth: true }); P(T.sph, 0.8, 0.86, 0.3, 0.09, 0.08, 0.09, [0.45, 0.3, 0.2], { smooth: true });
-    if (kind === 'kitchen') { fStove(P, hw - 1.1, -hd + 0.5, 0, r); coll(hw - 1.1, -hd + 0.5, 1.05, 0.48, 0.9); fJar(P, hw - 0.35, 0.5, 1.1); fJar(P, hw - 0.4, 1.15, 0.8, [0.5, 0.4, 0.3]); coll(hw - 0.35, 0.8, 0.35, 0.65, 0.7);
+    if (kind === 'kitchen') { fStove(P, hw - 1.1, -hd + 0.5, 0, r); coll(hw - 1.1, -hd + 0.5, 1.05, 0.48, 0.9); fJar(P, hw - 0.35, 0.5, 1.1); fJar(P, hw - 0.4, 1.2, 0.8, [0.5, 0.4, 0.3]);
       for (let k = 0; k < 5; k++) P(T.sph, -0.6 + k * 0.12, wh - 0.6 - (k % 2) * 0.1, -hd + 0.2, 0.05, 0.12, 0.05, [0.7, 0.14, 0.1], { smooth: true });
     } else { P(T.box, hw - 0.3, 0.9, -hd + 0.9, 0.55, 1.8, 1.0, ROSE, {}); coll(hw - 0.3, -hd + 0.9, 0.3, 0.5, 1.8); P(T.box, -hw + 0.6, 0.25, -hd + 1.85, 0.9, 0.4, 0.45, ROSE2); fRug(P, 0.4, 0.4, 1.8, 1.4, [0.5, 0.28, 0.2]); }
     P(T.cyl6, hw - 0.4, 0.4, hd - 0.6, 0.04, 0.8, 0.04, ROSE); P(T.cyl12, hw - 0.4, 0.82, hd - 0.6, 0.22, 0.08, 0.22, [0.6, 0.5, 0.36], { smooth: true });
@@ -2043,7 +2055,6 @@ function furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll) {
     hang(0, 0);
   } else if (kind === 'store') {
     for (let k = 0; k < 3; k++) { fBarrel(P, -hw + 0.45 + k * 0.75, -hd + 0.45, 1); }
-    coll(-hw + 1.2, -hd + 0.45, 1.15, 0.4, 0.9);
     for (let k = 0; k < 4; k++) fSack(P, hw - 0.45 - (k % 2) * 0.55, -hd + 0.45 + ((k / 2) | 0) * 0.55, r);
     coll(hw - 0.7, -hd + 0.7, 0.6, 0.6, 0.6);
     fShelf(P, -hw + 0.22, 0.6, -Math.PI / 2, 1.4, 1.6, r, 'jars'); coll(-hw + 0.22, 0.6, 0.2, 0.7, 1.6);
@@ -2171,7 +2182,8 @@ function house(gb, x, z, ry, opt) {
   for (const s of [1, -1]) C(s * (dw / 2 + segW / 2), d / 2 - t / 2, segW / 2, t / 2 + 0.02, y - 2, y + wh + 0.2);
   C(0, 0, w / 2 + 0.3, d / 2 + 0.3, y + wh + 0.3, y + wh + 0.3, { gable: rh * 0.92 });
   const coll = (lx, lz, hx, hz, top) => C(lx, lz, hx, hz, y - 1, y + fl + top);
-  furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll);
+  const dyn = (bk, lx, lz, col) => { const c = worldOf(B, lx, 0, lz); BODY_SPAWNS.push({ kind: bk, x: c.x, z: c.z, y: y + fl, s: 1, ry: r() * 6.28, col: col || [0.36, 0.24, 0.16] }); };
+  furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll, dyn);
   HOUSES.push({ wh, x, y, z, ry, cs: Math.cos(ry), sn: Math.sin(ry), hw: w / 2 - t, hd: d / 2 - t, ow: w / 2 + 0.9, od: d / 2 + 0.9, y0: y + fl, y1: y + wh + 0.3 + rh * 0.85, y2: y + wh + rh + 0.8, kind, name: opt.name || HOUSE_NAMES[kind] || '村舍', inside: false });
   return { x, y, z, ry };
 }
@@ -2418,13 +2430,12 @@ function fence(gb, pts) {
 }
 
 function jars(gb, x, z, n) {
+  // 缸子是可以推倒、砍碎的物件（见物件物理）
   const r = mulberry32(Math.floor(x * 7 + z * 13));
   for (let i = 0; i < n; i++) {
     const px = x + (r() - 0.5) * 2.2, pz = z + (r() - 0.5) * 2.2, py = W.heightAt(px, pz);
     const s = 0.35 + r() * 0.2;
-    gb.add(T.sph, M(px, py + s, pz, 0, 0, 0, s, s * 1.15, s), hexRGB(r() < 0.5 ? 0x6b4a3a : 0x3e3a3c), { smooth: true });
-    gb.add(T.cyl8, M(px, py + s * 2.15, pz, 0, 0, 0, s * 0.45, s * 0.25, s * 0.45), COL.paper, {});
-    if (i === 0) addCollider({ kind: 'cyl', x: px, z: pz, r: 0.6, y0: py, y1: py + s * 2.2 });
+    BODY_SPAWNS.push({ kind: 'jar', x: px, z: pz, y: py, s, ry: r() * 6.28, col: hexRGB(r() < 0.5 ? 0x6b4a3a : 0x3e3a3c) });
   }
 }
 
@@ -2630,6 +2641,7 @@ function placeStructures() {
   for (const p of D.pavilions) { pavilion(gbAt(p.x, p.z), p.x, p.z, p.ry); markMask(p.x, p.z, 5, 3); stampAO(p.x, p.z, 4.5, 0.3); }
   for (const b of D.boats) boat(gbAt(b.x, b.z), b.x, b.z, b.ry);
   for (const [x, z, n] of D.jars) jars(gbAt(x, z), x, z, n);
+  for (const [dx, dz] of [[1.8, 0.6], [-1.6, 1.2]]) BODY_SPAWNS.push({ kind: 'bucket', x: D.well.x + dx, z: D.well.z + dz, y: W.heightAt(D.well.x + dx, D.well.z + dz), s: 1, ry: dx });
   fence(gbAt(-60, 355), D.fenceFields);
   const F = W.FIELDS; for (let x = F.x0; x <= F.x1; x += 6) for (let z = F.z0; z <= F.z1; z += 6) markMask(x, z, 5, 1);
   // 烽火台
@@ -5155,6 +5167,7 @@ function moveInput() {
   if (l > 1) { x /= l; y /= l; }
   return { x, y, mag: Math.min(1, l), kb: !!(k.KeyW || k.KeyS || k.KeyA || k.KeyD || k.ArrowUp || k.ArrowDown || k.ArrowLeft || k.ArrowRight) };
 }
+function jumpHeld() { return !!(IN.keys.Space || IN.btn.jump || PAD.jump); }
 function sprintHeld() { return !!(IN.keys.ShiftLeft || IN.keys.ShiftRight || IN.btn.dash || PAD.dash); }
 
 // ---------- 手柄（W3C 标准布局：Xbox / PlayStation / Switch Pro 都按按键位置对应） ----------
@@ -5246,6 +5259,7 @@ function pollGamepad(dt) {
       const lt = (gp.buttons[B.LT] && gp.buttons[B.LT].value) || 0, rt = (gp.buttons[B.RT] && gp.buttons[B.RT].value) || 0;
       if (lt > 0.1 || rt > 0.1) IN.zoom += (rt - lt) * 3 * dt;
       if (hit(B.A)) press('jump');
+      PAD.jump = held(B.A);
       if (hit(B.X)) press('atk');
       if (hit(B.Y)) press('act');
       if (hit(B.LB)) press('drop');
@@ -5389,6 +5403,7 @@ function updatePlayer(dt) {
   if (P.hurtT > 0) P.hurtT -= dt;
   if (P.teaT > 0) P.teaT -= dt;
   if (P.glideCD > 0) P.glideCD -= dt;
+  if (P.jumpBuf > 0) P.jumpBuf -= dt;
   if (P.state === 'down') { P.downT -= dt; if (P.downT <= 0) respawnPlayer(); poseAndPlace(dt, 0); return; }
   const mi = (GAME.ui.modal || GAME.ui.dialog || GAME.cine) ? { x: 0, y: 0, mag: 0 } : moveInput();
   const { f, r } = camBasis();
@@ -5438,17 +5453,26 @@ function startDash(wx, wz) {
 
 function groundUpdate(dt, wx, wz, mag, sprintIn) {
   const P = PL;
+  const ox = P.pos.x, oz = P.pos.z;
   let speed = mag > 0.85 ? K.RUN : mag > 0.08 ? lerp(K.WALK * 0.5, K.WALK, mag / 0.85) : 0;
   P.sprinting = false;
   if (sprintIn && P.moving && canUseSt() && !P.atk.on && P.dash <= 0 && GAME.time - ((IN.btnT && IN.btnT.dash) || 0) > 0.2) { speed = K.SPRINT; P.sprinting = true; useSt(14 * dt); }
   if (P.atk.on) speed *= 0.25;
-  // 坡度减速
-  const sl = terrainSlope(P.pos.x, P.pos.z);
-  if (sl > 0.5) speed *= clamp(1.25 - sl * 0.5, 0.55, 1);
+  if (P.landT > 0) { P.landT -= dt; speed *= 0.45; }
+  // 坡度：沿前进方向上坡减速、下坡略快
+  if (P.moving) { W.gradAt(P.pos.x, P.pos.z, _g); const along = _g.x * wx + _g.z * wz; speed *= clamp(1 - along * 0.42, 0.5, 1.12); }
   let tvx = wx * speed, tvz = wz * speed;
   if (P.dash > 0) { P.dash -= dt; tvx = P.dashDir.x * 15; tvz = P.dashDir.z * 15; }
-  const acc = P.dash > 0 ? 40 : 14;
-  P.vel.x = damp(P.vel.x, tvx, acc, dt); P.vel.z = damp(P.vel.z, tvz, acc, dt);
+  // 加速度有上限：起步、刹车、急转各不同；高速掉头先刹住，脚下扬尘
+  {
+    let ax = tvx - P.vel.x, az = tvz - P.vel.z;
+    const dl = Math.hypot(ax, az), cur = Math.hypot(P.vel.x, P.vel.z);
+    const rev = cur > 3.5 && P.vel.x * tvx + P.vel.z * tvz < -0.2 * cur * speed;
+    const amax = P.dash > 0 ? 160 : speed < 0.01 ? 30 : rev ? 24 : 38;
+    if (dl > amax * dt) { ax *= (amax * dt) / dl; az *= (amax * dt) / dl; }
+    P.vel.x += ax; P.vel.z += az;
+    if (rev && cur > 5 && Math.random() < dt * 25) FX.burst(P.pos.x, P.pos.y + 0.1, P.pos.z, 2, [0.8, 0.76, 0.62], 1.5, 0.35);
+  }
   if (P.moving && !P.atk.on) P.facing = dampAngle(P.facing, Math.atan2(wx, wz), 12, dt);
   // 预判：前方是否陡壁
   const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
@@ -5484,8 +5508,13 @@ function groundUpdate(dt, wx, wz, mag, sprintIn) {
   } else P.climb.boxT = 0;
   // 贴地
   const g = groundAt(P.pos.x, P.pos.z, P.pos.y, 0.65);
-  if (P.pos.y - g > 0.45) { P.state = 'air'; P.vel.y = 0; P.airT = 0; P.fallStartY = P.pos.y; P.grounded = false; }
-  else { P.pos.y = g; P.vel.y = 0; P.grounded = true; }
+  if (P.pos.y - g > 0.45) { P.state = 'air'; P.vel.y = 0; P.airT = 0; P.fallStartY = P.pos.y; P.grounded = false; P.coyote = 0.13; P.jumped = false; }
+  else {
+    // 台阶：高度突变（不是顺着地形起伏）时，身体平滑地抬上去 / 落下来
+    const dy = g - P.pos.y, terr = W.heightAt(P.pos.x, P.pos.z) - W.heightAt(ox, oz);
+    if (Math.abs(dy - terr) > 0.06) P.stepOff = clamp((P.stepOff || 0) - dy, -0.7, 0.5);
+    P.pos.y = g; P.vel.y = 0; P.grounded = true;
+  }
   // 陡坡滑落
   if (P.grounded && !pushing && g === W.heightAt(P.pos.x, P.pos.z)) {
     W.gradAt(P.pos.x, P.pos.z, _g); const s = Math.hypot(_g.x, _g.z);
@@ -5494,7 +5523,8 @@ function groundUpdate(dt, wx, wz, mag, sprintIn) {
   // 入水
   const wd = waterDepthAt(P.pos.x, P.pos.z);
   if (wd > 1.25 && P.pos.y < W.waterLevelAt(P.pos.x, P.pos.z) - 0.9) enterSwim();
-  if (wasPressed('jump') && !P.atk.on) {
+  if ((wasPressed('jump') || P.jumpBuf > 0) && !P.atk.on && P.state === 'ground') {
+    P.jumpBuf = 0; P.jumped = true; P.coyote = 0;
     P.state = 'air'; P.vel.y = K.JUMP; P.jumpT = 0; P.airT = 0; P.grounded = false; P.fallStartY = P.pos.y;
     if (P.sprinting) { P.vel.x *= 1.05; P.vel.z *= 1.05; }
     AUDIO.sfx('jump');
@@ -5523,15 +5553,23 @@ function airUpdate(dt, wx, wz, mag) {
     if (!canUseSt() || wasPressed('jump')) { P.state = 'air'; P.glideCD = 0.25; AUDIO.sfx('fold'); }
     AUDIO.wind(Math.hypot(P.vel.x, P.vel.z) / 12);
   } else {
-    P.vel.y -= K.GRAV * dt;
+    // 下落比上升快；松开跳键提前收住（轻点跳得低，按住跳得高）
+    const gm = P.vel.y < 0 ? 1.35 : (P.jumped && !jumpHeld() ? 2.6 : 1);
+    P.vel.y -= K.GRAV * gm * dt;
     if (P.vel.y < -40) P.vel.y = -40;
+    if (P.coyote > 0) P.coyote -= dt;
     const ctrl = 4.5;
     if (mag > 0.08) {
       const sp = Math.max(K.RUN * 0.85, Math.hypot(P.vel.x, P.vel.z));
       P.vel.x = damp(P.vel.x, wx * sp, ctrl, dt); P.vel.z = damp(P.vel.z, wz * sp, ctrl, dt);
       P.facing = dampAngle(P.facing, Math.atan2(wx, wz), 6, dt);
     }
-    if (wasPressed('jump') && P.jumpT > 0.12 && P.glideCD <= 0) {
+    let jumpUsed = false;
+    // 刚走下台阶的一瞬间仍可起跳
+    if (wasPressed('jump') && P.coyote > 0 && !P.jumped) { P.vel.y = K.JUMP; P.jumped = true; P.coyote = 0; P.jumpT = 0; P.fallStartY = P.pos.y; AUDIO.sfx('jump'); jumpUsed = true; }
+    // 快落地时按跳：记下来，落地就跳（不展开纸鸢）
+    if (!jumpUsed && wasPressed('jump') && P.vel.y < 0 && P.pos.y - groundAt(P.pos.x, P.pos.z, P.pos.y, 0) < 1.1) { P.jumpBuf = 0.16; jumpUsed = true; }
+    if (!jumpUsed && wasPressed('jump') && P.jumpT > 0.12 && P.glideCD <= 0) {
       if (canUseSt()) { P.state = 'glide'; P.vel.y = Math.max(P.vel.y, -3); AUDIO.sfx('kite'); P.fallStartY = P.pos.y; UI.once('glide', '纸鸢展开了！用方向键或摇杆转向，再按一次「收」（空格）收起。撞进上升的风里，会被托得更高。'); }
       else UI.hint('体力不足，无法展开纸鸢');
     }
@@ -5539,6 +5577,11 @@ function airUpdate(dt, wx, wz, mag) {
   }
   if (P.state === 'air' && P.vel.y < 0 && P.pos.y > P.fallStartY) P.fallStartY = P.pos.y;
   P.pos.x += P.vel.x * dt; P.pos.y += P.vel.y * dt; P.pos.z += P.vel.z * dt;
+  // 头顶撞到东西：停止上升
+  if (P.vel.y > 0) {
+    const cs = collQuery(P.pos.x, P.pos.z, K.R);
+    for (let i = 0; i < cs.length; i++) { const c = cs[i]; if (c.walk || c.tree) continue; if (c.y0 > P.pos.y + 0.3 && c.y0 < P.pos.y + K.H && collTop(c, P.pos.x, P.pos.z) > -Infinity) { P.pos.y = c.y0 - K.H; P.vel.y = 0; break; } }
+  }
   // 撞墙 → 攀爬
   const pr = collPush(P.pos, K.R, K.H);
   if (pr.hit && pr.c && pr.c.kind === 'box' && !pr.c.walk && mag > 0.3) {
@@ -5560,6 +5603,9 @@ function airUpdate(dt, wx, wz, mag) {
     const fallV = -P.vel.y;
     P.pos.y = g; P.vel.y = 0; P.state = 'ground'; P.grounded = true; P.jumpT = 0;
     const drop = P.fallStartY - g;
+    P.jumped = false;
+    // 重重落地：顿一下，镜头轻震
+    if (fallV > 11) { P.landT = Math.min(0.22, (fallV - 11) * 0.025 + 0.1); CAM.shake = Math.max(CAM.shake, Math.min(0.5, (fallV - 11) * 0.05)); }
     if (P.state === 'ground' && drop > 10 && fallV > 14) {
       const dmg = Math.round((drop - 10) * 2.6);
       if (dmg > 0) { hurtPlayer(dmg, 0, 0, true); UI.hint('摔得不轻……'); }
@@ -5571,9 +5617,12 @@ function airUpdate(dt, wx, wz, mag) {
 
 function enterSwim(splash) {
   const P = PL;
-  P.state = 'swim'; P.vel.y = 0; P.sprinting = false; P.atk.on = false;
+  const vIn = -P.vel.y;
+  P.state = 'swim'; P.sprinting = false; P.atk.on = false;
+  // 带着速度入水：高处落下会先沉下去再浮上来，水平速度被水的阻力吃掉一部分
+  P.vel.y = Math.max(P.vel.y, -9) * 0.45; P.vel.x *= 0.6; P.vel.z *= 0.6;
   UI.once('swim', '游水会慢慢消耗体力，按住「疾」（Shift）游得更快但更费力。体力耗尽就会沉下去，记得找岸歇脚。');
-  P.pos.y = W.waterLevelAt(P.pos.x, P.pos.z) - 0.78;
+  if (splash !== false && vIn > 10) FX.burst(P.pos.x, W.waterLevelAt(P.pos.x, P.pos.z), P.pos.z, Math.min(30, Math.round(vIn)), [0.9, 0.95, 0.96], 4 + vIn * 0.2, 0.8);
   AUDIO.wind(0);
   if (splash !== false) { AUDIO.sfx('splash'); FX.splash(P.pos.x, W.waterLevelAt(P.pos.x, P.pos.z), P.pos.z); }
 }
@@ -5587,8 +5636,12 @@ function swimUpdate(dt, wx, wz, mag, sprintIn) {
   P.pos.x += P.vel.x * dt; P.pos.z += P.vel.z * dt;
   collPush(P.pos, K.R, K.H);
   const wl = W.waterLevelAt(P.pos.x, P.pos.z);
-  P.pos.y = wl - 0.78 + Math.sin(GAME.time * 2.2) * 0.05;
+  // 浮力：弹簧把人拉回水面附近，带阻尼
+  const tY = wl - 0.78 + Math.sin(GAME.time * 2.2) * 0.05;
+  P.vel.y += ((tY - P.pos.y) * 26 - P.vel.y * 6.5) * dt;
+  P.pos.y += P.vel.y * dt;
   const hT = W.heightAt(P.pos.x, P.pos.z);
+  if (P.pos.y < hT + 0.15) { P.pos.y = hT + 0.15; if (P.vel.y < 0) P.vel.y = 0; }
   // 上岸
   const g = groundAt(P.pos.x, P.pos.z, wl, 0.2);
   if (g > wl - 1.15) { P.state = 'ground'; P.pos.y = Math.max(g, hT); return; }
@@ -5814,6 +5867,7 @@ function poseAndPlace(dt, mag) {
   else if (P.state === 'swim') { st = 'swim'; cadence = P.moving ? (P.sprinting ? 7 : 4.5) : 1.5; }
   poseRig(ch, { state: st, speed, cadence, vy: P.vel.y, atkT: P.atk.on ? P.atk.t / (P.atk.i === 2 ? 0.55 : 0.42) : 0, atkI: P.atk.i, snap: st === 'attack' ? 26 : st === 'down' ? 6 : 13 }, dt);
   ch.root.position.copy(P.pos);
+  if (P.stepOff) { P.stepOff = Math.abs(P.stepOff) < 0.005 ? 0 : damp(P.stepOff, 0, 16, dt); ch.root.position.y += P.stepOff; }
   ch.root.rotation.y = P.facing;
   ch.kite.visible = P.state === 'glide';
   if (P.state === 'glide') { ch.kite.rotation.z = clamp(wrapAngle(Math.atan2(P.vel.x, P.vel.z) - P.facing) * 2, -0.4, 0.4) + Math.sin(GAME.time * 3) * 0.04; ch.kite.rotation.x = -0.42 + Math.sin(GAME.time * 2.3) * 0.03; }
@@ -6899,7 +6953,218 @@ function updateShots(dt) {
     if (p.t <= 0) { GAME.scene.remove(p.m); p.m.geometry.dispose(); PUDDLES.splice(i, 1); }
   }
 }
-function hitProps() {}
+// ================= 物件物理：罐子、木桶、凳子、水桶 =================
+// 竖着时能被推着滑、碰一下会晃，撞得狠了就倒；倒下后沿垂直于轴的方向滚，坡上会往下滚；
+// 进水会浮起来漂；陶罐被剑砍、摔、猛撞会碎，偶尔掉铜钱。人走远后都会复原。
+const BODIES = [], BODY_SPAWNS = [];
+const BODY_DEF = {
+  jar: { r: 0.95, hh: 1.14, m: 1.6, brk: true, fl: 0.55 },   // 户外酱缸，尺寸乘 s
+  kjar: { r: 0.33, hh: 0.36, m: 3.5, brk: true, fl: 0.65 },
+  barrel: { r: 0.34, hh: 0.45, m: 3.0, brk: false, fl: 0.45 },
+  stool: { r: 0.21, hh: 0.235, m: 0.8, brk: false, fl: 0.3 },
+  bucket: { r: 0.2, hh: 0.19, m: 0.7, brk: false, fl: 0.35 },
+};
+function bodyMesh(kind, s, col) {
+  const gb = new GB(); gb.rnd = mulberry32(7);
+  if (kind === 'jar') {
+    gb.add(T.sph, M(0, -0.14 * s, 0, 0, 0, 0, s, s * 1.15, s), col, { smooth: true });
+    gb.add(T.cyl8, M(0, 1.01 * s, 0, 0, 0, 0, s * 0.45, s * 0.25, s * 0.45), COL.paper, {});
+  } else if (kind === 'kjar') {
+    gb.add(T.sph, M(0, -0.01, 0, 0, 0, 0, 0.3, 0.34, 0.3), col, { smooth: true });
+    gb.add(T.cyl12, M(0, 0.29, 0, 0, 0, 0, 0.2, 0.06, 0.2), mixRGB(col, [0, 0, 0], 0.25), { smooth: true });
+  } else if (kind === 'barrel') {
+    gb.add(T.cyl12, M(0, 0, 0, 0, 0, 0, 0.34, 0.9, 0.34), [0.5, 0.36, 0.22], { smooth: true });
+    for (const y of [-0.3, 0.3]) gb.add(T.cyl12, M(0, y, 0, 0, 0, 0, 0.355, 0.05, 0.355), [0.24, 0.22, 0.22], { smooth: true });
+  } else if (kind === 'stool') {
+    gb.add(T.cyl8, M(0, 0.21, 0, 0, 0, 0, 0.18, 0.05, 0.18), ROSE2, { smooth: true });
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.78; gb.add(T.box, M(Math.cos(a) * 0.12, -0.02, Math.sin(a) * 0.12, 0, 0, 0, 0.04, 0.42, 0.04), ROSE2, {}); }
+  } else if (kind === 'bucket') {
+    gb.add(T.cyl12, M(0, 0, 0, 0, 0, 0, 0.2, 0.36, 0.2), [0.56, 0.42, 0.28], { smooth: true });
+    gb.add(T.cyl12, M(0, 0.12, 0, 0, 0, 0, 0.205, 0.035, 0.205), [0.24, 0.22, 0.22], { smooth: true });
+    gb.add(T.box, M(0, 0.3, 0, 0, 0, 0, 0.36, 0.025, 0.025), [0.3, 0.24, 0.18], {});
+  }
+  const m = new THREE.Mesh(gb.build(), objMat());
+  m.castShadow = REAL; m.receiveShadow = REAL;
+  return m;
+}
+function initBodies(scene) {
+  for (const sp of BODY_SPAWNS) {
+    const d = BODY_DEF[sp.kind], k = sp.kind === 'jar' ? sp.s : 1;
+    const b = { sp, kind: sp.kind, r: d.r * k, hh: d.hh * k, m: d.m * (sp.kind === 'jar' ? sp.s * 2.4 : 1), brk: d.brk, fl: d.fl,
+      mesh: bodyMesh(sp.kind, sp.s, sp.col), pos: new THREE.Vector3(), vel: new THREE.Vector3(), th: 0, thV: 0, D: [1, 0], spin: sp.ry, down: false,
+      sleep: true, sleepT: 0, broken: false, ground: true, wet: false, brokeT: 0 };
+    scene.add(b.mesh);
+    resetBody(b);
+    BODIES.push(b);
+  }
+}
+function resetBody(b) {
+  const sp = b.sp;
+  b.pos.set(sp.x, groundAt(sp.x, sp.z, sp.y + 1, 1.5) + b.hh, sp.z);
+  b.vel.set(0, 0, 0); b.th = 0; b.thV = 0; b.down = false; b.spin = sp.ry; b.broken = false; b.sleep = true; b.wet = false;
+  b.mesh.visible = true;
+  placeBody(b);
+}
+const _bq1 = new THREE.Quaternion(), _bq2 = new THREE.Quaternion(), _bax = new THREE.Vector3(), _bup = new THREE.Vector3(0, 1, 0), _bp = new THREE.Vector3();
+function bodyCH(b) { return b.hh * Math.cos(b.th) + b.r * Math.sin(b.th); }
+function placeBody(b) {
+  _bq1.setFromAxisAngle(_bax.set(b.D[1], 0, -b.D[0]), b.th);
+  _bq2.setFromAxisAngle(_bup, b.spin);
+  b.mesh.quaternion.copy(_bq1).multiply(_bq2);
+  b.mesh.position.copy(b.pos);
+}
+function wakeBody(b) { b.sleep = false; b.sleepT = 0; }
+// 冲量：竖着的会晃，超过临界角就倒向冲量方向
+function tipBody(b, J, nx, nz) {
+  if (b.down || b.broken) return;
+  if (b.th < 0.05) { const l = Math.hypot(nx, nz) || 1; b.D[0] = nx / l; b.D[1] = nz / l; }
+  else if (b.D[0] * nx + b.D[1] * nz < 0) J = -J;
+  b.thV += (J * 1.1) / (b.hh * 2 + 0.25);
+}
+function breakBody(b) {
+  if (b.broken) return;
+  b.broken = true; b.brokeT = GAME.time; b.mesh.visible = false;
+  const c = b.sp.col || [0.45, 0.32, 0.24];
+  FX.burst(b.pos.x, b.pos.y, b.pos.z, 16, c, 4.5, 0.7);
+  FX.burst(b.pos.x, b.pos.y, b.pos.z, 6, [0.85, 0.8, 0.7], 2.5, 0.5);
+  AUDIO.sfx('hit');
+  if (Math.random() < 0.4) addCoins(1 + ((Math.random() * 3) | 0));
+}
+function hitProps(pos, facing, reach) {
+  let any = false;
+  for (const b of BODIES) {
+    if (b.broken) continue;
+    const dx = b.pos.x - pos.x, dz = b.pos.z - pos.z, d = Math.hypot(dx, dz);
+    if (d > reach + b.r) continue;
+    if (Math.abs(b.pos.y - (pos.y + 0.8)) > 1.6 + b.hh) continue;
+    const ang = Math.abs(wrapAngle(Math.atan2(dx, dz) - facing));
+    if (ang > 1.35 && d > b.r + 0.6) continue;
+    const nx = dx / (d || 1), nz = dz / (d || 1);
+    wakeBody(b);
+    if (b.brk) breakBody(b);
+    else { const k = 6 / (0.6 + b.m * 0.35); b.vel.x += nx * k; b.vel.z += nz * k; b.vel.y += 2.2; tipBody(b, 7, nx, nz); AUDIO.sfx('hit'); }
+    any = true;
+  }
+  if (any) GAME.hitstop = Math.max(GAME.hitstop, 0.04);
+  return any;
+}
+function updateBodies(dt) {
+  if (!BODIES.length) return;
+  const P = PL, G = 22;
+  for (const b of BODIES) {
+    // 复原：人走远后，碎了的或被挪动的都回到原处
+    const far = Math.hypot(b.sp.x - P.pos.x, b.sp.z - P.pos.z) > 70;
+    if (far && (b.broken ? GAME.time - b.brokeT > 30 : (b.down || Math.hypot(b.pos.x - b.sp.x, b.pos.z - b.sp.z) > 0.5))) { resetBody(b); continue; }
+    if (b.broken) continue;
+    let ch = bodyCH(b);
+    // 和人：轻的被推开，重的把人挡住；跑得快、冲刺撞上会撞倒，陶罐会碎
+    const dxp = b.pos.x - P.pos.x, dzp = b.pos.z - P.pos.z, dp = Math.hypot(dxp, dzp);
+    if (dp < b.r + K.R && P.pos.y < b.pos.y + ch - 0.12 && P.pos.y + K.H > b.pos.y - ch && P.state !== 'climb') {
+      wakeBody(b);
+      const nx = dxp / (dp || 1), nz = dzp / (dp || 1), pen = b.r + K.R - dp;
+      const share = 1 / (1 + b.m * 0.45);
+      b.pos.x += nx * pen * share; b.pos.z += nz * pen * share;
+      P.pos.x -= nx * pen * (1 - share); P.pos.z -= nz * pen * (1 - share);
+      const rel = (P.vel.x - b.vel.x) * nx + (P.vel.z - b.vel.z) * nz;
+      if (rel > 0) {
+        const J = rel * (1.7 / (1 + b.m * 0.5));
+        b.vel.x += nx * J; b.vel.z += nz * J;
+        P.vel.x -= nx * rel * (1 - share) * 0.7; P.vel.z -= nz * rel * (1 - share) * 0.7;
+        if (b.brk && rel > 10) breakBody(b);
+        else if (rel > 2) tipBody(b, rel * (rel > 5.5 ? 1.25 : 0.55), nx, nz);
+      }
+    }
+    if (b.sleep || b.broken) continue;
+    // 倾倒：小角度回正（晃几下），过了临界角就倒下
+    if (!b.down) {
+      const crit = Math.atan2(b.r, b.hh) * 0.92;
+      const acc = b.th < crit ? -60 * (b.th) : 18 * Math.sin(b.th + 0.3);
+      b.thV += (acc - b.thV * 2.2) * dt;
+      b.th += b.thV * dt;
+      if (b.th < 0) { b.th = 0; b.thV = -b.thV * 0.25; }
+      if (b.th >= Math.PI / 2) { b.th = Math.PI / 2; b.down = true; AUDIO.sfx('land'); FX.burst(b.pos.x + b.D[0] * b.hh, b.pos.y - ch * 0.5, b.pos.z + b.D[1] * b.hh, 5, [0.8, 0.76, 0.62], 1.5, 0.4);
+        if (b.brk && Math.abs(b.thV) > 5.5) { breakBody(b); continue; }
+        // 倒下的一部分转动带成向前的速度
+        b.vel.x += b.D[0] * b.thV * b.hh * 0.35; b.vel.z += b.D[1] * b.thV * b.hh * 0.35; b.thV = 0; }
+      ch = bodyCH(b);
+    }
+    // 积分
+    b.vel.y -= G * dt;
+    b.pos.x += b.vel.x * dt; b.pos.y += b.vel.y * dt; b.pos.z += b.vel.z * dt;
+    // 静态碰撞（墙、柱、树、村民）：反弹，撞得狠会倒、会碎
+    _bp.set(b.pos.x, b.pos.y - ch, b.pos.z);
+    const pr = collPush(_bp, b.r, ch * 2);
+    if (pr.hit) {
+      b.pos.x = _bp.x; b.pos.z = _bp.z;
+      const vn = b.vel.x * pr.nx + b.vel.z * pr.nz;
+      if (vn < 0) { b.vel.x -= 1.3 * vn * pr.nx; b.vel.z -= 1.3 * vn * pr.nz; if (b.brk && -vn > 8) { breakBody(b); continue; } if (-vn > 3) tipBody(b, -vn * 0.6, pr.nx, pr.nz); }
+    }
+    // 地面
+    const g = groundAt(b.pos.x, b.pos.z, b.pos.y - ch + 0.4, 0.6);
+    b.ground = false;
+    if (b.pos.y - ch <= g) {
+      b.pos.y = g + ch;
+      if (b.vel.y < -4) { const imp = -b.vel.y; if (b.brk && imp > 9) { breakBody(b); continue; } b.vel.y = imp * 0.22; AUDIO.sfx('land'); if (!b.down) tipBody(b, imp * 0.15, b.vel.x || 0.01, b.vel.z); }
+      else b.vel.y = 0;
+      b.ground = true;
+    }
+    // 水：浮力让它浮在水面上一部分，水的阻力，微微漂流
+    const wl = W.waterLevelAt(b.pos.x, b.pos.z), bot = b.pos.y - ch;
+    const inWater = wl > bot + 0.02 && wl - W.heightAt(b.pos.x, b.pos.z) > 0.25;
+    if (inWater) {
+      const sub = clamp((wl - bot) / (2 * ch), 0, 1);
+      if (!b.wet && b.vel.y < -2) { FX.splash(b.pos.x, wl, b.pos.z); AUDIO.sfx('splash'); }
+      b.wet = true;
+      b.vel.y += G * (sub / b.fl) * dt;
+      const k = Math.exp(-2.2 * dt); b.vel.x *= k; b.vel.z *= k; b.vel.y *= Math.exp(-3.5 * dt);
+      b.vel.x += 0.12 * dt; b.vel.z += 0.07 * dt;
+      if (Math.random() < dt * 0.8) FX.ripple(b.pos.x, wl, b.pos.z, 0.6);
+    } else b.wet = false;
+    // 地面摩擦与坡度
+    if (b.ground && !inWater) {
+      if (!b.down) {
+        const v = Math.hypot(b.vel.x, b.vel.z), dec = 9 * dt;
+        if (v <= dec) { b.vel.x = 0; b.vel.z = 0; } else { b.vel.x -= (b.vel.x / v) * dec; b.vel.z -= (b.vel.z / v) * dec; }
+        W.gradAt(b.pos.x, b.pos.z, _g); const s = Math.hypot(_g.x, _g.z);
+        if (s > 0.8) tipBody(b, s * 2 * dt * 30, -_g.x, -_g.z);
+      } else {
+        // 倒下的：沿轴向滑动摩擦大，垂直轴向滚动摩擦小；坡上往下滚
+        const ax = b.D[0], az = b.D[1];
+        let va = b.vel.x * ax + b.vel.z * az, vpx = b.vel.x - va * ax, vpz = b.vel.z - va * az;
+        va = Math.sign(va) * Math.max(0, Math.abs(va) - 8 * dt);
+        const vp = Math.hypot(vpx, vpz), rd = 1.1 * dt;
+        if (vp <= rd) { vpx = 0; vpz = 0; } else { vpx -= (vpx / vp) * rd; vpz -= (vpz / vp) * rd; }
+        W.gradAt(b.pos.x, b.pos.z, _g);
+        const gp = _g.x * -az + _g.z * ax;   // 坡度在滚动方向上的分量
+        vpx -= -az * gp * G * 0.5 * dt; vpz -= ax * gp * G * 0.5 * dt;
+        b.vel.x = ax * va + vpx; b.vel.z = az * va + vpz;
+      }
+    }
+    if (b.down) b.spin += ((b.vel.z * b.D[0] - b.vel.x * b.D[1]) / b.r) * dt;
+    // 睡眠：静止一会儿就不再计算
+    const still = Math.hypot(b.vel.x, b.vel.z) < 0.06 && Math.abs(b.vel.y) < 0.2 && Math.abs(b.thV) < 0.05 && (b.down || b.th < 0.02) && b.ground && !inWater;
+    if (still) { b.sleepT += dt; if (b.sleepT > 0.6) { b.sleep = true; if (!b.down) b.th = 0; b.vel.set(0, 0, 0); } } else b.sleepT = 0;
+  }
+  // 物件之间：分开并交换动量
+  for (let i = 0; i < BODIES.length; i++) {
+    const a = BODIES[i]; if (a.broken) continue;
+    for (let j = i + 1; j < BODIES.length; j++) {
+      const c = BODIES[j]; if (c.broken || (a.sleep && c.sleep)) continue;
+      const dx = c.pos.x - a.pos.x, dz = c.pos.z - a.pos.z, d = Math.hypot(dx, dz), R = a.r + c.r;
+      if (d >= R || Math.abs(a.pos.y - c.pos.y) > bodyCH(a) + bodyCH(c)) continue;
+      const nx = dx / (d || 1), nz = dz / (d || 1), pen = R - d, ta = c.m / (a.m + c.m);
+      a.pos.x -= nx * pen * ta; a.pos.z -= nz * pen * ta; c.pos.x += nx * pen * (1 - ta); c.pos.z += nz * pen * (1 - ta);
+      const rel = (a.vel.x - c.vel.x) * nx + (a.vel.z - c.vel.z) * nz;
+      if (rel > 0) {
+        const J = (1.25 * rel) / (1 / a.m + 1 / c.m);
+        a.vel.x -= (J / a.m) * nx; a.vel.z -= (J / a.m) * nz; c.vel.x += (J / c.m) * nx; c.vel.z += (J / c.m) * nz;
+        wakeBody(a); wakeBody(c);
+        if (rel > 3) { tipBody(c, rel * 0.5, nx, nz); tipBody(a, rel * 0.3, -nx, -nz); }
+      }
+    }
+  }
+  for (const b of BODIES) if (!b.broken && !b.sleep) placeBody(b);
+}
 
 // ---- 68-quests.js ----
 // ================= 68 · 村民、对话与行记 =================
@@ -7976,6 +8241,7 @@ async function boot(hotData) {
   // 古钟
   OBJ.interact.push({ kind: 'bell', pos: PLACED.temple.bell, r: 3.6, label: () => '钟', sub: () => '敲钟', can: () => true, act: ringBell });
   initGrass(scene, GAME.settings.quality); GRASS.q = GAME.settings.quality;
+  initBodies(scene);
   mark('ents'); setLoad(0.96, '落款');
   await nextFrame();
   applySave();
@@ -8012,7 +8278,8 @@ async function boot(hotData) {
   requestAnimationFrame(frame);
   window.__ready = true;
   // 只读状态快照，给自动测试用（不改任何东西）
-  window.__qyxState = () => ({ state: GAME.state, modal: GAME.ui.modal, dialog: !!GAME.ui.dialog, pos: [PL.pos.x, PL.pos.z], pstate: PL.state, yaw: CAM.yaw, focus: PAD.focus ? PAD.focus.textContent : null, padOn: PAD.connected });
+  window.__qyxBodies = () => BODIES.map((b) => ({ kind: b.kind, x: b.pos.x, y: b.pos.y, z: b.pos.z, down: b.down, broken: b.broken, sleep: b.sleep }));
+  window.__qyxState = () => ({ state: GAME.state, modal: GAME.ui.modal, dialog: !!GAME.ui.dialog, pos: [PL.pos.x, PL.pos.z], py: PL.pos.y, coins: GAME.save.coins, pstate: PL.state, yaw: CAM.yaw, focus: PAD.focus ? PAD.focus.textContent : null, padOn: PAD.connected });
 }
 function applySave() {
   const S = GAME.save;
@@ -8164,7 +8431,7 @@ function frame(now) {
     if (TOD.hour >= 24) { TOD.hour -= 24; TOD.day++; }
     GAME.save.playT += dt;
     const steps = dt > 0.034 ? 2 : 1;
-    for (let i = 0; i < steps; i++) updatePlayer(dt / steps);
+    for (let i = 0; i < steps; i++) { updatePlayer(dt / steps); updateBodies(dt / steps); }
     updateEnemies(dt);
     updateNPCs(dt);
     updateCat(dt);
