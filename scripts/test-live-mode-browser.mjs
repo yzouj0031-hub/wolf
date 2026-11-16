@@ -14,6 +14,8 @@ for (const file of ['index.html', 'en/index.html']) {
   assert.ok(/memLimit > 0 && !liveMode\(\)\) \? filteredMemory\.slice\(-memLimit\)/.test(src), `${file}: 参与者模式不开记忆窗口`);
   assert.ok(/!\(opts\.decisionKind === 'day-vote' && liveMode\(\)\)\) \? 0\.5 : Infinity/.test(src), `${file}: 参与者模式投票不压温度`);
   assert.ok(/callAI\(p, liveMode\(\) \? liveVotePrompt\(isWhitewolfReady\)/.test(src), `${file}: 参与者模式用自己的投票题`);
+  // 网页接力：不带教学时选项只标是谁，不把"可自刀 / 可战术刀"单独点出来（英文页没有网页接力的操作题）
+  if (file === 'index.html') assert.ok(src.includes("const _plainOptLabels = !teachOn || (typeof bareRulesMode === 'function' && bareRulesMode());") && src.includes(".replace('（你自己，可自刀）', '（你自己）').replace('（已知狼队友，可战术刀）', '（队友）')") && src.includes('- ${_optLabel(o)} → <action>${o.value}</action>'), `${file}: 网页接力的选项标注没有按模式去掉自刀提示`);
   if (file === 'index.html') assert.ok(/inferredDecisionKind && !opts\.systemPromptOverride && !liveMode\(\)/.test(src), `${file}: 参与者模式不加决策锚点`);
 
   assert.ok(/if \(liveMode\(\) && opts && opts\.skillConfirm && !opts\.reasoningStage && !\/格式纠正\/\.test\(String\(prompt \|\| ''\)\)\) opts = \{\.\.\.opts, reasoningStage: 'normal'\};/.test(src), `${file}: 参与者模式的投票和技能决定应与发言同档思考`);

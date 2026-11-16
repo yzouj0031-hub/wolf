@@ -29234,8 +29234,15 @@ function _openWebPromptModal(p, promptFn, resolve, modalOpts) {
       return voteAnchor ? base + '\n\n' + voteAnchor : base;
     }
     if (!isOperationChoice) return base;
+    // 不带教学时（零教学对照、裸规则、参与者），发给网页 AI 的选项只标"是谁"，不写"可自刀 / 可战术刀"。
+    //   这两个标注是给真人看按钮用的；API 那边同一步只有一句"狼队成员也可以刀"，
+    //   网页端多出的标注等于把自刀单独点出来，两边看到的东西不对等。
+    const _plainOptLabels = !teachOn || (typeof bareRulesMode === 'function' && bareRulesMode());
+    const _optLabel = o => _plainOptLabels
+      ? String(o.label == null ? '' : o.label).replace('（你自己，可自刀）', '（你自己）').replace('（已知狼队友，可战术刀）', '（队友）')
+      : o.label;
     const legalOptions = (modalOpts.operationOptions || []).filter(o=>!o.disabled)
-      .map(o=>`- ${o.label} → <action>${o.value}</action>`).join('\n');
+      .map(o=>`- ${_optLabel(o)} → <action>${o.value}</action>`).join('\n');
     let operationAnchor = '';
     if (teachOn) {
       const roleDecisionKinds = {
