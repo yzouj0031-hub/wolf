@@ -11870,6 +11870,14 @@ function claudeNativeText(text, role) {
     .replace(/<thinking>/gi, (typeof uiEnglish === 'function' && uiEnglish()) ? 'your own thinking' : '心里').replace(/<\/thinking>/gi, '')
     .replace(/\n{3,}/g, '\n\n');
 }
+// 发给接口的文字里不能有落单的半个表情符号（不成对的代理项）。游戏里有多处按固定长度截发言和思考
+//   （"原公开结论"取末尾 500 字、"原思考末尾"取 700 字……），刀口正好落在一个表情中间就会留下半个；
+//   序列化后是一段不成对的 \\ud83d，Anthropic 这类严格的接口会把整条请求按 400 退回。
+function wellFormedText(s) {
+  s = String(s == null ? '' : s);
+  if (typeof s.isWellFormed === 'function' && s.isWellFormed()) return s;
+  return s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g, m => m.length === 2 ? m : '');
+}
 function claudeNativeMessages(msgs) {
   // 消息对象上附带的 thinking / reasoning_content 字段（上一轮思考的存档）也不随请求发出
   return (msgs || []).map(m => { const {thinking, reasoning_content, ...rest} = m || {}; return (typeof rest.content === 'string') ? {...rest, content: claudeNativeText(rest.content, rest.role)} : rest; });
@@ -12300,7 +12308,8 @@ async function _callAIImpl(p, prompt, opts) {
   //   当前这一轮的题目（最后一条）完整保留，事件和发言都在系统提示的对局记录里，不会因此丢信息。
   const _bareHeadOnly = (m, i) => (m.role === 'user' && i > 0 && i < _msgs0.length - 1 && typeof m.content === 'string')
     ? {...m, content: (m.content.split('\n').find(l => l.trim()) || '').trim()} : m;
-  const msgs = bareRulesMode() ? _msgs0.map(liveMode() ? (m => m) : _bareHeadOnly).map(m => ({...m, content: typeof m.content === 'string' ? (liveMode() ? liveScrub(bareScrub(m.content, m.role), m.role) : bareScrub(m.content, m.role)) : m.content})) : _msgs0;
+  const msgs = (bareRulesMode() ? _msgs0.map(liveMode() ? (m => m) : _bareHeadOnly).map(m => ({...m, content: typeof m.content === 'string' ? (liveMode() ? liveScrub(bareScrub(m.content, m.role), m.role) : bareScrub(m.content, m.role)) : m.content})) : _msgs0)
+    .map(m => (typeof m.content === 'string' && !(typeof m.content.isWellFormed === 'function' && m.content.isWellFormed())) ? {...m, content: wellFormedText(m.content)} : m);
   let forceFinalOnlyRetry = false;
 
   // 备选API由 getFallbacks() 动态获取（支持多个）
@@ -12427,6 +12436,10 @@ async function _callAIImpl(p, prompt, opts) {
       // Anthropic 格式
       const _claudeMsgs = claudeNativeMessages(tmsgs);
       const anthMsgs = WolfReasoningContext.providerHistory(_claudeMsgs);
+      // 原生接口不接受空内容，第一条也必须是 user：在这里兜住。参与者模式不截断对话，
+      //   一条坏消息会留在这个座位之后的每一次请求里，表现为同一个 key 别的座位都好、只有它一直 400。
+      for (const m of anthMsgs) if (typeof m.content !== 'string' || !m.content.trim()) m.content = m.role === 'assistant' ? '（已提交）' : '（无内容）';
+      if (anthMsgs.length && anthMsgs[0].role !== 'user') anthMsgs.unshift({role: 'user', content: '（继续）'});
       const sysContent = _claudeMsgs.find(m => m.role === 'system')?.content || '';
       // ★ 启用 prompt 缓存：system prompt 通常占输入80%+且每次都一样，缓存后只按10%价格收费
       //   缓存5分钟，狼人杀一局通常10-20分钟内会被高频复用，省钱60-80%
@@ -12461,7 +12474,7 @@ async function _callAIImpl(p, prompt, opts) {
         }
       }
       if (!res.ok && res.status === 400 && body.output_config) {
-        const t = await res.text().catch(()=> '');
+        const t = await res.clone().text().catch(()=> '');   // 用副本读：不是思考强度的问题时，下面还要把原因报出来
         if (/effort|output_config|output config/i.test(t)) {
           Render.devLog('err', `[P${p.id+1}] Claude模型不支持思考强度 ${anthropicEffort}，撤销参数重试`);
           delete body.output_config;
@@ -12472,7 +12485,7 @@ async function _callAIImpl(p, prompt, opts) {
           });
         }
       }
-      if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
+      if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+wellFormedText(t).slice(0,300)); }
       const data = await res.json();
       // ★ 有些中转站把上游的报错（没有这个模型的权限、额度不能用于该模型……）包在 HTTP 200 里返回。
       //   以前这种回复里没有正文块，被报成"无有效响应内容"，真正的原因一个字都看不到。
