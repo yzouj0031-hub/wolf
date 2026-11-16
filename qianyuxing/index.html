@@ -298,6 +298,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 <div class="panel hide" id="p-quest"><div class="scroll"><div class="scroll-h"><h2>行记</h2><div class="sub">点选一项以追踪</div><button class="xbtn" data-close aria-label="关闭">闭</button></div><div class="scroll-b"><div class="qlist" id="q-list"></div></div></div></div>
 <div class="panel hide" id="p-shop"><div class="scroll"><div class="scroll-h"><h2>杂货铺</h2><div class="sub" id="shop-sub"></div><button class="xbtn" data-close aria-label="关闭">闭</button></div><div class="scroll-b"><div class="grid" id="shop-grid"></div><div class="detail" id="shop-detail"></div></div></div></div>
 <div class="panel hide" id="p-menu"><div class="scroll"><div class="scroll-h"><h2>暂歇</h2><div class="sub">游戏已暂停</div><button class="xbtn" data-close aria-label="关闭">闭</button></div><div class="scroll-b">
+  <div class="row"><label>画风（切换后重新载入）</label><div class="seg" id="set-rl"><button class="tab" data-v="1">写实</button><button class="tab" data-v="0">水墨</button></div></div>
   <div class="row"><label>画质</label><div class="seg" id="set-q"><button class="tab" data-v="0">省电</button><button class="tab" data-v="1">均衡</button><button class="tab" data-v="2">精美</button></div></div>
   <div class="row" id="set-fs-row"><label>全屏（隐藏浏览器地址栏和状态栏）</label><button class="btn-ink" id="set-fs">进入全屏</button></div>
   <div class="row"><label>音乐</label><div class="seg" id="set-mu"><button class="tab" data-v="1">开</button><button class="tab" data-v="0">关</button></div></div>
@@ -837,8 +838,14 @@ const SHOP = [
 
 // ---- 20-materials.js ----
 // ================= 20 · 着色器与材质（青绿设色）=================
+// 画风：1 = 写实（阴影、物理光照、色调映射），0 = 水墨卡通。切换后重新载入页面。
+const REAL = (() => { try { const s = JSON.parse(localStorage.getItem('qianyu-xing-settings-v1') || '{}'); return s.real !== 0; } catch (e) { return true; } })();
 const SU = {
   uTime: { value: 0 },
+  uExpo: { value: 0.42 },
+  uShC: { value: new THREE.Vector3() }, uShR: { value: 60 },
+  uZenith: { value: new THREE.Color(0x5c9ddb) }, uHorizon: { value: new THREE.Color(0xdcebef) },
+  uDetail: { value: null },
   uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3).normalize() },
   uSunCol: { value: new THREE.Color(0xfff2d8) },
   uSkyCol: { value: new THREE.Color(0xb9d3df) },
@@ -891,6 +898,8 @@ function makeStrokeTexture() {
 }
 
 const PAINT_VS = `
+#include <common>
+#include <shadowmap_pars_vertex>
 attribute vec2 aExtra;
 varying vec3 vColor; varying vec3 vNormal; varying vec3 vWPos; varying float vGlow;
 uniform float uTime;
@@ -906,17 +915,138 @@ void main(){
   vNormal = normalize(mat3(modelMatrix) * normal);
   vColor = color;
   vGlow = aExtra.y;
+  ${shVS('wp', 'vNormal')}
   gl_Position = projectionMatrix * viewMatrix * wp;
 }`;
 
 const FOG_GLSL = `
 uniform vec3 uFogCol; uniform float uFogNear, uFogFar, uMistH, uMistAmt;
-vec3 applyFog(vec3 col, vec3 wp){
+float fogAmt(vec3 wp){
   float dist = length(wp - cameraPosition);
   float f = smoothstep(uFogNear, uFogFar, dist);
   float mist = uMistAmt * exp(-max(wp.y - uMistH, 0.0) * 0.05) * smoothstep(30.0, 300.0, dist);
-  return mix(col, uFogCol, clamp(max(f, mist), 0.0, 1.0));
+  return clamp(max(f, mist), 0.0, 1.0);
+}
+vec3 applyFog(vec3 col, vec3 wp){ return mix(col, uFogCol, fogAmt(wp)); }`;
+
+// ---------- 写实光照库 ----------
+// 顶点色当作显示空间的反照率：先转线性，算日光（带阴影）+ 天光 + 高光，再 ACES 色调映射回显示空间，最后加雾。
+// 依赖调用方已声明 uSunDir / uSunCol / uSkyCol / uGndCol。
+const REAL_FS_PARS = `
+#include <common>
+#include <packing>
+#include <shadowmap_pars_fragment>
+uniform float uExpo, uShR; uniform vec3 uShC;
+vec3 lin3(vec3 c){ return c * c; }
+vec3 toneOut(vec3 x){
+  x *= uExpo;
+  x = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+  return sqrt(x);
+}
+float sunShadow(vec3 wp){
+#if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+  float s = getShadow(directionalShadowMap[0], directionalLightShadows[0].shadowMapSize, directionalLightShadows[0].shadowBias, directionalLightShadows[0].shadowRadius, vDirectionalShadowCoord[0]);
+  float d = length(wp.xz - uShC.xz);
+  return mix(s, 1.0, smoothstep(uShR * 0.75, uShR * 0.95, d));
+#else
+  return 1.0;
+#endif
+}
+vec3 sunLin(){ return lin3(uSunCol) * 2.4; }
+vec3 skyLin(vec3 N){ return mix(lin3(uGndCol) * 0.55, lin3(uSkyCol), N.y * 0.5 + 0.5) * 1.05; }
+float ggxSpec(vec3 N, vec3 V, vec3 L, float rough){
+  vec3 H = normalize(L + V);
+  float a = rough * rough, a2 = a * a;
+  float nh = max(dot(N, H), 0.0);
+  float dd = nh * nh * (a2 - 1.0) + 1.0;
+  float D = a2 / (3.14159 * dd * dd);
+  float F = 0.04 + 0.96 * pow(1.0 - max(dot(H, V), 0.0), 5.0);
+  return D * F * 0.25;
+}
+// 高度贴图 → 法线扰动（同 three 的 perturbNormalArb）
+vec3 bumpN(vec3 N, vec3 p, float h, float k){
+  vec3 dpx = dFdx(p), dpy = dFdy(p);
+  float dhx = dFdx(h), dhy = dFdy(h);
+  vec3 r1 = cross(dpy, N), r2 = cross(N, dpx);
+  float det = dot(dpx, r1);
+  vec3 g = sign(det) * (dhx * r1 + dhy * r2);
+  return normalize(abs(det) * N - k * g);
+}
+vec3 litReal(vec3 albedo, vec3 N, vec3 V, float sh, float rough, float ao, float spec){
+  vec3 a = lin3(albedo);
+  float ndl = max(dot(N, uSunDir), 0.0);
+  vec3 sun = sunLin() * ndl * sh;
+  return a * (sun + skyLin(N) * ao) + sun * ggxSpec(N, V, uSunDir, rough) * spec;
 }`;
+// 顶点着色器里算阴影坐标：wp 为世界坐标 vec4，wn 为世界法线
+function shVS(wp, wn) {
+  return `
+#ifdef USE_SHADOWMAP
+  {
+    vec4 worldPosition = ${wp};
+    vec3 transformedNormal = mat3(viewMatrix) * (${wn});
+    #include <shadowmap_vertex>
+  }
+#endif`;
+}
+const REAL_VS_PARS = `
+#include <shadowmap_pars_vertex>`;
+// 让 ShaderMaterial 接上 three 的阴影系统（只用阴影，不用它的灯光计算）
+function realify(params, cast) {
+  if (!REAL) return params;
+  params.uniforms = Object.assign(THREE.UniformsUtils.clone(THREE.UniformsLib.lights), { uExpo: SU.uExpo, uShC: SU.uShC, uShR: SU.uShR, uDetail: SU.uDetail }, params.uniforms);
+  params.lights = true;
+  params.defines = Object.assign({ REAL: 1 }, params.defines || {});
+  return params;
+}
+function markCast(m, cast) { if (REAL && cast !== false) m.userData.cast = true; return m; }
+
+// 细节纹理（可平铺）：R 细颗粒、G 岩石纹理、B 中尺度斑驳、A 卵石/坑洼。供地面、物件、水面共用。
+function makeDetailTexture() {
+  const S = 256, data = new Uint8Array(S * S * 4);
+  const rnd = mulberry32(31337);
+  const lat = (p) => { const a = new Float32Array(p * p); for (let i = 0; i < a.length; i++) a[i] = rnd(); return a; };
+  const tables = {};
+  const vnoise = (x, y, p) => {
+    const t = tables[p] || (tables[p] = lat(p));
+    const fx = x * p / S, fy = y * p / S;
+    const ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
+    const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+    const g = (i, j) => t[((j % p + p) % p) * p + ((i % p + p) % p)];
+    const a = g(ix, iy), b = g(ix + 1, iy), c = g(ix, iy + 1), d = g(ix + 1, iy + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  };
+  const fbm = (x, y, ps, ws) => { let v = 0, w = 0; for (let i = 0; i < ps.length; i++) { v += vnoise(x, y, ps[i]) * ws[i]; w += ws[i]; } return v / w; };
+  // 卵石：随机圆斑
+  const peb = new Float32Array(S * S);
+  for (let n = 0; n < 1400; n++) {
+    const cx = rnd() * S, cy = rnd() * S, r = 0.8 + rnd() * rnd() * 3.0, hgt = 0.2 + rnd() * 0.8;
+    for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+      const d = Math.hypot(dx, dy) / r; if (d > 1) continue;
+      const x = ((Math.round(cx) + dx) % S + S) % S, y = ((Math.round(cy) + dy) % S + S) % S;
+      peb[y * S + x] = Math.max(peb[y * S + x], hgt * Math.sqrt(1 - d * d));
+    }
+  }
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const k = (y * S + x) * 4;
+    const grain = fbm(x, y, [64, 32, 16], [0.45, 0.35, 0.2]);
+    let rock = 0, amp = 0.5, w = 0;
+    for (const p of [4, 8, 16, 32, 64]) { rock += (1 - Math.abs(vnoise(x, y, p) * 2 - 1)) * amp; w += amp; amp *= 0.55; }
+    rock = rock / w;
+    rock = rock * 0.75 + 0.25 * (0.5 + 0.5 * Math.sin((y / S) * Math.PI * 2 * 6 + vnoise(x, y, 8) * 5));
+    const mot = fbm(x, y, [4, 8, 16], [0.5, 0.3, 0.2]);
+    data[k] = Math.round(clamp(grain, 0, 1) * 255);
+    data[k + 1] = Math.round(clamp(rock, 0, 1) * 255);
+    data[k + 2] = Math.round(clamp(mot, 0, 1) * 255);
+    data[k + 3] = Math.round(clamp(peb[y * S + x], 0, 1) * 255);
+  }
+  const t = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
 
 const PAINT_FS = `
 uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol;
@@ -924,6 +1054,82 @@ uniform float uNight, uFlash, uLight, uDark;
 uniform sampler2D uStroke;
 varying vec3 vColor; varying vec3 vNormal; varying vec3 vWPos; varying float vGlow;
 ${FOG_GLSL}
+#ifdef REAL
+${REAL_FS_PARS}
+uniform sampler2D uDetail;
+void main(){
+  vec3 N = normalize(vNormal);
+  #ifdef FLAT
+    N = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
+  #endif
+  vec3 V = normalize(cameraPosition - vWPos);
+  if (dot(N, V) < -0.1) N = -N;
+  vec3 base = vColor;
+  float rough = 0.75, spec = 0.35, ao = 1.0;
+  float dist = length(vWPos - cameraPosition);
+  #ifdef TERRAIN
+    float steep = 1.0 - N.y;
+    float cliff = smoothstep(0.22, 0.55, steep);
+    vec2 q = vWPos.xz;
+    float near = 1.0 - smoothstep(60.0, 180.0, dist);
+    vec2 q1 = q * 0.31; const float E1 = 1.0 / 256.0;
+    vec4 d1 = texture2D(uDetail, q1);
+    vec4 d1x = texture2D(uDetail, q1 + vec2(E1, 0.0)), d1z = texture2D(uDetail, q1 + vec2(0.0, E1));
+    vec4 d2 = texture2D(uDetail, q * 0.047);
+    vec4 d3 = texture2D(uDetail, q * 0.0071);
+    // 崖面：横向贴图（沿等高线），岩层
+    vec2 qr = vec2((vWPos.x + vWPos.z) * 0.06, vWPos.y * 0.11);
+    vec4 rk = texture2D(uDetail, qr);
+    float rku = texture2D(uDetail, qr + vec2(E1, 0.0)).g, rkv = texture2D(uDetail, qr + vec2(0.0, E1)).g;
+    vec4 rk2 = texture2D(uDetail, vec2((vWPos.x - vWPos.z) * 0.017, vWPos.y * 0.035));
+    float g = base.g - max(base.r, base.b) * 0.86;
+    float grassy = (1.0 - cliff) * smoothstep(0.0, 0.08, g);
+    float sandy = (1.0 - cliff) * (1.0 - grassy);
+    // 大中小三层变化
+    base *= 0.82 + d3.b * 0.36;
+    base *= 0.88 + d2.b * 0.24;
+    vec3 gr = base * (0.86 + d1.r * 0.28) * mix(vec3(1.0), vec3(1.06, 1.03, 0.82), smoothstep(0.55, 0.8, d2.r));
+    vec3 sd = base * (0.92 + d1.r * 0.14) * (1.0 - d1.a * 0.06 * near);
+    vec3 rc = base * (0.62 + rk.g * 0.55) * (0.85 + rk2.g * 0.3);
+    base = gr * grassy + sd * sandy;
+    base = mix(base, rc, cliff);
+    // 法线细节：有限差分求高度梯度（每米），比屏幕导数平滑，不出方块
+    vec4 hw = vec4(0.5 * grassy + 0.4 * sandy, 0.0, 0.0, 0.45 * sandy);
+    float h1 = dot(d1, hw);
+    vec2 g1 = vec2(dot(d1x, hw) - h1, dot(d1z, hw) - h1) * (0.31 * 256.0) * 0.012 * near;
+    N = normalize(N - vec3(g1.x, 0.0, g1.y) * (1.0 - cliff));
+    vec2 gr2 = vec2(rku - rk.g, rkv - rk.g) * 256.0 * 0.05;
+    vec3 T = normalize(vec3(0.7071, 0.0, 0.7071));
+    N = normalize(N - (T * gr2.x + vec3(0.0, 1.0, 0.0) * gr2.y) * cliff * (0.3 + 0.7 * near));
+    rough = mix(0.92, 0.7, cliff);
+    spec = 0.25;
+    // 水边湿润：更暗、更光滑
+    float wet = smoothstep(1.2, 0.0, vWPos.y) * (1.0 - cliff);
+    base *= 1.0 - wet * 0.3; rough = mix(rough, 0.25, wet); spec = mix(spec, 1.0, wet);
+    ao = 0.85 + 0.15 * d2.b;
+  #endif
+  #ifdef DETAIL
+    // 物件：三向投影纹理，给木、石、墙面加细节
+    vec3 bw = pow(abs(N), vec3(4.0)); bw /= bw.x + bw.y + bw.z;
+    vec4 tx = texture2D(uDetail, vWPos.zy * 0.45), ty = texture2D(uDetail, vWPos.xz * 0.45), tz = texture2D(uDetail, vWPos.xy * 0.45);
+    vec4 tt = tx * bw.x + ty * bw.y + tz * bw.z;
+    float lum = dot(base, vec3(0.333));
+    base *= 0.84 + tt.g * 0.3;
+    N = bumpN(N, vWPos, tt.g * 0.5, 0.12 * (1.0 - smoothstep(20.0, 60.0, dist)));
+    rough = 0.7 - lum * 0.15;
+  #endif
+  #ifdef RIM
+    rough = 0.55; spec = 0.4;
+  #endif
+  float sh = sunShadow(vWPos);
+  vec3 col = litReal(base, N, V, sh, rough, ao, spec);
+  col += lin3(base) * vGlow * (0.6 + uNight * 3.2);
+  col *= 1.0 - uDark;
+  col = toneOut(col);
+  col = mix(col, vec3(1.0, 0.98, 0.95), uFlash);
+  gl_FragColor = vec4(applyFog(col, vWPos), 1.0);
+}
+#else
 void main(){
   vec3 N = normalize(vNormal);
   #ifdef FLAT
@@ -962,7 +1168,8 @@ void main(){
   col *= 1.0 - uDark;
   col = mix(col, vec3(1.0, 0.98, 0.95), uFlash);
   gl_FragColor = vec4(applyFog(col, vWPos), 1.0);
-}`;
+}
+#endif`;
 
 function makePaintMat(opts) {
   opts = opts || {};
@@ -971,7 +1178,8 @@ function makePaintMat(opts) {
   if (opts.flat) defines.FLAT = 1;
   if (opts.terrain) defines.TERRAIN = 1;
   if (opts.rim) defines.RIM = 1;
-  const m = new THREE.ShaderMaterial({
+  if (opts.detail) defines.DETAIL = 1;
+  const m = new THREE.ShaderMaterial(realify({
     uniforms: {
       uTime: SU.uTime, uSunDir: SU.uSunDir, uSunCol: SU.uSunCol, uSkyCol: SU.uSkyCol, uGndCol: SU.uGndCol,
       uFogCol: SU.uFogCol, uFogNear: SU.uFogNear, uFogFar: SU.uFogFar, uMistH: SU.uMistH, uMistAmt: SU.uMistAmt,
@@ -980,8 +1188,9 @@ function makePaintMat(opts) {
     },
     vertexShader: PAINT_VS, fragmentShader: PAINT_FS, defines, vertexColors: true,
     side: opts.side || THREE.FrontSide,
-  });
+  }));
   m.extensions = { derivatives: true };
+  if (opts.cast !== false) markCast(m);
   return m;
 }
 
@@ -994,13 +1203,19 @@ void main(){
 }`;
 const OUTLINE_FS = `uniform vec3 uC; void main(){ gl_FragColor = vec4(uC, 1.0); }`;
 function makeOutlineMat(w, col) {
-  return new THREE.ShaderMaterial({ uniforms: { uW: { value: w }, uC: { value: new THREE.Color(col || 0x1b1f22) } }, vertexShader: OUTLINE_VS, fragmentShader: OUTLINE_FS, side: THREE.BackSide });
+  const m = new THREE.ShaderMaterial({ uniforms: { uW: { value: w }, uC: { value: new THREE.Color(col || 0x1b1f22) } }, vertexShader: OUTLINE_VS, fragmentShader: OUTLINE_FS, side: THREE.BackSide });
+  if (REAL) m.visible = false;
+  return m;
 }
 
 // ---------- 水 ----------
 const WATER_VS = `
+#include <common>
+#include <shadowmap_pars_vertex>
 varying vec3 vWPos;
-void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vWPos = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`;
+void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vWPos = wp.xyz;
+  ${shVS('wp', 'vec3(0.0, 1.0, 0.0)')}
+  gl_Position = projectionMatrix * viewMatrix * wp; }`;
 const WATER_FS = `
 uniform float uTime, uLevel, uLake, uHalf, uSize, uLight, uNight;
 uniform vec3 uSunDir, uSunCol, uSkyCol, uShallow, uDeep, uLine;
@@ -1046,9 +1261,69 @@ void main(){
   col += uSunCol * spec * 0.8;
   gl_FragColor = vec4(applyFog(col, vWPos), 1.0);
 }`;
+// 写实水面：细节纹理叠出的风浪法线、菲涅尔天空倒影、太阳闪光、按深度透明（浅处看得见水底）、岸边碎浪
+const WATER_FS_REAL = `
+uniform float uTime, uLevel, uLake, uHalf, uSize, uLight, uNight;
+uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol, uShallow, uDeep, uZenith, uHorizon;
+uniform vec2 uLakeC; uniform float uLakeR;
+uniform sampler2D uHeightTex, uDetail;
+varying vec3 vWPos;
+${FOG_GLSL}
+${REAL_FS_PARS}
+float wH(vec2 q, float t){
+  return texture2D(uDetail, q * 0.019 + vec2(t * 0.009, t * 0.006)).b
+       + texture2D(uDetail, q * 0.053 + vec2(-t * 0.014, t * 0.011)).b * 0.55
+       + texture2D(uDetail, q * 0.13 + vec2(t * 0.027, -t * 0.022)).b * 0.3;
+}
+void main(){
+  vec2 p = vWPos.xz;
+  float depth;
+  if (uLake > 0.5) {
+    float d = length(p - uLakeC) / uLakeR;
+    depth = (1.0 - d * d) * 6.0;
+  } else {
+    vec2 uv = (p + uHalf) / uSize;
+    float th = -40.0;
+    if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) th = texture2D(uHeightTex, uv).r * 40.0 - 32.0;
+    depth = uLevel - th;
+  }
+  float t = uTime;
+  float dist = length(vWPos - cameraPosition);
+  vec3 V = normalize(cameraPosition - vWPos);
+  float e = 0.3;
+  float h0 = wH(p, t), hx = wH(p + vec2(e, 0.0), t), hz = wH(p + vec2(0.0, e), t);
+  float amp = 0.55 * (1.0 - smoothstep(15.0, 220.0, dist)) + 0.05;
+  amp *= mix(0.45, 1.0, smoothstep(0.0, 2.5, depth)) * (uLake > 0.5 ? 0.5 : 1.0);
+  vec3 N = normalize(vec3(-(hx - h0) / e * amp, 1.0, -(hz - h0) / e * amp));
+  float ndv = max(dot(N, V), 0.0);
+  float F = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+  vec3 R = reflect(-V, N); R.y = abs(R.y);
+  vec3 sky = mix(uHorizon, uZenith, smoothstep(0.0, 0.6, R.y));
+  sky = mix(sky, uFogCol, smoothstep(0.12, 0.0, R.y) * 0.6);
+  // 水体散射色：浅处偏青绿，深处偏蓝
+  vec3 wc = mix(lin3(uShallow) * vec3(0.8, 0.95, 0.9), lin3(uDeep) * vec3(0.55, 0.75, 0.95), smoothstep(0.4, 12.0, depth));
+  vec3 body = wc * (skyLin(vec3(0.0, 1.0, 0.0)) * 0.55 + sunLin() * max(uSunDir.y, 0.0) * 0.3);
+  // 岸边碎浪
+  vec4 dn = texture2D(uDetail, p * 0.11 + vec2(t * 0.02, 0.0));
+  float fw = 0.5 + 0.5 * sin(depth * 5.5 - t * 1.5 + dn.b * 5.0);
+  float foam = (1.0 - smoothstep(0.0, 0.9 + dn.b * 0.6, depth)) * smoothstep(0.35, 0.8, fw * 0.6 + dn.r * 0.6);
+  foam = max(foam, (1.0 - smoothstep(0.0, 0.18, depth)) * 0.8);
+  vec3 foamLin = vec3(0.85) * (sunLin() * max(uSunDir.y, 0.0) * 0.8 + skyLin(vec3(0.0, 1.0, 0.0)));
+  body = mix(body, foamLin, foam * 0.85);
+  vec3 col = toneOut(body);
+  col = mix(col, sky, F * (1.0 - foam));
+  vec3 glint = sunLin() * ggxSpec(N, V, uSunDir, 0.09) * 2.2 * (1.0 - uNight * 0.6);
+  col += toneOut(glint) * (1.0 - foam);
+  float a = 1.0 - pow(1.0 - smoothstep(0.0, 1.4, depth), 2.0);
+  a = max(a, max(F, foam));
+  float fa = fogAmt(vWPos);
+  col = mix(col, uFogCol, fa);
+  gl_FragColor = vec4(col, mix(a, 1.0, fa));
+}`;
 function makeWaterMat(heightTex, lake) {
-  return new THREE.ShaderMaterial({
+  return new THREE.ShaderMaterial(realify({
     uniforms: {
+      uGndCol: SU.uGndCol, uZenith: SU.uZenith, uHorizon: SU.uHorizon,
       uTime: SU.uTime, uSunDir: SU.uSunDir, uSunCol: SU.uSunCol, uSkyCol: SU.uSkyCol, uFogCol: SU.uFogCol, uFogNear: SU.uFogNear, uFogFar: SU.uFogFar,
       uMistH: SU.uMistH, uMistAmt: SU.uMistAmt, uLight: SU.uLight, uNight: SU.uNight,
       uLevel: { value: lake ? lake.level : W.SEA }, uLake: { value: lake ? 1 : 0 },
@@ -1056,9 +1331,9 @@ function makeWaterMat(heightTex, lake) {
       uHalf: { value: W.HALF }, uSize: { value: W.SIZE }, uHeightTex: { value: heightTex },
       uShallow: { value: new THREE.Color(lake ? 0x7cc6b4 : 0x86cdb8) }, uDeep: { value: new THREE.Color(lake ? 0x2c7c86 : 0x23637a) }, uLine: { value: new THREE.Color(0xe8f3ea) },
     },
-    vertexShader: WATER_VS, fragmentShader: WATER_FS,
-    extensions: { derivatives: true },
-  });
+    vertexShader: WATER_VS, fragmentShader: REAL ? WATER_FS_REAL : WATER_FS,
+    extensions: { derivatives: true }, transparent: REAL,
+  }));
 }
 
 // ---------- 天空 ----------
@@ -1092,7 +1367,7 @@ void main(){
 }`;
 function makeSkyMat() {
   return new THREE.ShaderMaterial({
-    uniforms: { uZenith: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() }, uSkySun: { value: new THREE.Vector3(0, 1, 0) }, uSunGlow: { value: new THREE.Color(0xffd9a0) }, uFogCol: SU.uFogCol, uNight: SU.uNight, uTime: SU.uTime },
+    uniforms: { uZenith: SU.uZenith, uHorizon: SU.uHorizon, uSkySun: { value: new THREE.Vector3(0, 1, 0) }, uSunGlow: { value: new THREE.Color(0xffd9a0) }, uFogCol: SU.uFogCol, uNight: SU.uNight, uTime: SU.uTime },
     vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false,
   });
 }
@@ -2098,6 +2373,7 @@ function buildProps(scene, mat) {
       if (g.n === 0) continue;
       const m = new THREE.Mesh(g.build(uv), m2);
       m.matrixAutoUpdate = false;
+      if (REAL && uv) m.customDepthMaterial = foliageDepthMat();
       const ci = k % 16, cj = Math.floor(k / 16);
       m.userData.cx = -W.HALF + (ci + 0.5) * PCH; m.userData.cz = -W.HALF + (cj + 0.5) * PCH;
       scene.add(m);
@@ -2515,6 +2791,8 @@ function initFoliagePrefabs() {
 
 // ---------- 植被着色 ----------
 const FOL_VS = `
+#include <common>
+#include <shadowmap_pars_vertex>
 attribute vec2 aExtra;
 varying vec3 vColor; varying vec3 vN; varying vec3 vWPos;
 #ifdef CARDS
@@ -2534,7 +2812,47 @@ void main(){
   vWPos = wp.xyz;
   vN = normalize(mat3(modelMatrix) * normal);
   vColor = color;
+  ${shVS('wp', 'vN')}
   gl_Position = projectionMatrix * viewMatrix * wp;
+}`;
+const FOL_FS_REAL = `
+uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol;
+uniform float uNight, uLight;
+#ifdef CARDS
+uniform sampler2D uLeaf;
+varying vec2 vUv;
+#endif
+varying vec3 vColor; varying vec3 vN; varying vec3 vWPos;
+${FOG_GLSL}
+${REAL_FS_PARS}
+void main(){
+  vec3 base = vColor;
+  float alpha = 1.0;
+  #ifdef CARDS
+    vec4 t = texture2D(uLeaf, vUv);
+    #ifdef A2C
+      alpha = clamp((t.a - 0.42) / max(fwidth(t.a), 0.0001) + 0.5, 0.0, 1.0);
+      if (alpha < 0.03) discard;
+    #else
+      if (t.a < 0.42) discard;
+    #endif
+    base *= t.rgb;
+  #endif
+  vec3 N = normalize(vN);
+  vec3 V = normalize(cameraPosition - vWPos);
+  if (dot(N, V) < 0.0) N = -N;
+  float sh = sunShadow(vWPos);
+  vec3 a = lin3(base);
+  float ndl = dot(N, uSunDir);
+  float wrap = clamp((ndl + 0.45) / 1.45, 0.0, 1.0);
+  vec3 col = a * (sunLin() * wrap * sh + skyLin(N) * 0.8);
+  #ifdef CARDS
+    float back = pow(max(dot(-V, uSunDir), 0.0), 4.0);
+    col += a * vec3(1.0, 1.05, 0.7) * sunLin() * back * sh * 0.6;
+  #endif
+  col += sunLin() * sh * ggxSpec(N, V, uSunDir, 0.45) * 0.25 * max(ndl, 0.0);
+  col = toneOut(col);
+  gl_FragColor = vec4(applyFog(col, vWPos), alpha);
 }`;
 const FOL_FS = `
 uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol;
@@ -2580,18 +2898,33 @@ function makeFoliageMat(cards) {
   const a2c = cards && GAME.settings.quality > 0;
   if (cards) defines.CARDS = 1;
   if (a2c) defines.A2C = 1;
-  const m = new THREE.ShaderMaterial({
+  const m = new THREE.ShaderMaterial(realify({
     uniforms: {
       uTime: SU.uTime, uSunDir: SU.uSunDir, uSunCol: SU.uSunCol, uSkyCol: SU.uSkyCol, uGndCol: SU.uGndCol,
       uFogCol: SU.uFogCol, uFogNear: SU.uFogNear, uFogFar: SU.uFogFar, uMistH: SU.uMistH, uMistAmt: SU.uMistAmt,
       uNight: SU.uNight, uLight: SU.uLight, uLeaf: { value: LEAF.tex },
     },
-    vertexShader: FOL_VS, fragmentShader: FOL_FS, defines, vertexColors: true,
+    vertexShader: FOL_VS, fragmentShader: REAL ? FOL_FS_REAL : FOL_FS, defines, vertexColors: true,
     side: cards ? THREE.DoubleSide : THREE.FrontSide,
-  });
+  }));
   m.extensions = { derivatives: true };
   if (a2c) m.alphaToCoverage = true;
+  markCast(m);
   return m;
+}
+// 叶片卡投影：按叶子形状镂空，否则会投下方块影子
+let FOL_DEPTH = null;
+function foliageDepthMat() {
+  if (FOL_DEPTH) return FOL_DEPTH;
+  FOL_DEPTH = new THREE.ShaderMaterial({
+    uniforms: { uTime: SU.uTime, uLeaf: { value: LEAF.tex } },
+    vertexShader: FOL_VS,
+    fragmentShader: `#include <packing>
+uniform sampler2D uLeaf; varying vec2 vUv;
+void main(){ if (texture2D(uLeaf, vUv).a < 0.42) discard; gl_FragColor = packDepthToRGBA(gl_FragCoord.z); }`,
+    defines: { CARDS: 1 }, vertexColors: true, side: THREE.DoubleSide,
+  });
+  return FOL_DEPTH;
 }
 
 // ---- 40-terrain.js ----
@@ -2604,6 +2937,8 @@ const PAL = {
   ink: hexRGB(0x4a4b55), inkCliff: hexRGB(0x393a43), cleansed: hexRGB(0x8ea173), rape: hexRGB(0xc9b34a), field: hexRGB(0x6f9a4a),
   plaza: hexRGB(0xc9b58d), isletGrass: hexRGB(0x89b067),
 };
+// 写实画风：青绿山水的石绿、石青换成自然的林绿和岩灰
+if (REAL) Object.assign(PAL, { mal: hexRGB(0x5b7f4c), azu: hexRGB(0x6f7a72), azuTop: hexRGB(0x8f9690), rockHigh: hexRGB(0x6f6f68), grass: hexRGB(0x7fa45c), grassLush: hexRGB(0x6a9a55) });
 W.cleansed = false;
 W.FIELDS = { x0: -95, x1: -25, z0: 318, z1: 392 };
 
@@ -2994,6 +3329,7 @@ const TOON_SWAY = `
   }`;
 const TOON_VS = `
 #include <common>
+#include <shadowmap_pars_vertex>
 #include <skinning_pars_vertex>
 attribute vec3 aX;
 varying vec3 vColor; varying vec3 vN; varying vec3 vWP; varying vec2 vUv; varying vec3 vX;
@@ -3008,6 +3344,7 @@ void main(){
   ${TOON_SWAY}
   vN = normalize(mat3(modelMatrix) * objectNormal);
   vWP = wp.xyz; vColor = color; vUv = uv; vX = aX;
+  ${shVS('wp', 'vN')}
   gl_Position = projectionMatrix * viewMatrix * wp;
 }`;
 const TOON_FS = `
@@ -3016,6 +3353,38 @@ uniform float uFlash, uBlink, uLight;
 uniform sampler2D uFace;
 varying vec3 vColor; varying vec3 vN; varying vec3 vWP; varying vec2 vUv; varying vec3 vX;
 ${FOG_GLSL}
+#ifdef REAL
+${REAL_FS_PARS}
+void main(){
+  vec3 N = normalize(vN);
+  vec3 V = normalize(cameraPosition - vWP);
+  if (dot(N, V) < -0.2) N = -N;
+  vec3 base = vColor;
+  float face = step(0.5, vX.x), glow = step(vX.x, -0.5);
+  if (face > 0.5) {
+    vec4 t = texture2D(uFace, vec2(vUv.x * 0.5 + uBlink * 0.5, vUv.y));
+    base = mix(base, t.rgb, t.a);
+  }
+  vec3 a = lin3(base);
+  float sh = sunShadow(vWP);
+  float ndl = dot(N, uSunDir);
+  float wrap = clamp((ndl + 0.3) / 1.3, 0.0, 1.0);
+  wrap = mix(wrap, 0.55 + 0.45 * wrap, face);
+  vec3 col = a * (sunLin() * wrap * mix(sh, 0.55 + 0.45 * sh, face) + skyLin(N) * 0.95);
+  col += sunLin() * sh * ggxSpec(N, V, uSunDir, 0.5) * 0.3 * max(ndl, 0.0) * (1.0 - face);
+  if (vX.y > 0.5) {
+    vec3 vn = normalize(mat3(viewMatrix) * N);
+    float band = smoothstep(0.2, 0.27, vn.y) * (1.0 - smoothstep(0.4, 0.48, vn.y)) * smoothstep(0.05, 0.45, vn.z);
+    col += lin3(vec3(0.62, 0.66, 0.78)) * band * 0.3 * (0.35 + 0.65 * uLight);
+  }
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 4.0);
+  col += sunLin() * rim * 0.1 * sh;
+  col = toneOut(col);
+  col = mix(col, base * 1.12 + 0.04, glow);
+  col = mix(col, vec3(1.0, 0.97, 0.94), uFlash);
+  gl_FragColor = vec4(applyFog(col, vWP), 1.0);
+}
+#else
 void main(){
   vec3 N = normalize(vN);
   vec3 V = normalize(cameraPosition - vWP);
@@ -3043,7 +3412,8 @@ void main(){
   col = mix(col, base * 1.12 + 0.04, glow);
   col = mix(col, vec3(1.0, 0.97, 0.94), uFlash);
   gl_FragColor = vec4(applyFog(col, vWP), 1.0);
-}`;
+}
+#endif`;
 const TOON_OUT_VS = `
 #include <common>
 #include <skinning_pars_vertex>
@@ -3077,16 +3447,18 @@ let BLANK_FACE = null;
 function makeToonMats(faceTex, skinning) {
   if (!faceTex) { if (!BLANK_FACE) { const c = document.createElement('canvas'); c.width = c.height = 4; BLANK_FACE = new THREE.CanvasTexture(c); } faceTex = BLANK_FACE; }
   const wind = { value: new THREE.Vector3() };
-  const mat = new THREE.ShaderMaterial({
+  const mat = new THREE.ShaderMaterial(realify({
     uniforms: Object.assign({ uTime: SU.uTime, uWind: wind, uSunDir: SU.uSunDir, uSunCol: SU.uSunCol, uSkyCol: SU.uSkyCol, uGndCol: SU.uGndCol, uLight: SU.uLight, uFace: { value: faceTex }, uBlink: { value: 0 }, uFlash: { value: 0 } }, fogUniforms()),
     vertexShader: TOON_VS, fragmentShader: TOON_FS, vertexColors: true,
-  });
+  }));
   mat.skinning = skinning !== false;
+  markCast(mat);
   const out = new THREE.ShaderMaterial({
     uniforms: Object.assign({ uTime: SU.uTime, uWind: wind, uW: { value: 0.0016 }, uLight: SU.uLight }, fogUniforms()),
     vertexShader: TOON_OUT_VS, fragmentShader: TOON_OUT_FS, vertexColors: true, side: THREE.BackSide,
   });
   out.skinning = skinning !== false;
+  if (REAL) out.visible = false;
   return { mat, out, wind };
 }
 
@@ -4310,7 +4682,8 @@ function initPlayer(scene) {
   scene.add(ch.root);
   // 脚下墨影
   const sg = new THREE.CircleGeometry(0.55, 16); sg.rotateX(-Math.PI / 2);
-  const sm = new THREE.MeshBasicMaterial({ color: 0x1b2420, transparent: true, opacity: 0.32, depthWrite: false });
+  const sm = new THREE.MeshBasicMaterial({ color: 0x1b2420, transparent: true, opacity: REAL ? 0.3 : 0.32, depthWrite: false });
+  if (REAL) { sg.scale(0.75, 1, 0.75); sm.alphaMap = glowTex(); }   // 写实：真实投影已有，只留脚下一点接触暗影
   PL.shadow = new THREE.Mesh(sg, sm); PL.shadow.renderOrder = 2;
   scene.add(PL.shadow);
 }
@@ -4922,6 +5295,8 @@ const FX = {
 // ---- 62-grass.js ----
 // ================= 62 · 近处草丛（随镜头移动的实例网格）=================
 const GRASS_VS = `
+#include <common>
+#include <shadowmap_pars_vertex>
 attribute vec4 aOff; // x y z scale
 attribute vec3 aTint;
 attribute float aPetal;
@@ -4959,19 +5334,35 @@ void main(){
     if (aPetal > 1.5) vColor = hsh < 0.3 || (hsh >= 0.55 && hsh < 0.75) ? vec3(0.98, 0.84, 0.36) : vec3(1.0, 0.97, 0.86);
     vTip = 1.0;
   }
+  ${shVS('vec4(wp, 1.0)', 'vec3(0.0, 1.0, 0.0)')}
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 const GRASS_FS = `
 uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol;
 varying vec3 vColor; varying vec3 vWPos; varying float vTip; varying float vWave;
 ${FOG_GLSL}
+#ifdef REAL
+${REAL_FS_PARS}
+void main(){
+  vec3 a = lin3(vColor);
+  float sh = sunShadow(vWPos);
+  vec3 V = normalize(cameraPosition - vWPos);
+  float ndl = max(uSunDir.y, 0.0) * 0.6 + 0.25;
+  vec3 col = a * (sunLin() * ndl * sh * (0.5 + 0.5 * vTip) + skyLin(vec3(0.0, 1.0, 0.0)) * (0.4 + 0.6 * vTip));
+  float back = pow(max(dot(-V, uSunDir), 0.0), 4.0);
+  col += a * sunLin() * back * sh * vTip * 0.5;
+  col += a * sunLin() * vWave * 0.1 * sh;
+  gl_FragColor = vec4(applyFog(toneOut(col), vWPos), 1.0);
+}
+#else
 void main(){
   float lit = smoothstep(-0.1, 0.3, uSunDir.y);
   vec3 litCol = uSunCol * 0.64 + uSkyCol * 0.42;
   vec3 col = vColor * mix(uSkyCol * 0.7, litCol, 0.55 + 0.45 * lit) * (0.86 + 0.14 * vTip);
   col += vColor * uSunCol * vWave * 0.16;
   gl_FragColor = vec4(applyFog(col, vWPos), 1.0);
-}`;
+}
+#endif`;
 const GRASS = { meshes: [] };
 function buildGrassTuft(kind) {
   const pos = [], nor = [];
@@ -5032,10 +5423,10 @@ function initGrass(scene, quality) {
     off.setUsage(THREE.DynamicDrawUsage); tint.setUsage(THREE.DynamicDrawUsage);
     ig.setAttribute('aOff', off); ig.setAttribute('aTint', tint);
     ig.instanceCount = count;
-    const mat = new THREE.ShaderMaterial({
+    const mat = new THREE.ShaderMaterial(realify({
       uniforms: { uTime: SU.uTime, uSunDir: SU.uSunDir, uSunCol: SU.uSunCol, uSkyCol: SU.uSkyCol, uGndCol: SU.uGndCol, uFogCol: SU.uFogCol, uFogNear: SU.uFogNear, uFogFar: SU.uFogFar, uMistH: SU.uMistH, uMistAmt: SU.uMistAmt, uPlayer: { value: new THREE.Vector3() } },
       vertexShader: GRASS_VS, fragmentShader: GRASS_FS, side: THREE.DoubleSide,
-    });
+    }));
     const m = new THREE.Mesh(ig, mat);
     m.frustumCulled = false;
     scene.add(m);
@@ -5111,7 +5502,7 @@ function updateGrass(px, pz, force) {
 // ================= 64 · 宝箱、风铃、烽火、拾取物、猫、生灵 =================
 const OBJ = { chests: [], chimes: [], beacons: [], picks: [], glows: [], interact: [] };
 let OBJ_MAT = null;
-function objMat() { if (!OBJ_MAT) OBJ_MAT = makePaintMat({}); return OBJ_MAT; }
+function objMat() { if (!OBJ_MAT) OBJ_MAT = makePaintMat({ detail: true }); return OBJ_MAT; }
 
 // 光晕贴片（加色）
 let GLOW_TEX = null;
@@ -6012,6 +6403,7 @@ const UI = {
       paint();
     };
     seg('set-q', 'quality', () => GAME.applyQuality());
+    seg('set-rl', 'real', () => { GAME.saveNow(); setTimeout(() => location.reload(), 200); });
     seg('set-mu', 'music', () => AUDIO.setMusic(GAME.settings.music));
     seg('set-sf', 'sfx', () => (AUDIO.sfxOn = !!GAME.settings.sfx));
     seg('set-ac', 'autoCam', () => (IN.autoCam = !!GAME.settings.autoCam));
@@ -6723,7 +7115,7 @@ const AUDIO = {
 const SAVE_KEY = 'qianyu-xing-save-v1', SET_KEY = 'qianyu-xing-settings-v1';
 const GAME = {
   state: 'loading', time: 0, ui: { modal: null, dialog: null }, up: { sword: false, kite: false }, flags: { bossDown: false },
-  save: null, settings: { quality: 1, music: 1, sfx: 1, autoCam: 1, sens: 1 }, hitstop: 0, near: null, trackTarget: null, cine: false,
+  save: null, settings: { quality: 1, music: 1, sfx: 1, autoCam: 1, sens: 1, real: 1 }, hitstop: 0, near: null, trackTarget: null, cine: false,
   pixelRatio: 1, dynScale: 1,
 };
 function freshSave() {
@@ -6772,6 +7164,7 @@ GAME.applyQuality = function () {
   const q = GAME.settings.quality;
   const dpr = window.devicePixelRatio || 1;
   GAME.pixelRatio = q === 0 ? Math.min(dpr, 1) : q === 1 ? Math.min(dpr, 1.5) : Math.min(dpr, 2);
+  if (REAL) sunQuality();
   GAME.renderer.setPixelRatio(GAME.pixelRatio * GAME.dynScale);
   POST.on = q > 0 && GAME.renderer.capabilities.isWebGL2;
   GAME.propDist = q === 0 ? 360 : q === 1 ? 470 : 600;
@@ -6781,6 +7174,52 @@ GAME.applyQuality = function () {
   SU.uFogFar.value = (q === 0 ? 470 : q === 1 ? 610 : 780) * fogMul;
   if (GRASS.grass && GRASS.q !== q) { for (const k of ['grass', 'flower']) GAME.scene.remove(GRASS[k].m); initGrass(GAME.scene, q); GRASS.q = q; updateGrass(PL.pos.x, PL.pos.z, true); }
 };
+
+// ---------- 太阳阴影（写实画风）：正交阴影相机跟着镜头前方走，按阴影贴图像素对齐防止闪烁 ----------
+const SUN = { light: null, R: 60, size: 1024 };
+function initSun(scene) {
+  const L = new THREE.DirectionalLight(0xffffff, 0);
+  scene.add(L); scene.add(L.target);
+  SUN.light = L;
+  sunQuality();
+}
+function sunQuality() {
+  const L = SUN.light; if (!L) return;
+  const q = GAME.settings.quality;
+  SUN.R = q >= 2 ? 80 : 55; SUN.size = q >= 2 ? 2048 : 1024;
+  const c = L.shadow.camera;
+  c.left = -SUN.R; c.right = SUN.R; c.top = SUN.R; c.bottom = -SUN.R; c.near = 1; c.far = 800; c.updateProjectionMatrix();
+  L.shadow.mapSize.set(SUN.size, SUN.size);
+  if (L.shadow.map) { L.shadow.map.dispose(); L.shadow.map = null; }
+  L.shadow.bias = -0.0004; L.shadow.normalBias = (2 * SUN.R / SUN.size) * 1.2; L.shadow.radius = 1;
+  L.castShadow = q > 0;
+  GAME.renderer.shadowMap.enabled = q > 0;
+  SU.uShR.value = SUN.R;
+}
+// 给用写实材质的网格打上投影/受影标记（新生成的敌人、拾取物等也会被扫到）
+function sunMarkCasters(scene) {
+  scene.traverse((o) => {
+    if (!o.isMesh || !o.material || !o.material.lights) return;
+    o.receiveShadow = true;
+    o.castShadow = !!o.material.userData.cast && o.visible !== false;
+  });
+}
+const _sR = new THREE.Vector3(), _sU = new THREE.Vector3(), _sC = new THREE.Vector3(), _sF = new THREE.Vector3();
+function updateSun(cam, focus) {
+  const L = SUN.light; if (!L || !L.castShadow) return;
+  const d = SU.uSunDir.value;
+  // 中心放在镜头前方，覆盖更多可见地面
+  cam.getWorldDirection(_sF); _sF.y = 0; if (_sF.lengthSq() < 1e-4) _sF.set(0, 0, 1); _sF.normalize();
+  _sC.copy(focus).addScaledVector(_sF, SUN.R * 0.45);
+  _sR.set(0, 1, 0).cross(d); if (_sR.lengthSq() < 1e-6) _sR.set(1, 0, 0); _sR.normalize();
+  _sU.copy(d).cross(_sR).normalize();
+  const tx = (2 * SUN.R) / SUN.size;
+  const u = Math.round(_sC.dot(_sR) / tx) * tx, v = Math.round(_sC.dot(_sU) / tx) * tx, w = _sC.dot(d);
+  _sC.copy(_sR).multiplyScalar(u).addScaledVector(_sU, v).addScaledVector(d, w);
+  L.target.position.copy(_sC);
+  L.position.copy(_sC).addScaledVector(d, 400);
+  SU.uShC.value.copy(_sC);
+}
 
 // ---------- 载入 ----------
 function setLoad(p, s) { $('load-ink').style.setProperty('--p', Math.round(p * 100) + '%'); if (s) $('load-s').textContent = s; }
@@ -6806,6 +7245,7 @@ async function boot(hotData) {
   renderer.setSize(innerWidth, innerHeight, false);
   GAME.renderer = renderer;
   const scene = new THREE.Scene(); GAME.scene = scene;
+  if (REAL) { renderer.shadowMap.type = THREE.PCFSoftShadowMap; SU.uDetail.value = makeDetailTexture(); initSun(scene); }
   const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.25, 4200); GAME.camera = camera;
   mark('renderer'); SU.uStroke.value = makeStrokeTexture(); mark('stroke');
   // 地形烘焙（分帧）
@@ -6828,7 +7268,7 @@ async function boot(hotData) {
   buildTerrain(scene, terrainMat);
   mark('terrain'); setLoad(0.72, '摆布景物');
   await nextFrame();
-  GAME.props = buildProps(scene, makePaintMat({ sway: true }));
+  GAME.props = buildProps(scene, makePaintMat({ sway: true, detail: true }));
   GAME.water = buildWater(scene);
   GAME.sky = buildSky(scene);
   GAME.far = buildFarMountains(scene);
@@ -6859,6 +7299,7 @@ async function boot(hotData) {
   await nextFrame();
   applySave();
   GAME.applyQuality();
+  if (REAL) sunMarkCasters(scene);
   initInput();
   UI.init();
   onResize();
@@ -7087,6 +7528,11 @@ function frame(now) {
   for (const m of P.props) m.visible = Math.hypot(m.userData.cx - px, m.userData.cz - pz) < fogFar + 60;
   for (const m of P.veg) m.visible = Math.hypot(m.userData.cx - px, m.userData.cz - pz) < nearD;
   for (const m of P.far) { const d = Math.hypot(m.userData.cx - px, m.userData.cz - pz); m.visible = d >= nearD && d < GAME.propDist + 50; }
+  if (REAL) {
+    updateSun(cam, PL.pos);
+    GAME._markT = (GAME._markT || 0) + 1;
+    if (GAME._markT % 120 === 0) sunMarkCasters(GAME.scene);
+  }
   renderFrame(GAME.renderer, GAME.scene, cam);
   clearPressed();
 }
@@ -7157,7 +7603,7 @@ void main(){
   c += (texture2D(tSrc, vUv + uDir * 3.2307692).rgb + texture2D(tSrc, vUv - uDir * 3.2307692).rgb) * 0.0702703;
   gl_FragColor = vec4(c, 1.0);
 }`;
-const POST_COMP = `uniform sampler2D tScene, tB1, tB2; uniform float uBloom, uSat, uVig, uNight; varying vec2 vUv;
+const POST_COMP = `uniform sampler2D tScene, tB1, tB2; uniform float uBloom, uSat, uVig, uNight, uCurve; varying vec2 vUv;
 void main(){
   vec3 c = texture2D(tScene, vUv).rgb;
   vec3 b = texture2D(tB1, vUv).rgb * 0.55 + texture2D(tB2, vUv).rgb * 0.75;
@@ -7167,7 +7613,7 @@ void main(){
   // 暗部偏青、亮部偏暖
   c = c * vec3(1.015, 1.0, 0.975) + vec3(0.006, 0.012, 0.026) * (1.0 - clamp(l, 0.0, 1.0));
   vec3 s = clamp(c, 0.0, 1.0);
-  c = mix(c, s * s * (3.0 - 2.0 * s), 0.16);
+  c = mix(c, s * s * (3.0 - 2.0 * s), uCurve);
   vec2 q = vUv - 0.5;
   c *= 1.0 - dot(q, q) * (uVig + uNight * 0.25);
   gl_FragColor = vec4(c, 1.0);
@@ -7183,7 +7629,7 @@ function initPost(renderer) {
   const mk = (fs, u) => new THREE.ShaderMaterial({ uniforms: u, vertexShader: POST_VS, fragmentShader: fs, depthTest: false, depthWrite: false });
   POST.mBright = mk(POST_BRIGHT, { tSrc: { value: null }, uThr: { value: 0.8 }, uTexel: { value: new THREE.Vector2() } });
   POST.mBlur = mk(POST_BLUR, { tSrc: { value: null }, uDir: { value: new THREE.Vector2() } });
-  POST.mComp = mk(POST_COMP, { tScene: { value: null }, tB1: { value: null }, tB2: { value: null }, uBloom: { value: 0.32 }, uSat: { value: 1.08 }, uVig: { value: 0.38 }, uNight: SU.uNight });
+  POST.mComp = mk(POST_COMP, { tScene: { value: null }, tB1: { value: null }, tB2: { value: null }, uBloom: { value: REAL ? 0.24 : 0.32 }, uSat: { value: REAL ? 1.04 : 1.08 }, uVig: { value: 0.38 }, uNight: SU.uNight, uCurve: { value: REAL ? 0.05 : 0.16 } });
   POST.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), POST.mBright);
   POST.quad.frustumCulled = false;
   POST.qs = new THREE.Scene(); POST.qs.add(POST.quad);
