@@ -9947,19 +9947,29 @@ function parseAI(c, opts) {
  * 而词表喷吐/乱码一定是这样（空格分隔的长串、无中文标点）。一旦出现这种超长无句读段，
  * 就从它之前最后一个句读处截断，丢掉后面的崩溃内容。中英文通用，误判率极低——因为它
  * 只对"异常长且无断句"的文本动手，正常长发言（有正常标点密度）一点都不碰。 */
+// ★ 两条线，命中任意一条才算崩溃段：
+//   ① 连续 200 字里【任何标点或排版符号都没有】（逗号、顿号、冒号、破折号、括号、引号、星号都算）——词表喷吐；
+//   ② 连续 600 字里没有一个句末标点（。！？.；换行）——带逗号的乱码。
+//   以前只有"200 字没有句末标点"一条线，而正常的中文长句靠逗号、顿号、破折号能写过 200 字：
+//   实际对局里 Claude Opus 5.5 一份 3800 字的正常发言被整段截掉，接着报"发言过短"弹窗。
 function stripDegenerateTail(text) {
   if (typeof text !== 'string' || text.length < 400) return text; // 短文本不查，正常发言零误伤
-  const PUNCT = /[。！？!?.；;\n]/;
-  const GAP = 200;                 // 连续多少字符无句读判定为崩溃段
-  let lastPunct = -1;
+  const END = /[。！？!?.；;\n]/;
+  const ANY = /[，,、：:…—–\-（）()「」『』“”"‘’'《》〈〉【】\[\]*~·]/;
+  const GAP_ANY = 200;             // 连续多少字符没有任何标点
+  const GAP_END = 600;             // 连续多少字符没有句末标点
+  let lastEnd = -1, lastAny = -1;
   for (let i = 0; i < text.length; i++) {
-    if (PUNCT.test(text[i])) lastPunct = i;
-    if (i - lastPunct > GAP) {
-      // 从 lastPunct 之后开始就是退化，截到 lastPunct（含标点）
-      const kept = text.slice(0, lastPunct + 1).trim();
+    const ch = text[i];
+    if (END.test(ch)) { lastEnd = i; lastAny = i; }
+    else if (ANY.test(ch)) lastAny = i;
+    if (i - lastAny > GAP_ANY || i - lastEnd > GAP_END) {
+      // 从 lastEnd 之后开始就是退化，截到 lastEnd（含标点）
+      const kept = text.slice(0, lastEnd + 1).trim();
+      const why = (i - lastAny > GAP_ANY) ? `${GAP_ANY} 字没有任何标点` : `${GAP_END} 字没有句末标点`;
       try {
         Render && Render.devLog && Render.devLog('warn',
-          `[退化止损] 检测到崩溃输出，已截断 ${text.length - kept.length} 字（渠道疑似不稳定/逆向反代）`);
+          `[退化止损] 有一段连续 ${why}，按崩溃输出截掉了后面 ${text.length - kept.length} 字`);
       } catch (e) {}
       return kept; // 若 kept 很短，交给上层的沉默/重试逻辑处理
     }
