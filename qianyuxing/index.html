@@ -693,15 +693,15 @@ const DATA = {
   spawn: { x: 1.2, z: 523, ry: PI },
   plaza: { x: 25, z: 300 },
   houses: [
-    { x: 25, z: 262, ry: 0, w: 11, d: 8, wh: 3.6, rh: 2.3, plaque: true, id: 'elder' },
-    { x: -8, z: 284, ry: PI / 2 },
-    { x: -10, z: 318, ry: PI / 2 },
-    { x: 8, z: 344, ry: PI },
-    { x: 49, z: 341, ry: PI, w: 9 },
-    { x: 63, z: 286, ry: -PI / 2 },
-    { x: -34, z: 300, ry: PI / 2, w: 7, d: 5 },
-    { x: 57, z: 252, ry: -0.7, w: 7, d: 5 },
-    { x: -22, z: 262, ry: 0.5, w: 7, d: 5 },
+    { x: 25, z: 262, ry: 0, w: 11, d: 8, wh: 3.6, rh: 2.3, plaque: true, id: 'elder', kind: 'elder' },
+    { x: -8, z: 284, ry: PI / 2, kind: 'home' },
+    { x: -10, z: 318, ry: PI / 2, kind: 'kitchen' },
+    { x: 8, z: 344, ry: PI, kind: 'noodle' },
+    { x: 49, z: 341, ry: PI, w: 9, kind: 'study' },
+    { x: 63, z: 286, ry: -PI / 2, kind: 'home' },
+    { x: -34, z: 300, ry: PI / 2, w: 7, d: 5, kind: 'store' },
+    { x: 57, z: 252, ry: -0.7, w: 7, d: 5, kind: 'tea' },
+    { x: -22, z: 262, ry: 0.5, w: 7, d: 5, kind: 'store' },
   ],
   stall: { x: 50, z: 306, ry: -PI / 2 },
   well: { x: 36, z: 316 },
@@ -843,6 +843,7 @@ const REAL = (() => { try { const s = JSON.parse(localStorage.getItem('qianyu-xi
 const SU = {
   uTime: { value: 0 },
   uExpo: { value: 0.42 },
+  uIn: { value: new THREE.Vector4() }, uInS: { value: new THREE.Vector4() },
   uShC: { value: new THREE.Vector3() }, uShR: { value: 60 },
   uZenith: { value: new THREE.Color(0x5c9ddb) }, uHorizon: { value: new THREE.Color(0xdcebef) },
   uDetail: { value: null },
@@ -943,6 +944,14 @@ vec3 toneOut(vec3 x){
   x = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
   return sqrt(x);
 }
+uniform vec4 uIn, uInS;
+float indoorK(vec3 wp){
+  if (uIn.w < 0.5) return 1.0;
+  vec2 d = wp.xz - uIn.xy; float c = cos(uIn.z), s = sin(uIn.z);
+  vec2 l = vec2(d.x * c - d.y * s, d.x * s + d.y * c);
+  float inside = step(abs(l.x), uInS.x) * step(abs(l.y), uInS.y) * step(uInS.z - 0.6, wp.y) * step(wp.y, uInS.w);
+  return mix(1.0, 0.42, inside);
+}
 float sunShadow(vec3 wp){
 #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
   float s = getShadow(directionalShadowMap[0], directionalLightShadows[0].shadowMapSize, directionalLightShadows[0].shadowBias, directionalLightShadows[0].shadowRadius, vDirectionalShadowCoord[0]);
@@ -994,7 +1003,7 @@ const REAL_VS_PARS = `
 // 让 ShaderMaterial 接上 three 的阴影系统（只用阴影，不用它的灯光计算）
 function realify(params, cast) {
   if (!REAL) return params;
-  params.uniforms = Object.assign(THREE.UniformsUtils.clone(THREE.UniformsLib.lights), { uExpo: SU.uExpo, uShC: SU.uShC, uShR: SU.uShR, uDetail: SU.uDetail }, params.uniforms);
+  params.uniforms = Object.assign(THREE.UniformsUtils.clone(THREE.UniformsLib.lights), { uExpo: SU.uExpo, uShC: SU.uShC, uShR: SU.uShR, uDetail: SU.uDetail, uIn: SU.uIn, uInS: SU.uInS }, params.uniforms);
   params.lights = true;
   params.defines = Object.assign({ REAL: 1 }, params.defines || {});
   return params;
@@ -1114,12 +1123,14 @@ void main(){
     vec4 tx = texture2D(uDetail, vWPos.zy * 0.45), ty = texture2D(uDetail, vWPos.xz * 0.45), tz = texture2D(uDetail, vWPos.xy * 0.45);
     vec4 tt = tx * bw.x + ty * bw.y + tz * bw.z;
     float lum = dot(base, vec3(0.333));
-    base *= 0.84 + tt.g * 0.3;
-    N = bumpN(N, vWPos, tt.g * 0.5, 0.12 * (1.0 - smoothstep(20.0, 60.0, dist)));
+    // 白墙只留细微斑驳；木头、石头保留纹理
+    float plaster = smoothstep(0.45, 0.6, lum);
+    base *= mix(0.88 + tt.g * 0.24, 0.95 + tt.b * 0.1, plaster);
+    N = bumpN(N, vWPos, tt.g * 0.5, 0.12 * (1.0 - plaster * 0.8) * (1.0 - smoothstep(20.0, 60.0, dist)));
     rough = 0.7 - lum * 0.15;
   #endif
   #ifdef RIM
-    rough = 0.55; spec = 0.4;
+    rough = 0.55; spec = 0.4; ao *= indoorK(vWPos);
   #endif
   float sh = sunShadow(vWPos);
   vec3 col = litReal(base, N, V, sh, rough, ao, spec);
@@ -1840,33 +1851,331 @@ function lantern(gb, B, x, y, z, s) {
   LANTERNS.push(worldOf(B, x, y, z));
 }
 
+// ================= 可进出的村屋：空心墙、方砖地、露明梁架、按用途布置的陈设 =================
+const HOUSES = [];
+// 点是否在某座屋子里（室内净空；m 为向内收的余量）。outer=true 时按整座房子的外轮廓算（含墙和檐下）。
+function houseAt(px, py, pz, m, outer) {
+  for (const H of HOUSES) {
+    const dx = px - H.x, dz = pz - H.z;
+    const lx = dx * H.cs - dz * H.sn, lz = dx * H.sn + dz * H.cs;
+    const hw = outer ? H.ow : H.hw, hd = outer ? H.od : H.hd;
+    if (Math.abs(lx) < hw - m && Math.abs(lz) < hd - m && py > H.y0 - 0.6 && py < (outer ? H.y2 : H.y1)) return H;
+  }
+  return null;
+}
+const ROSE = [0.29, 0.17, 0.12], ROSE2 = [0.36, 0.22, 0.15], BRICK = [0.42, 0.41, 0.39], INK = [0.12, 0.12, 0.14];
+// 家具：都用屋内局部坐标；col 为可选木色
+function fTable(P, x, z, w, d, h, col, ry) {
+  col = col || ROSE; ry = ry || 0;
+  const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
+  let q = at(0, 0); P(T.box, q[0], h - 0.03, q[1], w, 0.06, d, col, {}, 0, ry, 0);
+  q = at(0, 0); P(T.box, q[0], h - 0.12, q[1], w - 0.1, 0.1, d - 0.1, mixRGB(col, [0, 0, 0], 0.2), {}, 0, ry, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { q = at(sx * (w / 2 - 0.06), sz * (d / 2 - 0.06)); P(T.box, q[0], (h - 0.06) / 2, q[1], 0.06, h - 0.06, 0.06, col, {}, 0, ry, 0); }
+}
+function fChair(P, x, z, ry, col, arms) {
+  col = col || ROSE;
+  const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
+  let q = at(0, 0); P(T.box, q[0], 0.46, q[1], 0.52, 0.05, 0.46, col, {}, 0, ry, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { q = at(sx * 0.22, sz * 0.19); P(T.box, q[0], 0.23, q[1], 0.045, 0.46, 0.045, col, {}, 0, ry, 0); }
+  for (const sx of [-1, 1]) { q = at(sx * 0.22, -0.2); P(T.box, q[0], 0.78, q[1], 0.045, 0.62, 0.045, col, {}, 0, ry, 0); }
+  q = at(0, -0.21); P(T.box, q[0], 0.76, q[1], 0.26, 0.5, 0.025, ROSE2, {}, 0, ry, 0);
+  q = at(0, -0.2); P(T.box, q[0], 1.08, q[1], 0.56, 0.05, 0.05, col, {}, 0, ry, 0);
+  if (arms) for (const sx of [-1, 1]) { q = at(sx * 0.24, 0); P(T.box, q[0], 0.68, q[1], 0.04, 0.04, 0.42, col, {}, 0, ry, 0); }
+}
+function fStool(P, x, z, col) { col = col || ROSE2; P(T.cyl8, x, 0.44, z, 0.18, 0.05, 0.18, col, { smooth: true }); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.78; P(T.box, x + Math.cos(a) * 0.12, 0.21, z + Math.sin(a) * 0.12, 0.04, 0.42, 0.04, col); } }
+function fBooks(P, x, y, z, len, r, ry) {
+  // 一排线装书 / 竖放的书
+  const cs = Math.cos(ry || 0), sn = Math.sin(ry || 0);
+  let o = -len / 2;
+  const pal = [[0.22, 0.3, 0.42], [0.55, 0.22, 0.16], [0.75, 0.68, 0.52], [0.3, 0.38, 0.28], [0.2, 0.2, 0.24]];
+  while (o < len / 2 - 0.05) {
+    const t = 0.04 + r() * 0.05, h = 0.2 + r() * 0.1;
+    P(T.box, x + (o + t / 2) * cs, y + h / 2, z - (o + t / 2) * sn, t * 0.92, h, 0.17 + r() * 0.05, pal[(r() * pal.length) | 0], {}, 0, ry || 0, 0);
+    o += t;
+  }
+}
+function fShelf(P, x, z, ry, w, h, r, fill) {
+  const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
+  for (const sx of [-1, 1]) { const q = at(sx * w / 2, 0); P(T.box, q[0], h / 2, q[1], 0.05, h, 0.34, ROSE, {}, 0, ry, 0); }
+  const n = Math.max(3, Math.round(h / 0.45));
+  for (let k = 0; k <= n; k++) {
+    const y = 0.08 + k * ((h - 0.1) / n), q = at(0, 0);
+    P(T.box, q[0], y, q[1], w, 0.035, 0.34, ROSE, {}, 0, ry, 0);
+    if (k < n) {
+      if (fill === 'jars') { for (let j = 0; j < 3; j++) { const p = at(-w / 3 + j * w / 3, 0); const s = 0.09 + r() * 0.04; P(T.sph, p[0], y + s + 0.02, p[1], s, s * 1.2, s, r() < 0.5 ? [0.45, 0.3, 0.2] : [0.82, 0.84, 0.86], { smooth: true }); } }
+      else { const p = at(0, 0.02); fBooks(P, p[0], y + 0.02, p[1], w - 0.12, r, ry); }
+    }
+  }
+}
+function fScroll(P, x, y, z, ry, w, h, red) {
+  // 挂轴：纸面、上下轴杆、几笔山水墨色
+  const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
+  let q = at(0, 0); P(T.box, q[0], y, q[1], w + 0.08, h + 0.12, 0.012, red ? [0.62, 0.18, 0.14] : [0.55, 0.48, 0.36], {}, 0, ry, 0);
+  q = at(0, 0.008); P(T.box, q[0], y, q[1], w, h, 0.012, COL.paper, {}, 0, ry, 0);
+  for (const sy of [1, -1]) { q = at(0, 0.01); P(T.cyl8, q[0], y + sy * (h / 2 + 0.07), q[1], 0.02, w + 0.16, 0.02, ROSE, { smooth: true }, 0, ry, Math.PI / 2); }
+  if (!red) {
+    q = at(-w * 0.12, 0.016); P(T.cone4, q[0], y - h * 0.08, q[1], w * 0.32, h * 0.38, 0.004, [0.42, 0.44, 0.46], {}, 0, ry, 0);
+    q = at(w * 0.16, 0.017); P(T.cone4, q[0], y - h * 0.16, q[1], w * 0.26, h * 0.24, 0.004, [0.3, 0.32, 0.34], {}, 0, ry, 0);
+    q = at(w * 0.3, 0.018); P(T.box, q[0], y + h * 0.36, q[1], 0.05, 0.05, 0.004, [0.7, 0.16, 0.12], {}, 0, ry, 0);
+  } else {
+    for (let k = 0; k < 5; k++) { q = at(0, 0.016); P(T.box, q[0], y + h * 0.35 - k * h * 0.17, q[1], w * 0.42, w * 0.42, 0.004, INK, {}, 0, ry, 0); }
+  }
+}
+function fVase(P, x, y, z, s, col) { col = col || [0.86, 0.88, 0.9]; P(T.sph, x, y + 0.16 * s, z, 0.12 * s, 0.16 * s, 0.12 * s, col, { smooth: true }); P(T.cyl8, x, y + 0.34 * s, z, 0.045 * s, 0.12 * s, 0.045 * s, col, { smooth: true }); P(T.cyl8, x, y + 0.22 * s, z, 0.125 * s, 0.03 * s, 0.125 * s, [0.2, 0.3, 0.55], { smooth: true }); }
+function fBed(P, x, z, ry, w, d, canopy, r) {
+  const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
+  let q = at(0, 0); P(T.box, q[0], 0.25, q[1], w, 0.3, d, ROSE, {}, 0, ry, 0);
+  q = at(0, 0); P(T.box, q[0], 0.45, q[1], w - 0.1, 0.1, d - 0.1, [0.85, 0.82, 0.74], {}, 0, ry, 0);
+  q = at(w * 0.1, 0); P(T.box, q[0], 0.55, q[1], w * 0.72, 0.12, d - 0.14, [0.62, 0.24, 0.2], { smooth: false }, 0, ry, 0);
+  q = at(-w / 2 + 0.25, 0); P(T.box, q[0], 0.56, q[1], 0.3, 0.12, d * 0.55, [0.9, 0.86, 0.76], {}, 0, ry, 0);
+  if (canopy) {
+    const H = 2.2;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { q = at(sx * (w / 2 - 0.04), sz * (d / 2 - 0.04)); P(T.box, q[0], H / 2 + 0.1, q[1], 0.07, H, 0.07, ROSE, {}, 0, ry, 0); }
+    for (const sz of [-1, 1]) { q = at(0, sz * (d / 2 - 0.04)); P(T.box, q[0], H + 0.15, q[1], w, 0.12, 0.06, ROSE, {}, 0, ry, 0); }
+    for (const sx of [-1, 1]) { q = at(sx * (w / 2 - 0.04), 0); P(T.box, q[0], H + 0.15, q[1], 0.06, 0.12, d, ROSE, {}, 0, ry, 0); }
+    // 床围（三面）与半挽的帐子
+    q = at(0, -(d / 2 - 0.04)); P(T.box, q[0], 0.85, q[1], w - 0.1, 0.5, 0.04, ROSE2, {}, 0, ry, 0);
+    for (const sx of [-1, 1]) { q = at(sx * (w / 2 - 0.04), -d * 0.2); P(T.box, q[0], 0.85, q[1], 0.04, 0.5, d * 0.55, ROSE2, {}, 0, ry, 0); }
+    const cur = [0.86, 0.8, 0.68];
+    for (const sx of [-1, 1]) { q = at(sx * (w / 2 - 0.2), d / 2 - 0.06); P(T.box, q[0], H * 0.6 + 0.2, q[1], 0.32, H * 0.8, 0.03, cur, {}, 0, ry, 0); }
+    q = at(0, 0); P(T.box, q[0], H + 0.06, q[1], w - 0.1, 0.02, d - 0.1, cur, {}, 0, ry, 0);
+  }
+}
+function fStove(P, x, z, ry, r) {
+  const cs = Math.cos(ry), sn = Math.sin(ry), at = (lx, lz) => [x + lx * cs + lz * sn, z - lx * sn + lz * cs];
+  let q = at(0, 0); P(T.box, q[0], 0.42, q[1], 2.0, 0.84, 0.9, BRICK, { jit: 0.04 }, 0, ry, 0);
+  q = at(0, 0); P(T.box, q[0], 0.86, q[1], 2.06, 0.06, 0.96, [0.32, 0.31, 0.3], {}, 0, ry, 0);
+  for (const sx of [-0.5, 0.45]) {
+    q = at(sx, 0.02); P(T.cyl12, q[0], 0.92, q[1], 0.36, 0.06, 0.36, INK, { smooth: true }, 0, ry, 0);
+    q = at(sx, 0.02); P(T.sph, q[0], 0.92, q[1], 0.34, 0.12, 0.34, [0.2, 0.2, 0.22], { smooth: true }, 0, ry, 0);
+    q = at(sx, 0.02); P(T.cyl12, q[0], 1.03, q[1], 0.3, 0.03, 0.3, [0.45, 0.32, 0.2], { smooth: true }, 0, ry, 0);
+    q = at(sx, 0.47); P(T.box, q[0], 0.3, q[1], 0.3, 0.28, 0.04, [0.05, 0.04, 0.04], { glow: 0.25 }, 0, ry, 0);
+  }
+  q = at(0.85, -0.3); P(T.box, q[0], 1.9, q[1], 0.4, 2.1, 0.4, BRICK, { jit: 0.04 }, 0, ry, 0);
+  for (let k = 0; k < 6; k++) { q = at(-1.4 + (k % 3) * 0.14, -0.1 + ((k / 3) | 0) * 0.14); P(T.cyl6, q[0], 0.07 + ((k / 3) | 0) * 0.13, q[1], 0.065, 0.7, 0.065, [0.48, 0.34, 0.22], {}, Math.PI / 2, ry, 0); }
+}
+function fJar(P, x, z, s, col) { col = col || [0.36, 0.24, 0.16]; P(T.sph, x, 0.32 * s, z, 0.3 * s, 0.34 * s, 0.3 * s, col, { smooth: true }); P(T.cyl12, x, 0.62 * s, z, 0.2 * s, 0.06 * s, 0.2 * s, mixRGB(col, [0, 0, 0], 0.25), { smooth: true }); }
+function fBarrel(P, x, z, s) { P(T.cyl12, x, 0.45 * s, z, 0.34 * s, 0.9 * s, 0.34 * s, [0.5, 0.36, 0.22], { smooth: true }); for (const y of [0.15, 0.75]) P(T.cyl12, x, y * s, z, 0.355 * s, 0.05 * s, 0.355 * s, [0.24, 0.22, 0.22], { smooth: true }); }
+function fSack(P, x, z, r) { P(T.sph, x, 0.28, z, 0.3, 0.32, 0.26, [0.72, 0.64, 0.48], { smooth: true }); P(T.cyl8, x, 0.62, z, 0.07, 0.12, 0.07, [0.62, 0.54, 0.4], {}); }
+function fScreen(P, x, z, ry, n) {
+  const cs = Math.cos(ry), sn = Math.sin(ry);
+  for (let k = 0; k < n; k++) {
+    const lx = (k - (n - 1) / 2) * 0.5, a = (k % 2 ? 0.25 : -0.25);
+    const px = x + lx * cs, pz = z - lx * sn;
+    P(T.box, px, 0.95, pz, 0.48, 1.7, 0.04, ROSE, {}, 0, ry + a, 0);
+    P(T.box, px, 0.98, pz, 0.4, 1.4, 0.05, COL.paper, {}, 0, ry + a, 0);
+  }
+}
+function fRug(P, x, z, w, d, col) { P(T.box, x, 0.235, z, w, 0.012, d, col); P(T.box, x, 0.236, z, w - 0.2, 0.012, d - 0.2, mixRGB(col, [0.9, 0.8, 0.5], 0.25)); }
+
+// 室内陈设：kind = elder | home | noodle | kitchen | study | store | tea
+function furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll) {
+  const hw = w / 2 - t, hd = d / 2 - t;
+  const hang = (x, z, s) => lantern(gb, B, x, wh - 0.45, z, s || 0.5);
+  if (kind === 'elder') {
+    const bay = w / 3;
+    // 明间：条案、中堂与对联、八仙桌、一对太师椅；两侧客座
+    fTable(P, 0, -hd + 0.3, 2.4, 0.45, 0.92); coll(0, -hd + 0.3, 1.2, 0.25, 0.92);
+    fVase(P, -0.8, 0.92, -hd + 0.3, 1.4); fVase(P, 0.8, 0.92, -hd + 0.3, 1.0, [0.25, 0.45, 0.4]);
+    P(T.cyl8, 0, 1.0, -hd + 0.3, 0.12, 0.12, 0.12, COL.bronze, { smooth: true });
+    fScroll(P, 0, 2.15, -hd + 0.02, 0, 0.9, 1.5); fScroll(P, -0.85, 2.05, -hd + 0.02, 0, 0.26, 1.5, true); fScroll(P, 0.85, 2.05, -hd + 0.02, 0, 0.26, 1.5, true);
+    fTable(P, 0, -hd + 1.25, 0.95, 0.95, 0.84); coll(0, -hd + 1.25, 0.5, 0.5, 0.84);
+    P(T.cyl8, 0.15, 0.9, -hd + 1.2, 0.07, 0.1, 0.07, [0.86, 0.88, 0.9], { smooth: true });
+    for (const sx of [-1, 1]) { fChair(P, sx * 0.85, -hd + 1.25, 0, ROSE, true); coll(sx * 0.85, -hd + 1.25, 0.3, 0.3, 0.5); }
+    for (const sx of [-1, 1]) { const x = sx * (bay / 2 - 0.45); fChair(P, x, 0.4, -sx * Math.PI / 2, ROSE, true); fTable(P, x, 1.05, 0.45, 0.45, 0.7); fChair(P, x, 1.7, sx < 0 ? Math.PI / 2 : -Math.PI / 2, ROSE, true); }
+    fRug(P, 0, 0.6, 2.2, 2.6, [0.55, 0.2, 0.16]);
+    hang(-0.9, 0.4); hang(0.9, 0.4);
+    // 东次间（+x）书房：书案朝窗、书架、博古架
+    const ex = bay;
+    fTable(P, ex, hd - 1.0, 1.6, 0.7, 0.8); coll(ex, hd - 1.0, 0.8, 0.35, 0.8);
+    fChair(P, ex, hd - 1.75, 0, ROSE, true);
+    P(T.box, ex - 0.4, 0.82, hd - 1.0, 0.18, 0.04, 0.12, INK); P(T.cyl8, ex + 0.5, 0.92, hd - 1.05, 0.06, 0.2, 0.06, [0.86, 0.88, 0.9], { smooth: true });
+    for (let k = 0; k < 4; k++) P(T.cyl4, ex + 0.48 + (k - 1.5) * 0.02, 1.08, hd - 1.05, 0.008, 0.3, 0.008, [0.5, 0.36, 0.2]);
+    P(T.box, ex, 0.805, hd - 1.0, 0.5, 0.005, 0.35, [0.95, 0.93, 0.86]);
+    fBooks(P, ex + 0.1, 0.8, hd - 1.25, 0.5, r, 0);
+    fShelf(P, ex, -hd + 0.2, 0, 1.8, 2.2, r, 'books'); coll(ex, -hd + 0.2, 0.9, 0.2, 2.2);
+    fShelf(P, w / 2 - t - 0.2, 0, Math.PI / 2, 1.4, 1.8, r, 'jars'); coll(w / 2 - t - 0.2, 0, 0.2, 0.7, 1.8);
+    fScroll(P, ex, 2.0, hd - 0.02, Math.PI, 0.6, 1.0);
+    hang(ex, 0);
+    // 西次间（-x）卧房：架子床、衣柜、梳妆台、木箱
+    const wx = -bay;
+    fBed(P, wx - 0.1, -hd + 0.85, 0, 2.1, 1.5, true, r); coll(wx - 0.1, -hd + 0.85, 1.05, 0.75, 2.4);
+    P(T.box, -w / 2 + t + 0.3, 1.0, 0.6, 0.55, 2.0, 1.1, ROSE, {}); P(T.box, -w / 2 + t + 0.58, 1.0, 0.6, 0.01, 1.9, 0.01, [0.8, 0.65, 0.3]); coll(-w / 2 + t + 0.3, 0.6, 0.3, 0.55, 2.0);
+    fTable(P, wx + 0.6, hd - 0.4, 0.9, 0.45, 0.78); P(T.cyl12, wx + 0.6, 1.08, hd - 0.48, 0.2, 0.02, 0.2, [0.75, 0.72, 0.6], { smooth: true }, Math.PI / 2, 0, 0); coll(wx + 0.6, hd - 0.4, 0.45, 0.23, 0.78);
+    fStool(P, wx + 0.6, hd - 0.95);
+    P(T.box, wx - 0.1, 0.25, -hd + 2.0, 1.0, 0.45, 0.5, ROSE2); P(T.box, wx - 0.1, 0.36, -hd + 2.26, 0.12, 0.12, 0.02, COL.gold); coll(wx - 0.1, -hd + 2.0, 0.5, 0.25, 0.47);
+    fRug(P, wx, 0.6, 1.6, 1.8, [0.3, 0.36, 0.5]);
+    hang(wx, 0.3);
+  } else if (kind === 'home' || kind === 'kitchen') {
+    fBed(P, -hw + 1.05, -hd + 0.8, 0, 2.0, 1.4, kind === 'home', r); coll(-hw + 1.05, -hd + 0.8, 1.0, 0.7, kind === 'home' ? 2.4 : 0.6);
+    fTable(P, 0.6, 0.2, 1.0, 0.8, 0.78, ROSE2); coll(0.6, 0.2, 0.5, 0.4, 0.78);
+    fStool(P, 0.0, 0.2); fStool(P, 1.2, 0.2); fStool(P, 0.6, 0.85);
+    P(T.cyl12, 0.5, 0.82, 0.1, 0.11, 0.06, 0.11, [0.86, 0.84, 0.8], { smooth: true }); P(T.sph, 0.8, 0.86, 0.3, 0.09, 0.08, 0.09, [0.45, 0.3, 0.2], { smooth: true });
+    if (kind === 'kitchen') { fStove(P, hw - 1.1, -hd + 0.5, 0, r); coll(hw - 1.1, -hd + 0.5, 1.05, 0.48, 0.9); fJar(P, hw - 0.35, 0.5, 1.1); fJar(P, hw - 0.4, 1.15, 0.8, [0.5, 0.4, 0.3]); coll(hw - 0.35, 0.8, 0.35, 0.65, 0.7);
+      for (let k = 0; k < 5; k++) P(T.sph, -0.6 + k * 0.12, wh - 0.6 - (k % 2) * 0.1, -hd + 0.2, 0.05, 0.12, 0.05, [0.7, 0.14, 0.1], { smooth: true });
+    } else { P(T.box, hw - 0.3, 0.9, -hd + 0.9, 0.55, 1.8, 1.0, ROSE, {}); coll(hw - 0.3, -hd + 0.9, 0.3, 0.5, 1.8); P(T.box, -hw + 0.6, 0.25, -hd + 1.85, 0.9, 0.4, 0.45, ROSE2); fRug(P, 0.4, 0.4, 1.8, 1.4, [0.5, 0.28, 0.2]); }
+    P(T.cyl6, hw - 0.4, 0.4, hd - 0.6, 0.04, 0.8, 0.04, ROSE); P(T.cyl12, hw - 0.4, 0.82, hd - 0.6, 0.22, 0.08, 0.22, [0.6, 0.5, 0.36], { smooth: true });
+    fScroll(P, 0.6, 2.0, -hd + 0.02, 0, 0.5, 0.9);
+    hang(0.4, 0.2);
+  } else if (kind === 'noodle') {
+    fStove(P, -hw + 1.15, -hd + 0.5, 0, r); coll(-hw + 1.15, -hd + 0.5, 1.05, 0.48, 0.9);
+    fTable(P, hw - 1.0, -hd + 0.45, 1.6, 0.6, 0.86, ROSE2); coll(hw - 1.0, -hd + 0.45, 0.8, 0.3, 0.86);
+    for (let k = 0; k < 6; k++) P(T.cyl12, hw - 1.6 + k * 0.22, 0.9 + (k % 2) * 0.05, -hd + 0.45, 0.09, 0.05, 0.09, [0.88, 0.88, 0.84], { smooth: true });
+    fShelf(P, hw - 0.22, 0.4, Math.PI / 2, 1.4, 1.6, r, 'jars'); coll(hw - 0.22, 0.4, 0.2, 0.7, 1.6);
+    for (const [tx, tz] of [[-1.0, 0.9], [1.2, 1.1]]) {
+      fTable(P, tx, tz, 0.85, 0.85, 0.76, ROSE2); coll(tx, tz, 0.43, 0.43, 0.76);
+      for (const [ox, oz] of [[-0.62, 0], [0.62, 0], [0, -0.62], [0, 0.62]]) fStool(P, tx + ox, tz + oz);
+      P(T.cyl12, tx, 0.8, tz, 0.11, 0.06, 0.11, [0.88, 0.86, 0.8], { smooth: true });
+    }
+    fJar(P, -hw + 0.4, 1.0, 1.0);
+    hang(-1.0, 0.9); hang(1.2, 1.1);
+  } else if (kind === 'study') {
+    for (const sx of [-1, 1]) { fShelf(P, sx * 1.4, -hd + 0.2, 0, 1.4, 2.1, r, 'books'); coll(sx * 1.4, -hd + 0.2, 0.7, 0.2, 2.1); }
+    fScroll(P, 0, 2.0, -hd + 0.02, 0, 0.8, 1.3);
+    fTable(P, 0, -0.1, 1.6, 0.75, 0.8); coll(0, -0.1, 0.8, 0.38, 0.8); fChair(P, 0, -0.85, 0, ROSE, true);
+    P(T.box, -0.4, 0.82, -0.1, 0.18, 0.04, 0.12, INK); P(T.box, 0.1, 0.805, -0.1, 0.5, 0.005, 0.35, [0.95, 0.93, 0.86]); fBooks(P, 0.55, 0.8, -0.3, 0.3, r, 0);
+    // 棋桌
+    fTable(P, hw - 0.9, hd - 0.9, 0.7, 0.7, 0.6, ROSE2); coll(hw - 0.9, hd - 0.9, 0.35, 0.35, 0.6);
+    P(T.box, hw - 0.9, 0.61, hd - 0.9, 0.5, 0.01, 0.5, [0.8, 0.66, 0.42]);
+    for (let k = 0; k < 14; k++) P(T.cyl8, hw - 1.12 + r() * 0.44, 0.625, hd - 1.12 + r() * 0.44, 0.022, 0.012, 0.022, k % 2 ? INK : [0.95, 0.95, 0.92], { smooth: true });
+    fStool(P, hw - 1.5, hd - 0.9); fStool(P, hw - 0.3, hd - 0.9);
+    fVase(P, -hw + 0.4, 0.22, hd - 0.4, 2.2, [0.3, 0.42, 0.55]);
+    hang(0, 0);
+  } else if (kind === 'store') {
+    for (let k = 0; k < 3; k++) { fBarrel(P, -hw + 0.45 + k * 0.75, -hd + 0.45, 1); }
+    coll(-hw + 1.2, -hd + 0.45, 1.15, 0.4, 0.9);
+    for (let k = 0; k < 4; k++) fSack(P, hw - 0.45 - (k % 2) * 0.55, -hd + 0.45 + ((k / 2) | 0) * 0.55, r);
+    coll(hw - 0.7, -hd + 0.7, 0.6, 0.6, 0.6);
+    fShelf(P, -hw + 0.22, 0.6, -Math.PI / 2, 1.4, 1.6, r, 'jars'); coll(-hw + 0.22, 0.6, 0.2, 0.7, 1.6);
+    for (let k = 0; k < 9; k++) P(T.cyl6, hw - 0.3, 0.08 + (k % 3) * 0.14, 0.4 + ((k / 3) | 0) * 0.14, 0.065, 0.9, 0.065, [0.48, 0.34, 0.22], {}, Math.PI / 2, 0, 0);
+    coll(hw - 0.3, 0.55, 0.45, 0.3, 0.45);
+    hang(0, 0, 0.5);
+  } else if (kind === 'tea') {
+    fRug(P, 0, -0.2, 2.2, 1.8, [0.42, 0.5, 0.38]);
+    P(T.box, 0, 0.42, -0.2, 1.0, 0.06, 0.6, ROSE); for (const sx of [-1, 1]) P(T.box, sx * 0.44, 0.33, -0.2, 0.06, 0.18, 0.56, ROSE); coll(0, -0.2, 0.5, 0.3, 0.45);
+    P(T.sph, -0.15, 0.53, -0.2, 0.09, 0.08, 0.09, [0.55, 0.32, 0.22], { smooth: true });
+    for (let k = 0; k < 4; k++) P(T.cyl8, 0.1 + k * 0.1, 0.48, -0.1, 0.035, 0.04, 0.035, [0.9, 0.9, 0.86], { smooth: true });
+    for (const [cx, cz] of [[-0.85, -0.2], [0.85, -0.2], [0, 0.45]]) P(T.cyl12, cx, 0.3, cz, 0.28, 0.1, 0.28, [0.55, 0.22, 0.18], { smooth: true });
+    fScreen(P, 0, -hd + 0.4, 0, 4); coll(0, -hd + 0.4, 1.0, 0.15, 1.7);
+    fScroll(P, hw - 0.02, 1.9, 0, -Math.PI / 2, 0.5, 1.0);
+    P(T.cyl12, -hw + 0.4, 0.25, hd - 0.4, 0.2, 0.3, 0.2, [0.5, 0.4, 0.32], { smooth: true });
+    for (let k = 0; k < 5; k++) P(T.cyl4, -hw + 0.35 + (r() - 0.5) * 0.2, 0.9, hd - 0.4 + (r() - 0.5) * 0.2, 0.015, 1.2, 0.015, [0.42, 0.6, 0.3]);
+    hang(0, -0.2, 0.55);
+  }
+}
+
 function house(gb, x, z, ry, opt) {
   opt = opt || {};
   const w = opt.w || 8, d = opt.d || 6, wh = opt.wh || 3.2, rh = opt.rh || 1.9;
   const y = Math.min(W.heightAt(x - w / 2, z - d / 2), W.heightAt(x + w / 2, z - d / 2), W.heightAt(x - w / 2, z + d / 2), W.heightAt(x + w / 2, z + d / 2), W.heightAt(x, z));
   const B = M(x, y, z, 0, ry, 0);
   const P = mkPart(gb, B);
+  const r = mulberry32(Math.round(x * 31 + z * 17));
+  const t = 0.24, fl = 0.22, wall = opt.wall || COL.wall;
+  const kind = opt.kind || 'home', elder = kind === 'elder';
+  const dw = elder ? 2.4 : 1.3, dh = 2.35;
+  const inner = mixRGB(wall, [0.32, 0.29, 0.26], 0.42), innerWood = mixRGB(COL.wood, [0, 0, 0], 0.35);
+  // 台基与方砖地面
   P(T.box, 0, -0.6, 0, w + 0.6, 1.6, d + 0.6, COL.stone, { jit: 0.05 });
-  P(T.box, 0, 0.25 + wh / 2, 0, w, wh, d, opt.wall || COL.wall, { jit: 0.03 });
+  { const ts = 0.6, nx = Math.round((w - 2 * t) / ts), nz = Math.round((d - 2 * t) / ts), sx = (w - 2 * t) / nx, sz = (d - 2 * t) / nz;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) { const v = 0.36 + r() * 0.06; P(T.box, -w / 2 + t + (i + 0.5) * sx, fl, -d / 2 + t + (j + 0.5) * sz, sx - 0.025, 0.04, sz - 0.025, [v, v * 0.98, v * 0.95]); } }
+  // 外墙：后、左、右整面，前墙中间开门；每面墙内侧贴一层较暗的衬面（室内只有漫射光）
+  const wallBox = (cx, cz, sx, sz, y0, hgt, inX, inZ) => {
+    P(T.box, cx, y0 + hgt / 2, cz, sx, hgt, sz, wall, { jit: 0.03 });
+    if (inX !== undefined) P(T.box, cx + inX * (t / 2 + 0.006), y0 + hgt / 2, cz + inZ * (t / 2 + 0.006), inX ? 0.012 : sx - (sx > 1 ? 0 : 0), hgt, inZ ? 0.012 : sz, inner);
+  };
+  wallBox(0, -d / 2 + t / 2, w, t, 0.2, wh, 0, 1);
+  for (const s of [1, -1]) wallBox(s * (w / 2 - t / 2), 0, t, d - 2 * t, 0.2, wh, -s, 0);
+  const segW = (w - dw) / 2;
+  for (const s of [1, -1]) wallBox(s * (dw / 2 + segW / 2), d / 2 - t / 2, segW, t, 0.2, wh, 0, -1);
+  wallBox(0, d / 2 - t / 2, dw, t, 0.2 + dh, wh - dh, 0, -1);
+  // 立柱、檐下圈梁（不再是实心的天花板）
   for (const sx of [1, -1]) for (const sz of [1, -1]) P(T.box, sx * (w / 2 - 0.05), 0.25 + wh / 2, sz * (d / 2 - 0.05), 0.32, wh, 0.32, COL.wood);
-  P(T.box, 0, wh + 0.2, 0, w + 0.12, 0.28, d + 0.12, COL.wood);
-  P(T.box, 0, 0.35, 0, w + 0.1, 0.22, d + 0.1, COL.woodLight);
-  // 门窗（前 +z）
-  P(T.box, 0, 1.35, d / 2 + 0.04, 1.5, 2.2, 0.1, COL.trunkDark);
-  P(T.box, 0, 2.55, d / 2 + 0.06, 1.8, 0.16, 0.12, COL.wood);
-  for (const sx of [-1, 1]) {
-    P(T.box, sx * w * 0.3, 1.9, d / 2 + 0.04, 1.3, 1.0, 0.1, COL.wood);
-    P(T.box, sx * w * 0.3, 1.9, d / 2 + 0.07, 1.05, 0.78, 0.08, COL.paper, { glow: 0.55 });
-    for (let k = -1; k <= 1; k++) P(T.box, sx * w * 0.3 + k * 0.3, 1.9, d / 2 + 0.1, 0.05, 0.78, 0.05, COL.wood);
-    P(T.box, sx * w * 0.3, 1.9, d / 2 + 0.1, 1.05, 0.05, 0.05, COL.wood);
-    P(T.box, sx * (w / 2 + 0.04), 1.9, 0, 0.1, 0.9, 1.2, COL.wood);
+  for (const sz of [1, -1]) P(T.box, 0, wh + 0.2, sz * (d / 2 - 0.12), w + 0.12, 0.28, 0.36, COL.wood);
+  for (const sx of [1, -1]) P(T.box, sx * (w / 2 - 0.12), wh + 0.2, 0, 0.36, 0.28, d + 0.12, COL.wood);
+  for (const sz of [1, -1]) P(T.box, 0, 0.32, sz * (d / 2 + 0.03), w + 0.1, 0.2, 0.05, COL.woodLight);
+  for (const sx of [1, -1]) P(T.box, sx * (w / 2 + 0.03), 0.32, 0, 0.05, 0.2, d + 0.1, COL.woodLight);
+  // 门框与向内开着的两扇门（村长家是槅扇）
+  for (const s of [1, -1]) P(T.box, s * (dw / 2 + 0.06), fl + dh / 2, d / 2 - t / 2, 0.12, dh, t + 0.08, COL.wood);
+  P(T.box, 0, fl + dh + 0.06, d / 2 - t / 2, dw + 0.24, 0.12, t + 0.08, COL.wood);
+  P(T.box, 0, fl + 0.05, d / 2 - t / 2, dw, 0.1, t + 0.04, COL.wood);
+  for (const s of [1, -1]) {
+    const a = 1.25, hx = s * dw / 2, hz = d / 2 - t;
+    const dx = -s * Math.cos(a), dz = -Math.sin(a), lw = dw / 2;
+    const cx = hx + dx * lw / 2, cz = hz + dz * lw / 2, th = s > 0 ? Math.PI - a : a;
+    P(T.box, cx, fl + dh / 2 + 0.05, cz, lw, dh - 0.08, 0.06, COL.trunkDark, {}, 0, th, 0);
+    if (elder) { for (let k = 1; k < 4; k++) P(T.box, cx, fl + 0.9 + k * 0.32, cz, lw * 0.82, 0.03, 0.08, COL.woodLight, {}, 0, th, 0); P(T.box, cx, fl + 1.38, cz, 0.03, 0.96, 0.08, COL.woodLight, {}, 0, th, 0); P(T.box, cx, fl + 1.38, cz, lw * 0.78, 0.9, 0.07, COL.paper, { glow: 0.3 }, 0, th, 0); }
   }
+  P(T.box, 0, 2.55 + (dh - 2.35), d / 2 + 0.06, dw + 0.5, 0.16, 0.12, COL.wood);
+  // 窗：外面一份，室内衬面上一份
+  for (const sx of [-1, 1]) {
+    const wx = sx * Math.max(w * 0.3, dw / 2 + 1.0);
+    for (const side of [1, -1]) {
+      const zf = side > 0 ? d / 2 + 0.04 : d / 2 - t - 0.03, o = side > 0 ? 1 : -1;
+      P(T.box, wx, 1.9, zf, 1.3, 1.0, 0.1, COL.wood);
+      P(T.box, wx, 1.9, zf + o * 0.03, 1.05, 0.78, 0.08, COL.paper, { glow: 0.55 });
+      for (let k = -1; k <= 1; k++) P(T.box, wx + k * 0.3, 1.9, zf + o * 0.06, 0.05, 0.78, 0.05, COL.wood);
+      P(T.box, wx, 1.9, zf + o * 0.06, 1.05, 0.05, 0.05, COL.wood);
+    }
+    for (const side of [1, -1]) P(T.box, sx * (side > 0 ? w / 2 + 0.04 : w / 2 - t - 0.03), 1.9, 0, 0.1, 0.9, 1.2, COL.wood);
+  }
+  // 屋顶
   roof(P, w, d, wh + 0.3, rh, 0.85, opt.roof || COL.tile, COL.tileDark);
-  if (opt.lanterns !== false) { lantern(gb, B, -1.25, 2.4, d / 2 + 0.75, 0.8); lantern(gb, B, 1.25, 2.4, d / 2 + 0.75, 0.8); }
+  // 彻上明造：望板、椽子、檩条、梁和瓜柱都露在室内
+  { const wr = wh + 0.3, half = d / 2 + 0.85, tanA = rh / (d / 2), A = Math.atan(tanA), L = half / Math.cos(A);
+    const fIn = (d / 2 - t) / half;
+    for (const s of [1, -1]) {
+      const ny = Math.cos(A), nz = s * Math.sin(A);
+      const c = [0, wr + rh - (half * tanA) / 2 + 0.12, (s * half) / 2];
+      const Lin = L * fIn;
+      const cIn = [0, wr + rh - (half * fIn * tanA) / 2 + 0.12, (s * half * fIn) / 2];
+      P(T.box, 0, cIn[1] - ny * 0.135, cIn[2] - nz * 0.135, w - 2 * t, 0.02, Lin, innerWood, {}, s * A);
+      const nR = Math.round((w - 2 * t) / 0.42);
+      for (let k = 0; k < nR; k++) P(T.box, -w / 2 + t + (k + 0.5) * ((w - 2 * t) / nR), cIn[1] - ny * 0.19, cIn[2] - nz * 0.19, 0.07, 0.08, Lin, innerWood, {}, s * A);
+      for (const f of [0.02, 0.5 * fIn, 0.95 * fIn]) {
+        const py = wr + rh - half * f * tanA + 0.12 - ny * 0.32, pz = s * half * f - nz * 0.32;
+        if (f < 0.1 && s < 0) continue;
+        P(T.cyl8, 0, py, pz, 0.12, w - 2 * t, 0.12, COL.wood, { smooth: true }, 0, 0, Math.PI / 2);
+      }
+    }
+    const beams = elder ? [-w / 6, w / 6] : w > 7.5 ? [0] : [];
+    for (const bx of beams) {
+      P(T.box, bx, wh + 0.42, 0, 0.26, 0.36, d - 2 * t, COL.wood);
+      const yMid = wr + rh - half * 0.5 * fIn * tanA + 0.12 - Math.cos(A) * 0.32;
+      for (const s of [1, -1]) P(T.box, bx, (wh + 0.6 + yMid) / 2, s * half * 0.5 * fIn, 0.16, yMid - wh - 0.6, 0.16, COL.wood);
+      P(T.box, bx, (wh + 0.6 + wr + rh - 0.2) / 2, 0, 0.16, wr + rh - 0.2 - wh - 0.6, 0.16, COL.wood);
+    }
+  }
+  // 村长家：明次间之间的落地罩
+  if (elder) {
+    const bay = w / 3, op = 2.0, oz = 0.4, oh = 2.6;
+    for (const s of [1, -1]) {
+      const px = s * bay / 2, z0 = -d / 2 + t, z1 = d / 2 - t, a0 = oz - op / 2, a1 = oz + op / 2;
+      P(T.box, px, 0.2 + wh / 2, (z0 + a0) / 2, 0.12, wh, a0 - z0, inner);
+      P(T.box, px, 0.2 + wh / 2, (a1 + z1) / 2, 0.12, wh, z1 - a1, inner);
+      P(T.box, px, 0.2 + oh + (wh - oh) / 2, oz, 0.12, wh - oh, op, inner);
+      for (const e of [a0, a1]) P(T.box, px, 0.2 + oh / 2, e, 0.16, oh, 0.1, ROSE);
+      P(T.box, px, 0.2 + oh, oz, 0.16, 0.1, op + 0.1, ROSE);
+      for (let k = 0; k < 7; k++) P(T.box, px, 0.2 + oh - 0.25, a0 + 0.15 + k * (op - 0.3) / 6, 0.05, 0.4, 0.03, ROSE);
+      P(T.box, px, 0.2 + oh - 0.46, oz, 0.05, 0.03, op, ROSE);
+      for (const [za, zb] of [[z0, a0], [a1, z1]]) { const cz = (za + zb) / 2; addCollider({ kind: 'box', ...(() => { const c = worldOf(B, px, 0, cz); return { x: c.x, z: c.z }; })(), rot: ry, hx: 0.08, hz: (zb - za) / 2, y0: y - 1, y1: y + wh + 0.2 }); }
+    }
+  }
+  if (opt.lanterns !== false) { lantern(gb, B, -dw / 2 - 0.55, 2.45, d / 2 + 0.75, 0.8); lantern(gb, B, dw / 2 + 0.55, 2.45, d / 2 + 0.75, 0.8); }
   if (opt.plaque) { P(T.box, 0, 3.0, d / 2 + 0.2, 1.8, 0.6, 0.1, COL.gold); P(T.box, 0, 3.0, d / 2 + 0.26, 1.55, 0.42, 0.06, hexRGB(0x24395a)); }
-  addCollider({ kind: 'box', x, z, rot: ry, hx: w / 2 + 0.3, hz: d / 2 + 0.3, y0: y - 2, y1: y + wh + 0.3, gable: rh * 0.92 });
+  // 碰撞：地面（可站）、四面墙（门口留空）、屋顶（可以爬上去站）
+  const C = (lx, lz, hx, hz, y0, y1, extra) => { const c = worldOf(B, lx, 0, lz); return addCollider(Object.assign({ kind: 'box', x: c.x, z: c.z, rot: ry, hx, hz, y0, y1 }, extra || {})); };
+  C(0, 0, w / 2 + 0.3, d / 2 + 0.3, y - 2, y + fl + 0.02, { walk: true });
+  C(0, -d / 2 + t / 2, w / 2, t / 2 + 0.02, y - 2, y + wh + 0.2);
+  for (const s of [1, -1]) C(s * (w / 2 - t / 2), 0, t / 2 + 0.02, d / 2, y - 2, y + wh + 0.2);
+  for (const s of [1, -1]) C(s * (dw / 2 + segW / 2), d / 2 - t / 2, segW / 2, t / 2 + 0.02, y - 2, y + wh + 0.2);
+  C(0, 0, w / 2 + 0.3, d / 2 + 0.3, y + wh + 0.3, y + wh + 0.3, { gable: rh * 0.92 });
+  const coll = (lx, lz, hx, hz, top) => C(lx, lz, hx, hz, y - 1, y + fl + top);
+  furnishHouse(P, gb, B, kind, w, d, wh, t, r, coll);
+  HOUSES.push({ wh, x, y, z, ry, cs: Math.cos(ry), sn: Math.sin(ry), hw: w / 2 - t, hd: d / 2 - t, ow: w / 2 + 0.9, od: d / 2 + 0.9, y0: y + fl, y1: y + wh + 0.3 + rh * 0.85, y2: y + wh + rh + 0.8, kind, name: opt.name || HOUSE_NAMES[kind] || '村舍', inside: false });
   return { x, y, z, ry };
 }
+const HOUSE_NAMES = { elder: '顾老家·堂屋', home: '村舍', kitchen: '灶房', noodle: '王婆面馆', study: '书斋', store: '库房', tea: '茶室' };
 
 function lanternPost(gb, x, z, ry) {
   const y = W.heightAt(x, z);
@@ -3721,7 +4030,7 @@ void main(){
   float ndl = dot(N, uSunDir);
   float wrap = clamp((ndl + 0.3) / 1.3, 0.0, 1.0);
   wrap = mix(wrap, 0.55 + 0.45 * wrap, face);
-  vec3 col = a * (sunLin() * wrap * mix(sh, 0.55 + 0.45 * sh, face) + skyLin(N) * 0.95);
+  vec3 col = a * (sunLin() * wrap * mix(sh, 0.55 + 0.45 * sh, face) + skyLin(N) * 0.95 * indoorK(vWP));
   col += sunLin() * sh * ggxSpec(N, V, uSunDir, 0.5) * 0.3 * max(ndl, 0.0) * (1.0 - face);
   if (vX.y > 0.5) {
     vec3 vn = normalize(mat3(viewMatrix) * N);
@@ -4970,6 +5279,9 @@ function updateCamera(cam, dt, P) {
     const d = wrapAngle(behind - CAM.yaw);
     if (Math.abs(d) < 2.6) CAM.yaw += d * dt * (P.state === 'glide' ? 1.0 : 0.45);
   }
+  // 屋里：镜头抬高到梁下、视野放宽，能看清整间屋子
+  const inHouse = houseAt(P.pos.x, P.pos.y + 0.5, P.pos.z, 0, false);
+  if (inHouse && GAME.time - IN.lastCamInput > 0.8) CAM.pitch = damp(CAM.pitch, Math.max(CAM.pitch, 0.42), 3, dt);
   let want = 6.4;
   if (P.state === 'glide') want = 8.6; else if (P.state === 'swim') want = 6.8; else if (P.state === 'climb') want = 7.2;
   CAM.distT = damp(CAM.distT, want + CAM.zoomUser, 3, dt);
@@ -4988,14 +5300,32 @@ function updateCamera(cam, dt, P) {
     const g = W.heightAt(x, z) + 0.45;
     if (y < g) { dist = Math.max(1.2, t - dist / steps); break; }
   }
+  {
+    const inH = houseAt(CAM.target.x, CAM.target.y, CAM.target.z, 0, false);
+    const n = 24;
+    for (let i = 1; !inH && i <= n; i++) {
+      const tt = (i / n) * dist, x = CAM.target.x + dx * tt, y = CAM.target.y + dy * tt, z = CAM.target.z + dz * tt;
+      const blocked = inH ? houseAt(x, y, z, 0.28, false) !== inH : !!houseAt(x, y, z, 0, true);
+      if (blocked) { dist = Math.max(inH ? 0.45 : 1.0, tt - dist / n); break; }
+    }
+  }
   CAM.dist = dist < CAM.dist ? dist : damp(CAM.dist, dist, 4, dt);
   let cx = CAM.target.x + dx * CAM.dist, cy = CAM.target.y + dy * CAM.dist, cz = CAM.target.z + dz * CAM.dist;
   const minY = Math.max(W.heightAt(cx, cz), W.waterLevelAt(cx, cz)) + 0.35;
   if (cy < minY) cy = minY;
+  // 屋里：把镜头夹在室内（贴墙、贴梁下），从高处看人，不出墙
+  const camH = houseAt(CAM.target.x, CAM.target.y, CAM.target.z, 0, false);
+  if (camH) {
+    const ddx = cx - camH.x, ddz = cz - camH.z;
+    let lx = ddx * camH.cs - ddz * camH.sn, lz = ddx * camH.sn + ddz * camH.cs;
+    lx = clamp(lx, -camH.hw + 0.3, camH.hw - 0.3); lz = clamp(lz, -camH.hd + 0.3, camH.hd - 0.3);
+    cx = camH.x + lx * camH.cs + lz * camH.sn; cz = camH.z - lx * camH.sn + lz * camH.cs;
+    cy = clamp(cy, camH.y0 + 1.2, camH.y0 + camH.wh - 0.35);
+  }
   if (CAM.shake > 0) { CAM.shake = Math.max(0, CAM.shake - dt * 2.5); const a = CAM.shake * CAM.shake * 0.35; cx += (Math.random() - 0.5) * a; cy += (Math.random() - 0.5) * a; cz += (Math.random() - 0.5) * a; }
   cam.position.set(cx, cy, cz);
   cam.lookAt(CAM.target.x, CAM.target.y, CAM.target.z);
-  const fov = 58 + (P.state === 'glide' ? 6 : 0) + (P.sprinting ? 4 : 0);
+  const fov = (inHouse ? 70 : 58) + (P.state === 'glide' ? 6 : 0) + (P.sprinting ? 4 : 0);
   CAM.fovT = damp(CAM.fovT, fov, 4, dt);
   if (Math.abs(cam.fov - CAM.fovT) > 0.05) { cam.fov = CAM.fovT; cam.updateProjectionMatrix(); }
 }
@@ -7879,6 +8209,11 @@ function frame(now) {
   for (const m of P.props) m.visible = Math.hypot(m.userData.cx - px, m.userData.cz - pz) < fogFar + 60;
   for (const m of P.veg) m.visible = Math.hypot(m.userData.cx - px, m.userData.cz - pz) < nearD;
   for (const m of P.far) { const d = Math.hypot(m.userData.cx - px, m.userData.cz - pz); m.visible = d >= nearD && d < GAME.propDist + 50; }
+  {
+    const H = houseAt(PL.pos.x, PL.pos.y + 0.5, PL.pos.z, 0, false);
+    if (H) { SU.uIn.value.set(H.x, H.z, H.ry, 1); SU.uInS.value.set(H.hw + 0.05, H.hd + 0.05, H.y0, H.y1); } else SU.uIn.value.w = 0;
+    if (H !== GAME._inHouse) { if (H && GAME.state === 'play' && !H.seen) { H.seen = true; try { UI.toast('屋', H.name); } catch (_) {} } GAME._inHouse = H; }
+  }
   if (REAL) {
     updateSun(cam, PL.pos);
     GAME._markT = (GAME._markT || 0) + 1;
