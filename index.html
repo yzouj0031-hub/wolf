@@ -3199,7 +3199,7 @@ body.has-wp::after {
           </div>
         </div>
       </details>
-      <div class="cr"><label>书写速度</label><select id="g-spd"><option value="0.5">慢</option><option value="1" selected>中</option><option value="2">快</option><option value="3">疾</option></select><label>回复上限</label><select id="g-maxtk" onchange="this.nextElementSibling.style.display=this.value==='custom'?'inline-block':'none'"><option value="4096">4K</option><option value="8192">8K</option><option value="16384">16K</option><option value="32768">32K</option><option value="65536">64K</option><option value="131072" selected>128K</option><option value="custom">自定义…</option></select><input type="number" id="g-maxtk-custom" min="512" max="200000" step="512" placeholder="如32768" style="display:none;width:72px;margin-left:4px"><label>记忆</label><select id="g-mem"><option value="16">16条</option><option value="30">30条</option><option value="40" selected>40条</option><option value="0">不限</option></select></div>
+      <div class="cr"><label>书写速度</label><select id="g-spd"><option value="0.5">慢</option><option value="1" selected>中</option><option value="2">快</option><option value="3">疾</option></select><label>回复上限</label><select id="g-maxtk" onchange="this.nextElementSibling.style.display=this.value==='custom'?'inline-block':'none'"><option value="4096">4K</option><option value="8192">8K</option><option value="16384">16K</option><option value="32768">32K</option><option value="65536">64K</option><option value="128000" selected>128K</option><option value="custom">自定义…</option></select><input type="number" id="g-maxtk-custom" min="512" max="200000" step="512" placeholder="如32768" style="display:none;width:72px;margin-left:4px"><label>记忆</label><select id="g-mem"><option value="16">16条</option><option value="30">30条</option><option value="40" selected>40条</option><option value="0">不限</option></select></div>
       <details class="conc-det" id="host-det"><summary>🎙️ AI主持人</summary>
         <div style="padding:6px 0;display:flex;flex-direction:column;gap:5px;">
           <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="host-enable" style="width:auto;min-width:auto">启用AI主持人（默认关：每局多 30-50 次调用）</label>
@@ -4771,6 +4771,11 @@ const BARE_SCRUB_RULES = [
   [/这只说明其能力与该类型兼容，不等于准确身份；/g, ''],
   [/结果是准确角色名，只能作为私密推理依据。/g, '结果是准确角色名。'],
   [/结合本局信息选择一人。最终只提交座位编号/g, '最终只提交座位编号'],
+  // 禁刀夜的狼队密谈（子狐媚到狼时才出现）：只说今晚不能刀，不规定聊什么
+  [/今晚不需要、也不允许选择刀口；不要浪费时间讨论“刀谁”。/g, '今晚不选刀口。'],
+  [/\n?请只讨论明天白天的配合：谁负责跳身份或对跳[^\n]*/g, ''],
+  [/\n?说给队友的话要口语化，只谈明日战术、讲清必要配合；[^\n]*/g, ''],
+  [/\n?【格式·严格遵守】标签里只放内容本身，不要把上面这些说明文字抄进标签。/g, ''],
   [/，并说明关键收益/g, ''],
   [/绝对不能投票给已被决斗证实的好人！/g, ''],
   [/【🏹 铁证提醒】|【🏹 开枪铁证】/g, '【开枪】'],
@@ -8752,7 +8757,7 @@ function saveCfg() {
     playerbgm:$('m-playerbgm')?$('m-playerbgm').checked:true,
     url:$('g-url').value, key:$('g-key').value, model:$('g-model').value,
     apiType:$('g-apitype')?$('g-apitype').value:'',
-    maxtk:$('g-maxtk')?$('g-maxtk').value:'131072', mem:$('g-mem')?$('g-mem').value:'40',
+    maxtk:$('g-maxtk')?$('g-maxtk').value:'128000', mem:$('g-mem')?$('g-mem').value:'40',
     fbUrl:$('fb-url')?$('fb-url').value:'', fbKey:$('fb-key')?$('fb-key').value:'', fbModel:$('fb-model')?$('fb-model').value:'', fbType:$('fb-type')?$('fb-type').value:'openai',
     sumUrl:$('sum-url')?$('sum-url').value:'', sumKey:$('sum-key')?$('sum-key').value:'', sumModel:$('sum-model')?$('sum-model').value:'', sumType:$('sum-type')?$('sum-type').value:'openai', memCompress:$('mem-compress-enable')?$('mem-compress-enable').checked:true,
     spd:$('g-spd').value, anon:$('m-anon').checked, trial:$('m-trial').checked,
@@ -8787,7 +8792,7 @@ function loadCfg() {
     const d = JSON.parse(localStorage.getItem('wg_gufeng'));
     if (!d) return;
     if (d.url) $('g-url').value = d.url;
-    if (d.maxtk && $('g-maxtk')) $('g-maxtk').value = d.maxtk;
+    if (d.maxtk && $('g-maxtk')) $('g-maxtk').value = (String(d.maxtk) === '131072') ? '128000' : d.maxtk;   // 旧存档里的"128K"是 131072，超过 Claude 的上限
     if (d.mem && $('g-mem')) $('g-mem').value = d.mem;
     if (d.fbUrl && $('fb-url')) $('fb-url').value = d.fbUrl;
     if (d.fbKey && $('fb-key')) $('fb-key').value = d.fbKey;
@@ -11893,6 +11898,9 @@ function claudeWantsThinkingSummary(model) {
 //   Claude 还会一并撤掉思考摘要参数；然后自动重问。思考栏可能因此为空，但对局不会卡在反复拒绝上。
 //   这只是不再向模型要它不愿给的东西；如果它拒绝的是别的原因，重问仍会被拒，照旧交给备用 / 询问流程。
 const PLAIN_REASONING_ENDPOINTS = new Set();
+// (地址|模型) → 接口报出来的输出上限。申请的 max_tokens 超过型号允许的最大值时整条请求会被 400 退回；
+//   记下接口给的数字，之后对这个模型不再超过它。
+const MAX_TOKENS_CAP = new Map();
 function plainReasoningKey(api) { return ((api && api.url) || '') + '|' + ((api && api.model) || ''); }
 function switchToPlainReasoning(p, api, why) {
   const key = plainReasoningKey(api);
@@ -12428,6 +12436,7 @@ async function _callAIImpl(p, prompt, opts) {
     if (fullReasoningOn() && !_fullReasoningTkRejected.has((useApi.url || '') + '|' + (useApi.model || ''))) {
       maxTk = Math.max(maxTk, FULL_REASONING_MAX_TOKENS);
     }
+    { const _cap = MAX_TOKENS_CAP.get((useApi.url || '') + '|' + (useApi.model || '')); if (_cap && maxTk > _cap) maxTk = _cap; }
     const mn = (useApi.model||'').toLowerCase();
     Render.devLog('req', `[P${p.id+1} ${p.name}] model:${useApi.model}${att>1?' (重试'+att+')':''} [${apiType}]`);
 
@@ -13080,6 +13089,19 @@ async function _callAIImpl(p, prompt, opts) {
           silentDetected = true;
           silentReason = friendly;
           break;
+        }
+        // 输出上限超过该型号允许的最大值：按接口报的上限记住这个 (地址|模型)，立刻重来（不算作一次失败）。
+        //   Claude 的报法是 "max_tokens: 131072 > 128000, which is the maximum allowed number of output tokens"。
+        if (/HTTP 400/.test(e.message)) {
+          const _capM = e.message.match(/max_tokens:\s*(\d+)\s*>\s*(\d+)/) || e.message.match(/supports? at most\s*()(\d+)\s*(?:completion|output)?\s*tokens/i);
+          const _capV = _capM ? parseInt(_capM[2], 10) : 0;
+          const _capKey = (api.url || '') + '|' + (api.model || '');
+          if (_capV >= 256 && (!MAX_TOKENS_CAP.has(_capKey) || MAX_TOKENS_CAP.get(_capKey) > _capV)) {
+            MAX_TOKENS_CAP.set(_capKey, _capV);
+            Render.devLog('warn', `[P${p.id+1}] ${api.model} 的输出上限是 ${_capV}，已按它重试`);
+            att--;
+            continue;
+          }
         }
         // 全力推理把输出上限提到 65536；这个模型的上限更低、端点明确拒绝时，记住它并立刻用
         // 用户自己的设置重来一次（不算作一次失败，也只会发生一次）。

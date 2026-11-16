@@ -59,7 +59,7 @@ await withOfflinePage(async (page, origin) => {
         new Promise(res => setTimeout(res, 15000)),
       ]);
       return {offVote, onVote, onSpeech, selDisabled, hintShown, persisted, bodies,
-        rejected: _fullReasoningTkRejected.has('http://127.0.0.1:9/v1|gpt-5.4')};
+        rejected: _fullReasoningTkRejected.has('http://127.0.0.1:9/v1|gpt-5.4'), cap: MAX_TOKENS_CAP.get('http://127.0.0.1:9/v1|gpt-5.4')};
     });
     assert.deepEqual(errors, [], `${path}: 页面报错`);
     assert.notEqual(r.offVote, 'max', `${path}: 关闭时投票不该是最高档（对照组）`);
@@ -70,7 +70,9 @@ await withOfflinePage(async (page, origin) => {
     assert.ok(r.bodies.length >= 2, `${path}: 输出上限被拒后没有立即重试（请求 ${r.bodies.length} 次）`);
     assert.ok(r.bodies[0].max >= 65536, `${path}: 第一次请求的输出上限是 ${r.bodies[0].max}，不是至少 65536`);
     assert.ok(r.bodies[1].max < 65536, `${path}: 被拒后没有退回用户设置（第二次仍是 ${r.bodies[1].max}）`);
-    assert.ok(r.rejected, `${path}: 没有记住拒绝过 65536 的模型`);
+    // 接口报出了具体上限（"supports at most 32768"）时，记住的是那个数字；没报数字的才退回用户设置
+    assert.ok(r.cap === 32768 || r.rejected, `${path}: 没有记住这个模型的输出上限（cap=${r.cap} rejected=${r.rejected}）`);
+    assert.ok(r.bodies[1].max <= 32768, `${path}: 重试没有按接口报的上限（第二次 ${r.bodies[1].max}）`);
   }
 });
 
