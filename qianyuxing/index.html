@@ -1350,6 +1350,10 @@ void main(){
   float sd = dot(d, uSkySun);
   float sunUp = smoothstep(-0.12, 0.05, uSkySun.y);
   col += uSunGlow * (pow(max(sd, 0.0), 6.0) * 0.28 + pow(max(sd, 0.0), 60.0) * 0.4) * sunUp;
+  #ifdef REAL
+    col = mix(col, uFogCol * 1.04, (1.0 - smoothstep(0.0, 0.28, h)) * 0.45);
+    col += uSunGlow * (pow(max(sd, 0.0), 400.0) * 0.8 + pow(max(sd, 0.0), 16.0) * 0.18 * (1.0 - smoothstep(0.0, 0.5, uSkySun.y))) * sunUp;
+  #endif
   col = mix(col, vec3(1.0, 0.97, 0.88), smoothstep(0.9988, 0.9993, sd) * sunUp);
   vec3 md = -uSkySun;
   float mdd = dot(d, md);
@@ -1368,7 +1372,7 @@ void main(){
 function makeSkyMat() {
   return new THREE.ShaderMaterial({
     uniforms: { uZenith: SU.uZenith, uHorizon: SU.uHorizon, uSkySun: { value: new THREE.Vector3(0, 1, 0) }, uSunGlow: { value: new THREE.Color(0xffd9a0) }, uFogCol: SU.uFogCol, uNight: SU.uNight, uTime: SU.uTime },
-    vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false,
+    vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, defines: REAL ? { REAL: 1 } : {},
   });
 }
 
@@ -1411,7 +1415,11 @@ void main(){
   float a = t.a * vFade * uOpacity;
   if (a < 0.01) discard;
   vec3 lit = min(uSunCol * 0.8 + uSkyCol * 0.36, vec3(1.12));
+  #ifdef REAL
+  vec3 shade = mix(uSkyCol * 0.8, uFogCol * 0.88, 0.35) * vec3(0.92, 0.95, 1.0);
+  #else
   vec3 shade = mix(uSkyCol * 0.86, uFogCol * 0.92, 0.3) * vec3(0.9, 0.93, 1.03);
+  #endif
   vec3 col = mix(shade, lit, smoothstep(0.08, 0.9, t.g));
   float sunF = pow(max(dot(vDir, uSunDir), 0.0), 6.0);
   float edge = smoothstep(0.04, 0.35, t.a) * (1.0 - smoothstep(0.4, 0.92, t.a));
@@ -1794,8 +1802,22 @@ function roof(P, w, d, wh, rh, ov, col, ridgeCol) {
   const L = half / Math.cos(A);
   for (const s of [1, -1]) {
     P(T.box, 0, wh + rh - (half * tanA) / 2 + 0.12, (s * half) / 2, w + ov * 2, 0.24, L, col, { jit: 0.06 }, s * A);
+    if (REAL) {
+      // 写实：一垄垄筒瓦压在板瓦上，檐口露出圆形瓦当
+      const rr = mulberry32(Math.round(w * 13 + d * 7 + wh * 3));
+      const W2 = w + ov * 2 - 0.2, nRow = Math.max(4, Math.round(W2 / 0.34));
+      const ny = Math.cos(A), nz = s * Math.sin(A);
+      for (let k = 0; k < nRow; k++) {
+        const x = -W2 / 2 + (k + 0.5) * (W2 / nRow), v = 0.82 + rr() * 0.3;
+        const tc = [ridgeCol[0] * v, ridgeCol[1] * v, ridgeCol[2] * v];
+        P(T.cyl8, x, wh + rh - (half * tanA) / 2 + 0.12 + ny * 0.16, (s * half) / 2 + nz * 0.16, 0.085, L * 0.99, 0.085, tc, { smooth: true }, s * A + Math.PI / 2);
+        // 瓦当
+        P(T.cyl8, x, wh + rh - half * tanA + 0.12 + ny * 0.16, s * half + nz * 0.16, 0.11, 0.06, 0.11, mixRGB(tc, [0, 0, 0], 0.25), { smooth: true }, s * A + Math.PI / 2);
+      }
+    } else {
     // 瓦垄：几条细脊
     for (let k = -2; k <= 2; k++) P(T.box, k * (w / 5), wh + rh - (half * tanA) / 2 + 0.26, (s * half) / 2, 0.12, 0.08, L * 0.98, ridgeCol, {}, s * A);
+    }
   }
   P(T.box, 0, wh + rh + 0.2, 0, w + ov * 2 + 0.3, 0.32, 0.42, ridgeCol);
   // 翘角与脊饰
@@ -2048,9 +2070,16 @@ function boat(gb, x, z, ry) {
   const y = W.SEA + 0.05;
   const B = M(x, y, z, 0, ry, 0);
   const P = mkPart(gb, B);
+  if (REAL) {
+    // 写实：圆滑船身，船舷一圈木条
+    P(T.sph, 0, 0.3, 0, 3.3, 0.62, 0.85, COL.wood, { smooth: true });
+    for (const sz of [-1, 1]) P(T.box, 0, 0.5, sz * 0.72, 4.6, 0.1, 0.08, COL.trunkDark);
+    for (let k = -2; k <= 2; k++) P(T.box, k * 0.9, 0.48, 0, 0.08, 0.08, 1.4, COL.trunkDark);
+  } else {
   P(T.box, 0, 0.15, 0, 5.2, 0.6, 1.5, COL.wood, { jit: 0.05 });
   P(T.cone4, 2.9, 0.25, 0, 0.75, 0.9, 0.75, COL.wood, {}, 0, Math.PI / 4, -Math.PI / 2);
   P(T.cone4, -2.9, 0.25, 0, 0.75, 0.9, 0.75, COL.wood, {}, 0, Math.PI / 4, Math.PI / 2);
+  }
   P(T.box, 0, 0.5, 0, 4.8, 0.08, 1.2, COL.woodLight);
   const g = new THREE.CylinderGeometry(0.85, 0.85, 2.2, 10, 1, true, 0, Math.PI); g.rotateZ(Math.PI / 2); g.rotateX(-Math.PI / 2);
   P(tplOf(g), -0.4, 0.55, 0, 1, 1, 1, hexRGB(0x2c2a2a), {}, Math.PI / 2, 0, 0);
@@ -2095,7 +2124,7 @@ function bigTree(gb, x, z) {
   const B = M(x, y, z, 0, 0.7, 0);
   const P = mkPart(gb, B);
   // 大樟树：卡通树冠
-  addFoliage(fTreeBroad('broad', 808, true), x, y - 0.1, z, 0.7, 1, [1, 1, 1]);
+  addFoliage(REAL ? fTreeBroadReal('broad', 808, true) : fTreeBroad('broad', 808, true), x, y - 0.1, z, 0.7, 1, [1, 1, 1]);
   // 红绸
   P(T.torus, 0, 2.2, 0, 1.2, 1.2, 1.6, COL.red, { smooth: true }, Math.PI / 2, 0, 0);
   addCollider({ kind: 'cyl', x, z, r: 1.1, y0: y - 1, y1: y + 6 });
@@ -2409,6 +2438,8 @@ function makeLeafAtlas() {
   const g = c.getContext('2d', { willReadFrequently: true });
   const r = mulberry32(4242);
   const gray = (v) => { const k = Math.round(clamp(v, 0, 1) * 255); return `rgb(${k},${k},${k})`; };
+  if (REAL) { drawLeafAtlasReal(g, r, gray); }
+  else {
   // 卵形叶
   const ovate = (x, y, len, wid, ang, shade, edge) => {
     g.save(); g.translate(x, y); g.rotate(ang);
@@ -2485,6 +2516,7 @@ function makeLeafAtlas() {
   }
   // 5 灌木细叶
   cluster(256, 256, 70, 80, (x, y, a, t) => { const s = 0.66 + r() * 0.34; ovate(x, y, 24 + r() * 10, 9 + r() * 3, a, s, s * 0.6); });
+  }
   // 透明像素填入平均色，避免 mip 黑边
   const id = g.getImageData(0, 0, Wd, Ht), d = id.data;
   const fill = (i) => (i === 1 ? [236, 176, 190] : [190, 190, 190]);
@@ -2497,6 +2529,115 @@ function makeLeafAtlas() {
   t.needsUpdate = true;
   LEAF.tex = t;
   return t;
+}
+
+// 写实叶片：无描边，叶面有明暗渐变与叶脉，带细枝；颜色以灰度存，乘顶点色（桃花除外）
+function drawLeafAtlasReal(g, r, gray) {
+  const gk = (v) => Math.round(clamp(v, 0, 1) * 255);
+  const leafPath = (len, wid) => { g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(wid * 1.05, -len * 0.18, wid * 0.8, -len * 0.75, 0, -len); g.bezierCurveTo(-wid * 0.8, -len * 0.75, -wid * 1.05, -len * 0.18, 0, 0); };
+  const leaf = (x, y, len, wid, ang, v, veins) => {
+    g.save(); g.translate(x, y); g.rotate(ang);
+    leafPath(len, wid);
+    const gr = g.createLinearGradient(-wid, 0, wid, 0);
+    const a = gk(v * 0.82), b = gk(v), c = gk(v * 0.7);
+    gr.addColorStop(0, `rgb(${c},${c},${c})`); gr.addColorStop(0.48, `rgb(${b},${b},${b})`); gr.addColorStop(0.52, `rgb(${a},${a},${a})`); gr.addColorStop(1, `rgb(${gk(v * 0.9)},${gk(v * 0.9)},${gk(v * 0.9)})`);
+    g.fillStyle = gr; g.fill();
+    if (veins) {
+      const vv = gk(Math.min(1, v * 1.12));
+      g.strokeStyle = `rgba(${vv},${vv},${vv},0.7)`; g.lineWidth = Math.max(0.6, wid * 0.08);
+      g.beginPath(); g.moveTo(0, -len * 0.04); g.lineTo(0, -len * 0.9); g.stroke();
+      g.lineWidth = Math.max(0.4, wid * 0.04);
+      for (let k = 1; k < 6; k++) { const yy = -len * (k / 6.5); g.beginPath(); g.moveTo(0, yy); g.lineTo(wid * 0.7, yy - len * 0.1); g.moveTo(0, yy); g.lineTo(-wid * 0.7, yy - len * 0.1); g.stroke(); }
+    }
+    g.restore();
+  };
+  const twig = (pts, w, v) => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.lineWidth = w; g.lineCap = 'round'; const k = gk(v); g.strokeStyle = `rgb(${k},${k - 6},${k - 12})`; g.stroke(); };
+  // 一根带叶小枝：从格子底部伸向中心，叶子互生
+  const sprig = (ox, oy, nLeaves, len, wid, spread, vBase) => {
+    for (let s = 0; s < 3; s++) {
+      const bx = ox + 128 + (r() - 0.5) * 60, by = oy + 230, tx = ox + 128 + (r() - 0.5) * 150, ty = oy + 30 + r() * 60;
+      twig([[bx, by], [(bx + tx) / 2 + (r() - 0.5) * 30, (by + ty) / 2], [tx, ty]], 2.2, 0.35);
+      for (let i = 0; i < nLeaves; i++) {
+        const t = 0.2 + 0.8 * (i / nLeaves) + (r() - 0.5) * 0.05;
+        const x = lerp(bx, tx, t), y = lerp(by, ty, t), side = i % 2 ? 1 : -1;
+        const ang = Math.atan2(tx - bx, by - ty) + side * spread * (0.7 + r() * 0.6);
+        leaf(x, y, len * (0.7 + r() * 0.5) * (0.6 + 0.4 * t), wid * (0.8 + r() * 0.4), ang, vBase * (0.7 + r() * 0.3), true);
+      }
+    }
+  };
+  // 0 阔叶（樟）
+  sprig(0, 0, 11, 46, 15, 0.9, 0.92);
+  // 1 桃花：细枝上的花与少量嫩叶（彩色）
+  {
+    const ox = 256, oy = 0;
+    for (let s = 0; s < 3; s++) {
+      const bx = ox + 128 + (r() - 0.5) * 70, by = oy + 236, tx = ox + 128 + (r() - 0.5) * 170, ty = oy + 24 + r() * 50;
+      g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo((bx + tx) / 2 + 20, (by + ty) / 2, tx, ty); g.lineWidth = 3; g.strokeStyle = 'rgb(92,62,50)'; g.stroke();
+      for (let i = 0; i < 9; i++) {
+        const t = 0.15 + 0.85 * (i / 9), fx = lerp(bx, tx, t) + (r() - 0.5) * 24, fy = lerp(by, ty, t) + (r() - 0.5) * 24, sz = 9 + r() * 6, rot = r() * 6.28;
+        if (r() < 0.3) { g.save(); g.translate(fx, fy); g.rotate(rot); leafPath(26, 8); g.fillStyle = 'rgb(118,156,84)'; g.fill(); g.restore(); continue; }
+        for (let k = 0; k < 5; k++) {
+          const pa = rot + (k / 5) * 6.28, px = fx + Math.cos(pa) * sz * 0.6, py = fy + Math.sin(pa) * sz * 0.6;
+          const gr = g.createRadialGradient(fx, fy, 1, px, py, sz * 0.7);
+          gr.addColorStop(0, 'rgb(236,150,176)'); gr.addColorStop(1, r() < 0.5 ? 'rgb(252,226,234)' : 'rgb(246,198,214)');
+          g.beginPath(); g.ellipse(px, py, sz * 0.6, sz * 0.48, pa, 0, 6.28); g.fillStyle = gr; g.fill();
+        }
+        g.beginPath(); g.arc(fx, fy, sz * 0.22, 0, 6.28); g.fillStyle = 'rgb(214,120,96)'; g.fill();
+      }
+    }
+  }
+  // 2 枫叶：七裂掌状、锯齿边
+  {
+    const maple = (x, y, sz, ang, v) => {
+      g.save(); g.translate(x, y); g.rotate(ang); g.scale(sz, sz);
+      g.beginPath(); g.moveTo(0, 8);
+      const lobes = 7;
+      for (let k = 0; k < lobes; k++) {
+        const a = -1.75 + (k / (lobes - 1)) * 3.5, L = 1 - Math.abs(a) * 0.22;
+        const a0 = a - 0.22, a1 = a + 0.22;
+        g.lineTo(Math.sin(a0) * 10, -Math.cos(a0) * 10);
+        for (let j = 1; j <= 4; j++) { const f = j / 4, aj = lerp(a0, a, f); g.lineTo(Math.sin(aj) * (10 + 22 * L * f) + (j % 2) * 1.5, -Math.cos(aj) * (10 + 22 * L * f)); }
+        for (let j = 3; j >= 0; j--) { const f = j / 4, aj = lerp(a1, a, f); g.lineTo(Math.sin(aj) * (10 + 22 * L * f) - (j % 2) * 1.5, -Math.cos(aj) * (10 + 22 * L * f)); }
+      }
+      g.closePath();
+      const gr = g.createRadialGradient(0, 0, 2, 0, -10, 32);
+      gr.addColorStop(0, gray(v * 0.7)); gr.addColorStop(1, gray(v));
+      g.fillStyle = gr; g.fill();
+      g.strokeStyle = gray(Math.min(1, v * 1.1)); g.lineWidth = 0.6;
+      for (let k = 0; k < 7; k++) { const a = -1.75 + (k / 6) * 3.5; g.beginPath(); g.moveTo(0, 4); g.lineTo(Math.sin(a) * 26, -Math.cos(a) * 26); g.stroke(); }
+      g.restore();
+    };
+    const ox = 512, oy = 0;
+    for (let s = 0; s < 3; s++) {
+      const bx = ox + 128 + (r() - 0.5) * 60, by = oy + 236, tx = ox + 128 + (r() - 0.5) * 160, ty = oy + 30 + r() * 50;
+      twig([[bx, by], [tx, ty]], 2, 0.3);
+      for (let i = 0; i < 7; i++) { const t = 0.2 + 0.8 * i / 7; maple(lerp(bx, tx, t) + (r() - 0.5) * 34, lerp(by, ty, t) + (r() - 0.5) * 30, 0.75 + r() * 0.35, r() * 6.28, 0.7 + r() * 0.3); }
+    }
+  }
+  // 3 松针：细枝两侧密集针叶
+  {
+    const ox = 768, oy = 0;
+    for (let s = 0; s < 5; s++) {
+      const bx = ox + 40 + r() * 176, by = oy + 40 + r() * 176, a = r() * 6.28, L = 70 + r() * 50;
+      const tx = bx + Math.cos(a) * L, ty = by + Math.sin(a) * L;
+      twig([[bx, by], [tx, ty]], 2.4, 0.3);
+      for (let i = 0; i < 46; i++) {
+        const t = r(), x = lerp(bx, tx, t), y = lerp(by, ty, t), side = r() < 0.5 ? 1 : -1;
+        const na = a + side * (0.6 + r() * 0.5), nl = 16 + r() * 12, v = 0.55 + r() * 0.45;
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(na) * nl, y + Math.sin(na) * nl); g.lineWidth = 1.3; g.lineCap = 'round'; g.strokeStyle = gray(v); g.stroke();
+      }
+    }
+  }
+  // 4 竹叶：披针形，三五片一组
+  {
+    const ox = 0, oy = 256;
+    for (let b = 0; b < 8; b++) {
+      const bx = ox + 50 + r() * 156, by = oy + 40 + r() * 80, n = 3 + ((r() * 3) | 0);
+      for (let k = 0; k < n; k++) { const a = Math.PI * (0.6 + (k / Math.max(1, n - 1)) * 0.8) + (r() - 0.5) * 0.25; leaf(bx, by, 80 + r() * 36, 7 + r() * 2.5, a + Math.PI / 2, 0.7 + r() * 0.3, false); }
+    }
+  }
+  // 5 灌木小叶
+  sprig(256, 256, 16, 26, 10, 1.0, 0.9);
 }
 
 // ---------- 索引网格构建器（紧凑属性）----------
@@ -2765,6 +2906,15 @@ function fDead(seed) {
 // 远景：柔和团块
 function fFar(kind) {
   const S = new IB();
+  if (REAL && kind !== 'rock') {
+    const tc = hexRGB(0x4f4038), col = kind === 'peach' ? hexRGB(0xe6aabb) : kind === 'maple' ? hexRGB(0xb8502e) : kind === 'pine' ? hexRGB(0x2f5e48) : kind === 'bamboo' ? hexRGB(0x5a9048) : hexRGB(0x56884a);
+    const dk = mixRGB(col, [0.02, 0.04, 0.03], 0.45);
+    fTube(S, [[0, -0.3, 0, 0.26], [0, kind === 'pine' ? 5 : 3.6, 0, 0.12]], 4, () => tc);
+    const r = mulberry32(kind.length * 77);
+    const lumps = kind === 'pine' ? [[0, 5.2, 0, 2.0, 0.8], [0.6, 6.8, 0.3, 1.3, 0.6], [-0.8, 4.2, -0.4, 1.4, 0.6]] : kind === 'bamboo' ? [[0, 6.5, 0, 1.8, 3.6]] : [[0, 4.8, 0, 2.3, 1.7], [1.3, 4.3, 0.6, 1.5, 1.2], [-1.2, 4.5, -0.5, 1.5, 1.3], [0.2, 5.8, -0.8, 1.4, 1.1]];
+    for (const [x, y, z, rx, ry] of lumps) fBlob(S, x, y, z, rx, ry, rx, { detail: 1, noise: 0.35, seed: r() * 40, nc: [0, y - ry * 0.4, 0], nk: 0.5, col: (yy) => mixRGB(dk, col, smooth(y - ry, y + ry, yy)) });
+    return { s: S.toPre(), c: null };
+  }
   if (kind === 'rock') { fBlob(S, 0, 0.25, 0, 1.1, 0.6, 1.0, { detail: 0, nk: 0, col: () => hexRGB(0x8e8676) }); return { s: S.toPre(), c: null }; }
   const tc = hexRGB(0x5e4a3c);
   fTube(S, [[0, -0.3, 0, 0.32], [0, kind === 'pine' ? 5 : 4, 0, 0.18]], 4, () => tc);
@@ -2776,6 +2926,157 @@ function fFar(kind) {
   else blob(kind === 'peach' ? 4.6 : 5.6, 2.9, 2.3);
   return { s: S.toPre(), c: null };
 }
+// ================= 写实树木：逐级分枝 + 枝梢叶簇 =================
+const _n3 = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+// 绕任意轴旋转 v
+function _rot3(v, ax, ang) {
+  const c = Math.cos(ang), s = Math.sin(ang), d = v[0] * ax[0] + v[1] * ax[1] + v[2] * ax[2];
+  return [v[0] * c + (ax[1] * v[2] - ax[2] * v[1]) * s + ax[0] * d * (1 - c), v[1] * c + (ax[2] * v[0] - ax[0] * v[2]) * s + ax[1] * d * (1 - c), v[2] * c + (ax[0] * v[1] - ax[1] * v[0]) * s + ax[2] * d * (1 - c)];
+}
+function _perp3(d) { const a = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]; return _n3([d[1] * a[2] - d[2] * a[1], d[2] * a[0] - d[0] * a[2], d[0] * a[1] - d[1] * a[0]]); }
+// o: { rnd, depth, kids[], spread[], lenK, radK, up, droop, wobble, bark, bark2, sides[], tips(out), twig(t) }
+function rBranch(S, o, p0, dir, len, rad, lvl) {
+  const r = o.rnd, segs = lvl === 0 ? 5 : lvl === 1 ? 4 : 3;
+  const pts = [[p0[0], p0[1], p0[2], rad]];
+  let p = p0.slice(), d = dir.slice();
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs;
+    d = _n3([d[0] + (r() - 0.5) * o.wobble, d[1] + (r() - 0.5) * o.wobble + o.up * (lvl ? 1 : 0.3) - o.droop * lvl * t, d[2] + (r() - 0.5) * o.wobble]);
+    p = [p[0] + d[0] * len / segs, p[1] + d[1] * len / segs, p[2] + d[2] * len / segs];
+    pts.push([p[0], p[1], p[2], rad * lerp(1, o.taper, t)]);
+  }
+  fTube(S, pts, o.sides[lvl] || 3, (t) => mixRGB(o.bark, o.bark2, clamp(t * 0.6 + lvl * 0.2, 0, 1)), lvl ? (t) => (lvl / o.depth) * 0.06 * t : null);
+  if (lvl >= o.depth) { o.tips.push({ p, d, lvl }); return; }
+  const n = o.kids[lvl], ga = 2.39996;
+  let az = r() * 6.28;
+  for (let k = 0; k < n; k++) {
+    const t = lerp(o.start[lvl], 0.97, n === 1 ? 1 : k / (n - 1)) + (r() - 0.5) * 0.06;
+    const fi = Math.min(segs, Math.max(1, Math.round(t * segs)));
+    const q = pts[fi], q0 = pts[fi - 1];
+    const bd = _n3([q[0] - q0[0], q[1] - q0[1], q[2] - q0[2]]);
+    az += ga;
+    let cd = _rot3(_perp3(bd), bd, az);
+    cd = _n3(_rot3(bd, _n3([bd[1] * cd[2] - bd[2] * cd[1], bd[2] * cd[0] - bd[0] * cd[2], bd[0] * cd[1] - bd[1] * cd[0]]), o.spread[lvl] * (0.8 + r() * 0.4)));
+    const cl = len * o.lenK[lvl] * (0.75 + r() * 0.45) * (1 - t * 0.35);
+    rBranch(S, o, [q[0], q[1], q[2]], cd, cl, Math.max(0.018, q[3] * o.radK), lvl + 1);
+  }
+  // 中央领导枝继续向上（只在主干）
+  if (lvl === 0 && o.leader) o.tips.push({ p, d, lvl });
+}
+// 叶簇：沿枝梢散布 n 张小叶卡；越靠树冠内部越暗（自遮挡）
+function rFoliage(Cd, o, tip, crownC, crownR, n, size, cell, pal) {
+  const r = o.rnd;
+  for (let i = 0; i < n; i++) {
+    const back = r() * 0.9;
+    const px = tip.p[0] - tip.d[0] * back + (r() - 0.5) * size * 1.1, py = tip.p[1] - tip.d[1] * back + (r() - 0.35) * size * 0.9, pz = tip.p[2] - tip.d[2] * back + (r() - 0.5) * size * 1.1;
+    let dx = px - crownC[0] + (r() - 0.5) * crownR * 0.9, dy = (py - crownC[1]) * 0.7 + crownR * (o.leafUp || 0.35) + (r() - 0.5) * crownR * 0.6, dz = pz - crownC[2] + (r() - 0.5) * crownR * 0.9;
+    const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
+    const dist = Math.hypot(px - crownC[0], (py - crownC[1]) * 1.2, pz - crownC[2]) / crownR;
+    const occl = clamp(0.62 + 0.4 * dist, 0.6, 1) * (0.88 + 0.12 * clamp((py - crownC[1]) / crownR + 0.5, 0, 1));
+    const base = hexRGB(pal[(r() * pal.length) | 0]);
+    const col = mixRGB([0.03, 0.05, 0.03], mixRGB(base, [1, 1, 0.85], r() * 0.08), occl);
+    fCard(Cd, px, py, pz, dx, dy, dz, size * (0.8 + r() * 0.45), r() * 6.28, cell, col, crownC, 0.55, 0.12 + 0.1 * r(), 1);
+  }
+}
+function fTreeBroadReal(kind, seed, big) {
+  const S = new IB(), Cd = new IB(), r = mulberry32(seed);
+  const k = big ? 2.0 : 1, peach = kind === 'peach', maple = kind === 'maple';
+  const h = (peach ? 2.2 : maple ? 3.0 : 3.2) * k + r() * 1.2 * k;
+  const o = { rnd: r, depth: big ? 3 : 2, kids: big ? [6, 4, 3] : [5, 3], spread: big ? [0.95, 0.75, 0.7] : [0.9, 0.7], start: big ? [0.38, 0.3, 0.4] : [0.45, 0.35],
+    lenK: big ? [0.95, 0.55, 0.5] : [0.85, 0.55], radK: 0.62, up: peach ? 0.12 : 0.22, droop: 0.12, wobble: 0.32, taper: 0.62, tips: [], leader: !peach,
+    bark: hexRGB(peach ? 0x4e3c32 : maple ? 0x4a3a34 : 0x5a4a3e), bark2: hexRGB(peach ? 0x6a5244 : 0x6e6050), sides: big ? [10, 7, 5, 3] : [7, 5, 3] };
+  const lean = [(r() - 0.5) * 0.25, 1, (r() - 0.5) * 0.25];
+  rBranch(S, o, [0, -0.4, 0], _n3(lean), h + 0.4, (big ? 0.85 : 0.24) * (peach ? 0.9 : 1), 0);
+  // 树冠中心：取所有枝梢的平均
+  let cx = 0, cy = 0, cz = 0; for (const t of o.tips) { cx += t.p[0]; cy += t.p[1]; cz += t.p[2]; }
+  cx /= o.tips.length; cy /= o.tips.length; cz /= o.tips.length;
+  let cr = 0; for (const t of o.tips) cr = Math.max(cr, Math.hypot(t.p[0] - cx, t.p[1] - cy, t.p[2] - cz));
+  const C = [cx, cy - cr * 0.15, cz];
+  const pal = FPAL[kind][0], cell = FPAL[kind][1];
+  const per = big ? 12 : peach ? 9 : 10, size = (big ? 1.55 : 1.15) * (peach ? 0.95 : 1);
+  for (const t of o.tips) rFoliage(Cd, o, t, C, cr + size, per, size, cell, pal);
+  // 树冠里补几张大卡，填住空隙（远看不透光）
+  for (let i = 0; i < (big ? 26 : 12); i++) {
+    const a = r() * 6.28, rr = Math.sqrt(r()) * cr * 0.6;
+    rFoliage(Cd, o, { p: [cx + Math.cos(a) * rr, cy + (r() - 0.4) * cr * 0.5, cz + Math.sin(a) * rr], d: [0, 1, 0] }, C, cr + size, 1, size * 1.5, cell, pal);
+  }
+  return { s: S.toPre(), c: Cd.toPre() };
+}
+function fTreePineReal(seed) {
+  const S = new IB(), Cd = new IB(), r = mulberry32(seed);
+  const h = 6.5 + r() * 3, bark = hexRGB(0x4f3f36), bark2 = hexRGB(0x7a5f4c);
+  // 弯曲的主干
+  const pts = []; const lean = (r() - 0.5) * 0.7, lz = (r() - 0.5) * 0.5;
+  for (let i = 0; i <= 7; i++) { const t = i / 7; pts.push([Math.sin(lean) * h * t + Math.sin(t * 4.1 + seed) * 0.3, -0.4 + (h + 0.4) * t, lz * h * t * t + Math.cos(t * 3.3 + seed) * 0.2 - 0.2, lerp(0.36, 0.08, t)]); }
+  fTube(S, pts, 7, (t) => mixRGB(bark, bark2, t * 0.8));
+  const o = { rnd: r, tips: [] };
+  const top = pts[7];
+  const pads = [{ p: [top[0], top[1] + 0.2, top[2]], R: 1.6 + r() * 0.4 }];
+  const nP = 5 + ((r() * 3) | 0);
+  for (let i = 0; i < nP; i++) {
+    const t = 0.42 + (i / nP) * 0.5 + r() * 0.05, a = r() * 6.28 + i * 2.4, L = 1.3 + r() * 1.6 * (1.1 - t);
+    const sp = pts[Math.min(7, Math.round(t * 7))];
+    const mid = [sp[0] + Math.cos(a) * L * 0.5, sp[1] + 0.25, sp[2] + Math.sin(a) * L * 0.5];
+    const ex = [sp[0] + Math.cos(a) * L, sp[1] + 0.15 + r() * 0.5, sp[2] + Math.sin(a) * L];
+    fTube(S, [[sp[0], sp[1], sp[2], 0.12 * (1.2 - t)], [mid[0], mid[1], mid[2], 0.07], [ex[0], ex[1], ex[2], 0.03]], 4, () => bark);
+    pads.push({ p: ex, R: 1.0 + r() * 0.7 });
+  }
+  for (const pd of pads) {
+    // 平展的针叶垫：卡片大多朝上
+    const n = Math.round(10 + pd.R * 8);
+    for (let i = 0; i < n; i++) {
+      const a = r() * 6.28, rr = Math.sqrt(r()) * pd.R;
+      const px = pd.p[0] + Math.cos(a) * rr, pz = pd.p[2] + Math.sin(a) * rr, py = pd.p[1] + (r() - 0.3) * 0.35 - (rr / pd.R) * 0.25;
+      const dx = Math.cos(a) * 0.35 + (r() - 0.5) * 0.4, dz = Math.sin(a) * 0.35 + (r() - 0.5) * 0.4;
+      const occl = 0.55 + 0.45 * (rr / pd.R) * 0.6 + (py > pd.p[1] ? 0.2 : 0);
+      const col = mixRGB([0.02, 0.04, 0.03], hexRGB(FPAL.pine[0][(r() * 3) | 0]), clamp(occl, 0.4, 1));
+      fCard(Cd, px, py, pz, dx, 1, dz, 0.9 + r() * 0.5, r() * 6.28, 3, col, [pd.p[0], pd.p[1] - pd.R * 0.6, pd.p[2]], 0.6, 0.08, 1.6);
+    }
+  }
+  return { s: S.toPre(), c: Cd.toPre() };
+}
+function fBambooReal(seed) {
+  const S = new IB(), Cd = new IB(), r = mulberry32(seed);
+  const n = 6 + ((r() * 5) | 0), stem = hexRGB(0x6f9e52), stem2 = hexRGB(0x58864a), ring = hexRGB(0x9aba78);
+  for (let i = 0; i < n; i++) {
+    const a = r() * 6.28, d = Math.sqrt(r()) * 1.4, h = 8 + r() * 6, x = Math.cos(a) * d, z = Math.sin(a) * d, lx = (r() - 0.5) * 1.6, lz = (r() - 0.5) * 1.6;
+    const sc = r() < 0.5 ? stem : stem2, rad = 0.05 + r() * 0.035;
+    const pts = []; for (let k = 0; k <= 6; k++) { const t = k / 6; pts.push([x + lx * t * t, -0.3 + (h + 0.3) * t, z + lz * t * t, rad * lerp(1, 0.55, t)]); }
+    fTube(S, pts, 5, (t) => mixRGB(sc, ring, ((t * 9) % 1) < 0.08 ? 0.7 : t * 0.25), (t) => t * t * 0.5);
+    // 上半段的小枝叶扇
+    const nc = [x + lx * 0.7, h * 0.8, z + lz * 0.7];
+    for (let k = 0; k < 7; k++) {
+      const t = 0.45 + k * 0.08 + r() * 0.04, ang = r() * 6.28;
+      const px = x + lx * t * t + Math.cos(ang) * 0.45, py = h * t, pz = z + lz * t * t + Math.sin(ang) * 0.45;
+      const col = mixRGB([0.04, 0.06, 0.03], hexRGB(FPAL.bamboo[0][(r() * 3) | 0]), 0.7 + r() * 0.3);
+      fCard(Cd, px, py, pz, Math.cos(ang), 0.2, Math.sin(ang), 1.0 + r() * 0.4, Math.PI + (r() - 0.5) * 0.8, 4, col, nc, 0.45, 0.3 + t * 0.35, 1);
+      fCard(Cd, px, py + 0.1, pz, -Math.sin(ang) * 0.6, 0.6, Math.cos(ang) * 0.6, 0.9 + r() * 0.3, Math.PI + (r() - 0.5) * 0.8, 4, col, nc, 0.45, 0.3 + t * 0.35, 1);
+    }
+  }
+  return { s: S.toPre(), c: Cd.toPre() };
+}
+function fBushReal(seed) {
+  const S = new IB(), Cd = new IB(), r = mulberry32(seed);
+  const o = { rnd: r, leafUp: 0.6 };
+  const R = 0.9 + r() * 0.4, C = [0, R * 0.35, 0];
+  // 几根细枝
+  for (let i = 0; i < 5; i++) { const a = r() * 6.28; fTube(S, [[0, -0.1, 0, 0.04], [Math.cos(a) * R * 0.6, R * 0.6, Math.sin(a) * R * 0.6, 0.015]], 3, () => hexRGB(0x4a3e34)); }
+  for (let i = 0; i < 26; i++) {
+    const a = r() * 6.28, y = r(), rr = Math.sqrt(1 - y * y * 0.6) * R * (0.6 + r() * 0.4);
+    rFoliage(Cd, o, { p: [Math.cos(a) * rr, C[1] + y * R * 0.55, Math.sin(a) * rr], d: [Math.cos(a), 0.5, Math.sin(a)] }, C, R, 1, 0.7 + r() * 0.3, 5, FPAL.bush[0]);
+  }
+  return { s: S.toPre(), c: Cd.toPre() };
+}
+function fRockReal(seed) {
+  const S = new IB(), r = mulberry32(seed);
+  const rock = hexRGB(r() < 0.5 ? 0x86827a : 0x8f8070), moss = hexRGB(0x5f7f46), dark = hexRGB(0x56524c);
+  const one = (x, z, s, sq) => fBlob(S, x, s * sq * 0.3, z, s, s * sq, s * (0.85 + r() * 0.3), { detail: 2, noise: 0.3, seed: r() * 40, nk: 0, col: (y, u) => { const c = mixRGB(dark, rock, smooth(-0.6, 0.3, u[1]) * (0.85 + 0.3 * NZ2(u[0] * 5 + seed, u[2] * 5))); return mixRGB(c, moss, smooth(0.55, 0.9, u[1] + NZ2(u[0] * 3 + seed, u[2] * 3) * 0.3) * 0.65); } });
+  one(0, 0, 1.0, 0.5 + r() * 0.3);
+  if (r() < 0.6) one(0.9 + r() * 0.3, 0.3, 0.45 + r() * 0.2, 0.6);
+  if (r() < 0.4) one(-0.7, -0.5, 0.3, 0.7);
+  return { s: S.toPre(), c: null };
+}
+
 const FPRE = {}, FFAR = {};
 function initFoliagePrefabs() {
   const kinds = { broad: 5, maple: 5, peach: 5, pine: 6, bamboo: 4, bush: 4, rock: 5, dead: 3 };
@@ -2783,7 +3084,8 @@ function initFoliagePrefabs() {
     FPRE[k] = [];
     for (let i = 0; i < kinds[k]; i++) {
       const seed = 5000 + i * 97 + k.length * 131;
-      FPRE[k].push(k === 'pine' ? fTreePine(seed) : k === 'bamboo' ? fBamboo(seed) : k === 'bush' ? fBush(seed) : k === 'rock' ? fRock(seed) : k === 'dead' ? fDead(seed) : fTreeBroad(k, seed));
+      if (REAL) FPRE[k].push(k === 'pine' ? fTreePineReal(seed) : k === 'bamboo' ? fBambooReal(seed) : k === 'bush' ? fBushReal(seed) : k === 'rock' ? fRockReal(seed) : k === 'dead' ? fDead(seed) : fTreeBroadReal(k, seed));
+      else FPRE[k].push(k === 'pine' ? fTreePine(seed) : k === 'bamboo' ? fBamboo(seed) : k === 'bush' ? fBush(seed) : k === 'rock' ? fRock(seed) : k === 'dead' ? fDead(seed) : fTreeBroad(k, seed));
     }
   }
   for (const k of ['broad', 'maple', 'peach', 'pine', 'bamboo', 'rock']) FFAR[k] = fFar(k);
@@ -2818,6 +3120,7 @@ void main(){
 const FOL_FS_REAL = `
 uniform vec3 uSunDir, uSunCol, uSkyCol, uGndCol;
 uniform float uNight, uLight;
+uniform sampler2D uDetail;
 #ifdef CARDS
 uniform sampler2D uLeaf;
 varying vec2 vUv;
@@ -2841,6 +3144,12 @@ void main(){
   vec3 N = normalize(vN);
   vec3 V = normalize(cameraPosition - vWPos);
   if (dot(N, V) < 0.0) N = -N;
+  #ifndef CARDS
+    // 树皮与岩石：竖向拉长的三向投影纹理
+    vec3 bw = pow(abs(N), vec3(4.0)); bw /= bw.x + bw.y + bw.z;
+    float bk = texture2D(uDetail, vec2(vWPos.z * 0.9, vWPos.y * 0.18)).g * bw.x + texture2D(uDetail, vWPos.xz * 0.5).g * bw.y + texture2D(uDetail, vec2(vWPos.x * 0.9, vWPos.y * 0.18)).g * bw.z;
+    base *= 0.75 + bk * 0.5;
+  #endif
   float sh = sunShadow(vWPos);
   vec3 a = lin3(base);
   float ndl = dot(N, uSunDir);
@@ -3266,8 +3575,50 @@ function makeCloudTex2() {
   return t;
 }
 
+// 写实积云：分形噪声侵蚀的团块密度场 + 朝太阳方向步进估算自遮挡（G=受光，A=覆盖）
+function makeCloudTexReal() {
+  const K = 0.5, W2 = 1024 * K, H2 = 512 * K, CW = 512 * K, CHh = 256 * K;   // 半分辨率：云本来就软，省一半以上的载入时间
+  const r = mulberry32(31);
+  const P = 64, tab = new Float32Array(P * P); for (let i = 0; i < tab.length; i++) tab[i] = r();
+  const vn = (x, y) => { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy; const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const g = (i, j) => tab[((j & (P - 1)) * P) + (i & (P - 1))]; const a = g(ix, iy), b = g(ix + 1, iy), c = g(ix, iy + 1), d = g(ix + 1, iy + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy; };
+  const fbm = (x, y) => { let v = 0, a = 0.5, f = 1; for (let o = 0; o < 5; o++) { v += vn(x * f, y * f) * a; a *= 0.5; f *= 2.03; } return v; };
+  const D = new Float32Array(W2 * H2);
+  for (let v = 0; v < 4; v++) {
+    const ox = (v % 2) * CW, oy = ((v / 2) | 0) * CHh, base = oy + 200 * K;
+    const puffs = [];
+    const n = 7 + ((r() * 5) | 0);
+    for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, dome = Math.sin(t * Math.PI); const rad = (30 + dome * (40 + r() * 34)) * K; puffs.push([ox + lerp(70 * K, CW - 70 * K, t) + (r() - 0.5) * 30 * K, base - rad * 0.5 - dome * (20 + r() * 50) * K, rad]); }
+    for (let i = 0; i < 4; i++) puffs.push([ox + CW * (0.3 + r() * 0.4), base - (90 + r() * 50) * K, (30 + r() * 26) * K]);
+    const seed = r() * 100;
+    for (let y = oy; y < oy + CHh; y++) for (let x = ox; x < ox + CW; x++) {
+      let m = 0;
+      for (const [px, py, pr] of puffs) { const d = Math.hypot(x - px, (y - py) * 1.1) / pr; if (d < 1.4) m = Math.max(m, 1 - d * d * 0.55); }
+      if (m <= 0) continue;
+      const flat = 1 - Math.max(0, (y - (base - 8 * K)) / (18 * K));     // 平底
+      const nz = fbm(x * 0.022 / K + seed, y * 0.022 / K + seed * 0.7);
+      const dd = (m * Math.max(0, flat) - (1 - nz) * 0.62) * 2.4;
+      D[y * W2 + x] = clamp(dd, 0, 1);
+    }
+  }
+  const data = new Uint8Array(W2 * H2 * 4);
+  for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {
+    const k = y * W2 + x, d = D[k];
+    // 朝左上（太阳）步进累积密度
+    let acc = 0;
+    for (let s = 1; s <= 10; s++) { const sx = x - Math.round(s * 3 * K), sy = y - Math.round(s * 5 * K); if (sx < 0 || sy < 0 || ((sx / CW) | 0) !== ((x / CW) | 0) || ((sy / CHh) | 0) !== ((y / CHh) | 0)) break; acc += D[sy * W2 + sx]; }
+    const lit = Math.exp(-acc * 0.16) * 0.78 + 0.22 * (1 - (y % CHh) / CHh);
+    data[k * 4] = 255; data[k * 4 + 1] = Math.round(clamp(lit, 0, 1) * 255); data[k * 4 + 2] = 0; data[k * 4 + 3] = Math.round(clamp(d * 1.3, 0, 1) * 255);
+  }
+  const t = new THREE.DataTexture(data, W2, H2, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+}
+
 function buildClouds(scene) {
-  const tex = makeCloudTex2();
+  const tex = REAL ? makeCloudTexReal() : makeCloudTex2();
   const mk = (list, opacity, drift, center) => {
     const n = list.length;
     const aCloud = new Float32Array(n * 16), aCorner = new Float32Array(n * 8), aSeed = new Float32Array(n * 4), pos = new Float32Array(n * 12);
@@ -3291,7 +3642,7 @@ function buildClouds(scene) {
     g.setIndex(idx);
     const mat = new THREE.ShaderMaterial({
       uniforms: { uTex: { value: tex }, uSunCol: SU.uSunCol, uSkyCol: SU.uSkyCol, uFogCol: SU.uFogCol, uSunDir: { value: TOD.sunDir }, uOpacity: { value: opacity }, uTime: SU.uTime, uDrift: { value: drift } },
-      vertexShader: CLOUD_VS, fragmentShader: CLOUD_FS, transparent: true, depthWrite: false,
+      vertexShader: CLOUD_VS, fragmentShader: CLOUD_FS, transparent: true, depthWrite: false, defines: REAL ? { REAL: 1 } : {},
     });
     const m = new THREE.Mesh(g, mat);
     m.frustumCulled = false;
@@ -5377,8 +5728,8 @@ function buildGrassTuft(kind) {
     for (let q = 0; q < 9; q++) nor.push(0, 1, 0);
   };
   const r = mulberry32(kind === 'flower' ? 9 : 4);
-  const n = kind === 'reed' ? 5 : 9;
-  for (let i = 0; i < n; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * 0.42, aa = r() * 6.28; blade(Math.cos(aa) * d, Math.sin(aa) * d, a, kind === 'reed' ? 0.05 : 0.05, (kind === 'reed' ? 1.4 : 0.62) * (0.55 + r() * 0.6), 0.14 + r() * 0.18); }
+  const n = kind === 'reed' ? 5 : REAL ? 16 : 9;
+  for (let i = 0; i < n; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * (REAL ? 0.5 : 0.42), aa = r() * 6.28; blade(Math.cos(aa) * d, Math.sin(aa) * d, a, REAL ? 0.028 + r() * 0.018 : 0.05, (kind === 'reed' ? 1.4 : 0.62) * (0.55 + r() * 0.6) * (REAL ? 1.1 : 1), 0.14 + r() * 0.18); }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('aPetal', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3), 1));

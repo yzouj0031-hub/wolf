@@ -5,6 +5,8 @@ import { withOfflinePage } from './lib/offline-browser.mjs';
 await withOfflinePage(async (page, origin) => {
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => {
+    // 测手柄输入，不测画面：用省电画质，免得软件渲染太慢、帧率过低
+    if (!localStorage.getItem('qianyu-xing-settings-v1')) localStorage.setItem('qianyu-xing-settings-v1', JSON.stringify({ quality: 0, music: 0, sfx: 0, autoCam: 1, sens: 1 }));
     const mk = () => ({ id: 'Fake Xbox Controller', index: 0, connected: true, mapping: 'standard', timestamp: 0,
       axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })) });
     window.__pad = mk();
