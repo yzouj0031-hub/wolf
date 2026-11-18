@@ -89,3 +89,22 @@ for (const file of ['index.html', 'en/index.html']) {
   for (const bad of ['从非常规的刀法出发', '从非常规的身份安排出发', '若有一条非常规线', '最强的一条非常规线']) assert.ok(!html.includes(bad), `${file}: 仍在用"非常规"给打法贴标签：${bad}`);
 }
 console.log('natural-speech: wolf-night rule facts shared and unlabelled');
+
+// ⑩ 主动建模型 vs 挑刺机器：盘票型、算神民狼分布、找受益者与态度变化、点狼坑、承接合理狼坑
+for (const file of ['index.html', 'en/index.html']) {
+  const html = fs.readFileSync(file, 'utf8');
+  assert.ok(html.includes('【主动建模型，别只围着上一位挑刺】'), `${file}: WB_CORE_LITE 缺少主动建模型指引`);
+  assert.ok(html.includes('主动建构全场模型，而不是当挑刺机器'), `${file}: WB_CORE_COMPACT 缺少主动建构全场模型指引`);
+  assert.ok(html.includes('绝对不要用“不能抄作业”去驳回一个站得住的狼坑'), `${file}: 缺少禁止用"不抄作业"推翻合理狼坑的约束`);
+  assert.ok(html.includes('真人打牌是盘全局而不是抠字眼'), `${file}: styleBlock 仍未改为盘全局模型`);
+  assert.ok(!html.includes('真人打牌是接着上一个人的话往下聊'), `${file}: styleBlock 仍在诱导接着上一个人的话往下聊`);
+  assert.ok(html.includes('优先盘全场模型（拆警上/放逐票型谁跟风谁领投、按配置推算神民狼分布、看谁在获利或前后态度突变、点出你的狼坑）'), `${file}: 单轮白天发言任务缺少四维建模型指引`);
+  assert.ok(html.includes('① 收束或修正全场狼坑与神民分布'), `${file}: 第二轮发言任务未将收束狼坑与神民分布放在首位`);
+}
+{
+  const indexHtml = fs.readFileSync('index.html', 'utf8');
+  assert.ok(indexHtml.includes('历次票型速查（请据此分析谁在领投、谁在跟风、谁在分票）'), 'index.html: buildPublicClaimsBlock 缺少历次票型速查');
+  assert.ok(indexHtml.includes('初始配置 ${totalGods}神 + ${totalVillagers}民 + ${totalWolves}狼'), 'index.html: buildPublicClaimsBlock 缺少神民狼初始配置分布');
+}
+console.log('natural-speech: proactive board modeling and wolf-pack inheritance rules present');
+
