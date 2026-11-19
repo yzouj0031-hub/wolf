@@ -4915,9 +4915,7 @@ function bareNightRules(roleIds) {
 }
 
 const SEAT_POSITION_TIP = '\n【位置学常识（可参考）】发言顺序影响信息：前置位先开口，信息少但可以定调；后置位听完再说，信息多可以整合复盘。狼人阵营之间的座位分布也会影响票型的集中程度和配合难度——但这些信息你不会直接知道。';
-function buildWorldBook(p) {
-  // 当前角色的完整能力由 guide 单独注入；其他角色只给公开的一行摘要。
-  // 下方旧拼装逻辑暂时保留以便历史对照，但不再进入模型上下文。
+function buildWorldBookParts(p) {
   const twb = window.TeachingWorldbooks;
   const teachingMode = twb && typeof twb.mode === 'function' ? teachingRulesMode(twb.mode()) : 'official';
   const teachingContext = {
@@ -4928,19 +4926,20 @@ function buildWorldBook(p) {
     rolesInGame: (S && Array.isArray(S.players)) ? S.players.map(x => x && x.role && x.role.id).filter(Boolean) : []
   };
   const officialOn = teachingMode === 'official' || teachingMode === 'hybrid';
-  // 精简官方：只给规则事实和几条常见误读，不给方法论和按身份的战术层（实测两万字的审计手册会把发言带成挑错）
-  if (teachingMode === 'bare') return WB_RULES_BARE;
-  if (teachingMode === 'lite') return WB_CORE_LITE + '\n\n' + WolfReasoningContext.disputeReview() + WB_RULES_COMPACT;
+  if (teachingMode === 'bare') return { shared: WB_RULES_BARE, dynamic: '' };
+  if (teachingMode === 'lite') return { shared: WB_CORE_LITE + '\n\n' + WolfReasoningContext.disputeReview() + WB_RULES_COMPACT, dynamic: '' };
   const officialStrategy = officialOn && twb && typeof twb.buildOfficialKnowledge === 'function'
     ? twb.buildOfficialKnowledge(teachingContext) : '';
-  const officialTeaching = officialOn ? WB_CORE_COMPACT + '\n\n' + WolfReasoningContext.disputeReview() + officialStrategy : '';
   const customTeaching = twb && typeof twb.buildInjection === 'function' ? twb.buildInjection(teachingContext) : '';
-  // 公共流程属于硬规则，在任何教学模式下都保留，并放在玩家世界书之后再次压住边界。
-  // ★ 但「本局角色行动与结算顺序」不再从这里返回：它是规则，不是教学内容，搭教学层
-  //   的车会有两个后果——① 网页端完整战报里教学层和规则层会各带一份，同一段顺序发两遍；
-  //   ② 一旦在某条路径上精简掉教学层，顺序会跟着一起消失。改由各调用点显式接上
-  //   buildActivePublicInteractionRules()，保证每条路径不多不少正好一份。
-  return officialTeaching + customTeaching + WB_RULES_COMPACT;
+  const shared = (officialOn ? WB_CORE_COMPACT + '\n\n' + WolfReasoningContext.disputeReview() : '') + WB_RULES_COMPACT;
+  const dynamic = officialStrategy + customTeaching;
+  return { shared, dynamic };
+}
+function buildWorldBook(p) {
+  // 当前角色的完整能力由 guide 单独注入；其他角色只给公开的一行摘要。
+  // 下方旧拼装逻辑暂时保留以便历史对照，但不再进入模型上下文。
+  const parts = buildWorldBookParts(p);
+  return parts.shared + parts.dynamic;
 
   /* legacy world-book assembly (inactive) */
   let wb = WB_CORE + WB_CONFIDENCE_EVIDENCE + WB_RULE_CLARIFY;
@@ -5871,7 +5870,14 @@ function blindMaskAIInstructions(text) {
 
 function blindForAI(text, p) {
   if (!blindNamesOn()) return String(text || '');
-  return blindPrivatePersonaBlock(p) + '\n\n' + blindMaskAIInstructions(text);
+  const masked = blindMaskAIInstructions(text);
+  const persona = blindPrivatePersonaBlock(p);
+  const brk = '<!--CACHE_BRK_SHARED-->';
+  const idx = masked.indexOf(brk);
+  if (idx >= 0) {
+    return masked.slice(0, idx + brk.length) + '\n\n' + persona + '\n\n' + masked.slice(idx + brk.length);
+  }
+  return persona + '\n\n' + masked;
 }
 
 function blindMaskElementText(root) {
@@ -10421,7 +10427,9 @@ function buildSystemPrompt(p, taskContext) {
   const isHardcore = $('m-hardcore') && $('m-hardcore').checked;
   // 行动与结算顺序属于规则、不属于教学层，所以在这里显式接上（原来它藏在 buildWorldBook
   // 尾部，等于和教学内容绑死）。位置保持不变：仍在世界书之后，用来再次压住角色边界。
-  const wb = buildWorldBook(p) + buildActivePublicInteractionRules() + (bareRulesMode() ? BARE_RECORDS_RULE : WB_STRATEGY_AUTONOMY) + buildSheriffOrderRuleBlock();
+  const _wbParts = buildWorldBookParts(p);
+  const wb = _wbParts.shared + buildActivePublicInteractionRules() + (bareRulesMode() ? BARE_RECORDS_RULE : WB_STRATEGY_AUTONOMY) + buildSheriffOrderRuleBlock();
+  const wbDynamic = _wbParts.dynamic ? '\n\n' + _wbParts.dynamic : '';
   // 🌐 英文模式：让 AI 用英文思考与发言（世界书保持中文，模型照样看得懂）
   const langOutBlock = (window.WolfI18n && window.WolfI18n.isEnglish && window.WolfI18n.isEnglish())
     ? "\n\n[LANGUAGE — HIGHEST PRIORITY] This match is played in English. Write ALL of your output in natural, fluent English — your <thinking>/<draft> reasoning and especially your spoken <game> statement. Do NOT write in Chinese. Keep every tag (<draft>/<game>/<action>/<interrupt>/<plan>) exactly as specified. In <action>, copy the target player's name EXACTLY as shown in the roster (names may be non-English — reproduce them verbatim, do not translate them).\n\n" + (WolfI18n.terminologyGuide ? WolfI18n.terminologyGuide() : '')
@@ -10496,10 +10504,11 @@ function buildSystemPrompt(p, taskContext) {
   //   这里只管语气：牌桌上的人是对手，不是学生。怎么判断、站谁，仍由它自己推理决定。
   styleBlock += '\n\n【你是在牌桌上跟对手博弈，不是在辅导谁】不要用助手或老师的口吻：别说"建议你""这样打不太对哦""我们要理性""大家冷静一下"这种居高临下的指导腔，也别替对方把道理讲圆。'
     + '你不同意就直说他哪里不对、你为什么不信他；被点名、被踩，先看他说得对不对：对了就认，错了拿他的原话指出错在哪。可以不给面子，但攻击要落在具体的话和票上，不要人身攻击。';
-  // 📖 经验库：按本局角色、阵营、阶段和局面挑两局"别人打过的牌"和两段范例给它看，让它从结果里自己悟，
-  //   代替再加一条道理。纯净 / 仅自定义模式和关掉「经验库」开关时为空串。
-  if (window.WolfExperience && typeof WolfExperience.build === 'function') {
-    try { styleBlock += WolfExperience.build(p, taskContext, S); } catch (e) { console.warn('经验库注入失败', e); }
+  // 📖 经验库与模型专属指令：因玩家身份/阶段而异，放在玩家专属块（CACHE_BRK_SHARED 之后），
+  //   保证公共前缀（世界书+说人话+本局配置+角色表+胜负规则）在全场12个玩家之间100%逐字相同，直接吃满 Prompt 缓存。
+  let experienceBlock = '';
+  if (!bareRulesMode() && window.WolfExperience && typeof WolfExperience.build === 'function') {
+    try { experienceBlock = WolfExperience.build(p, taskContext, S); } catch (e) { console.warn('经验库注入失败', e); }
   }
   // ★ 说人话：规则书教的是"怎么想"，不是"怎么说"。此前模型会把世界书里的内部术语原样搬进发言
   //   （"我的账本摆在这儿""自报平民没有排他性""用同一把尺子"），真人听着就是一股怪味。
@@ -10514,7 +10523,7 @@ function buildSystemPrompt(p, taskContext) {
   //   "平民"和"好人牌"在 AI 桌上成了字典：真平民说"平民"，神职不肯撒谎就改说"好人牌"，狼只要听用词就能圈出神。
     + '\n\n【身份·没事别报，要提就全桌一个词】没人问你身份就别报。"我是平民""我是好人牌""底牌是好人""身上干净"这类话帮不了你，只会把神职圈给狼看。真要提自己（被查杀要自证、残局要排坑），好人不管是不是神职都只用"平民"两个字，不要用"好人牌""底牌是好人"这种绕开"平民"的说法——那等于告诉全场你有身份。要么跳全，要么藏全：决定跳就把身份和信息一起摆出来；决定藏就连视角一起藏，"我没救""我验到""我守的"这种只有某个身份才说得出的话一个字都别带。';
   if (bareRulesMode()) styleBlock = liveMode() ? LIVE_FRAMING_BLOCK : '';
-  if (selectedPrompt && selectedPrompt.content) styleBlock += '\n\n【模型专属指令（最高优先级）】\n' + selectedPrompt.content.trim();
+  const selectedPromptBlock = (selectedPrompt && selectedPrompt.content) ? '\n\n【模型专属指令（最高优先级）】\n' + selectedPrompt.content.trim() : '';
   // ★「性情」开关此前只控制卡片上显不显示标签，根本不控制提示词注入——
   //   用户以为关掉了，其实人格设定照样全量注入。这里让它名副其实。
   const personaTagOn = !$('m-mbti') || $('m-mbti').checked;
@@ -11255,31 +11264,29 @@ ${userPersona}
     ? '\n\n【本局胜负规则·屠边局（重要）】狼人获胜条件（满足任一）：①杀光所有神职（预言家/女巫/守卫/猎人/骑士等有技能的好人）即“屠神”；②杀光所有平民（普通村民）即“屠民”；③或存活狼人数≥存活好人数。本局确实是屠边规则，“屠神”“屠民”是真实有效的获胜路径。' + (bareRulesMode() ? BARE_WIN_FACT : WIN_OBJECTIVE_RULE)
     : '\\n\\n【本局胜负规则·屠城局（重要）】狼人获胜条件：将存活好人数压到≤存活狼人数（即“屠城”）。本局是屠城规则，没有“屠神”“屠民”的提前获胜条件——杀光神职或杀光平民都不会让狼提前获胜，只看场上总人数对比。不要按屠边板子规划“优先杀光神职”。' + (bareRulesMode() ? BARE_WIN_FACT : WIN_OBJECTIVE_RULE);
 
-  // ★ 骑士连斩模式说明（仅在连斩模式开启、且该玩家是骑士时注入，覆盖 guide 里"只有一次"的默认前提）
+  // ★ 骑士连斩模式说明：公共规则放在共享前缀（12人完全相同），骑士本人当前的决斗权状态放在玩家私密段
   let knightChainBlock = '';
+  let knightPrivateStatusBlock = '';
   if (S.knightChainMode && bareRulesMode()) {
     const _dueledToday = (S._duelRound === S.round);
-    const bareStatus = (p.role && p.role.id === 'knight')
-      ? (S._duelUsed ? '你的决斗权已结束。' : _dueledToday ? '你今天已决斗过一次，明天可继续决斗。' : '你今天可以发起决斗。')
-      : '';
-    knightChainBlock = '\n\n【骑士连斩规则】本局骑士每天最多可发起一次决斗：命中狼人则狼死、骑士存活且次日可继续决斗；指向好人则骑士牺牲、决斗权结束。' + bareStatus;
-  } else if (S.knightChainMode && p.role && p.role.id === 'knight') {
-    // 基于 _duelUsed 给骑士本人当前的决斗权状态——防止它套用"经典模式剑只有一次"的惯性，
-    // 第一天斩完成功后，第二天误以为剑已用完而不敢再决斗。
-    const duelWinCount = (S.duelLog || []).filter(d => d.result === 'wolf' && d.knight === p.name).length;
-    const _dueledToday = (S._duelRound === S.round);
-    const chainStatus = S._duelUsed
-      ? `\\n\\n★★【你当前的决斗权·必读】你的决斗权已结束（之前决斗指向了好人，剑已折断），不能再决斗了。`
-      : _dueledToday
-      ? `\\n\\n★★【你当前的决斗权·必读】你【今天已经决斗过一次】（每天最多一次），今天不能再决斗。但因为你斩中的是狼，决斗权保留——【明天你依然可以继续决斗】。今天接下来专心发言、投票即可，不要再尝试发起决斗。`
-      : (duelWinCount > 0
-          ? `\\n\\n★★【你当前的决斗权·必读】你之前已经成功斩杀过${duelWinCount}只狼，正因为每次都斩中了狼，你的决斗权【完整保留】——你【今天仍然可以再次发起决斗】！不要因为"我已经决斗过了"就以为剑用完了，连斩模式下只要你不斩错好人，你的剑就一直在。继续盯死下一个最硬的狼目标，该出剑就出。`
-          : `\\n\\n★★【你当前的决斗权·必读】你【现在可以发起决斗】，决斗权还在。`);
-    knightChainBlock = '\\n\\n【⚠️ 本局骑士规则·连斩模式（覆盖你身份说明里"只有一次决斗"的描述）】本局开启了【骑士连斩】：你的决斗不再是一次性的——只要你决斗【命中狼人】，狼死、你存活，并且【下一天你依然可以继续决斗】；只有当你决斗【指向好人】时，你才会当场牺牲、决斗结束。【节奏限制：每天最多发起一次决斗】——同一天决斗过（无论在哪个环节）当天就不能再决斗，斩中狼的话下一天决斗权自动恢复。换句话说：决斗准一次就能再来一次，连续清狼；决斗错一次直接出局。所以你的核心仍然是【每一剑都要指向你怀疑最硬的目标】——连斩奖励的是判断准的骑士，不是鼓励乱试错（错一次就死）。判断目标硬不硬的标准和经典模式一样：能说出他和已知事实的具体矛盾、或他在关键票型里持续偏狼，才算硬怀疑；只凭"感觉可疑"去决斗，错了就是用你的命白送一个好人位。' + chainStatus;
+    if (p.role && p.role.id === 'knight') {
+      knightPrivateStatusBlock = '\n\n' + (S._duelUsed ? '你的决斗权已结束。' : _dueledToday ? '你今天已决斗过一次，明天可继续决斗。' : '你今天可以发起决斗。');
+    }
+    knightChainBlock = '\n\n【骑士连斩规则】本局骑士每天最多可发起一次决斗：命中狼人则狼死、骑士存活且次日可继续决斗；指向好人则骑士牺牲、决斗权结束。';
   } else if (S.knightChainMode) {
-    // 其他所有玩家（含狼队）：公开告知本局是连斩规则，但不暴露谁是骑士。
-    // 这是和"屠边/隐死亡"同级的【全局规则】，每个人都该知道并据此调整战术。
     knightChainBlock = '\\n\\n【⚠️ 本局规则·骑士连斩（全场公开规则）】本局开启了【骑士连斩】模式：场上的骑士（如果存在）只要决斗【命中狼人】，就能存活并【在之后的回合继续发起决斗】（每天最多一次），连续清狼；只有当骑士决斗【指向好人】时才会折剑牺牲。这条规则会显著改变战术，务必纳入考量：\\n· 如果你是好人：骑士的剑不再是\"用一次就没\"的稀缺品——只要他斩得准，可以一直斩下去。所以好人方可以更积极地配合骑士锁定硬目标。\\n· 如果你是狼：【经典模式里\"故意送个弃子骗骑士把唯一的剑用掉\"那招在本局完全失效】——骑士斩了狼之后还能继续斩，送弃子等于白送一只狼、还让骑士连斩权延续。本局对付骑士，只能想办法让他【斩错好人】(误导他的怀疑方向)，或者在夜里刀掉他，绝不能用\"骗他用剑\"的思路。';
+    if (p.role && p.role.id === 'knight') {
+      const duelWinCount = (S.duelLog || []).filter(d => d.result === 'wolf' && d.knight === p.name).length;
+      const _dueledToday = (S._duelRound === S.round);
+      const chainStatus = S._duelUsed
+        ? `\\n\\n★★【你当前的决斗权·必读】你的决斗权已结束（之前决斗指向了好人，剑已折断），不能再决斗了。`
+        : _dueledToday
+        ? `\\n\\n★★【你当前的决斗权·必读】你【今天已经决斗过一次】（每天最多一次），今天不能再决斗。但因为你斩中的是狼，决斗权保留——【明天你依然可以继续决斗】。今天接下来专心发言、投票即可，不要再尝试发起决斗。`
+        : (duelWinCount > 0
+            ? `\\n\\n★★【你当前的决斗权·必读】你之前已经成功斩杀过${duelWinCount}只狼，正因为每次都斩中了狼，你的决斗权【完整保留】——你【今天仍然可以再次发起决斗】！不要因为"我已经决斗过了"就以为剑用完了，连斩模式下只要你不斩错好人，你的剑就一直在。继续盯死下一个最硬的狼目标，该出剑就出。`
+            : `\\n\\n★★【你当前的决斗权·必读】你【现在可以发起决斗】，决斗权还在。`);
+      knightPrivateStatusBlock = '\\n\\n【⚠️ 本局骑士规则·连斩模式（覆盖你身份说明里"只有一次决斗"的描述）】本局开启了【骑士连斩】：你的决斗不再是一次性的——只要你决斗【命中狼人】，狼死、你存活，并且【下一天你依然可以继续决斗】；只有当你决斗【指向好人】时，你才会当场牺牲、决斗结束。【节奏限制：每天最多发起一次决斗】——同一天决斗过（无论在哪个环节）当天就不能再决斗，斩中狼的话下一天决斗权自动恢复。换句话说：决斗准一次就能再来一次，连续清狼；决斗错一次直接出局。所以你的核心仍然是【每一剑都要指向你怀疑最硬的目标】——连斩奖励的是判断准的骑士，不是鼓励乱试错（错一次就死）。判断目标硬不硬的标准和经典模式一样：能说出他和已知事实的具体矛盾、或他在关键票型里持续偏狼，才算硬怀疑；只凭"感觉可疑"去决斗，错了就是用你的命白送一个好人位。' + chainStatus;
+    }
   }
 
   // ★ 发言制说明（随单轮/双轮开关切换，覆盖核心规则里"白天两轮发言"的默认描述）
@@ -11337,7 +11344,12 @@ ${userPersona}
       ? buildPublicClaimsBlock(p) : '';
   const _prune = (currentTeachingMode === 'custom' || currentTeachingMode === 'clean') ? null : buildAbsentRolePruner(S.players);
   const _tp = t => _prune ? _prune(t) : t;
-  return `${_tp(wb)}${trialBlock}\n\n${_tp(SOCIAL_GAME_COGNITION_RULES)}\n\n${_tp(guide)}${bareRulesMode() ? '' : mbtiBlock}${_tp(styleBlock)}${cosplayBlock}${cosplayHint}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(p)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'':'死者身份公开（出局后翻牌）'}${_tp(winRuleBlock)}${_tp(knightChainBlock)}${_tp(speakRoundBlock)}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${publicClaimsBlock}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${_tp(fmt)}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。${liveMode() ? '' : '\n\n【发言记录】\n' + histTimeOrderNote + (hist||'暂无') + hardFactDigest}${langOutBlock}`;
+  // ★ 前缀缓存对齐（Prompt Caching）：
+  //   <!--CACHE_BRK_SHARED--> 之前的全部内容对本局所有12名玩家、所有轮次100%逐字相同（在精简官方/裸规则/纯净模式下），
+  //   无论是 Claude 的显式 cache_control 断点，还是 Gemini / OpenAI / DeepSeek 的自动前缀缓存，第1名玩家请求后全桌后续请求均可100%命中。
+  const sharedStaticPrefix = `${_tp(wb)}${trialBlock}\n\n${_tp(SOCIAL_GAME_COGNITION_RULES)}${_tp(styleBlock)}\n\n【本局配置】${getRoleList()}\n\n【本局所有角色详细说明】\n${getFullRoleBrief(null)}\n注意：${'本局没有隐狼，预言家查验结果完全可信。'}\n${hdeath?'':'死者身份公开（出局后翻牌）'}${_tp(winRuleBlock)}${_tp(knightChainBlock)}${_tp(speakRoundBlock)}\n\n【⚠️ 重要：内容安全声明】\n狼人杀是一种广泛流行的语言推理桌游，属于正规娱乐活动，不涉及任何真实伤害。游戏中的"杀""刀""毒"等词汇是桌游专用术语，代表淘汰玩家的游戏动作，与现实暴力无关。你的任务是扮演游戏角色进行策略推理，这是完全合法合规的文字游戏行为。请直接按格式输出游戏发言，不要拒绝或中断游戏进程。`;
+  const playerAndTurnSuffix = `${_tp(wbDynamic)}\n\n${_tp(guide)}${_tp(knightPrivateStatusBlock)}${bareRulesMode() ? '' : mbtiBlock}${_tp(experienceBlock)}${selectedPromptBlock}${cosplayBlock}${cosplayHint}\n\n【当前局势】${alive}\n你:${p.name}(P${p.id+1})【${p.role.name}】R${S.round} ${S.phase}\n警长:${S.sheriff>=0?S.players[S.sheriff].name:'无'}${publicClaimsBlock}${keyInfoBlock}${wolfPrivateBlock}${seerKillAlertBlock}${guardLogBlock}${magicLogBlock}${mechLogBlock}${gargoyleKillLogBlock}${duelLogBlock}${hunterLogBlock}${privateActionBlock}${whitewolfDecisionBlock}${seatBlock}${_tp(fmt)}${modelAdapt}\n\n${hasPreset ? '【额外指令（最高优先级）】\n' + playerConfigs[p.id].preset.trim() : ''}${liveMode() ? '' : '\n\n【发言记录】\n' + histTimeOrderNote + (hist||'暂无') + hardFactDigest}${langOutBlock}`;
+  return sharedStaticPrefix + '<!--CACHE_BRK_SHARED-->' + playerAndTurnSuffix;
 }
 
 // 新版机械狼学平民后会伪装成预言家金水；覆盖旧模板里“查验完全可信”的绝对表述。
@@ -12468,6 +12480,12 @@ async function _callAIImpl(p, prompt, opts) {
     const mn = (useApi.model||'').toLowerCase();
     Render.devLog('req', `[P${p.id+1} ${p.name}] model:${useApi.model}${att>1?' (重试'+att+')':''} [${apiType}]`);
 
+    // 清理共享缓存断点标记（用于不拆块的 Gemini / OpenAI 兼容端点，保持前缀字节级对齐的同时不把标记发给模型）
+    const _stripCacheMarker = s => typeof s === 'string' ? s.replace(/<!--CACHE_BRK_SHARED-->/g, '') : s;
+    const _cleanMsgsForCompat = arr => arr.map(m => (m && m.role === 'system' && typeof m.content === 'string' && m.content.includes('<!--CACHE_BRK_SHARED-->'))
+      ? Object.assign({}, m, { content: _stripCacheMarker(m.content) })
+      : m);
+
     let res;
     if (apiType === 'anthropic') {
       // Anthropic 格式
@@ -12478,12 +12496,16 @@ async function _callAIImpl(p, prompt, opts) {
       for (const m of anthMsgs) if (typeof m.content !== 'string' || !m.content.trim()) m.content = m.role === 'assistant' ? '（已提交）' : '（无内容）';
       if (anthMsgs.length && anthMsgs[0].role !== 'user') anthMsgs.unshift({role: 'user', content: '（继续）'});
       const sysContent = _claudeMsgs.find(m => m.role === 'system')?.content || '';
-      // ★ 启用 prompt 缓存：system prompt 通常占输入80%+且每次都一样，缓存后只按10%价格收费
-      //   缓存5分钟，狼人杀一局通常10-20分钟内会被高频复用，省钱60-80%
-      //   注意：system 必须 ≥ 1024 token 才能被缓存，狼人杀场景几乎总是满足
-      const systemBlocks = sysContent ? [
-        { type: 'text', text: sysContent, cache_control: { type: 'ephemeral' } }
-      ] : '';
+      // ★ 双断点 Prompt 缓存（解决 12 名玩家身份不同 + 每轮发言追加导致单块缓存命中率仅 7% 的问题）：
+      //   断点①：12 名玩家、所有轮次 100% 相同的公共规则前缀（世界书+板子配置+角色说明+胜负规则），第 1 位玩家创建缓存后全桌 12 人跨轮次 100% 复用！
+      //   断点②：当前玩家身份与本轮局势后缀（供同一玩家同轮重试/二阶段调用复用）。
+      const _sysParts = sysContent ? sysContent.split('<!--CACHE_BRK_SHARED-->').map(s => s.trim()).filter(Boolean) : [];
+      const systemBlocks = _sysParts.length > 1
+        ? [
+            { type: 'text', text: _sysParts[0], cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: _sysParts.slice(1).join('\n\n'), cache_control: { type: 'ephemeral' } }
+          ]
+        : (sysContent ? [{ type: 'text', text: _stripCacheMarker(sysContent), cache_control: { type: 'ephemeral' } }] : '');
       const body = {model: useApi.model, max_tokens: maxTk, messages: anthMsgs, system: systemBlocks};
       const anthropicEffort = ReasoningControl.anthropicEffort(reasoning.effective);
       if (anthropicEffort) body.output_config = {effort: anthropicEffort};
@@ -12618,7 +12640,7 @@ async function _callAIImpl(p, prompt, opts) {
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{text: m.content}]
       }));
-      const sysContent = tmsgs.find(m => m.role === 'system')?.content || '';
+      const sysContent = _stripCacheMarker(tmsgs.find(m => m.role === 'system')?.content || '');
       // ★ Gemini 3 修复：Gemini 3 是 thinking 模型，maxOutputTokens 同时包含 thinking+输出
       //   默认 4K 会被 thinking 烧光导致短回复/截断。需要：
       //   ① 单独设置 thinkingConfig.thinkingBudget 限制思考预算
@@ -12768,9 +12790,10 @@ async function _callAIImpl(p, prompt, opts) {
       }
 
       // ★ Gemini3(含 pro-high 等高推理档)在 OpenAI 兼容端常拒绝 temperature/top_p，传了会 400 INVALID_ARGUMENT，故不传
+      const _baseCompatMsgs = _cleanMsgsForCompat(tmsgs);
       const requestMsgs = forceFinalOnlyRetry
-        ? tmsgs.concat([{role:'user',content:'【技术补发·最高优先级】上一份回复把输出额度耗在思考中，正式发言没有完成。不要重新分析、不要复述推理、不要写草稿或 thinking。立即只输出本轮最终公开发言和必要的 action；发言控制在300字以内，必须完整收尾。'}])
-        : tmsgs;
+        ? _baseCompatMsgs.concat([{role:'user',content:'【技术补发·最高优先级】上一份回复把输出额度耗在思考中，正式发言没有完成。不要重新分析、不要复述推理、不要写草稿或 thinking。立即只输出本轮最终公开发言和必要的 action；发言控制在300字以内，必须完整收尾。'}])
+        : _baseCompatMsgs;
       let body = isGemini3Compat
         ? {model:useApi.model, messages:requestMsgs}
         : {model:useApi.model, messages:requestMsgs, temperature:pTemp, top_p:pTopP, max_tokens:compatMaxTk, stream: true};

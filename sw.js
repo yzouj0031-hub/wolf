@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wolf-pwa-v85-proactive-board-model';
+const CACHE_NAME = 'wolf-pwa-v86-prompt-cache-prefix';
 const APP_SHELL = [
   './',
   './index.html',
