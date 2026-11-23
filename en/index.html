@@ -3408,7 +3408,7 @@ body.has-wp::after {
     <div class="api-vault-pick" id="pcvault-pick-dropdown"></div>
   </div>
   <div class="row"><label>渠道</label><select id="pc-apitype" style="flex:1"><option value="">自动（按这个座位的地址判断；没填地址就跟全局）</option></select></div>
-  <div class="row"><label>API密钥</label><div style="display:flex;gap:4px;align-items:center;flex:1"><input type="password" id="pck" placeholder="留空用全局（Vertex可直接粘服务账号JSON）" style="flex:1"><button type="button" onclick="window.VertexDirect&&VertexDirect.pickServiceAccountFile('pc')" style="padding:4px 7px;font-size:0.68em;background:rgba(104,184,232,0.16);color:#98d0f0;border:1px solid rgba(104,184,232,0.38);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="导入 Google Cloud Vertex 服务账号 JSON 密钥文件">📂 JSON</button></div></div>
+  <div class="row"><label>API密钥</label><div style="display:flex;gap:4px;align-items:center;flex:1"><input type="password" id="pck" placeholder="留空用全局（Vertex可点右侧手填或导入JSON）" style="flex:1"><button type="button" onclick="window.VertexDirect&&VertexDirect.openManualDialog('pc')" style="padding:4px 7px;font-size:0.68em;background:rgba(200,168,76,0.18);color:#f0d488;border:1px solid rgba(200,168,76,0.45);border-radius:var(--r);white-space:nowrap;cursor:pointer" title="打开 Google Cloud Vertex AI 手填配置向导（可分项手填项目ID、区域、邮箱、私钥、Token 或 API Key）">✍️ 手填</button><button type="button" onclick="window.VertexDirect&&VertexDirect.pickServiceAccountFile('pc')" style="padding:4px 7px;font-size:0.68em;background:rgba(104,184,232,0.16);color:#98d0f0;border:1px solid rgba(104,184,232,0.38);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="导入 Google Cloud Vertex 服务账号 JSON 密钥文件">📂 JSON</button></div></div>
   <div class="row"><label>模型</label><div style="display:flex;gap:4px;align-items:center"><input type="text" id="pcm" placeholder="留空用全局" style="flex:1"><button id="pcm-fetch" style="padding:4px 8px;font-size:0.7em;background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="拉取模型列表">📡</button><button id="pc-test-api" style="padding:4px 8px;font-size:0.7em;background:rgba(80,140,90,0.18);color:#90c8a0;border:1px solid #6ba070;border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="测试API是否能正常调用">🧪 测试</button></div></div>
   <div id="pc-test-result" style="display:none;margin:0 0 10px 0;padding:8px 10px;border-radius:var(--r);font-size:0.75em;line-height:1.5;font-family:var(--font-body);white-space:pre-wrap;word-break:break-word"></div>
   <div class="row"><label>人设</label><textarea id="pcpersona" placeholder="自定义角色人设（留空则无特殊人设）&#10;例：你是L，世界第一侦探，说话慢且平淡…" rows="4" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(200,180,140,0.2);color:#c8bfa8;border-radius:var(--r);padding:8px;font-size:0.8em;font-family:var(--font-body);resize:vertical;"></textarea></div>
@@ -6548,26 +6548,10 @@ function refreshApiChannelUI(autofillUrl) {
       : '<span style="color:#9a8f70">网页端能否直连未验证；APK 走原生请求不受 CORS 限制</span>';
   let vertexHelper = '';
   if (prov.type === 'vertex' && window.VertexDirect) {
-    const kInfo = VertexDirect.parseKey(rawKey);
-    const credLine = kInfo.kind === 'sa_json'
-      ? `<span style="color:#7fbf8f">✅ 已识别服务账号：${escapeHtml(kInfo.clientEmail)}（项目：${escapeHtml(kInfo.projectId || '未指定')}，浏览器本地自动签发/续期 Token）</span>`
-      : kInfo.kind === 'api_key'
-        ? `<span style="color:#7fbf8f">🔑 已识别 Google Cloud API Key（AIza…）</span>`
-        : kInfo.kind === 'oauth_token'
-          ? `<span style="color:#d8b868">🔑 已识别 OAuth 临时令牌（ya29.…，有效期 1 小时；推荐改用服务账号 JSON 永久免刷）</span>`
-          : `<span style="color:#8aa8c8">💡 密钥栏可直接粘贴/导入 Google Cloud 服务账号 JSON（永久免刷 Token），或填 API Key / ya29. 令牌；地址栏填 <code>vertex://项目ID/区域</code>（如 <code>vertex://my-proj/global</code>）</span>`;
-    vertexHelper = `<div style="margin:4px 0;padding:5px 7px;background:rgba(104,184,232,0.07);border:1px solid rgba(104,184,232,0.22);border-radius:4px;line-height:1.45">`
-      + credLine
-      + `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;align-items:center">`
-      + `<button type="button" onclick="VertexDirect.pickServiceAccountFile('global')" style="padding:2px 7px;font-size:.92em;background:rgba(104,184,232,0.16);border:1px solid rgba(104,184,232,0.4);border-radius:3px;color:#98d0f0;cursor:pointer">📂 导入服务账号 JSON</button>`
-      + `<span style="color:#6a6050;margin-left:2px">区域：</span>`
-      + ['global','us-central1','us-east5','europe-west1'].map(loc =>
-          `<button type="button" onclick="VertexDirect.setRegion('${loc}','global')" style="padding:1px 6px;font-size:.88em;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.22);border-radius:3px;color:#b8aa90;cursor:pointer">${loc}</button>`
-        ).join('')
-      + `</div></div>`;
+    vertexHelper = VertexDirect.renderHelperHtml(url, rawKey, modelEl ? modelEl.value : '', 'global');
   }
-  box.innerHTML = (ep ? '预览：' + escapeHtml(ep) + '<br>' : '填入地址后这里会显示最终请求的完整 URL<br>')
-    + (warn ? '<span style="color:#d8a050">⚠ ' + escapeHtml(warn) + '</span><br>' : '')
+  box.innerHTML = `<span id="vtx-live-ep">${ep ? '预览：' + escapeHtml(ep) : '填入地址后这里会显示最终请求的完整 URL'}</span><br>`
+    + `<span id="vtx-live-warn" style="color:#d8a050;display:${warn ? 'inline' : 'none'}">${warn ? '⚠ ' + escapeHtml(warn) : ''}</span>${warn ? '<br>' : ''}`
     + vertexHelper + cors;
 }
 

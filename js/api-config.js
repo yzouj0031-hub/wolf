@@ -409,9 +409,324 @@ const VertexDirect = (() => {
     const keyEl = $(isPC ? 'pck' : 'g-key');
     if (!urlEl) return;
     const spec = resolveSpec(urlEl.value || ($('g-url') ? $('g-url').value : ''), (keyEl && keyEl.value) || ($('g-key') ? $('g-key').value : ''), '');
-    urlEl.value = spec.projectId ? `vertex://${spec.projectId}/${loc}` : `vertex://${loc}`;
+    const cleanLoc = String(loc || 'global').trim().toLowerCase() || 'global';
+    urlEl.value = spec.projectId ? `vertex://${spec.projectId}/${cleanLoc}` : `vertex://${cleanLoc}`;
     if (typeof refreshApiChannelUI === 'function') refreshApiChannelUI(false);
     if (typeof saveCfg === 'function') saveCfg();
+  }
+
+  function setProjectId(pid, target) {
+    const isPC = target === 'pc';
+    const urlEl = $(isPC ? 'pcu' : 'g-url');
+    const keyEl = $(isPC ? 'pck' : 'g-key');
+    if (!urlEl) return;
+    const cleanPid = String(pid || '').trim();
+    const spec = resolveSpec(urlEl.value || ($('g-url') ? $('g-url').value : ''), (keyEl && keyEl.value) || ($('g-key') ? $('g-key').value : ''), '');
+    const loc = spec.location || 'global';
+    urlEl.value = cleanPid ? `vertex://${cleanPid}/${loc}` : `vertex://${loc}`;
+    const urlInput = $(isPC ? 'pcu' : 'g-url');
+    if (urlInput && document.activeElement && document.activeElement.id === 'vtx-inline-pid') {
+      // 仅更新预览与警告，不重绘整个 vertexHelper 以免打断手填焦点
+      _updatePreviewOnly();
+    } else if (typeof refreshApiChannelUI === 'function') {
+      refreshApiChannelUI(false);
+    }
+    if (typeof saveCfg === 'function') saveCfg();
+  }
+
+  function _escHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _updatePreviewOnly() {
+    const previewSpan = $('vtx-live-ep');
+    const warnSpan = $('vtx-live-warn');
+    const urlEl = $('g-url'), modelEl = $('g-model'), keyEl = $('g-key');
+    if (!urlEl) return;
+    const u = urlEl.value;
+    const m = (modelEl && modelEl.value) || '';
+    const k = (keyEl && keyEl.value) || '';
+    const spec = resolveSpec(u || 'vertex://global', k, m || '<模型名>');
+    if (previewSpan) previewSpan.textContent = '预览：' + spec.endpoint;
+    if (warnSpan) {
+      let w = '';
+      if (spec.keyInfo.kind === 'invalid_json') w = spec.keyInfo.error;
+      else if (!spec.projectId && spec.keyInfo.kind !== 'api_key') {
+        w = '请在下方「项目 ID」框手填你的 Google Cloud Project ID，或粘贴/导入服务账号 JSON';
+      }
+      warnSpan.style.display = w ? 'inline' : 'none';
+      warnSpan.textContent = w ? ('⚠ ' + w) : '';
+    }
+  }
+
+  function renderHelperHtml(rawUrl, rawKey, rawModel, target) {
+    const t = target || 'global';
+    const spec = resolveSpec(rawUrl || 'vertex://global', rawKey || '', rawModel || '');
+    const kInfo = spec.keyInfo;
+    const credLine = kInfo.kind === 'sa_json'
+      ? `<span style="color:#7fbf8f">✅ 已识别服务账号：${_escHtml(kInfo.clientEmail)}（项目：${_escHtml(spec.projectId || kInfo.projectId || '未指定')}，本地自动签发/续期 Token）</span>`
+      : kInfo.kind === 'api_key'
+        ? `<span style="color:#7fbf8f">🔑 已识别 Google Cloud API Key（AIza…）</span>`
+        : kInfo.kind === 'oauth_token'
+          ? `<span style="color:#d8b868">🔑 已识别 OAuth 临时令牌（ya29.…，有效期 1 小时；也可点「✍️ 手填向导」填服务账号私钥永久免刷）</span>`
+          : `<span style="color:#8aa8c8">💡 可直接手填下方<b>项目 ID</b> + <b>区域</b>，密钥栏填 API Key / <code>ya29.</code> 令牌，或点「✍️ 手填向导」/「📂 导入 JSON」</span>`;
+    const presetRegions = ['global', 'us-central1', 'us-east5', 'europe-west1', 'asia-east1'];
+    return `<div style="margin:4px 0;padding:6px 8px;background:rgba(104,184,232,0.07);border:1px solid rgba(104,184,232,0.22);border-radius:4px;line-height:1.45">`
+      + credLine
+      + `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;align-items:center">`
+      + `<span style="color:#8aa8c8;font-size:.92em">项目ID：</span>`
+      + `<input type="text" id="vtx-inline-pid" value="${_escHtml(spec.projectId || '')}" placeholder="手填 Project ID（如 my-gcp-proj）" oninput="VertexDirect.setProjectId(this.value,'${t}')" style="width:155px;padding:2px 6px;font-size:.92em;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.35);border-radius:3px;color:#d8e8f8">`
+      + `<span style="color:#8aa8c8;font-size:.92em;margin-left:2px">区域：</span>`
+      + `<input type="text" id="vtx-inline-loc" value="${_escHtml(spec.location || 'global')}" placeholder="如 global / us-east5" onchange="VertexDirect.setRegion(this.value,'${t}')" style="width:92px;padding:2px 6px;font-size:.92em;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.35);border-radius:3px;color:#d8e8f8">`
+      + presetRegions.map(loc =>
+          `<button type="button" onclick="VertexDirect.setRegion('${loc}','${t}')" style="padding:1px 6px;font-size:.86em;background:${spec.location===loc?'rgba(104,184,232,0.24)':'rgba(255,255,255,0.04)'};border:1px solid ${spec.location===loc?'rgba(104,184,232,0.55)':'rgba(200,180,140,0.22)'};border-radius:3px;color:${spec.location===loc?'#b8e4ff':'#b8aa90'};cursor:pointer">${loc}</button>`
+        ).join('')
+      + `</div>`
+      + `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;align-items:center">`
+      + `<button type="button" onclick="VertexDirect.openManualDialog('${t}')" style="padding:2px 8px;font-size:.92em;background:rgba(200,168,76,0.18);border:1px solid rgba(200,168,76,0.45);border-radius:3px;color:#f0d488;cursor:pointer">✍️ 手填配置向导（分项手填 / 粘贴 JSON）</button>`
+      + `<button type="button" onclick="VertexDirect.pickServiceAccountFile('${t}')" style="padding:2px 8px;font-size:.92em;background:rgba(104,184,232,0.16);border:1px solid rgba(104,184,232,0.4);border-radius:3px;color:#98d0f0;cursor:pointer">📂 导入服务账号 JSON 文件</button>`
+      + `</div></div>`;
+  }
+
+  function openManualDialog(target) {
+    const t = target || 'global';
+    const isPC = t === 'pc';
+    const urlEl = $(isPC ? 'pcu' : 'g-url');
+    const keyEl = $(isPC ? 'pck' : 'g-key');
+    const modelEl = $(isPC ? 'pcm' : 'g-model');
+    const curUrl = (urlEl && urlEl.value) || ($('g-url') ? $('g-url').value : '');
+    const curKey = (keyEl && keyEl.value) || ($('g-key') ? $('g-key').value : '');
+    const curModel = (modelEl && modelEl.value) || ($('g-model') ? $('g-model').value : 'gemini-2.5-pro');
+    const spec = resolveSpec(curUrl, curKey, curModel);
+    const kInfo = spec.keyInfo;
+
+    let old = $('vtx-manual-modal');
+    if (old) old.remove();
+
+    const initMode = kInfo.kind === 'api_key' ? 'api_key'
+      : kInfo.kind === 'oauth_token' ? 'oauth_token'
+      : 'sa_fields';
+
+    const modal = document.createElement('div');
+    modal.id = 'vtx-manual-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(4px)';
+    modal.innerHTML = `
+      <div style="width:min(540px,96vw);max-height:90vh;overflow-y:auto;background:#141222;border:1px solid rgba(104,184,232,0.4);border-radius:10px;padding:16px 18px;color:#d8d0e8;box-shadow:0 18px 50px rgba(0,0,0,0.75);font-size:0.84em;line-height:1.5">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(104,184,232,0.18)">
+          <strong style="color:#98d0f0;font-size:1.08em">✍️ Google Cloud Vertex AI 手填配置向导（${isPC ? '当前座位' : '全局默认'}）</strong>
+          <button type="button" id="vtx-m-close" style="background:none;border:none;color:#8a8098;font-size:1.2em;cursor:pointer;padding:2px 6px">✕</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label style="display:block;font-size:.86em;color:#98b8d8;margin-bottom:3px">① Google Cloud 项目 ID (Project ID) *</label>
+            <input type="text" id="vtx-m-pid" value="${_escHtml(spec.projectId || '')}" placeholder="例：gen-lang-client-0123456789" style="width:100%;padding:6px 8px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.3);border-radius:5px;color:#e8f0ff;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:.86em;color:#98b8d8;margin-bottom:3px">② 区域 (Location / Region) *</label>
+            <div style="display:flex;gap:4px">
+              <input type="text" id="vtx-m-loc" value="${_escHtml(spec.location || 'global')}" placeholder="如 global 或 us-east5" style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.3);border-radius:5px;color:#e8f0ff;box-sizing:border-box">
+              <select id="vtx-m-loc-preset" style="width:92px;padding:4px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.25);border-radius:5px;color:#b8d0e8;font-size:.88em">
+                <option value="">常用区域…</option>
+                <option value="global">global (推荐·Gemini 3/Claude)</option>
+                <option value="us-central1">us-central1 (美中)</option>
+                <option value="us-east5">us-east5 (美东·Claude主力)</option>
+                <option value="us-east1">us-east1</option>
+                <option value="us-west1">us-west1</option>
+                <option value="europe-west1">europe-west1 (欧洲)</option>
+                <option value="europe-west4">europe-west4</option>
+                <option value="asia-east1">asia-east1 (台湾)</option>
+                <option value="asia-northeast1">asia-northeast1 (东京)</option>
+                <option value="asia-southeast1">asia-southeast1 (新加坡)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:.86em;color:#98b8d8;margin-bottom:3px">③ 模型名称（可直接手填任意 Vertex 模型 ID，或从右侧常用列表选）</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="vtx-m-model" value="${_escHtml(curModel)}" placeholder="如 gemini-2.5-pro / gemini-3.1-pro-preview / claude-sonnet-4-6" style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.3);border-radius:5px;color:#e8f0ff;box-sizing:border-box">
+            <select id="vtx-m-model-preset" style="width:170px;padding:4px 6px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.25);border-radius:5px;color:#b8d0e8;font-size:.88em">
+              <option value="">常用模型速选…</option>
+              ${DEFAULT_MODELS.map(m => `<option value="${_escHtml(m)}">${_escHtml(m)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:8px">
+          <label style="display:block;font-size:.86em;color:#98b8d8;margin-bottom:4px">④ 鉴权方式（三选一，均可手填）</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <label style="flex:1;min-width:140px;padding:6px 8px;background:rgba(104,184,232,0.08);border:1px solid rgba(104,184,232,0.25);border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:5px;font-size:.88em">
+              <input type="radio" name="vtx-m-auth" value="sa_fields" ${initMode==='sa_fields'?'checked':''}>
+              <span><b>服务账号手填/JSON</b><br><small style="color:#7898b8">永久有效·自动续期</small></span>
+            </label>
+            <label style="flex:1;min-width:130px;padding:6px 8px;background:rgba(104,184,232,0.08);border:1px solid rgba(104,184,232,0.25);border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:5px;font-size:.88em">
+              <input type="radio" name="vtx-m-auth" value="oauth_token" ${initMode==='oauth_token'?'checked':''}>
+              <span><b>OAuth Access Token</b><br><small style="color:#7898b8">手填 ya29.xxx 临时令牌</small></span>
+            </label>
+            <label style="flex:1;min-width:130px;padding:6px 8px;background:rgba(104,184,232,0.08);border:1px solid rgba(104,184,232,0.25);border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:5px;font-size:.88em">
+              <input type="radio" name="vtx-m-auth" value="api_key" ${initMode==='api_key'?'checked':''}>
+              <span><b>Google Cloud API Key</b><br><small style="color:#7898b8">手填 AIzaSy... 密钥</small></span>
+            </label>
+          </div>
+        </div>
+
+        <div id="vtx-m-pane-sa" style="display:${initMode==='sa_fields'?'block':'none'};padding:10px;background:rgba(0,0,0,0.25);border:1px solid rgba(104,184,232,0.18);border-radius:6px;margin-bottom:10px">
+          <div style="font-size:.82em;color:#8ab0d0;margin-bottom:6px">
+            你可以直接分项手填下面的<b>服务账号邮箱</b>与<b>私钥</b>，也可以在最下方粘贴完整 JSON（会自动拆解填入上面各框）：
+          </div>
+          <div style="margin-bottom:8px">
+            <label style="display:block;font-size:.84em;color:#98b8d8;margin-bottom:2px">服务账号邮箱 (client_email) *</label>
+            <input type="text" id="vtx-m-email" value="${_escHtml((kInfo.sa && kInfo.sa.client_email) || '')}" placeholder="例：wolf-vertex@my-project.iam.gserviceaccount.com" style="width:100%;padding:5px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(104,184,232,0.28);border-radius:4px;color:#e8f0ff;font-family:monospace;font-size:.9em;box-sizing:border-box">
+          </div>
+          <div style="margin-bottom:8px">
+            <label style="display:block;font-size:.84em;color:#98b8d8;margin-bottom:2px">私钥 (private_key，含 -----BEGIN PRIVATE KEY-----) *</label>
+            <textarea id="vtx-m-pk" rows="4" placeholder="-----BEGIN PRIVATE KEY-----&#10;MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...&#10;-----END PRIVATE KEY-----" style="width:100%;padding:6px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(104,184,232,0.28);border-radius:4px;color:#e8f0ff;font-family:monospace;font-size:.82em;resize:vertical;box-sizing:border-box">${_escHtml((kInfo.sa && kInfo.sa.private_key) || '')}</textarea>
+          </div>
+          <details style="font-size:.82em;color:#8aa8c8">
+            <summary style="cursor:pointer;color:#98d0f0">📋 或者：直接粘贴整段服务账号 JSON / 从文件导入（自动填入上方字段）</summary>
+            <div style="margin-top:6px">
+              <textarea id="vtx-m-json-paste" rows="3" placeholder='把下载的 .json 文件内容整段粘贴到这里，会自动提取 project_id、client_email 和 private_key…' style="width:100%;padding:6px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(104,184,232,0.25);border-radius:4px;color:#c8e0f8;font-family:monospace;font-size:.85em;resize:vertical;box-sizing:border-box"></textarea>
+            </div>
+          </details>
+        </div>
+
+        <div id="vtx-m-pane-oauth" style="display:${initMode==='oauth_token'?'block':'none'};padding:10px;background:rgba(0,0,0,0.25);border:1px solid rgba(104,184,232,0.18);border-radius:6px;margin-bottom:10px">
+          <label style="display:block;font-size:.84em;color:#98b8d8;margin-bottom:3px">手填 OAuth2 Access Token（在终端运行 <code>gcloud auth print-access-token</code> 获取）*</label>
+          <input type="text" id="vtx-m-oauth" value="${_escHtml(kInfo.kind==='oauth_token' ? kInfo.token : '')}" placeholder="ya29.a0AeXRPp5..." style="width:100%;padding:6px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(104,184,232,0.28);border-radius:4px;color:#e8f0ff;font-family:monospace;font-size:.9em;box-sizing:border-box">
+          <div style="font-size:.78em;color:#a89870;margin-top:4px">⚠️ 注：<code>ya29.</code> 开头的临时令牌默认 1 小时过期；若希望长期免刷，建议切到左侧「服务账号手填/JSON」。</div>
+        </div>
+
+        <div id="vtx-m-pane-apikey" style="display:${initMode==='api_key'?'block':'none'};padding:10px;background:rgba(0,0,0,0.25);border:1px solid rgba(104,184,232,0.18);border-radius:6px;margin-bottom:10px">
+          <label style="display:block;font-size:.84em;color:#98b8d8;margin-bottom:3px">手填 Google Cloud API Key（在 Google Cloud Console → APIs & Services → Credentials 创建）*</label>
+          <input type="text" id="vtx-m-apikey" value="${_escHtml(kInfo.kind==='api_key' ? kInfo.apiKey : '')}" placeholder="AIzaSy..." style="width:100%;padding:6px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(104,184,232,0.28);border-radius:4px;color:#e8f0ff;font-family:monospace;font-size:.9em;box-sizing:border-box">
+        </div>
+
+        <div id="vtx-m-preview" style="padding:7px 9px;background:rgba(0,0,0,0.35);border-radius:5px;font-size:.8em;color:#8ab8d8;word-break:break-all;margin-bottom:12px"></div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button type="button" id="vtx-m-cancel" style="padding:6px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(200,180,140,0.22);border-radius:5px;color:#a8a090;cursor:pointer">取消</button>
+          <button type="button" id="vtx-m-save" style="padding:6px 16px;background:linear-gradient(135deg,rgba(104,184,232,0.28),rgba(70,130,190,0.22));border:1px solid rgba(104,184,232,0.6);border-radius:5px;color:#c8ecff;font-weight:600;cursor:pointer">✅ 应用手填配置</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const pidInput = $('vtx-m-pid');
+    const locInput = $('vtx-m-loc');
+    const locPreset = $('vtx-m-loc-preset');
+    const modInput = $('vtx-m-model');
+    const modPreset = $('vtx-m-model-preset');
+    const emailInput = $('vtx-m-email');
+    const pkInput = $('vtx-m-pk');
+    const jsonPaste = $('vtx-m-json-paste');
+    const oauthInput = $('vtx-m-oauth');
+    const apikeyInput = $('vtx-m-apikey');
+    const previewBox = $('vtx-m-preview');
+
+    const getAuthMode = () => {
+      const checked = modal.querySelector('input[name="vtx-m-auth"]:checked');
+      return checked ? checked.value : 'sa_fields';
+    };
+
+    const updateModalPreview = () => {
+      const mode = getAuthMode();
+      $('vtx-m-pane-sa').style.display = mode === 'sa_fields' ? 'block' : 'none';
+      $('vtx-m-pane-oauth').style.display = mode === 'oauth_token' ? 'block' : 'none';
+      $('vtx-m-pane-apikey').style.display = mode === 'api_key' ? 'block' : 'none';
+      const pid = pidInput.value.trim();
+      const loc = locInput.value.trim() || 'global';
+      const m = modInput.value.trim() || 'gemini-2.5-pro';
+      const u = pid ? `vertex://${pid}/${loc}` : `vertex://${loc}`;
+      const fakeKey = mode === 'api_key' ? (apikeyInput.value.trim() || 'AIzaSyDummyKeyForPreview1234567') : '';
+      const s = resolveSpec(u, fakeKey, m);
+      previewBox.innerHTML = `🔗 <b>最终请求端点预览</b>（协议：<code>${s.protocol}</code>）：<br>${_escHtml(s.endpoint)}`;
+    };
+
+    modal.querySelectorAll('input[name="vtx-m-auth"]').forEach(r => r.addEventListener('change', updateModalPreview));
+    [pidInput, locInput, modInput, apikeyInput].forEach(el => el.addEventListener('input', updateModalPreview));
+    locPreset.addEventListener('change', () => {
+      if (locPreset.value) { locInput.value = locPreset.value; locPreset.value = ''; updateModalPreview(); }
+    });
+    modPreset.addEventListener('change', () => {
+      if (modPreset.value) { modInput.value = modPreset.value; modPreset.value = ''; updateModalPreview(); }
+    });
+    jsonPaste.addEventListener('input', () => {
+      const sa = _tryParseSaJson(jsonPaste.value);
+      if (sa) {
+        if (sa.project_id) pidInput.value = sa.project_id;
+        if (sa.client_email) emailInput.value = sa.client_email;
+        if (sa.private_key) pkInput.value = sa.private_key;
+        updateModalPreview();
+      }
+    });
+
+    const closeModal = () => modal.remove();
+    $('vtx-m-close').onclick = closeModal;
+    $('vtx-m-cancel').onclick = closeModal;
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+    $('vtx-m-save').onclick = () => {
+      const mode = getAuthMode();
+      const pid = pidInput.value.trim();
+      const loc = (locInput.value.trim() || 'global').toLowerCase();
+      const m = modInput.value.trim();
+      let finalKey = '';
+
+      if (mode === 'sa_fields') {
+        const email = emailInput.value.trim();
+        let pk = pkInput.value.trim();
+        if (!email || !pk) {
+          alert('请手填「服务账号邮箱 (client_email)」和「私钥 (private_key)」！');
+          return;
+        }
+        // 兼容用户粘贴私钥时把字面量 \n 粘进来的情况
+        if (pk.includes('\\n') && !pk.includes('\n')) {
+          pk = pk.replace(/\\n/g, '\n');
+        }
+        if (!pk.includes('-----BEGIN')) {
+          pk = '-----BEGIN PRIVATE KEY-----\n' + pk + '\n-----END PRIVATE KEY-----\n';
+        }
+        const saObj = {
+          type: 'service_account',
+          project_id: pid || '',
+          client_email: email,
+          private_key: pk,
+          token_uri: 'https://oauth2.googleapis.com/token'
+        };
+        finalKey = JSON.stringify(saObj);
+      } else if (mode === 'oauth_token') {
+        finalKey = oauthInput.value.trim();
+        if (!finalKey) { alert('请手填 OAuth2 Access Token（ya29.xxx）！'); return; }
+        if (!pid) { alert('使用 OAuth Token 时必须手填「项目 ID (Project ID)」！'); return; }
+      } else if (mode === 'api_key') {
+        finalKey = apikeyInput.value.trim();
+        if (!finalKey) { alert('请手填 Google Cloud API Key（AIzaSy...）！'); return; }
+      }
+
+      const typeEl = $(isPC ? 'pc-apitype' : 'g-apitype');
+      if (typeEl) typeEl.value = 'vertex';
+      if (urlEl) urlEl.value = pid ? `vertex://${pid}/${loc}` : `vertex://${loc}`;
+      if (keyEl) keyEl.value = finalKey;
+      if (modelEl && m) modelEl.value = m;
+
+      if (typeof refreshApiChannelUI === 'function') refreshApiChannelUI(false);
+      if (typeof saveCfg === 'function') saveCfg();
+      closeModal();
+
+      const msg = `✅ 已应用手填 Vertex AI 配置（项目：${pid || '默认'}，区域：${loc}）`;
+      if (typeof Render !== 'undefined' && Render.log) Render.log('system', msg);
+      if (isPC && $('pc-test-result')) {
+        const box = $('pc-test-result');
+        box.style.display = 'block';
+        box.style.background = 'rgba(80,160,100,0.15)';
+        box.style.color = '#90d8a0';
+        box.textContent = msg;
+      }
+    };
+
+    updateModalPreview();
   }
 
   return {
@@ -423,7 +738,10 @@ const VertexDirect = (() => {
     prepare,
     applyServiceAccountJsonText,
     pickServiceAccountFile,
-    setRegion
+    setRegion,
+    setProjectId,
+    renderHelperHtml,
+    openManualDialog
   };
 })();
 window.VertexDirect = VertexDirect;
