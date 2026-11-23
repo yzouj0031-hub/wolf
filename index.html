@@ -76,7 +76,8 @@
       host === 'generativelanguage.googleapis.com' ||
       host === 'oauth2.googleapis.com' ||
       host === 'aiplatform.googleapis.com' ||
-      host.endsWith('-aiplatform.googleapis.com');
+      host.endsWith('-aiplatform.googleapis.com') ||
+      host === 'openrouter.ai';
   }
   var _fetch = window.fetch.bind(window);
   window.fetch = function (input, init) {
@@ -3174,6 +3175,13 @@ body.has-wp::after {
            在这里当场看见比开局报错再回来猜要省事得多。 -->
       <div id="g-endpoint-preview" style="font-size:.63em;color:#6a6080;line-height:1.5;margin:-2px 0 4px;word-break:break-all"></div>
       <div class="cr"><input type="text" id="g-model" placeholder="模型名称" value="gemini-3.8-flash" list="g-model-list"><datalist id="g-model-list"></datalist><select id="p-sel"></select></div>
+      <div id="live-model-bar" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin:-2px 0 4px;padding:3px 6px;background:rgba(90,143,214,0.07);border:1px solid rgba(90,143,214,0.2);border-radius:var(--r);font-size:.63em">
+        <span id="live-model-status" style="color:#8a8098">📡 内置前沿模型库（可实时抓取全网/接口最新模型）</span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <label style="display:flex;align-items:center;gap:3px;color:#9ab8d8;cursor:pointer;margin:0" title="开启后自动从公开模型目录及当前接口抓取最新发布的模型"><input type="checkbox" id="g-auto-sync-models" checked style="width:auto;min-width:auto;margin:0" onchange="window.LiveModelSync&&LiveModelSync.setAutoSync(this.checked)">自动更新</label>
+          <button type="button" id="btn-live-sync" onclick="window.LiveModelSync&&LiveModelSync.syncNow({interactive:true})" style="padding:1px 7px;font-size:1em;background:rgba(90,143,214,0.2);color:#98c8ff;border:1px solid rgba(90,143,214,0.45);border-radius:3px;cursor:pointer;white-space:nowrap">🔄 实时同步最新模型</button>
+        </span>
+      </div>
       <!-- 导演模式：多角色选择 -->
       <div id="director-panel" style="display:none;background:rgba(112,80,160,0.08);border:1px solid rgba(112,80,160,0.25);border-radius:var(--r);padding:7px 10px;margin-bottom:4px">
         <div style="font-size:.72em;color:#c0a0e8;font-family:var(--font-title);margin-bottom:5px">🎬 导演模式 — 预选你要操控的角色（可留空，开局后点命牌随时接管/交还）</div>
@@ -3471,7 +3479,7 @@ body.has-wp::after {
   </div>
   <div class="row"><label>渠道</label><select id="pc-apitype" style="flex:1"><option value="">自动（按这个座位的地址判断；没填地址就跟全局）</option></select></div>
   <div class="row"><label>API密钥</label><div style="display:flex;gap:4px;align-items:center;flex:1"><input type="password" id="pck" placeholder="留空用全局（Vertex可点右侧手填或导入JSON）" style="flex:1"><button type="button" onclick="window.VertexDirect&&VertexDirect.openManualDialog('pc')" style="padding:4px 7px;font-size:0.68em;background:rgba(200,168,76,0.18);color:#f0d488;border:1px solid rgba(200,168,76,0.45);border-radius:var(--r);white-space:nowrap;cursor:pointer" title="打开 Google Cloud Vertex AI 手填配置向导（可分项手填项目ID、区域、邮箱、私钥、Token 或 API Key）">✍️ 手填</button><button type="button" onclick="window.VertexDirect&&VertexDirect.pickServiceAccountFile('pc')" style="padding:4px 7px;font-size:0.68em;background:rgba(90,143,214,0.18);color:#8ab8f0;border:1px solid rgba(90,143,214,0.4);border-radius:var(--r);white-space:nowrap;cursor:pointer" title="导入 Google Cloud Vertex AI 服务账号 JSON 密钥文件">📂 JSON</button></div></div>
-  <div class="row"><label>模型</label><div style="display:flex;gap:4px;align-items:center"><input type="text" id="pcm" placeholder="留空用全局" style="flex:1"><button id="pcm-fetch" style="padding:4px 8px;font-size:0.7em;background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="拉取模型列表">📡</button><button id="pc-test-api" style="padding:4px 8px;font-size:0.7em;background:rgba(80,140,90,0.18);color:#90c8a0;border:1px solid #6ba070;border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="测试API是否能正常调用">🧪 测试</button></div></div>
+  <div class="row"><label>模型</label><div style="display:flex;gap:4px;align-items:center"><input type="text" id="pcm" placeholder="留空用全局" list="g-model-list" style="flex:1"><button id="pcm-fetch" style="padding:4px 8px;font-size:0.7em;background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="拉取模型列表">📡</button><button id="pc-test-api" style="padding:4px 8px;font-size:0.7em;background:rgba(80,140,90,0.18);color:#90c8a0;border:1px solid #6ba070;border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="测试API是否能正常调用">🧪 测试</button></div></div>
   <div id="pc-test-result" style="display:none;margin:0 0 10px 0;padding:8px 10px;border-radius:var(--r);font-size:0.75em;line-height:1.5;font-family:var(--font-body);white-space:pre-wrap;word-break:break-word"></div>
   <div class="row"><label>人设</label><textarea id="pcpersona" placeholder="自定义角色人设（留空则无特殊人设）&#10;例：你是L，世界第一侦探，说话慢且平淡…" rows="4" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(200,180,140,0.2);color:#c8bfa8;border-radius:var(--r);padding:8px;font-size:0.8em;font-family:var(--font-body);resize:vertical;"></textarea></div>
   <!-- 自由输出·单卡覆盖（默认跟随全局，勾选则针对此 AI 关闭）-->
@@ -3819,7 +3827,10 @@ body.has-wp::after {
 <div class="model-list-overlay" id="modelListOverlay">
   <div class="model-list-box">
     <h3>── 选择模型 ──</h3>
-    <input type="text" class="model-search" id="modelSearch" placeholder="🔍 搜索模型…">
+    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+      <input type="text" class="model-search" id="modelSearch" placeholder="🔍 搜索模型…" style="margin-bottom:0;flex:1">
+      <button type="button" onclick="window.LiveModelSync&&LiveModelSync.syncNow({interactive:true})" style="padding:6px 10px;font-size:.75em;background:rgba(90,143,214,0.2);color:#98c8ff;border:1px solid rgba(90,143,214,0.45);border-radius:var(--r);cursor:pointer;white-space:nowrap">🔄 实时抓取最新</button>
+    </div>
     <div class="model-list-items" id="modelListItems"></div>
     <button class="model-list-close" id="modelListClose">关闭</button>
   </div>
@@ -7363,6 +7374,15 @@ function getModelTag(modelStr) {
       return { label: b.label, color: b.color };
     }
   }
+  const gptMatch = s.match(/gpt-?(\d+(?:\.\d+)?)/);
+  if (gptMatch) return { label: 'GPT-' + gptMatch[1], color: '#74aa9c' };
+  const gemMatch = s.match(/gemini-?(\d+(?:\.\d+)?)/);
+  if (gemMatch) return { label: 'Gemini ' + gemMatch[1], color: '#5b8def' };
+  const dsMatch = s.match(/deepseek-?v(\d+)/);
+  if (dsMatch) return { label: 'DeepSeek V' + dsMatch[1], color: '#4d9de0' };
+  if (/qwen\d+-?max/.test(s)) return { label: 'Qwen Max', color: '#8b5cf6' };
+  if (/qwen\d+/.test(s)) return { label: 'Qwen', color: '#8b5cf6' };
+  if (/glm-?\d/.test(s)) return { label: 'GLM', color: '#3b82f6' };
   // 兜底：截取前12字符作为标签
   const clean = modelStr.replace(/^\[[^\]]*\]/, '').replace(/^.*\//, '');
   return { label: clean.slice(0, 12), color: '#7a7a7a' };
@@ -12002,10 +12022,10 @@ function switchToPlainReasoning(p, api, why) {
 function detectThinkingFlags(modelName, endpointUrl) {
   const mn = String(modelName || '').toLowerCase();
   const url = String(endpointUrl || '').toLowerCase();
-  const isGemini3Compat = mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon') || mn.includes('hydrogen') || mn.includes('gemini-3') || mn.includes('gemini3');
-  // GPT-5.x & GPT-6.x 全系（gpt-5 / gpt-6 / gpt-6.1-terra / gpt-6.2-astra / gpt-6.2-sol / gpt-6-luna 等）
-  const isGPT5Thinking = /gpt-?[56](\.\d+)?/.test(mn) && !mn.includes('gpt-5-chat');
-  const isOpenAIReasoning = /(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
+  const isGemini3Compat = /gemini-?[3-9]|carbon|argon|neon|hydrogen/.test(mn);
+  // GPT-5.x & GPT-6+ 全系（gpt-5 / gpt-6 / gpt-6.1-terra / gpt-6.2-astra / gpt-6.2-sol / gpt-6-luna / 未来代际）
+  const isGPT5Thinking = /gpt-?[5-9](\.\d+)?/.test(mn) && !mn.includes('gpt-5-chat');
+  const isOpenAIReasoning = /(?:^|[\/_-])o[1-9](?:[-_.]|$)/.test(mn);
   // Claude 系列。Anthropic 原生参数是 output_config.effort（原生分支已经在发），但走 OpenAI
   // 兼容端点时各家中转的映射不一：多数接受 reasoning_effort 并转译过去，少数原样透传，
   // 少数直接 400。此前这里根本没有 Claude 分支，等于思考强度旋钮对 Claude 全程空转。
@@ -12017,38 +12037,39 @@ function detectThinkingFlags(modelName, endpointUrl) {
     || /(?:^|[\/_-])(fable|mythos|opus|sonnet|haiku)(?:[-_.\d]|$)/.test(mn);
   // Qwen 思考模型识别
   //   ① qwen3-*-thinking / qwen-max-thinking 等带显式 thinking 后缀的版本
-  //   ② Qwen3.5 / Qwen3.6 / Qwen4 系列（如 qwen4-max、Qwen/Qwen3.6-27B）默认就带深度思考能力，
+  //   ② Qwen3.5+ / Qwen4+ 系列（如 qwen4-max、Qwen/Qwen3.6-27B）默认就带深度思考能力，
   //      即使模型名不带 thinking 后缀也需 thinking 预算保护，否则思考 token 会烧光
   //      默认 max_tokens 导致可见回复被截断。
   const isQwen3Thinking = (
     ((mn.includes('qwen3') || mn.includes('qwen-max')) && mn.includes('thinking')) ||
-    /qwen[-_]?(3\.[56]|4)/.test(mn)
+    /qwen[-_]?(3\.[5-9]|[4-9])/.test(mn)
   );
   // Grok reasoning 版本（grok-4-fast-reasoning / grok-4-20-reasoning / grok-4.1-*-reasoning）
   const isGrokReasoning = mn.includes('grok') && mn.includes('reasoning');
   // GLM 思考版本（GLM-4.5+ 默认就是推理模式,即使模型名不带 thinking/reasoning 后缀）
-  //   覆盖:① glm-z1 / glm-*-reasoning 老命名 ② glm-4.5/4.6/4.7/5/5.1/5.3/5.4 新系列默认思考模式
+  //   覆盖:① glm-z1 / glm-*-reasoning 老命名 ② glm-4.5+ / 5+ 新系列默认思考模式
   //        ③ 反代格式 Pro/zai-org/GLM-5.4、ZHIPU/GLM-5 等(中转商常加前缀)
   const isGLMThinking = (
     mn.includes('glm-z') ||
-    /glm[-_]?(4\.[567]|5(\.\d+)?)/.test(mn) ||
+    /glm[-_]?(4\.[5-9]|[5-9](\.\d+)?)/.test(mn) ||
     (mn.includes('glm') && (mn.includes('reasoning') || mn.includes('thinking')))
   );
-  const isKimiK2 = mn.includes('kimi-k2') || mn.includes('kimi_k2') || mn.includes('kimi-k3') || mn.includes('kimi_k3') || /(?:^|[\/_-])k3(?:\.\d+)?(?:[-_]|$)/.test(mn);
-  const isDeepSeekV4 = mn.includes('deepseek-v4') || mn.includes('deepseek_v4');
-  // MiniMax M2/M3: official and relay endpoints may expose thinking in content,
+  const isKimiK2 = /kimi[-_]?k[2-9]/.test(mn) || /(?:^|[\/_-])k[3-9](?:\.\d+)?(?:[-_]|$)/.test(mn);
+  const isDeepSeekV4 = /deepseek[-_]?v[4-9]/.test(mn);
+  // MiniMax M2/M3+: official and relay endpoints may expose thinking in content,
   // reasoning_content, or reasoning_details. Model names on relays are not always canonical,
   // so also inspect the endpoint URL.
-  const isMiniMaxThinking = mn.includes('minimax') || /(?:^|[\/_-])m[23](?:\.|[-_]|$)/.test(mn) || url.includes('minimax');
-  // 通用后缀兜底：带 -thinking / -reasoning 后缀且未被上述规则识别的模型
+  const isMiniMaxThinking = mn.includes('minimax') || /(?:^|[\/_-])m[2-9](?:\.|[-_]|$)/.test(mn) || url.includes('minimax');
+  // 通用后缀兜底 + LiveModelSync 实时抓取目录中标记为支持 reasoning 的新型号
   //   排除走原生独立字段的旧版 DeepSeek-reasoner，以及已有专属分支的 Claude
   const isExcludedThinking = isClaudeReasoning || mn.includes('deepseek-reasoner') || mn.includes('deepseek-r1') || mn.includes('k2-thinking');
-  const hasGenericSuffix = !isExcludedThinking && (mn.includes('-thinking') || mn.includes('-reasoning') || mn.endsWith('thinking') || mn.endsWith('reasoning'));
+  const isLiveCatalogReasoning = !!(window.LiveModelSync && typeof LiveModelSync.isKnownReasoningModel === 'function' && LiveModelSync.isKnownReasoningModel(mn));
+  const hasGenericSuffix = !isExcludedThinking && (mn.includes('-thinking') || mn.includes('-reasoning') || mn.endsWith('thinking') || mn.endsWith('reasoning') || isLiveCatalogReasoning);
   const needsThinkingBudgetFix = isGemini3Compat || isGPT5Thinking || isOpenAIReasoning || isQwen3Thinking
     || isGrokReasoning || isGLMThinking || isKimiK2 || isDeepSeekV4 || isMiniMaxThinking || isClaudeReasoning || hasGenericSuffix;
   return {isGemini3Compat, isGPT5Thinking, isOpenAIReasoning, isClaudeReasoning, isQwen3Thinking,
     isGrokReasoning, isGLMThinking, isKimiK2, isDeepSeekV4, isMiniMaxThinking,
-    hasGenericSuffix, needsThinkingBudgetFix, endpoint: url};
+    hasGenericSuffix, isLiveCatalogReasoning, needsThinkingBudgetFix, endpoint: url};
 }
 
 // ★ 端点拒绝记忆：有些中转不接受思考强度参数，会返回 400。此前每个请求都要先撞一次 400、
@@ -12703,7 +12724,7 @@ async function _callAIImpl(p, prompt, opts) {
       //   ① 单独设置 thinkingConfig.thinkingBudget 限制思考预算
       //   ② Gemini 3 的 maxOutputTokens 下限提高到 16384，保证可见输出 token 充足
       //   ③ 狼人杀高推理密度场景下，8192/2048 仍可能被烧光，故抬到 16384/4096
-      const isGemini3 = mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon') || mn.includes('hydrogen') || mn.includes('gemini-3') || mn.includes('gemini3');
+      const isGemini3 = /gemini-?[3-9]|carbon|argon|neon|hydrogen/.test(mn);
       let effectiveMaxTk = maxTk;
       const genConfig = {
         maxOutputTokens: effectiveMaxTk,
@@ -26016,13 +26037,23 @@ async function fetchAndShowModels(url, key, target, type) {
     box.textContent = msg;
   };
   if (type === 'vertex' && window.VertexDirect) {
+    let liveCount = 0;
+    if (window.LiveModelSync && typeof LiveModelSync.fetchVertexPublisherModels === 'function') {
+      try {
+        const liveVtx = await LiveModelSync.fetchVertexPublisherModels(url, key);
+        if (liveVtx && liveVtx.length) {
+          LiveModelSync.recordProviderModels('vertex', liveVtx);
+          liveCount = liveVtx.length;
+        }
+      } catch (_) {}
+    }
     const models = VertexDirect.DEFAULT_MODELS.slice();
     _cachedModels = models;
     _modelListTarget = target;
     renderModelList(models);
     $('modelSearch').value = '';
     $('modelListOverlay').classList.add('show');
-    report('✅ 已加载 Vertex AI 常用模型列表（' + models.length + ' 个，含 Gemini 2.5/3 与 Claude 4.5/4.6）', false);
+    report('✅ 已加载 Vertex AI 模型列表（共 ' + models.length + ' 个' + (liveCount ? '，已同步 ' + liveCount + ' 个在线发布模型' : '，含 Gemini 3/4 与 Claude 4.5/5.x') + '）', false);
     return;
   }
   if (!String(url || '').trim()) { report('⚠️ 未填写API地址', true); return; }
@@ -26041,12 +26072,16 @@ async function fetchAndShowModels(url, key, target, type) {
     }
     const models = parseModelList(type, d);
     if (!models.length) { report('⚠️ 接口有响应，但没有返回模型列表（有些中转不提供这个接口，可以直接手填模型名）\n请求地址：' + reqUrl, true); return; }
+    if (window.LiveModelSync && typeof LiveModelSync.recordProviderModels === 'function') {
+      const pKey = (target === 'global' && $('g-apitype') && $('g-apitype').value) ? $('g-apitype').value : type;
+      LiveModelSync.recordProviderModels(pKey, models);
+    }
     _cachedModels = models;
     _modelListTarget = target;
     renderModelList(models);
     $('modelSearch').value = '';
     $('modelListOverlay').classList.add('show');
-    report('✅ 拉取到 '+models.length+' 个模型', false);
+    report('✅ 拉取到 '+models.length+' 个模型（已自动同步至模型候选列表）', false);
   } catch(e) { report('❌ 拉取模型失败：'+e.message+(reqUrl ? '\n请求地址：'+reqUrl : ''), true); }
 }
 
@@ -29896,6 +29931,8 @@ if (_origPiSubmit) {
     _reportGlobalErr('[未处理的Promise异常]', (r && (r.stack || r.message)) || String(r));
   });
 })();
+
+if (window.LiveModelSync) LiveModelSync.init();
 
 // 🔥 热更新·启动成功打点：能跑到这里说明整份主脚本已完整解析并执行，这一版可以信任。
 //    热更新包若把 app 写崩，这行永远执行不到，启动守护累计 3 次后会自动回滚到内置版本。

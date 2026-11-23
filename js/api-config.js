@@ -94,7 +94,10 @@ const VertexDirect = (() => {
     'claude-haiku-4-5@20251001',
     'deepseek-ai/deepseek-v4-pro-maas',
     'deepseek-ai/deepseek-v4.1-flash-maas',
-    'deepseek-ai/deepseek-v3.2-maas'
+    'deepseek-ai/deepseek-v3.2-maas',
+    'moonshotai/kimi-k2.5-maas',
+    'moonshotai/kimi-k2-thinking-maas',
+    'moonshotai/kimi-k2-0905-maas'
   ];
 
   const CLAUDE_VERTEX_ALIAS = {
@@ -239,14 +242,26 @@ const VertexDirect = (() => {
     let endpoint = '';
     const pidDisplay = projectId || '<项目ID>';
 
+    if (/^(?:kimi-|deepseek-)/i.test(cleanModel) && !cleanModel.includes('/')) {
+      const prefix = /^kimi-/i.test(cleanModel) ? 'moonshotai/' : 'deepseek-ai/';
+      cleanModel = prefix + (/-maas$/i.test(cleanModel) ? cleanModel : cleanModel + '-maas');
+    }
+
     if (forceOpenAI || (cleanModel.includes('/') && !/^(?:gemini|claude)/i.test(cleanModel))) {
       protocol = 'openai';
-      vertexModel = rawM;
+      vertexModel = cleanModel;
       endpoint = `${host}/v1beta1/projects/${pidDisplay}/locations/${location}/endpoints/openapi/chat/completions`;
     } else if (/claude|^(?:fable|mythos|opus|sonnet|haiku)(?:[-_.\d]|$)/i.test(cleanModel)) {
       protocol = 'anthropic';
       const lowerM = cleanModel.toLowerCase();
-      vertexModel = CLAUDE_VERTEX_ALIAS[lowerM] || cleanModel;
+      let normalizedClaude = CLAUDE_VERTEX_ALIAS[lowerM];
+      if (!normalizedClaude) {
+        normalizedClaude = cleanModel
+          .replace(/^(fable|mythos|opus|sonnet|haiku)(?=[-_.\d]|$)/i, 'claude-$1')
+          .replace(/-latest$/i, '')
+          .replace(/(\d+)\.(\d+)/g, '$1-$2');
+      }
+      vertexModel = normalizedClaude;
       endpoint = `${host}/v1/projects/${pidDisplay}/locations/${location}/publishers/anthropic/models/${vertexModel}:rawPredict`;
     } else {
       protocol = 'gemini';
@@ -767,6 +782,11 @@ const VertexDirect = (() => {
     updateModalPreview();
   }
 
+  function registerClaudeAlias(alias, target) {
+    if (!alias || !target) return;
+    CLAUDE_VERTEX_ALIAS[String(alias).toLowerCase()] = String(target);
+  }
+
   return {
     DEFAULT_MODELS,
     isVertexUrl,
@@ -779,10 +799,431 @@ const VertexDirect = (() => {
     setRegion,
     setProjectId,
     renderHelperHtml,
-    openManualDialog
+    openManualDialog,
+    registerClaudeAlias
   };
 })();
 window.VertexDirect = VertexDirect;
+
+/* ================================================================
+ *  § LiveModelSync：实时抓取并自动同步全网最新模型 & 当前接口模型
+ *    1. 免密钥公开模型目录（OpenRouter /api/v1/models 实时返回各厂商按发布时间排序的最新模型 + reasoning 能力元数据）
+ *    2. 当前已配置接口实时拉取（Anthropic /v1/models、Gemini /v1beta/models、OpenAI /models、Vertex Publisher Models）
+ *    3. 自动合并到 API_PROVIDERS、VertexDirect.DEFAULT_MODELS、<datalist> 候选列表与推理模型识别表，并缓存至 localStorage
+ * ================================================================ */
+const LiveModelSync = (() => {
+  const STORAGE_KEY = 'wg_live_models_v1';
+  const AUTO_KEY = 'wg_auto_sync_models';
+  const STALE_MS = 2 * 3600 * 1000; // 2 小时自动刷新
+  const PUBLIC_CATALOG_URL = 'https://openrouter.ai/api/v1/models';
+
+  let _state = {
+    updatedAt: 0,
+    providers: {},       // provId -> string[]
+    reasoningModels: []  // string[] (lowercase model id or bare id)
+  };
+  let _reasoningSet = new Set();
+  let _syncInflight = null;
+
+  function _loadCache() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        _state.updatedAt = Number(parsed.updatedAt) || 0;
+        _state.providers = (parsed.providers && typeof parsed.providers === 'object') ? parsed.providers : {};
+        _state.reasoningModels = Array.isArray(parsed.reasoningModels) ? parsed.reasoningModels : [];
+        _reasoningSet = new Set(_state.reasoningModels.map(x => String(x).toLowerCase()));
+      }
+    } catch (_) {}
+  }
+
+  function _saveCache() {
+    try {
+      _state.reasoningModels = [..._reasoningSet];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(_state));
+    } catch (_) {}
+  }
+
+  function isAutoSyncEnabled() {
+    try {
+      const v = localStorage.getItem(AUTO_KEY);
+      return v === null ? true : v === '1';
+    } catch (_) { return true; }
+  }
+
+  function setAutoSync(on) {
+    try { localStorage.setItem(AUTO_KEY, on ? '1' : '0'); } catch (_) {}
+    const cb = document.getElementById('g-auto-sync-models');
+    if (cb && cb.checked !== !!on) cb.checked = !!on;
+    if (on) syncNow({ interactive: false });
+  }
+
+  function isKnownReasoningModel(modelName) {
+    const mn = String(modelName || '').trim().toLowerCase();
+    if (!mn) return false;
+    if (_reasoningSet.has(mn)) return true;
+    const bare = mn.split('/').pop().replace(/[:@].*$/, '');
+    if (_reasoningSet.has(bare)) return true;
+    // 点号与连字符互转匹配（如 claude-fable-5.2 <-> claude-fable-5-2）
+    const dashed = bare.replace(/(\d+)\.(\d+)/g, '$1-$2');
+    const dotted = bare.replace(/(\d+)-(\d+)/g, '$1.$2');
+    return _reasoningSet.has(dashed) || _reasoningSet.has(dotted);
+  }
+
+  function _mergeUnique(frontList, backList, limit) {
+    const out = [];
+    const seen = new Set();
+    const push = (m) => {
+      const s = String(m || '').trim();
+      if (!s) return;
+      const k = s.toLowerCase();
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push(s);
+    };
+    (frontList || []).forEach(push);
+    (backList || []).forEach(push);
+    return limit ? out.slice(0, limit) : out;
+  }
+
+  function applyToRuntime() {
+    const provs = (typeof API_PROVIDERS !== 'undefined' && Array.isArray(API_PROVIDERS)) ? API_PROVIDERS : [];
+    const pMap = _state.providers || {};
+
+    if (pMap.vertex && pMap.vertex.length && window.VertexDirect && Array.isArray(VertexDirect.DEFAULT_MODELS)) {
+      const mergedVtx = _mergeUnique(pMap.vertex, VertexDirect.DEFAULT_MODELS, 80);
+      VertexDirect.DEFAULT_MODELS.length = 0;
+      mergedVtx.forEach(m => VertexDirect.DEFAULT_MODELS.push(m));
+    }
+
+    provs.forEach(pv => {
+      if (!pv || !pv.id) return;
+      const liveList = pMap[pv.id];
+      if (Array.isArray(liveList) && liveList.length) {
+        pv.models = _mergeUnique(liveList, pv.models || [], 120);
+      }
+      if (pv.id === 'vertex' && window.VertexDirect) {
+        pv.models = VertexDirect.DEFAULT_MODELS;
+      }
+    });
+
+    // 同步刷新当前渠道的 <datalist id="g-model-list">
+    try {
+      const sel = document.getElementById('g-apitype');
+      const dl = document.getElementById('g-model-list');
+      if (dl && provs.length) {
+        const curId = (sel && sel.value) || provs[0].id;
+        const curProv = provs.find(x => x.id === curId) || provs[0];
+        dl.innerHTML = (curProv.models || []).map(m => `<option value="${m}">`).join('');
+      }
+    } catch (_) {}
+
+    _renderStatusBadge();
+  }
+
+  function _formatAgo(ts) {
+    if (!ts) return '未同步';
+    const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (sec < 60) return '刚刚';
+    if (sec < 3600) return Math.floor(sec / 60) + '分钟前';
+    if (sec < 86400) return Math.floor(sec / 3600) + '小时前';
+    return Math.floor(sec / 86400) + '天前';
+  }
+
+  function _renderStatusBadge(customText, color) {
+    const el = document.getElementById('live-model-status');
+    if (!el) return;
+    if (customText) {
+      el.textContent = customText;
+      if (color) el.style.color = color;
+      return;
+    }
+    const cb = document.getElementById('g-auto-sync-models');
+    if (cb) cb.checked = isAutoSyncEnabled();
+    const total = Object.values(_state.providers || {}).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0);
+    if (_state.updatedAt && total > 0) {
+      el.textContent = `🟢 已同步实时模型库（${_formatAgo(_state.updatedAt)}）`;
+      el.style.color = '#7fbf8f';
+    } else {
+      el.textContent = '📡 内置前沿模型库（点右侧可实时抓取全网/接口最新模型）';
+      el.style.color = '#8a8098';
+    }
+  }
+
+  function recordProviderModels(provId, models, meta) {
+    if (!provId || !Array.isArray(models) || !models.length) return;
+    _state.providers[provId] = _mergeUnique(models, _state.providers[provId] || [], 150);
+    _state.updatedAt = Date.now();
+    if (meta && Array.isArray(meta.reasoningIds)) {
+      meta.reasoningIds.forEach(id => {
+        if (id) _reasoningSet.add(String(id).trim().toLowerCase());
+      });
+    }
+    models.forEach(m => {
+      const s = String(m || '').trim().toLowerCase();
+      if (/thinking|reasoner|reasoning|(?:^|\/)o[1-9](?:[-_.]|$)/.test(s)) {
+        _reasoningSet.add(s);
+        _reasoningSet.add(s.split('/').pop());
+      }
+    });
+    // 若拉取的是 anthropic / gemini，也顺带把新模型合并进 vertex 候选列表
+    if (provId === 'anthropic') {
+      const vtxClaude = models
+        .filter(m => /claude|^(?:fable|mythos|opus|sonnet|haiku)/i.test(m))
+        .map(m => m.replace(/-latest$/i, '').replace(/(\d+)\.(\d+)/g, '$1-$2'));
+      if (vtxClaude.length) {
+        _state.providers.vertex = _mergeUnique(_state.providers.vertex || [], vtxClaude, 100);
+      }
+    } else if (provId === 'gemini') {
+      const vtxGem = models.filter(m => /^gemini-(?:2\.5|[3-9])/i.test(m) && !/tts|embedding|aqa|imagen|veo/i.test(m));
+      if (vtxGem.length) {
+        _state.providers.vertex = _mergeUnique(vtxGem, _state.providers.vertex || [], 100);
+      }
+    }
+    _saveCache();
+    applyToRuntime();
+  }
+
+  function _isChatModelId(id) {
+    const s = String(id || '').toLowerCase();
+    if (!s) return false;
+    if (/:(?:free|extended)$/.test(s)) return false;
+    if (/embed|moderation|whisper|tts|audio|speech|dall-e|imagen|veo|sora|stable-diffusion|flux|bge-|rerank|guard|safety/i.test(s)) return false;
+    return true;
+  }
+
+  async function fetchPublicCatalog() {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const tid = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+    try {
+      const res = await fetch(PUBLIC_CATALOG_URL, ctrl ? { signal: ctrl.signal } : undefined);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const rows = Array.isArray(data && data.data) ? data.data : [];
+      if (!rows.length) return null;
+
+      // 按发布时间倒序（最新发布的模型排最前）
+      const sorted = rows
+        .filter(x => x && x.id && _isChatModelId(x.id))
+        .sort((a, b) => (Number(b.created) || 0) - (Number(a.created) || 0));
+
+      const buckets = {
+        anthropic: [],
+        gemini: [],
+        openai: [],
+        deepseek: [],
+        openrouter: [],
+        vertex: []
+      };
+
+      for (const item of sorted) {
+        const fullId = String(item.id).trim();
+        const [vendor, ...rest] = fullId.split('/');
+        const bare = rest.join('/');
+        if (!bare) continue;
+
+        // 记录支持 reasoning 的模型，供 detectThinkingFlags 动态识别
+        const params = Array.isArray(item.supported_parameters) ? item.supported_parameters : [];
+        if (params.includes('reasoning') || params.includes('include_reasoning') || /thinking|reasoner|reasoning/i.test(fullId)) {
+          _reasoningSet.add(fullId.toLowerCase());
+          _reasoningSet.add(bare.toLowerCase());
+        }
+
+        if (/^(?:anthropic|google|openai|deepseek|qwen|z-ai|thudm|moonshotai|minimax|x-ai)$/i.test(vendor)) {
+          if (buckets.openrouter.length < 60) buckets.openrouter.push(fullId);
+        }
+
+        if (vendor === 'anthropic' && /^(?:claude|fable|mythos|opus|sonnet|haiku)/i.test(bare)) {
+          const dashed = bare.replace(/(\d+)\.(\d+)/g, '$1-$2');
+          buckets.anthropic.push(dashed);
+          if (dashed !== bare) {
+            VertexDirect.registerClaudeAlias(bare, dashed);
+            VertexDirect.registerClaudeAlias(bare.replace(/^claude-/i, ''), dashed);
+          }
+          if (buckets.vertex.length < 45) buckets.vertex.push(dashed);
+        } else if (vendor === 'google' && /^gemini-(?:2\.5|[3-9])/i.test(bare)) {
+          buckets.gemini.push(bare);
+          if (buckets.vertex.length < 45) buckets.vertex.push(bare);
+        } else if (vendor === 'openai' && /^(?:gpt-[5-9]|o[1-9])/i.test(bare) && !/audio|realtime|image/i.test(bare)) {
+          buckets.openai.push(bare);
+        } else if (vendor === 'deepseek' && /^deepseek/i.test(bare)) {
+          buckets.deepseek.push(bare);
+          const maasId = `deepseek-ai/${bare.replace(/-maas$/i, '')}-maas`;
+          if (buckets.vertex.length < 70) buckets.vertex.push(maasId);
+        } else if (vendor === 'moonshotai' && /^kimi/i.test(bare)) {
+          const maasId = `moonshotai/${bare.replace(/-maas$/i, '')}-maas`;
+          if (buckets.vertex.length < 70) buckets.vertex.push(maasId);
+        } else if (vendor === 'qwen' && /^qwen/i.test(bare)) {
+          const maasId = `qwen/${bare.replace(/-maas$/i, '')}-maas`;
+          if (buckets.vertex.length < 70) buckets.vertex.push(maasId);
+        }
+      }
+
+      Object.keys(buckets).forEach(k => {
+        if (buckets[k].length) {
+          _state.providers[k] = _mergeUnique(buckets[k], _state.providers[k] || [], 120);
+        }
+      });
+      _state.updatedAt = Date.now();
+      _saveCache();
+      applyToRuntime();
+      return buckets;
+    } finally {
+      if (tid) clearTimeout(tid);
+    }
+  }
+
+  async function fetchVertexPublisherModels(rawUrl, rawKey) {
+    const spec = VertexDirect.resolveSpec(rawUrl || 'vertex://global', rawKey || '', '');
+    const keyInfo = spec.keyInfo;
+    if (!keyInfo || keyInfo.kind === 'empty' || keyInfo.kind === 'invalid_json') return [];
+
+    const headers = {};
+    let queryAuth = '';
+    if (keyInfo.kind === 'api_key') {
+      queryAuth = '&key=' + encodeURIComponent(keyInfo.apiKey);
+    } else if (keyInfo.kind === 'sa_json') {
+      const token = await VertexDirect.getAccessToken(keyInfo.sa);
+      headers['Authorization'] = 'Bearer ' + token;
+    } else if (keyInfo.token) {
+      headers['Authorization'] = 'Bearer ' + keyInfo.token;
+    }
+
+    const publishers = ['google', 'anthropic', 'moonshotai', 'deepseek-ai', 'qwen', 'meta', 'mistralai'];
+    const out = [];
+    await Promise.all(publishers.map(async (pub) => {
+      try {
+        const url = `https://aiplatform.googleapis.com/v1beta1/publishers/${pub}/models?pageSize=200${queryAuth}`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) return;
+        const d = await res.json();
+        const list = Array.isArray(d && d.models) ? d.models : (Array.isArray(d && d.publisherModels) ? d.publisherModels : []);
+        for (const item of list) {
+          const name = String((item && (item.name || item.versionId || item.id)) || '')
+            .replace(/^.*\/models\//, '')
+            .trim();
+          if (!name || !_isChatModelId(name)) continue;
+          if (pub === 'google') {
+            if (/^gemini-(?:2\.5|[3-9])/i.test(name)) out.push(name);
+          } else if (pub === 'anthropic') {
+            if (/^claude/i.test(name)) out.push(name);
+          } else {
+            out.push(name.includes('/') ? name : `${pub}/${name}`);
+          }
+        }
+      } catch (_) {}
+    }));
+    return out;
+  }
+
+  async function syncNow(opts) {
+    opts = opts || {};
+    if (_syncInflight) return _syncInflight;
+    _renderStatusBadge('🔄 正在实时抓取最新模型…', '#d8b868');
+
+    _syncInflight = (async () => {
+      let publicOk = false;
+      let endpointCount = 0;
+
+      // 1. 抓取免密钥全网实时模型目录
+      try {
+        const b = await fetchPublicCatalog();
+        if (b) publicOk = true;
+      } catch (_) {}
+
+      // 2. 如果当前填了 API 地址与密钥，同时抓取当前渠道接口的实时模型列表
+      if (opts.includeEndpoint !== false) {
+        try {
+          const sel = document.getElementById('g-apitype');
+          const urlEl = document.getElementById('g-url');
+          const keyEl = document.getElementById('g-key');
+          const provId = (sel && sel.value) || '';
+          const u = (urlEl && urlEl.value || '').trim();
+          const k = (keyEl && keyEl.value || '').trim();
+          const prov = (typeof getProvider === 'function' && getProvider(provId)) || null;
+          const type = (prov && prov.type) || (typeof inferApiType === 'function' ? inferApiType(u) : 'openai');
+
+          if (type === 'vertex' && k) {
+            const vModels = await fetchVertexPublisherModels(u, k);
+            if (vModels.length) {
+              recordProviderModels('vertex', vModels);
+              endpointCount = vModels.length;
+            }
+          } else if (u && k && typeof modelListRequest === 'function' && typeof parseModelList === 'function') {
+            const req = modelListRequest(type, u, k);
+            const r = await fetch(req.url, { headers: req.headers });
+            if (r.ok) {
+              const d = await r.json();
+              const parsed = parseModelList(type, d);
+              if (parsed.length) {
+                recordProviderModels(provId || type, parsed);
+                endpointCount = parsed.length;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      _renderStatusBadge();
+      // 若模型选择弹窗正处于打开状态，实时刷新弹窗内的列表
+      try {
+        const overlay = document.getElementById('modelListOverlay');
+        if (overlay && overlay.classList.contains('show') && typeof renderModelList === 'function') {
+          const sel = document.getElementById('g-apitype');
+          const prov = (typeof getProvider === 'function' && sel && getProvider(sel.value)) || null;
+          if (prov && Array.isArray(prov.models) && prov.models.length) {
+            window._cachedModels = prov.models.slice();
+            renderModelList(prov.models);
+          }
+        }
+      } catch (_) {}
+
+      if (opts.interactive && typeof Render !== 'undefined' && Render.log) {
+        if (publicOk || endpointCount > 0) {
+          const parts = [];
+          if (publicOk) parts.push('全网最新前沿模型目录');
+          if (endpointCount > 0) parts.push(`当前接口 ${endpointCount} 个可用模型`);
+          Render.log('system', `✅ 已实时同步最新模型（${parts.join(' + ')}），下拉候选框与模型列表已自动更新`);
+        } else {
+          Render.log('system', '⚠️ 实时抓取未返回新模型，已保留当前前沿模型库');
+        }
+      }
+      return { publicOk, endpointCount };
+    })().finally(() => {
+      _syncInflight = null;
+    });
+
+    return _syncInflight;
+  }
+
+  function init() {
+    _loadCache();
+    applyToRuntime();
+    // 在真实浏览器环境中（非自动化离线沙盒），若开启了自动更新且缓存过期则后台静默同步一次
+    if (typeof navigator !== 'undefined' && !navigator.webdriver && isAutoSyncEnabled()) {
+      const age = Date.now() - (_state.updatedAt || 0);
+      if (age > STALE_MS) {
+        setTimeout(() => { syncNow({ interactive: false }); }, 1500);
+      }
+    }
+  }
+
+  return {
+    init,
+    syncNow,
+    fetchPublicCatalog,
+    fetchVertexPublisherModels,
+    recordProviderModels,
+    applyToRuntime,
+    isKnownReasoningModel,
+    isAutoSyncEnabled,
+    setAutoSync,
+    getState: () => _state
+  };
+})();
+window.LiveModelSync = LiveModelSync;
 
 function getFallbacks() {
   // 兼容旧版单备选字段

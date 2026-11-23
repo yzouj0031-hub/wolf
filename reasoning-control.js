@@ -79,8 +79,8 @@
   function geminiThinkingConfig(model, mode) {
     const mn = String(model || '').toLowerCase();
     if (mode === 'auto') return null;
-    if (mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon') || mn.includes('hydrogen') || mn.includes('gemini-3') || mn.includes('gemini3')) {
-      const noMinimal = (mn.includes('pro') || mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('3.8') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon')) && !mn.includes('hydrogen');
+    if (/gemini-?[3-9]|carbon|argon|neon|hydrogen/.test(mn)) {
+      const noMinimal = (mn.includes('pro') || /gemini-?[4-9]/.test(mn) || mn.includes('3.8') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon')) && !mn.includes('hydrogen') && !mn.includes('lite');
       const minimum = noMinimal ? 'low' : 'minimal';
       return {thinkingLevel: mode === 'off' ? minimum : ((mode === 'xhigh' || mode === 'max') ? 'high' : mode)};
     }
