@@ -79,8 +79,9 @@
   function geminiThinkingConfig(model, mode) {
     const mn = String(model || '').toLowerCase();
     if (mode === 'auto') return null;
-    if (mn.includes('gemini-3') || mn.includes('gemini3')) {
-      const minimum = mn.includes('pro') ? 'low' : 'minimal';
+    if (mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('gemini-3') || mn.includes('gemini3')) {
+      const noMinimal = mn.includes('pro') || mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('3.8') || mn.includes('argon');
+      const minimum = noMinimal ? 'low' : 'minimal';
       return {thinkingLevel: mode === 'off' ? minimum : ((mode === 'xhigh' || mode === 'max') ? 'high' : mode)};
     }
     if (mn.includes('gemini-2.5') || mn.includes('gemini2.5')) {

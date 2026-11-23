@@ -67,21 +67,30 @@ function renderFbList() {
  * ================================================================ */
 const VertexDirect = (() => {
   const DEFAULT_MODELS = [
+    'gemini-4-argon',
+    'gemini-3.8-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-pro-preview',
+    'gemini-3.1-flash-lite',
+    'gemini-3-flash-preview',
     'gemini-2.5-pro',
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
-    'gemini-3.1-pro-preview',
-    'gemini-3-flash-preview',
-    'gemini-2.0-flash',
-    'claude-opus-4-6',
+    'claude-opus-4-7',
     'claude-sonnet-4-6',
+    'claude-opus-4-6',
     'claude-opus-4-5@20251101',
     'claude-sonnet-4-5@20250929',
     'claude-haiku-4-5@20251001',
-    'claude-3-7-sonnet@20250219'
+    'deepseek-ai/deepseek-v4-pro-maas',
+    'deepseek-ai/deepseek-v3.2-maas'
   ];
 
   const CLAUDE_VERTEX_ALIAS = {
+    'claude-opus-4-7-latest': 'claude-opus-4-7',
+    'claude-sonnet-4-6-latest': 'claude-sonnet-4-6',
+    'claude-opus-4-6-latest': 'claude-opus-4-6',
     'claude-opus-4-5': 'claude-opus-4-5@20251101',
     'claude-opus-4-5-20251101': 'claude-opus-4-5@20251101',
     'claude-sonnet-4-5': 'claude-sonnet-4-5@20250929',
