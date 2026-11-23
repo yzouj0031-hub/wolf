@@ -502,7 +502,7 @@ const MurderMystery = (() => {
       raw=(thought?'<thinking>'+thought+'</thinking>':'')+(answer||parts.map(x=>x.text||'').join(''));
     }else{
       const mn=api.model.toLowerCase();
-      const reasoning=/gpt-?5(?:\.|[-_]|$)|(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
+      const reasoning=/gpt-?[56](?:\.|[-_]|$)|(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
       let body={model:api.model,messages:[{role:'system',content:sysPrompt},{role:'user',content:userPrompt}],stream:true};
       if(reasoning)body.max_completion_tokens=maxTokens&&maxTokens<1024?maxTokens:Math.max(maxTokens||8192,8192);
       else{body.max_tokens=maxTokens||4096;body.temperature=.8;}

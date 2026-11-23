@@ -100,7 +100,7 @@
             <label>${tx('渠道／接口格式','Provider / format')}<select id="uc-api-type"></select></label>
             <label>${tx('API 地址','API URL')}<input id="uc-api-url" placeholder="https://api.openai.com/v1"></label>
             <label>${tx('API 密钥','API key')}<input id="uc-api-key" type="password" placeholder="sk-..."></label>
-            <label>${tx('默认模型','Default model')}<input id="uc-api-model" placeholder="gpt-4o"></label>
+            <label>${tx('默认模型','Default model')}<input id="uc-api-model" placeholder="gemini-3.8-flash"></label>
             <div class="uc-api-endpoint" id="uc-api-endpoint"></div>
           </div>
           <div class="uc-api-actions"><button class="uc-btn" id="uc-api-fetch-models">${tx('拉取模型','Fetch models')}</button><button class="uc-btn primary" id="uc-api-test">${tx('测试默认 API','Test default API')}</button><button class="uc-btn" id="uc-api-import">${tx('读取狼人杀主设置','Import Werewolf settings')}</button><button class="uc-btn" id="uc-api-toggle-key">${tx('显示密钥','Show keys')}</button></div>

@@ -244,7 +244,7 @@ const SpaceWolf = (() => {
     if (!rows.length) return '<div class="sw-muted" id="sw-r-empty">还没有加模型：现在所有人都用上面那个模型。</div>';
     return rows.map((m, i) => `<div class="sw-r-row" data-id="${h(m.id)}">
       <label class="row sw-r-on-wrap" title="不勾就暂时不上场"><input type="checkbox" class="sw-r-on"${m.on !== false ? ' checked' : ''}> ${i + 1}</label>
-      <input class="sw-r-model" value="${h(m.model)}" placeholder="模型名称，如 gpt-4o / deepseek-chat">
+      <input class="sw-r-model" value="${h(m.model)}" placeholder="模型名称，如 gemini-3.8-flash / claude-fable-5-2 / gpt-6.2-astra / deepseek-v4-pro">
       <span class="sw-r-btns"><button class="sw-btn ghost sw-r-test" type="button">测试</button><button class="sw-btn ghost sw-r-del" type="button" title="删除这一行">✕</button></span>
       <details class="sw-r-more"${(m.url || m.key || m.provider) ? ' open' : ''}><summary>这个模型用别的地址和密钥</summary>
         <div class="sw-api-form">

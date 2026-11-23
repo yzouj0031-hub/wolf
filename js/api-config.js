@@ -67,7 +67,10 @@ function renderFbList() {
  * ================================================================ */
 const VertexDirect = (() => {
   const DEFAULT_MODELS = [
+    'gemini-4-carbon',
     'gemini-4-argon',
+    'gemini-4-neon',
+    'gemini-4-hydrogen',
     'gemini-3.8-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash-lite',
@@ -76,18 +79,44 @@ const VertexDirect = (() => {
     'gemini-3-flash-preview',
     'gemini-2.5-pro',
     'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
+    'claude-fable-5-2',
+    'claude-mythos-5-2',
+    'claude-opus-5-5',
+    'claude-sonnet-5-5',
+    'claude-haiku-5-5',
+    'claude-fable-5-1',
+    'claude-opus-5',
+    'claude-sonnet-5',
     'claude-opus-4-7',
     'claude-sonnet-4-6',
-    'claude-opus-4-6',
     'claude-opus-4-5@20251101',
     'claude-sonnet-4-5@20250929',
     'claude-haiku-4-5@20251001',
     'deepseek-ai/deepseek-v4-pro-maas',
+    'deepseek-ai/deepseek-v4.1-flash-maas',
     'deepseek-ai/deepseek-v3.2-maas'
   ];
 
   const CLAUDE_VERTEX_ALIAS = {
+    'fable-5-2': 'claude-fable-5-2',
+    'fable-5.2': 'claude-fable-5-2',
+    'claude-fable-5.2': 'claude-fable-5-2',
+    'mythos-5-2': 'claude-mythos-5-2',
+    'mythos-5.2': 'claude-mythos-5-2',
+    'claude-mythos-5.2': 'claude-mythos-5-2',
+    'opus-5-5': 'claude-opus-5-5',
+    'opus-5.5': 'claude-opus-5-5',
+    'claude-opus-5.5': 'claude-opus-5-5',
+    'sonnet-5-5': 'claude-sonnet-5-5',
+    'sonnet-5.5': 'claude-sonnet-5-5',
+    'claude-sonnet-5.5': 'claude-sonnet-5-5',
+    'haiku-5-5': 'claude-haiku-5-5',
+    'haiku-5.5': 'claude-haiku-5-5',
+    'claude-haiku-5.5': 'claude-haiku-5-5',
+    'fable-5-1': 'claude-fable-5-1',
+    'mythos-5-1': 'claude-mythos-5-1',
+    'opus-5': 'claude-opus-5',
+    'sonnet-5': 'claude-sonnet-5',
     'claude-opus-4-7-latest': 'claude-opus-4-7',
     'claude-sonnet-4-6-latest': 'claude-sonnet-4-6',
     'claude-opus-4-6-latest': 'claude-opus-4-6',
@@ -199,7 +228,7 @@ const VertexDirect = (() => {
       ? 'https://aiplatform.googleapis.com'
       : `https://${location}-aiplatform.googleapis.com`;
 
-    const rawM = String(rawModel || '').trim() || 'gemini-2.5-pro';
+    const rawM = String(rawModel || '').trim() || 'gemini-4-argon';
     let cleanModel = rawM
       .replace(/^publishers\/(?:google|anthropic)\/models\//i, '')
       .replace(/^models\//i, '')
@@ -214,7 +243,7 @@ const VertexDirect = (() => {
       protocol = 'openai';
       vertexModel = rawM;
       endpoint = `${host}/v1beta1/projects/${pidDisplay}/locations/${location}/endpoints/openapi/chat/completions`;
-    } else if (/claude/i.test(cleanModel)) {
+    } else if (/claude|^(?:fable|mythos|opus|sonnet|haiku)(?:[-_.\d]|$)/i.test(cleanModel)) {
       protocol = 'anthropic';
       const lowerM = cleanModel.toLowerCase();
       vertexModel = CLAUDE_VERTEX_ALIAS[lowerM] || cleanModel;
@@ -505,7 +534,7 @@ const VertexDirect = (() => {
     const modelEl = $(isPC ? 'pcm' : 'g-model');
     const curUrl = (urlEl && urlEl.value) || ($('g-url') ? $('g-url').value : '');
     const curKey = (keyEl && keyEl.value) || ($('g-key') ? $('g-key').value : '');
-    const curModel = (modelEl && modelEl.value) || ($('g-model') ? $('g-model').value : 'gemini-2.5-pro');
+    const curModel = (modelEl && modelEl.value) || ($('g-model') ? $('g-model').value : 'gemini-4-argon');
     const spec = resolveSpec(curUrl, curKey, curModel);
     const kInfo = spec.keyInfo;
 
@@ -537,7 +566,7 @@ const VertexDirect = (() => {
               <input type="text" id="vtx-m-loc" value="${_escHtml(spec.location || 'global')}" placeholder="如 global 或 us-east5" style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.3);border-radius:5px;color:#e8f0ff;box-sizing:border-box">
               <select id="vtx-m-loc-preset" style="width:92px;padding:4px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.25);border-radius:5px;color:#b8d0e8;font-size:.88em">
                 <option value="">常用区域…</option>
-                <option value="global">global (推荐·Gemini 3/Claude)</option>
+                <option value="global">global (推荐·Gemini 4/Claude 5)</option>
                 <option value="us-central1">us-central1 (美中)</option>
                 <option value="us-east5">us-east5 (美东·Claude主力)</option>
                 <option value="us-east1">us-east1</option>
@@ -555,7 +584,7 @@ const VertexDirect = (() => {
         <div style="margin-bottom:10px">
           <label style="display:block;font-size:.86em;color:#98b8d8;margin-bottom:3px">③ 模型名称（可直接手填任意 Vertex 模型 ID，或从右侧常用列表选）</label>
           <div style="display:flex;gap:6px">
-            <input type="text" id="vtx-m-model" value="${_escHtml(curModel)}" placeholder="如 gemini-2.5-pro / gemini-3.1-pro-preview / claude-sonnet-4-6" style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.3);border-radius:5px;color:#e8f0ff;box-sizing:border-box">
+            <input type="text" id="vtx-m-model" value="${_escHtml(curModel)}" placeholder="如 gemini-4-argon / gemini-3.8-flash / claude-fable-5-2 / claude-opus-5-5" style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.3);border-radius:5px;color:#e8f0ff;box-sizing:border-box">
             <select id="vtx-m-model-preset" style="width:170px;padding:4px 6px;background:rgba(0,0,0,0.35);border:1px solid rgba(104,184,232,0.25);border-radius:5px;color:#b8d0e8;font-size:.88em">
               <option value="">常用模型速选…</option>
               ${DEFAULT_MODELS.map(m => `<option value="${_escHtml(m)}">${_escHtml(m)}</option>`).join('')}

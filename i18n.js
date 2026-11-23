@@ -67,7 +67,7 @@
     'AI 剧本杀':'AI murder mystery','首发剧本 · 6人 · 本格推理':'Launch story · 6 players · classic mystery','米花町别墅事件':'Beika Villa Case',
     '网页端AI接力':'Web AI relay','等待中':'Waiting','展开设置':'Show settings','导演模式':'Director mode','备选API（主API失败时依次尝试）':'Fallback APIs (used in order)',
     '摘要模型（记忆压缩专用）':'Summary model (memory compression)','启用记忆压缩':'Enable memory compression','关掉':'Disable',
-    '摘要专用模型：建议填便宜小模型（如 gpt-4o-mini、claude-haiku-4-5）。留空则用玩家自己的模型。':'Summary model: use an inexpensive small model. Leave blank to use the player model.',
+    '摘要专用模型：建议填便宜小模型（如 gemini-3.5-flash-lite、gpt-6-luna、claude-haiku-5-5）。留空则用玩家自己的模型。':'Summary model: use an inexpensive small model (e.g. gemini-3.5-flash-lite, gpt-6-luna, or claude-haiku-5-5). Leave blank to use the player model.',
     'OpenAI兼容':'OpenAI compatible','自定义…':'Custom…','不限':'Unlimited','AI主持人':'AI host','启用AI主持人':'Enable AI host','主持模式':'Host mode',
     '解说员（只点评，不参与流程）':'Commentator (comments only)','司仪（引导流程+戏剧性宣布）':'Emcee (guides flow and announcements)','简短':'Brief','详细':'Detailed',
     '并发设置':'Concurrency','发言':'Speech','狼议':'Wolf discussion','狼票':'Wolf vote','审判票':'Trial vote','感言':'Closing remarks','AI 思考时间（秒）':'AI thinking time (seconds)',

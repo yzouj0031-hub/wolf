@@ -516,7 +516,7 @@ ${rulesText('P6 Ryuzaki')}`;
 
     // OpenAI 兼容
     const mn = String(api.model).toLowerCase();
-    const reasoningModel = /gpt-?5|(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
+    const reasoningModel = /gpt-?[56]|(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
     const body = { model: api.model, messages: [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }], stream: true };
     if (reasoningModel) body.max_completion_tokens = Math.max(maxTokens, 8192); else { body.max_tokens = maxTokens; body.temperature = 0.7; }
     const effort = RC && mode !== 'auto' ? RC.openAIEffort(mode, true) : null;

@@ -52,7 +52,7 @@ async function callSpectator(eventType, context) {
 
   const url = (spec.url||'').trim() || ($('g-url')&&$('g-url').value.trim()) || 'https://api.openai.com/v1';
   const key = (spec.key||'').trim() || ($('g-key')&&$('g-key').value.trim()) || '';
-  const model = (spec.model||'').trim() || ($('g-model')&&$('g-model').value.trim()) || 'gpt-4o';
+  const model = (spec.model||'').trim() || ($('g-model')&&$('g-model').value.trim()) || 'gemini-3.8-flash';
   if (!key) return;
 
   const myGid = S.gameId;

@@ -3033,7 +3033,7 @@ body.has-wp::after {
           <label>渠道／接口格式<select class="jbs-input" id="jbs-api-type"></select></label>
           <label>API 地址<input class="jbs-input" id="jbs-api-url" placeholder="https://api.openai.com/v1"></label>
           <label>API 密钥<input class="jbs-input" id="jbs-api-key" type="password" placeholder="sk-..."></label>
-          <label>默认模型<input class="jbs-input" id="jbs-api-model" placeholder="gpt-4o"></label>
+          <label>默认模型<input class="jbs-input" id="jbs-api-model" placeholder="gemini-3.8-flash"></label>
           <div class="jbs-api-endpoint" id="jbs-api-endpoint"></div>
         </div>
         <div class="jbs-api-actions">
@@ -3131,7 +3131,7 @@ body.has-wp::after {
         <div style="padding:6px 0;display:flex;flex-direction:column;gap:5px;">
           <label style="font-size:0.8em;color:#a0e8d0;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="mem-compress-enable" checked style="width:auto;min-width:auto">Enable memory compression</label>
           <div style="font-size:0.67em;color:#a08850;line-height:1.5;">After the threshold, older speeches are compressed to save tokens. <b>Disable this</b> to retain every original speech for better accuracy with large context windows, at a higher token cost.</div>
-          <div style="font-size:0.67em;color:#a08850;">Use an inexpensive small model such as gemini-3.5-flash-lite, gpt-5.4-mini, or claude-haiku-4-5. Leave blank to use each player's model.</div>
+          <div style="font-size:0.67em;color:#a08850;">Use an inexpensive small model such as gemini-3.5-flash-lite, gpt-6-luna, or claude-haiku-5-5. Leave blank to use each player's model.</div>
           <div class="cr"><input type="text" id="sum-url" placeholder="Summary API URL (blank = global)"><input type="password" id="sum-key" placeholder="Summary API key (blank = global)"></div>
           <div class="cr">
             <input type="text" id="sum-model" placeholder="Summary model (blank = player model)" style="flex:2">
@@ -3163,7 +3163,7 @@ body.has-wp::after {
                Blank falls back to the host config, then to the global one. -->
           <div style="font-size:0.67em;color:#508878;margin-top:6px">🧮 Speech-triage judge (optional) — answers a single A/B, so faster is better. Blank falls back to the host config above, then to the global one. A reasoning model with thinking on will simply time out and be logged as "no response"; use a Flash / Haiku class model.</div>
           <div class="cr"><input type="text" id="j-url" placeholder="Judge API URL (blank = host)"><input type="password" id="j-key" placeholder="Judge key (blank = host)"></div>
-          <div class="cr"><input type="text" id="j-model" placeholder="Judge model, e.g. gemini-3.8-flash / gemini-3.5-flash-lite / claude-haiku-4-5"></div>
+          <div class="cr"><input type="text" id="j-model" placeholder="Judge model, e.g. gemini-3.8-flash / gemini-3.5-flash-lite / claude-haiku-5-5"></div>
         </div>
       </details>
       <details class="conc-det"><summary>⚡ Concurrency</summary>
@@ -3756,7 +3756,7 @@ body.has-wp::after {
       <div class="apivault-form-title" id="apivault-form-title">── 添加新配置 ──</div>
       <div class="apivault-row">
         <label>名称</label>
-        <input type="text" id="apivault-name" placeholder="例：Claude Sonnet、GPT-4o、云雾DeepSeek…">
+        <input type="text" id="apivault-name" placeholder="例：Claude Fable 5.2、GPT-6.2 Astra、Gemini 4 Argon…">
       </div>
       <div class="apivault-row">
         <label>地址</label>
@@ -3768,7 +3768,7 @@ body.has-wp::after {
       </div>
       <div class="apivault-row">
         <label>模型</label>
-        <input type="text" id="apivault-model" placeholder="模型名称（例：claude-sonnet-4-6）">
+        <input type="text" id="apivault-model" placeholder="模型名称（例：claude-fable-5-2）">
       </div>
       <input type="hidden" id="apivault-edit-id" value="">
       <button class="apivault-add-btn" id="apivault-save-btn">＋ 保存到库</button>
@@ -6487,23 +6487,25 @@ function canSee(p) {
 const API_PROVIDERS = [
   { id:'vertex',    name:'Vertex AI（Google Cloud 直连）', type:'vertex',
     url:'vertex://global', webDirect:true,
-    models:(window.VertexDirect && VertexDirect.DEFAULT_MODELS) || ['gemini-4-argon','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','claude-opus-4-7','claude-sonnet-4-6','claude-opus-4-6','claude-opus-4-5@20251101','claude-sonnet-4-5@20250929','deepseek-ai/deepseek-v4-pro-maas'] },
+    models:(window.VertexDirect && VertexDirect.DEFAULT_MODELS) || ['gemini-4-carbon','gemini-4-argon','gemini-4-neon','gemini-4-hydrogen','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','claude-fable-5-2','claude-mythos-5-2','claude-opus-5-5','claude-sonnet-5-5','claude-haiku-5-5','claude-fable-5-1','claude-opus-5','claude-sonnet-5','claude-opus-4-7','claude-sonnet-4-6','deepseek-ai/deepseek-v4-pro-maas'] },
   { id:'anthropic', name:'Claude（Anthropic 官方）', type:'anthropic',
     url:'https://api.anthropic.com', webDirect:true,
-    models:['claude-opus-4-7','claude-sonnet-4-6','claude-opus-4-6','claude-opus-4-5','claude-sonnet-4-5','claude-haiku-4-5'] },
+    models:['claude-fable-5-2','claude-mythos-5-2','claude-opus-5-5','claude-sonnet-5-5','claude-haiku-5-5','claude-fable-5-1','claude-mythos-5-1','claude-opus-5','claude-sonnet-5','claude-opus-4-7','claude-sonnet-4-6','claude-opus-4-5','claude-sonnet-4-5','claude-haiku-4-5'] },
   { id:'gemini',    name:'Gemini（Google 官方）',     type:'gemini',
     url:'https://generativelanguage.googleapis.com', webDirect:true,
-    models:['gemini-4-argon','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-3.1-flash-lite','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash'] },
+    models:['gemini-4-carbon','gemini-4-argon','gemini-4-neon','gemini-4-hydrogen','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-3.1-flash-lite','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash'] },
   { id:'openai',    name:'OpenAI 官方',               type:'openai',
     url:'https://api.openai.com/v1', webDirect:null,
-    models:['gpt-5.4','gpt-5.4-pro','gpt-5.4-mini','gpt-5.3-codex','gpt-5.2','gpt-5','gpt-5-mini','o3','o3-pro','o4-mini','gpt-4.1'] },
+    models:['gpt-6.2-astra','gpt-6.2-sol','gpt-6.1-terra','gpt-6-luna','gpt-6','gpt-5.4','gpt-5.4-pro','gpt-5.4-mini','gpt-5.3-codex','gpt-5.2','gpt-5','gpt-5-mini','o3','o4-mini'] },
   { id:'deepseek',  name:'DeepSeek 官方',             type:'openai',
     url:'https://api.deepseek.com/v1', webDirect:null,
     models:['deepseek-v4-pro','deepseek-flash','deepseek-chat','deepseek-reasoner'] },
   { id:'siliconflow', name:'SiliconFlow 硅基流动',    type:'openai',
-    url:'https://api.siliconflow.cn/v1', webDirect:null, models:[] },
+    url:'https://api.siliconflow.cn/v1', webDirect:null,
+    models:['deepseek-ai/DeepSeek-V4-Pro','deepseek-ai/DeepSeek-V4.1-Flash','Qwen/Qwen4-Max','Qwen/Qwen3.6-Plus','Pro/zai-org/GLM-5.4','Pro/zai-org/GLM-5.3','moonshotai/Kimi-K3.1-Pro','MiniMaxAI/MiniMax-M3.1-Flash'] },
   { id:'openrouter', name:'OpenRouter',               type:'openai',
-    url:'https://openrouter.ai/api/v1', webDirect:null, models:[] },
+    url:'https://openrouter.ai/api/v1', webDirect:null,
+    models:['anthropic/claude-fable-5.2','anthropic/claude-opus-5.5','anthropic/claude-sonnet-5.5','anthropic/claude-haiku-5.5','google/gemini-4-carbon','google/gemini-4-argon','google/gemini-4-neon','google/gemini-4-hydrogen','google/gemini-3.8-flash','openai/gpt-6.2-astra','openai/gpt-6.2-sol','openai/gpt-6.1-terra','openai/gpt-6-luna','deepseek/deepseek-v4-pro','deepseek/deepseek-flash','qwen/qwen4-max','z-ai/glm-5.4','moonshotai/kimi-k3.1-pro','minimax/minimax-m3.1-flash','x-ai/grok-4.7'] },
   { id:'ollama',    name:'Ollama（本地）',            type:'openai',
     url:'http://localhost:11434/v1', webDirect:true, models:[] },
   { id:'custom-anthropic', name:'Claude 反代 / 中转（Anthropic 格式）', type:'anthropic', url:'', models:[] },
@@ -6633,17 +6635,20 @@ function getAPI(i) {
 const MODEL_BRANDS = [
   // 识别规则：按顺序匹配，先匹配到的优先
   // label: 显示在标签上的简称； color: 品牌色；match: 关键字列表（任意一个命中即匹配）
+  { label: 'Fable',     color: '#b8683a', match: ['claude-fable', 'fable'] },
+  { label: 'Mythos',    color: '#a85830', match: ['claude-mythos', 'mythos'] },
   { label: 'Opus',      color: '#c97b4a', match: ['claude-opus', 'opus'] },
   { label: 'Sonnet',    color: '#d48c5a', match: ['claude-sonnet', 'sonnet'] },
   { label: 'Haiku',     color: '#e0a878', match: ['claude-haiku', 'haiku'] },
   { label: 'Claude',    color: '#d48c5a', match: ['claude'] },
+  { label: 'GPT-6',     color: '#0d9270', match: ['gpt-6', 'gpt6'] },
   { label: 'GPT-5',     color: '#10a37f', match: ['gpt-5', 'gpt5'] },
   { label: 'GPT-4o',    color: '#10a37f', match: ['gpt-4o', 'gpt4o', 'chatgpt-4o'] },
   { label: 'GPT-4',     color: '#10a37f', match: ['gpt-4', 'gpt4'] },
   { label: 'o3',        color: '#14b890', match: ['o3-', '/o3', 'o3'] },
   { label: 'o1',        color: '#14b890', match: ['o1-', '/o1'] },
   { label: 'GPT',       color: '#10a37f', match: ['gpt', 'openai'] },
-  { label: 'Gemini 4',  color: '#6b9fff', match: ['gemini-4', 'gemini4', 'argon'] },
+  { label: 'Gemini 4',  color: '#6b9fff', match: ['gemini-4', 'gemini4', 'carbon', 'argon', 'neon', 'hydrogen'] },
   { label: 'Gemini 3',  color: '#5a8fd6', match: ['gemini-3', 'gemini3'] },
   { label: 'Gemini 2',  color: '#4a7fc8', match: ['gemini-2', 'gemini2'] },
   { label: 'Flash',     color: '#6a9fe0', match: ['flash-lite', 'gemini-flash', 'flash'] },
@@ -6652,10 +6657,10 @@ const MODEL_BRANDS = [
   { label: 'DeepSeek R1', color: '#8b68c8', match: ['deepseek-r1', 'deepseek-reasoner'] },
   { label: 'DeepSeek V3', color: '#7858b8', match: ['deepseek-v3', 'deepseek-chat'] },
   { label: 'DeepSeek',  color: '#7858b8', match: ['deepseek'] },
-  { label: 'Kimi',      color: '#a06898', match: ['kimi', 'moonshot'] },
+  { label: 'Kimi',      color: '#a06898', match: ['kimi', 'moonshot', 'k3.1', 'k3-'] },
   { label: 'GLM',       color: '#68a88a', match: ['glm-4', 'glm-5', 'chatglm'] },
   { label: 'GLM',       color: '#68a88a', match: ['glm'] },
-  { label: 'Qwen Max',  color: '#c88848', match: ['qwen-max', 'qwen3-max'] },
+  { label: 'Qwen Max',  color: '#c88848', match: ['qwen4-max', 'qwen-max', 'qwen3-max'] },
   { label: 'Qwen',      color: '#b87838', match: ['qwen'] },
   { label: 'MiniMax',   color: '#c86898', match: ['minimax', 'abab'] },
   { label: 'Grok',      color: '#606060', match: ['grok'] },
@@ -6677,8 +6682,10 @@ const MODEL_WORD_CASE = {
   gpt:'GPT', chatgpt:'ChatGPT', glm:'GLM', chatglm:'ChatGLM', minimax:'MiniMax',
   deepseek:'DeepSeek', openai:'OpenAI', qwen:'Qwen', kimi:'Kimi', moonshot:'Moonshot',
   llama:'Llama', mistral:'Mistral', hunyuan:'Hunyuan', baichuan:'Baichuan', ernie:'ERNIE',
-  doubao:'Doubao', grok:'Grok', gemini:'Gemini', argon:'Argon', claude:'Claude', opus:'Opus',
-  sonnet:'Sonnet', haiku:'Haiku', flash:'Flash', pro:'Pro', mini:'Mini', nano:'Nano',
+  doubao:'Doubao', grok:'Grok', gemini:'Gemini', carbon:'Carbon', argon:'Argon', neon:'Neon', hydrogen:'Hydrogen',
+  claude:'Claude', fable:'Fable', mythos:'Mythos', opus:'Opus',
+  sonnet:'Sonnet', haiku:'Haiku', astra:'Astra', sol:'Sol', terra:'Terra', luna:'Luna',
+  flash:'Flash', pro:'Pro', mini:'Mini', nano:'Nano',
   max:'Max', turbo:'Turbo', plus:'Plus', lite:'Lite', air:'Air', fast:'Fast',
   thinking:'Thinking', reasoning:'Reasoning', preview:'Preview', instruct:'Instruct',
   chat:'Chat', exp:'Exp', vl:'VL', moe:'MoE'
@@ -11009,9 +11016,9 @@ function switchToPlainReasoning(p, api, why) {
 function detectThinkingFlags(modelName, endpointUrl) {
   const mn = String(modelName || '').toLowerCase();
   const url = String(endpointUrl || '').toLowerCase();
-  const isGemini3Compat = mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('argon') || mn.includes('gemini-3') || mn.includes('gemini3');
-  // GPT-5.x 全系（gpt-5 / gpt-5.2 / gpt-5.3 / gpt-5.4 及其 thinking/pro/mini/nano 变体）
-  const isGPT5Thinking = /gpt-?5(\.\d+)?/.test(mn) && !mn.includes('gpt-5-chat');
+  const isGemini3Compat = mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon') || mn.includes('hydrogen') || mn.includes('gemini-3') || mn.includes('gemini3');
+  // GPT-5.x / GPT-6.x 全系（gpt-5 / gpt-5.4 / gpt-6 / gpt-6.1-terra / gpt-6.2-astra / gpt-6.2-sol / gpt-6-luna 等）
+  const isGPT5Thinking = /gpt-?[56](\.\d+)?/.test(mn) && !mn.includes('gpt-5-chat');
   const isOpenAIReasoning = /(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
   // Claude 系列。Anthropic 原生参数是 output_config.effort（原生分支已经在发），但走 OpenAI
   // 兼容端点时各家中转的映射不一：多数接受 reasoning_effort 并转译过去，少数原样透传，
@@ -11023,14 +11030,13 @@ function detectThinkingFlags(modelName, endpointUrl) {
   const isClaudeReasoning = /claude|anthropic/.test(mn)
     || /(?:^|[\/_-])(fable|mythos|opus|sonnet|haiku)(?:[-_.\d]|$)/.test(mn);
   // Qwen 思考模型识别
-  //   ① qwen3-*-thinking / qwen-max-thinking 等带显式 thinking 后缀的版本
-  //   ② Qwen3.5 / Qwen3.6 系列是混合推理模型，默认就带思考能力（如 Qwen/Qwen3.6-27B），
+  //   ① qwen3-*-thinking / qwen-max-thinking / qwen4-max 等带思考能力的版本
+  //   ② Qwen3.5 / Qwen3.6 / Qwen4 系列是混合推理模型，默认就带思考能力（如 Qwen/Qwen4-Max、Qwen/Qwen3.6-Plus），
   //      即使模型名不带 thinking 后缀也需 thinking 预算保护，否则思考 token 会烧光
   //      默认 max_tokens 导致可见回复被截断。
-  //      用精确的 qwen3.5 / qwen3.6 匹配，避免误伤旧 Qwen3 dense 系列（qwen3-32b 等）。
   const isQwen3Thinking = (
-    ((mn.includes('qwen3') || mn.includes('qwen-max')) && mn.includes('thinking')) ||
-    /qwen[-_]?3\.[56]/.test(mn)
+    ((mn.includes('qwen3') || mn.includes('qwen4') || mn.includes('qwen-max')) && mn.includes('thinking')) ||
+    /qwen[-_]?(3\.[56]|4)/.test(mn)
   );
   // Grok reasoning 版本（grok-4-fast-reasoning / grok-4-20-reasoning / grok-4.1-*-reasoning）
   const isGrokReasoning = mn.includes('grok') && mn.includes('reasoning');
@@ -11042,7 +11048,7 @@ function detectThinkingFlags(modelName, endpointUrl) {
     /glm[-_]?(4\.[567]|5(\.\d+)?)/.test(mn) ||
     (mn.includes('glm') && (mn.includes('reasoning') || mn.includes('thinking')))
   );
-  const isKimiK2 = mn.includes('kimi-k2') || mn.includes('kimi_k2');
+  const isKimiK2 = mn.includes('kimi-k2') || mn.includes('kimi_k2') || mn.includes('kimi-k3') || mn.includes('kimi_k3') || /(?:^|[\/_-])k3(?:\.\d+)?(?:[-_]|$)/.test(mn);
   const isDeepSeekV4 = mn.includes('deepseek-v4') || mn.includes('deepseek_v4');
   // MiniMax M2/M3: official and relay endpoints may expose thinking in content,
   // reasoning_content, or reasoning_details. Model names on relays are not always canonical,
@@ -11616,7 +11622,7 @@ async function _callAIImpl(p, prompt, opts) {
       //   ① 单独设置 thinkingConfig.thinkingBudget 限制思考预算
       //   ② Gemini 3 的 maxOutputTokens 下限提高到 16384，保证可见输出 token 充足
       //   ③ 狼人杀高推理密度场景下，8192/2048 仍可能被烧光，故抬到 16384/4096
-      const isGemini3 = mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('argon') || mn.includes('gemini-3') || mn.includes('gemini3');
+      const isGemini3 = mn.includes('gemini-4') || mn.includes('gemini4') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon') || mn.includes('hydrogen') || mn.includes('gemini-3') || mn.includes('gemini3');
       let effectiveMaxTk = maxTk;
       const genConfig = {
         maxOutputTokens: effectiveMaxTk,
@@ -11798,7 +11804,7 @@ async function _callAIImpl(p, prompt, opts) {
       //   用户在玩家配置里手动设置的值优先生效；未设置则用合理默认。
       body.frequency_penalty = (pcfg.frequency_penalty !== undefined && pcfg.frequency_penalty !== null) ? pcfg.frequency_penalty : 0.5;
       body.presence_penalty = (pcfg.presence_penalty !== undefined && pcfg.presence_penalty !== null) ? pcfg.presence_penalty : 0.3;
-      if (mn.includes('gemini-2.5') || mn.includes('gemini-2') || mn.includes('gemini-3') || mn.includes('gemini-4') || mn.includes('argon')) body.temperature = Math.min(rationalCap, pcfg.temperature !== undefined && pcfg.temperature !== null ? pcfg.temperature : 0.9);
+      if (mn.includes('gemini-2.5') || mn.includes('gemini-2') || mn.includes('gemini-3') || mn.includes('gemini-4') || mn.includes('carbon') || mn.includes('argon') || mn.includes('neon') || mn.includes('hydrogen')) body.temperature = Math.min(rationalCap, pcfg.temperature !== undefined && pcfg.temperature !== null ? pcfg.temperature : 0.9);
       if (mn.includes('deepseek-reasoner') || mn.includes('deepseek-r1')) { body.temperature = Math.min(rationalCap, pcfg.temperature !== undefined && pcfg.temperature !== null ? pcfg.temperature : 1); delete body.top_p; }
       // ★ fix: Claude 系列经 OpenAI 兼容端点调用时，temperature 和 top_p 不能同传，否则 400 "cannot both be specified"
       if (mn.includes('claude')) { delete body.top_p; }
@@ -26350,7 +26356,7 @@ WP.init();
   function gcGetAPI(member) {
     var gUrl = ($('g-url')&&$('g-url').value.trim())||'';
     var gKey = ($('g-key')&&$('g-key').value.trim())||'';
-    var gModel = ($('g-model')&&$('g-model').value.trim())||'gpt-4o';
+    var gModel = ($('g-model')&&$('g-model').value.trim())||'gemini-3.8-flash';
     return {
       url: (member.url||gUrl).replace(/\/$/,''),
       key:  member.key||gKey,
