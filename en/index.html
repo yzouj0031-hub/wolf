@@ -72,10 +72,13 @@
       host === 'cdn.jsdelivr.net' ||
       host === 'fonts.googleapis.com' ||
       host === 'fonts.gstatic.com' ||
-      // Claude / Gemini 官方接口本身允许浏览器直连（CORS 已放行）。经代理转发时
+      // Claude / Gemini / Vertex AI 官方接口本身允许浏览器直连（CORS 已放行）。经代理转发时
       // anthropic-version 等自定义请求头会被丢掉，官方返回 400 "anthropic-version: header is required"。
       host === 'api.anthropic.com' ||
-      host === 'generativelanguage.googleapis.com';
+      host === 'generativelanguage.googleapis.com' ||
+      host === 'oauth2.googleapis.com' ||
+      host === 'aiplatform.googleapis.com' ||
+      host.endsWith('-aiplatform.googleapis.com');
   }
   var _fetch = window.fetch.bind(window);
   window.fetch = function (input, init) {
@@ -3405,7 +3408,7 @@ body.has-wp::after {
     <div class="api-vault-pick" id="pcvault-pick-dropdown"></div>
   </div>
   <div class="row"><label>渠道</label><select id="pc-apitype" style="flex:1"><option value="">自动（按这个座位的地址判断；没填地址就跟全局）</option></select></div>
-  <div class="row"><label>API密钥</label><input type="password" id="pck" placeholder="留空用全局"></div>
+  <div class="row"><label>API密钥</label><div style="display:flex;gap:4px;align-items:center;flex:1"><input type="password" id="pck" placeholder="留空用全局（Vertex可直接粘服务账号JSON）" style="flex:1"><button type="button" onclick="window.VertexDirect&&VertexDirect.pickServiceAccountFile('pc')" style="padding:4px 7px;font-size:0.68em;background:rgba(104,184,232,0.16);color:#98d0f0;border:1px solid rgba(104,184,232,0.38);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="导入 Google Cloud Vertex 服务账号 JSON 密钥文件">📂 JSON</button></div></div>
   <div class="row"><label>模型</label><div style="display:flex;gap:4px;align-items:center"><input type="text" id="pcm" placeholder="留空用全局" style="flex:1"><button id="pcm-fetch" style="padding:4px 8px;font-size:0.7em;background:rgba(74,96,116,0.3);color:#8aa0b0;border:1px solid var(--indigo);border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="拉取模型列表">📡</button><button id="pc-test-api" style="padding:4px 8px;font-size:0.7em;background:rgba(80,140,90,0.18);color:#90c8a0;border:1px solid #6ba070;border-radius:var(--r);font-family:var(--font-title);white-space:nowrap;cursor:pointer" title="测试API是否能正常调用">🧪 测试</button></div></div>
   <div id="pc-test-result" style="display:none;margin:0 0 10px 0;padding:8px 10px;border-radius:var(--r);font-size:0.75em;line-height:1.5;font-family:var(--font-body);white-space:pre-wrap;word-break:break-word"></div>
   <div class="row"><label>人设</label><textarea id="pcpersona" placeholder="自定义角色人设（留空则无特殊人设）&#10;例：你是L，世界第一侦探，说话慢且平淡…" rows="4" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(200,180,140,0.2);color:#c8bfa8;border-radius:var(--r);padding:8px;font-size:0.8em;font-family:var(--font-body);resize:vertical;"></textarea></div>
@@ -6482,6 +6485,9 @@ function canSee(p) {
  *  一层路径，而不是等到开局报错才发现。
  * ================================================================ */
 const API_PROVIDERS = [
+  { id:'vertex',    name:'Vertex AI（Google Cloud 直连）', type:'vertex',
+    url:'vertex://global', webDirect:true,
+    models:(window.VertexDirect && VertexDirect.DEFAULT_MODELS) || ['gemini-2.5-pro','gemini-2.5-flash','gemini-3.1-pro-preview','gemini-3-flash-preview','claude-opus-4-6','claude-sonnet-4-6','claude-opus-4-5@20251101','claude-sonnet-4-5@20250929'] },
   { id:'anthropic', name:'Claude（Anthropic 官方）', type:'anthropic',
     url:'https://api.anthropic.com', webDirect:true,
     models:['claude-opus-4-5','claude-sonnet-4-5','claude-haiku-4-5'] },
@@ -6516,30 +6522,60 @@ function refreshApiChannelUI(autofillUrl) {
     sel.innerHTML = API_PROVIDERS.map(pv => `<option value="${pv.id}">${pv.name}</option>`).join('');
   }
   const prov = getProvider(sel.value) || API_PROVIDERS[0];
-  const urlEl = $('g-url'), modelEl = $('g-model');
-  if (autofillUrl && prov.url && urlEl) urlEl.value = prov.url;
+  const urlEl = $('g-url'), modelEl = $('g-model'), keyEl = $('g-key');
+  const rawKey = keyEl ? keyEl.value : '';
+  if (autofillUrl && prov.url && urlEl) {
+    if (prov.type === 'vertex' && window.VertexDirect) {
+      const kInfo = VertexDirect.parseKey(rawKey);
+      urlEl.value = kInfo.projectId ? `vertex://${kInfo.projectId}/global` : prov.url;
+    } else {
+      urlEl.value = prov.url;
+    }
+  }
   const dl = $('g-model-list');
   if (dl) dl.innerHTML = (prov.models || []).map(m => `<option value="${m}">`).join('');
 
   const box = $('g-endpoint-preview'); if (!box) return;
   const url = urlEl ? urlEl.value : '';
-  const ep = resolveEndpointPreview(prov.type, url, modelEl ? modelEl.value : '');
-  const warn = endpointPathWarning(prov.type, url);
-  // webDirect 是实测过的 CORS 结果，不是猜的：Anthropic 与 Gemini 官方接口都返回了
+  const ep = resolveEndpointPreview(prov.type, url, modelEl ? modelEl.value : '', rawKey);
+  const warn = endpointPathWarning(prov.type, url, rawKey);
+  // webDirect 是实测过的 CORS 结果，不是猜的：Anthropic、Gemini 与 Vertex AI 官方接口都返回了
   // 允许浏览器直连的响应头；其余渠道没实测过，就如实标"未验证"而不是打包票。
   const cors = prov.webDirect === true
     ? '<span style="color:#7fbf8f">网页端可直连（官方接口允许浏览器访问）</span>'
     : prov.webDirect === false
       ? '<span style="color:#c88">网页端会被 CORS 拦，请用 APK 或中转地址</span>'
       : '<span style="color:#9a8f70">网页端能否直连未验证；APK 走原生请求不受 CORS 限制</span>';
+  let vertexHelper = '';
+  if (prov.type === 'vertex' && window.VertexDirect) {
+    const kInfo = VertexDirect.parseKey(rawKey);
+    const credLine = kInfo.kind === 'sa_json'
+      ? `<span style="color:#7fbf8f">✅ 已识别服务账号：${escapeHtml(kInfo.clientEmail)}（项目：${escapeHtml(kInfo.projectId || '未指定')}，浏览器本地自动签发/续期 Token）</span>`
+      : kInfo.kind === 'api_key'
+        ? `<span style="color:#7fbf8f">🔑 已识别 Google Cloud API Key（AIza…）</span>`
+        : kInfo.kind === 'oauth_token'
+          ? `<span style="color:#d8b868">🔑 已识别 OAuth 临时令牌（ya29.…，有效期 1 小时；推荐改用服务账号 JSON 永久免刷）</span>`
+          : `<span style="color:#8aa8c8">💡 密钥栏可直接粘贴/导入 Google Cloud 服务账号 JSON（永久免刷 Token），或填 API Key / ya29. 令牌；地址栏填 <code>vertex://项目ID/区域</code>（如 <code>vertex://my-proj/global</code>）</span>`;
+    vertexHelper = `<div style="margin:4px 0;padding:5px 7px;background:rgba(104,184,232,0.07);border:1px solid rgba(104,184,232,0.22);border-radius:4px;line-height:1.45">`
+      + credLine
+      + `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;align-items:center">`
+      + `<button type="button" onclick="VertexDirect.pickServiceAccountFile('global')" style="padding:2px 7px;font-size:.92em;background:rgba(104,184,232,0.16);border:1px solid rgba(104,184,232,0.4);border-radius:3px;color:#98d0f0;cursor:pointer">📂 导入服务账号 JSON</button>`
+      + `<span style="color:#6a6050;margin-left:2px">区域：</span>`
+      + ['global','us-central1','us-east5','europe-west1'].map(loc =>
+          `<button type="button" onclick="VertexDirect.setRegion('${loc}','global')" style="padding:1px 6px;font-size:.88em;background:rgba(255,255,255,0.04);border:1px solid rgba(200,180,140,0.22);border-radius:3px;color:#b8aa90;cursor:pointer">${loc}</button>`
+        ).join('')
+      + `</div></div>`;
+  }
   box.innerHTML = (ep ? '预览：' + escapeHtml(ep) + '<br>' : '填入地址后这里会显示最终请求的完整 URL<br>')
-    + (warn ? '<span style="color:#d8a050">⚠ ' + escapeHtml(warn) + '</span><br>' : '') + cors;
+    + (warn ? '<span style="color:#d8a050">⚠ ' + escapeHtml(warn) + '</span><br>' : '')
+    + vertexHelper + cors;
 }
 
 // 旧配置里没有渠道字段，沿用原来的域名启发式推断一次，保证升级后不需要重配。
 // 只在"用户从没显式选过渠道"时使用；一旦选过就以选择为准，反代域名才不会再被猜错。
 function inferApiType(url) {
   const s = String(url || '').toLowerCase();
+  if (window.VertexDirect && VertexDirect.isVertexUrl(s)) return 'vertex';
   if (s.includes('anthropic.com')) return 'anthropic';
   if (s.includes('generativelanguage.googleapis.com') && !s.includes('/openai')) return 'gemini';
   return 'openai';
@@ -6551,17 +6587,28 @@ function anthropicBase(url) { return String(url || '').trim().replace(/\/+$/, ''
 function geminiBase(url) { return String(url || '').trim().replace(/\/+$/, '').replace(/\/v1beta(?:\/models(?:\/.*)?)?$/i, '').replace(/\/v1$/i, ''); }
 
 // 预览必须和 tryOnce 里真正 fetch 的路径逐字一致，否则比不给预览更糟。
-function resolveEndpointPreview(type, baseUrl, model) {
+function resolveEndpointPreview(type, baseUrl, model, rawKey) {
   const u = String(baseUrl || '').trim().replace(/\/+$/, '');
-  if (!u) return '';
   const m = String(model || '').trim() || '<模型名>';
+  if (type === 'vertex' && window.VertexDirect) {
+    return VertexDirect.resolveSpec(u || 'vertex://global', rawKey || '', m).endpoint;
+  }
+  if (!u) return '';
   if (type === 'anthropic') return anthropicBase(u) + '/v1/messages';
   if (type === 'gemini')    return geminiBase(u) + '/v1beta/models/' + m + ':generateContent';
   return u + '/chat/completions';
 }
 
 // 预览行里顺带提示明显配错的路径层级（三种格式的 /v1 约定不一样，这是最高频的坑）。
-function endpointPathWarning(type, baseUrl) {
+function endpointPathWarning(type, baseUrl, rawKey) {
+  if (type === 'vertex' && window.VertexDirect) {
+    const spec = VertexDirect.resolveSpec(baseUrl, rawKey, '');
+    if (spec.keyInfo.kind === 'invalid_json') return spec.keyInfo.error;
+    if (!spec.projectId && spec.keyInfo.kind !== 'api_key') {
+      return '请在地址栏填 vertex://你的项目ID/global，或在密钥栏直接粘贴/导入服务账号 JSON（会自动识别项目 ID）';
+    }
+    return '';
+  }
   const u = String(baseUrl || '').trim().replace(/\/+$/, '').toLowerCase();
   if (!u) return '';
   if ((type === 'anthropic' || type === 'gemini') && /\/v1(beta)?$/.test(u)) {
@@ -6576,6 +6623,7 @@ function endpointPathWarning(type, baseUrl) {
 function getAPI(i) {
   const c = playerConfigs[i] || {};
   const url = (c.url || $('g-url').value).replace(/\/$/, '');
+  const key = c.key || $('g-key').value;
   // 渠道优先级：玩家独立配置 > 全局选择 > 旧配置的域名推断
   // 渠道：座位自己选的 > 座位用的就是全局地址时跟全局 > 座位单独配了别的地址时按它自己的地址判断。
   //   以前座位只存地址不存渠道，全局一切到「Claude 官方」，所有单独配了中转的座位都用 Anthropic 格式去请求，全部失败。
@@ -6583,11 +6631,14 @@ function getAPI(i) {
   const _globalUrl = String($('g-url').value || '').trim().replace(/\/$/, '');
   const picked = c.apiType || ((_ownUrl && _ownUrl !== _globalUrl) ? '' : (($('g-apitype') && $('g-apitype').value) || ''));
   const prov = getProvider(picked);
+  const inferred = (window.VertexDirect && (VertexDirect.isVertexUrl(url) || VertexDirect.parseKey(key).kind === 'sa_json'))
+    ? 'vertex'
+    : inferApiType(url);
   return {
     url,
-    key:    c.key   || $('g-key').value,
+    key,
     model:  c.model || $('g-model').value,
-    type:   (prov && prov.type) || (picked === 'anthropic' || picked === 'gemini' || picked === 'openai' ? picked : inferApiType(url))
+    type:   (prov && prov.type) || (picked === 'vertex' || picked === 'anthropic' || picked === 'gemini' || picked === 'openai' ? picked : inferred)
   };
 }
 
@@ -11405,9 +11456,15 @@ async function _callAIImpl(p, prompt, opts) {
       ? Object.assign({}, m, { content: _stripCacheMarker(m.content) })
       : m);
 
+    let _vtx = null;
+    if (apiType === 'vertex' || (window.VertexDirect && (VertexDirect.isVertexUrl(useApi.url) || VertexDirect.parseKey(useApi.key).kind === 'sa_json'))) {
+      _vtx = await VertexDirect.prepare(useApi.url, useApi.key, useApi.model);
+      apiType = _vtx.protocol;
+    }
+
     let res;
     if (apiType === 'anthropic') {
-      // Anthropic 格式
+      // Anthropic 格式（含 Vertex Claude :rawPredict）
       const _claudeMsgs = claudeNativeMessages(tmsgs);
       const anthMsgs = WolfReasoningContext.providerHistory(_claudeMsgs);
       // 原生接口不接受空内容，第一条也必须是 user：在这里兜住。参与者模式不截断对话，
@@ -11429,9 +11486,17 @@ async function _callAIImpl(p, prompt, opts) {
       const anthropicEffort = ReasoningControl.anthropicEffort(reasoning.effective);
       if (anthropicEffort) body.output_config = {effort: anthropicEffort};
       if (!_plainNow && claudeWantsThinkingSummary(useApi.model) && !_claudeThinkingRejected.has((useApi.url || '') + '|' + (useApi.model || ''))) body.thinking = {type: 'adaptive', display: 'summarized'};
-      res = await fetch(anthropicBase(useApi.url) + '/v1/messages', {
+      if (_vtx) {
+        delete body.model;
+        body.anthropic_version = 'vertex-2023-10-16';
+      }
+      const _anthUrl = _vtx ? _vtx.endpoint : (anthropicBase(useApi.url) + '/v1/messages');
+      const _anthHeaders = _vtx
+        ? _vtx.headers
+        : {'Content-Type':'application/json','x-api-key': useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+      res = await fetch(_anthUrl, {
         method: 'POST',
-        headers: {'Content-Type':'application/json','x-api-key': useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        headers: _anthHeaders,
         body: JSON.stringify(body),
         signal: combinedSignal
       });
@@ -11443,9 +11508,9 @@ async function _callAIImpl(p, prompt, opts) {
           _claudeThinkingRejected.add((useApi.url || '') + '|' + (useApi.model || ''));
           Render.devLog('err', `[P${p.id+1}] 该 Claude 型号不接受思考摘要参数，撤销后重试`);
           delete body.thinking;
-          res = await fetch(anthropicBase(useApi.url) + '/v1/messages', {
+          res = await fetch(_anthUrl, {
             method:'POST',
-            headers:{'Content-Type':'application/json','x-api-key':useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+            headers:_anthHeaders,
             body:JSON.stringify(body), signal:combinedSignal
           });
           if (S.gameId !== myGid) return null;
@@ -11456,9 +11521,9 @@ async function _callAIImpl(p, prompt, opts) {
         if (/effort|output_config|output config/i.test(t)) {
           Render.devLog('err', `[P${p.id+1}] Claude model rejected reasoning effort ${anthropicEffort}; retrying without it`);
           delete body.output_config;
-          res = await fetch(anthropicBase(useApi.url) + '/v1/messages', {
+          res = await fetch(_anthUrl, {
             method:'POST',
-            headers:{'Content-Type':'application/json','x-api-key':useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+            headers:_anthHeaders,
             body:JSON.stringify(body), signal:combinedSignal
           });
         }
@@ -11554,7 +11619,7 @@ async function _callAIImpl(p, prompt, opts) {
       return validated;
 
     } else if (apiType === 'gemini') {
-      // Gemini 原生格式
+      // Gemini 原生格式（含 Vertex Gemini :generateContent）
       const gemMsgs = WolfReasoningContext.providerHistory(tmsgs).map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{text: m.content}]
@@ -11583,10 +11648,11 @@ async function _callAIImpl(p, prompt, opts) {
         systemInstruction: sysContent ? {parts:[{text:sysContent}]} : undefined,
         generationConfig: genConfig
       };
-      const gemUrl = `${geminiBase(useApi.url)}/v1beta/models/${useApi.model}:generateContent?key=${useApi.key}`;
+      const gemUrl = _vtx ? _vtx.endpoint : `${geminiBase(useApi.url)}/v1beta/models/${useApi.model}:generateContent?key=${useApi.key}`;
+      const gemHeaders = _vtx ? _vtx.headers : {'Content-Type':'application/json'};
       res = await fetch(gemUrl, {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: gemHeaders,
         body: JSON.stringify(body),
         signal: combinedSignal
       });
@@ -11596,7 +11662,7 @@ async function _callAIImpl(p, prompt, opts) {
         Render.devLog('err', `[P${p.id+1}] Gemini endpoint rejected reasoning mode ${reasoning.effective}; retrying without it: ${t.slice(0,120)}`);
         delete genConfig.thinkingConfig;
         res = await fetch(gemUrl, {
-          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body), signal: combinedSignal
+          method: 'POST', headers: gemHeaders, body: JSON.stringify(body), signal: combinedSignal
         });
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
@@ -11678,7 +11744,7 @@ async function _callAIImpl(p, prompt, opts) {
       return validated;
 
     } else {
-      // OpenAI 兼容格式（默认）
+      // OpenAI 兼容格式（默认，含 Vertex Model Garden OpenAI 端点）
       const pcfg = playerConfigs[p.id] || {};
       const pTemp = Math.min(rationalCap, pcfg.temperature !== undefined && pcfg.temperature !== null ? pcfg.temperature : 1);
       const pTopP = pcfg.top_p !== undefined && pcfg.top_p !== null ? pcfg.top_p : 1;
@@ -11713,9 +11779,10 @@ async function _callAIImpl(p, prompt, opts) {
       const requestMsgs = forceFinalOnlyRetry
         ? _baseCompatMsgs.concat([{role:'user',content:'【技术补发·最高优先级】上一份回复把输出额度耗在思考中，正式发言没有完成。不要重新分析、不要复述推理、不要写草稿或 thinking。立即只输出本轮最终公开发言和必要的 action；发言控制在300字以内，必须完整收尾。'}])
         : _baseCompatMsgs;
+      const _oaiModel = _vtx ? _vtx.vertexModel : useApi.model;
       let body = isGemini3Compat
-        ? {model:useApi.model, messages:requestMsgs}
-        : {model:useApi.model, messages:requestMsgs, temperature:pTemp, top_p:pTopP, max_tokens:compatMaxTk, stream: true};
+        ? {model:_oaiModel, messages:requestMsgs}
+        : {model:_oaiModel, messages:requestMsgs, temperature:pTemp, top_p:pTopP, max_tokens:compatMaxTk, stream: true};
       if (isMiniMaxThinking) {
         body.reasoning_split = true;
         body.max_completion_tokens = Math.min(compatMaxTk, 2048);
@@ -11761,19 +11828,11 @@ async function _callAIImpl(p, prompt, opts) {
       // Claude Code bridge/model aliases: drop top_p and the penalty fields. Parameters only, prompts untouched.
       body = ClaudeBridgeCompat.prepareOpenAIRequest(body);
 
-      // ★ v9.9.17: GLM-5.x 不再强制关闭 thinking 模式（恢复正常）
-      //   旧版(v9.9.5)为了防止思维链外露/沉默,强制 enable_thinking=false 阉割了 GLM 的思考能力。
-      //   现在内心戏拦截、拒绝检测等"兜底毒瘤"已在 v9.9.15/16 全部禁用,
-      //   不该再为防御性兜底而降级一个优秀模型——GLM 的 reasoning 对狼人杀博弈推理是正向加成。
-      //   因此 GLM 现在跟其他 thinking 模型一样:保留思考,走上方 needsThinkingBudgetFix
-      //   的 max_tokens 保护(已抬到 8192)即可,不再注入 enable_thinking 字段。
-      // Qwen3-thinking 在部分 OpenAI 兼容端点上支持 enable_thinking 字段控制
-      // 这里不主动关闭，因为用户选了 -thinking 版本就是想要 thinking
-      // 但可以通过 max_tokens 兜底防止失控
-
-      res = await fetch(useApi.url+'/chat/completions', {
+      const _oaiUrl = _vtx ? _vtx.endpoint : (useApi.url + '/chat/completions');
+      const _oaiHeaders = _vtx ? _vtx.headers : {'Content-Type':'application/json','Authorization':'Bearer '+useApi.key};
+      res = await fetch(_oaiUrl, {
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
+        headers:_oaiHeaders,
         body: JSON.stringify(body),
         signal: combinedSignal
       });
@@ -11787,8 +11846,8 @@ async function _callAIImpl(p, prompt, opts) {
           markReasoningRejected(useApi.url, useApi.model);   // 记住，别每个请求都撞一次
           Render.devLog('err', `[P${p.id+1}] Endpoint rejected reasoning controls; retrying without them`);
           removeCompatibleReasoningControl(body);
-          res = await fetch(useApi.url+'/chat/completions', {
-            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
+          res = await fetch(_oaiUrl, {
+            method:'POST', headers:_oaiHeaders,
             body:JSON.stringify(body), signal:combinedSignal
           });
           if (!res.ok) { const t2=await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t2.slice(0,100)); }
@@ -11797,8 +11856,8 @@ async function _callAIImpl(p, prompt, opts) {
           Render.devLog('err', `[P${p.id+1}] 中转不支持MiniMax新参数，自动退回通用OpenAI格式`);
           delete body.reasoning_split; delete body.max_completion_tokens; delete body.thinking;
           body.max_tokens = compatMaxTk;
-          res = await fetch(useApi.url+'/chat/completions', {
-            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
+          res = await fetch(_oaiUrl, {
+            method:'POST', headers:_oaiHeaders,
             body:JSON.stringify(body), signal:combinedSignal
           });
           if (!res.ok) { const t2=await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t2.slice(0,100)); }
@@ -11807,9 +11866,9 @@ async function _callAIImpl(p, prompt, opts) {
         else if (res.status === 400 && body.stream && /stream/i.test(t)) {
           Render.devLog('err', `[P${p.id+1}] 端点不支持 stream,去除后重试(可能踩中转bug风险)`);
           delete body.stream;
-          res = await fetch(useApi.url+'/chat/completions', {
+          res = await fetch(_oaiUrl, {
             method:'POST',
-            headers:{'Content-Type':'application/json','Authorization':'Bearer '+useApi.key},
+            headers:_oaiHeaders,
             body: JSON.stringify(body),
             signal: combinedSignal
           });
@@ -24221,9 +24280,11 @@ async function fetchModels() {
 
 async function fetchModelsForPC() {
   const c = playerConfigs[currentCfgP] || {};
-  const u = c.url || $('g-url').value;
-  const k = c.key || $('g-key').value;
-  await fetchAndShowModels(u, k, 'pc', getAPI(currentCfgP).type);
+  const u = (($('pcu') && $('pcu').value) || c.url || $('g-url').value || '').trim();
+  const k = (($('pck') && $('pck').value) || c.key || $('g-key').value || '').trim();
+  const _seatPick = ($('pc-apitype') && $('pc-apitype').value) || c.apiType || '';
+  const _t = (_seatPick && getProvider(_seatPick) ? getProvider(_seatPick).type : '') || getAPI(currentCfgP).type;
+  await fetchAndShowModels(u, k, 'pc', _t);
 }
 
 // ★ 测试当前命牌的 API 配置（含全局兜底），结果显示在弹窗内
@@ -24262,36 +24323,47 @@ async function testAPIForPC() {
   const _seatPick = ($('pc-apitype') && $('pc-apitype').value) || c.apiType || '';
   const _seatOwnUrl = String(($('pcu') && $('pcu').value) || c.url || '').trim().replace(/\/$/, '');
   const _useGlobalType = !_seatOwnUrl || _seatOwnUrl === String($('g-url').value || '').trim().replace(/\/$/, '');
-  const _t = (_seatPick && getProvider(_seatPick) ? getProvider(_seatPick).type : '')
+  let _t = (_seatPick && getProvider(_seatPick) ? getProvider(_seatPick).type : '')
           || ((_useGlobalType && $('g-apitype') && getProvider($('g-apitype').value)) ? getProvider($('g-apitype').value).type : '')
           || inferApiType(u);
-  const isAnthropic = _t === 'anthropic';
-  const isGeminiNative = _t === 'gemini';
-  const fmt = isAnthropic ? 'Claude官方' : isGeminiNative ? 'Gemini原生' : 'OpenAI兼容';
+  if (window.VertexDirect && (VertexDirect.isVertexUrl(u) || VertexDirect.parseKey(k).kind === 'sa_json')) {
+    _t = 'vertex';
+  }
+  const isVertex = _t === 'vertex' && !!window.VertexDirect;
+  const _vtxSpec = isVertex ? VertexDirect.resolveSpec(u, k, m) : null;
+  const isAnthropic = isVertex ? (_vtxSpec.protocol === 'anthropic') : (_t === 'anthropic');
+  const isGeminiNative = isVertex ? (_vtxSpec.protocol === 'gemini') : (_t === 'gemini');
+  const fmt = isVertex
+    ? ('Vertex AI · ' + (_vtxSpec.protocol === 'anthropic' ? 'Claude' : _vtxSpec.protocol === 'gemini' ? 'Gemini' : 'OpenAI'))
+    : (isAnthropic ? 'Claude官方' : isGeminiNative ? 'Gemini原生' : 'OpenAI兼容');
 
   btn.disabled = true;
   btn.textContent = '⏳ 测试中…';
   resultEl.style.background = 'rgba(80,100,140,0.15)';
   resultEl.style.color = '#a0b0d8';
-  resultEl.textContent = '🧪 正在测试…\n地址：' + u + '\n模型：' + m + '\n格式：' + fmt;
+  resultEl.textContent = '🧪 正在测试…\n地址：' + (_vtxSpec ? _vtxSpec.endpoint : u) + '\n模型：' + m + '\n格式：' + fmt;
 
   const t0 = Date.now();
   try {
+    const _vtx = isVertex ? await VertexDirect.prepare(u, k, m) : null;
     let res, ok = false, detail = '', reply = '';
     if (isAnthropic) {
-      res = await fetch(anthropicBase(u)+'/v1/messages', {
+      const anthBody = _vtx
+        ? {anthropic_version:'vertex-2023-10-16', max_tokens:1024, messages:[{role:'user',content:'回复"测试通过"四个字'}]}
+        : {model: m, max_tokens:1024, messages:[{role:'user',content:'回复"测试通过"四个字'}]};
+      res = await fetch(_vtx ? _vtx.endpoint : (anthropicBase(u)+'/v1/messages'), {
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body: JSON.stringify({model: m, max_tokens:1024, messages:[{role:'user',content:'回复"测试通过"四个字'}]})
+        headers:_vtx ? _vtx.headers : {'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body: JSON.stringify(anthBody)
       });
       const data = await res.json();
       if (res.ok) { ok=true; reply = anthropicTestReply(data); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,200)); }
     } else if (isGeminiNative) {
-      const gemUrl = geminiBase(u)+'/v1beta/models/'+m+':generateContent?key='+k;
+      const gemUrl = _vtx ? _vtx.endpoint : (geminiBase(u)+'/v1beta/models/'+m+':generateContent?key='+k);
       res = await fetch(gemUrl, {
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:_vtx ? _vtx.headers : {'Content-Type':'application/json'},
         body:JSON.stringify({contents:[{role:'user',parts:[{text:'Hello'}]}],generationConfig:{maxOutputTokens:20}})
       });
       const data = await res.json();
@@ -24306,7 +24378,7 @@ async function testAPIForPC() {
       const isGPT5Reasoning = /^(o[13]|gpt-5)/i.test(m);
       const buildBody = (testPrompt) => {
         const b = {
-          model: m,
+          model: _vtx ? _vtx.vertexModel : m,
           messages: [{role:'user', content: testPrompt}],
           max_tokens: 256,
           temperature: 0.7,
@@ -24332,15 +24404,17 @@ async function testAPIForPC() {
       };
       const tryCall = async (testPrompt) => {
         const b = buildBody(testPrompt);
-        let r = await fetch(u+'/chat/completions', {
+        const _oaiUrl = _vtx ? _vtx.endpoint : (u+'/chat/completions');
+        const _oaiHeaders = _vtx ? _vtx.headers : {'Content-Type':'application/json','Authorization':'Bearer '+k};
+        let r = await fetch(_oaiUrl, {
           method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},
+          headers:_oaiHeaders,
           body:JSON.stringify(b)
         });
         if (r.status === 400 && (b.chat_template_kwargs || b.thinking_budget || b.reasoning_effort !== undefined || b.enable_thinking !== undefined || b.thinking)) {
           removeCompatibleReasoningControl(b);
-          r = await fetch(u+'/chat/completions', {
-            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+k}, body:JSON.stringify(b)
+          r = await fetch(_oaiUrl, {
+            method:'POST', headers:_oaiHeaders, body:JSON.stringify(b)
           });
         }
         // ★ v9.6: 用 SSE 容错解析,兼容强返流式的中转端点(如 codex/gpt-5.5)
@@ -24410,7 +24484,7 @@ async function testAPIForPC() {
   } catch(e) {
     resultEl.style.background = 'rgba(200,80,80,0.15)';
     resultEl.style.color = '#e08080';
-    resultEl.textContent = '❌ 网络错误：' + e.message + '\n请检查 API 地址格式（要带 https://）、网络/代理是否可达。';
+    resultEl.textContent = '❌ 网络错误：' + e.message + '\n请检查 API 地址格式（要带 https:// 或 vertex://）、网络/代理是否可达。';
   } finally {
     btn.disabled = false;
     btn.textContent = '🧪 测试';
@@ -24443,6 +24517,9 @@ function parseModelList(type, d) {
 
 async function fetchAndShowModels(url, key, target, type) {
   type = type || inferApiType(url);
+  if (window.VertexDirect && (type === 'vertex' || VertexDirect.isVertexUrl(url) || VertexDirect.parseKey(key).kind === 'sa_json')) {
+    type = 'vertex';
+  }
   // 座位设置弹窗会挡住游戏日志：座位里点的拉取，结果同时写进弹窗里的结果框，并带上实际请求的地址。
   const box = target === 'pc' ? $('pc-test-result') : null;
   const report = (msg, bad) => {
@@ -24453,6 +24530,16 @@ async function fetchAndShowModels(url, key, target, type) {
     box.style.color = bad ? '#e08080' : '#90c8a0';
     box.textContent = msg;
   };
+  if (type === 'vertex' && window.VertexDirect) {
+    const models = VertexDirect.DEFAULT_MODELS.slice();
+    _cachedModels = models;
+    _modelListTarget = target;
+    renderModelList(models);
+    $('modelSearch').value = '';
+    $('modelListOverlay').classList.add('show');
+    report('✅ 已加载 Vertex AI 常用模型列表（' + models.length + ' 个，含 Gemini 2.5/3 与 Claude 4.5/4.6）', false);
+    return;
+  }
   if (!String(url || '').trim()) { report('⚠️ 未填写API地址', true); return; }
   if (!key) { report('⚠️ 未配置API密钥', true); return; }
   let reqUrl = '';
@@ -24491,6 +24578,7 @@ function renderModelList(models) {
         $('pcm').value = m;
       }
       $('modelListOverlay').classList.remove('show');
+      if (typeof refreshApiChannelUI === 'function') refreshApiChannelUI(false);
       saveCfg();
     };
     g.appendChild(b);
@@ -24503,28 +24591,40 @@ async function testAPI() {
   if (!u || !k) { Render.log('system','⚠️ 请先填写API地址和密钥'); return; }
   // 同上：以显式选择的渠道为准，不再靠域名猜（反代域名会被猜错）。
   const urlLower = u.toLowerCase();
-  const _t = (($('g-apitype') && getProvider($('g-apitype').value)) ? getProvider($('g-apitype').value).type : '') || inferApiType(u);
-  const isAnthropic = _t === 'anthropic';
-  const isGeminiNative = _t === 'gemini';
-  const fmt = isAnthropic ? 'Claude官方' : isGeminiNative ? 'Gemini原生' : 'OpenAI兼容';
+  let _t = (($('g-apitype') && getProvider($('g-apitype').value)) ? getProvider($('g-apitype').value).type : '') || inferApiType(u);
+  if (window.VertexDirect && (VertexDirect.isVertexUrl(u) || VertexDirect.parseKey(k).kind === 'sa_json')) {
+    _t = 'vertex';
+  }
+  const isVertex = _t === 'vertex' && !!window.VertexDirect;
+  const _vtxSpec = isVertex ? VertexDirect.resolveSpec(u, k, m || 'gemini-2.5-flash') : null;
+  const isAnthropic = isVertex ? (_vtxSpec.protocol === 'anthropic') : (_t === 'anthropic');
+  const isGeminiNative = isVertex ? (_vtxSpec.protocol === 'gemini') : (_t === 'gemini');
+  const fmt = isVertex
+    ? ('Vertex AI · ' + (_vtxSpec.protocol === 'anthropic' ? 'Claude' : _vtxSpec.protocol === 'gemini' ? 'Gemini' : 'OpenAI'))
+    : (isAnthropic ? 'Claude官方' : isGeminiNative ? 'Gemini原生' : 'OpenAI兼容');
   Render.log('system', '🧪 测试中… 渠道格式：' + fmt);
   try {
+    const _vtx = isVertex ? await VertexDirect.prepare(u, k, m || 'gemini-2.5-flash') : null;
     let res, ok = false, detail = '';
     if (isAnthropic) {
-      const body = JSON.stringify({model: m||'claude-haiku-4-5-20251001', max_tokens:1024, messages:[{role:'user',content:'hi'}]});
-      res = await fetch(anthropicBase(u)+'/v1/messages', {method:'POST', headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:body});
+      const body = JSON.stringify(_vtx
+        ? {anthropic_version:'vertex-2023-10-16', max_tokens:1024, messages:[{role:'user',content:'hi'}]}
+        : {model: m||'claude-haiku-4-5-20251001', max_tokens:1024, messages:[{role:'user',content:'hi'}]});
+      res = await fetch(_vtx ? _vtx.endpoint : (anthropicBase(u)+'/v1/messages'), {method:'POST', headers:_vtx ? _vtx.headers : {'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}, body:body});
       const data = await res.json();
       if (res.ok) { ok=true; detail='回复：'+anthropicTestReply(data); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
     } else if (isGeminiNative) {
-      const modelName = m||'gemini-2.0-flash';
-      const gemUrl = geminiBase(u)+'/v1beta/models/'+modelName+':generateContent?key='+k;
-      res = await fetch(gemUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{role:'user',parts:[{text:'hi'}]}],generationConfig:{maxOutputTokens:10}})});
+      const modelName = m||'gemini-2.5-flash';
+      const gemUrl = _vtx ? _vtx.endpoint : (geminiBase(u)+'/v1beta/models/'+modelName+':generateContent?key='+k);
+      res = await fetch(gemUrl, {method:'POST', headers:_vtx ? _vtx.headers : {'Content-Type':'application/json'}, body:JSON.stringify({contents:[{role:'user',parts:[{text:'hi'}]}],generationConfig:{maxOutputTokens:10}})});
       const data = await res.json();
       if (res.ok) { ok=true; detail='回复：'+(data.candidates&&data.candidates[0]?data.candidates[0].content.parts[0].text:'ok'); }
       else { detail = res.status+' '+(data.error?data.error.message:JSON.stringify(data).slice(0,120)); }
     } else {
-      res = await fetch(u+'/chat/completions', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+k}, body:JSON.stringify({model:m,messages:[{role:'user',content:'hi'}],max_tokens:10,stream:true})});
+      const _oaiUrl = _vtx ? _vtx.endpoint : (u+'/chat/completions');
+      const _oaiHeaders = _vtx ? _vtx.headers : {'Content-Type':'application/json','Authorization':'Bearer '+k};
+      res = await fetch(_oaiUrl, {method:'POST', headers:_oaiHeaders, body:JSON.stringify({model:_vtx ? _vtx.vertexModel : m,messages:[{role:'user',content:'hi'}],max_tokens:10,stream:true})});
       let data;
       try { data = await parseAPIResponseWithSSEFallback(res, { tag: '[全局测试]' }); }
       catch(parseErr) { data = { error: { message: parseErr.message } }; }
@@ -25553,9 +25653,34 @@ loadCfg();
 {
   const sel = $('g-apitype');
   if (sel) sel.addEventListener('change', () => { refreshApiChannelUI(true); saveCfg(); });
-  ['g-url', 'g-model'].forEach(id => {
+  ['g-url', 'g-model', 'g-key'].forEach(id => {
     const el = $(id);
-    if (el) el.addEventListener('input', () => refreshApiChannelUI(false));
+    if (el) el.addEventListener('input', () => {
+      if (id === 'g-key' && window.VertexDirect) {
+        const kInfo = VertexDirect.parseKey(el.value);
+        if (kInfo.kind === 'sa_json') {
+          if (sel && sel.value !== 'vertex') sel.value = 'vertex';
+          const uEl = $('g-url');
+          if (uEl && kInfo.projectId && (!uEl.value || uEl.value === 'vertex://global' || !VertexDirect.isVertexUrl(uEl.value))) {
+            uEl.value = `vertex://${kInfo.projectId}/global`;
+          }
+        }
+      }
+      refreshApiChannelUI(false);
+    });
+  });
+  const pckEl = $('pck');
+  if (pckEl) pckEl.addEventListener('input', () => {
+    if (!window.VertexDirect) return;
+    const kInfo = VertexDirect.parseKey(pckEl.value);
+    if (kInfo.kind === 'sa_json') {
+      const pcType = $('pc-apitype');
+      if (pcType) pcType.value = 'vertex';
+      const pcuEl = $('pcu');
+      if (pcuEl && kInfo.projectId && (!pcuEl.value || pcuEl.value === 'vertex://global' || !VertexDirect.isVertexUrl(pcuEl.value))) {
+        pcuEl.value = `vertex://${kInfo.projectId}/global`;
+      }
+    }
   });
   refreshApiChannelUI(false);
 }
