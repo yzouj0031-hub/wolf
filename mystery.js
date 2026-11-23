@@ -502,7 +502,7 @@ const MurderMystery = (() => {
       raw=(thought?'<thinking>'+thought+'</thinking>':'')+(answer||parts.map(x=>x.text||'').join(''));
     }else{
       const mn=api.model.toLowerCase();
-      const reasoning=/gpt-?[56](?:\.|[-_]|$)|(?:^|[\/_-])o(?:1|3|4)(?:[-_.]|$)/.test(mn);
+      const reasoning=/gpt-?[5-9](?:\.|[-_]|$)|(?:^|[\/_-])o[1-9](?:[-_.]|$)/.test(mn);
       let body={model:api.model,messages:[{role:'system',content:sysPrompt},{role:'user',content:userPrompt}],stream:true};
       if(reasoning)body.max_completion_tokens=maxTokens&&maxTokens<1024?maxTokens:Math.max(maxTokens||8192,8192);
       else{body.max_tokens=maxTokens||4096;body.temperature=.8;}
@@ -1009,9 +1009,13 @@ const MurderMystery = (() => {
     el.addEventListener('input',()=>{flushApiPanel();});
     el.addEventListener('change',()=>{
       if(el.id==='jbs-api-type'){
-        const meta=apiProvider(el.value),url=q('jbs-api-url');
-        const known=apiProviders().some(x=>x.url&&x.url.replace(/\/+$/,'')===url.value.trim().replace(/\/+$/,''));
-        if(meta&&meta.url&&(!url.value.trim()||known))url.value=meta.url;
+        const meta=apiProvider(el.value),url=q('jbs-api-url'),mod=q('jbs-api-model');
+        if(meta&&meta.url){
+          url.value=meta.url;
+          if(mod&&meta.models&&meta.models.length&&!mod.value.trim())mod.value=meta.models[0];
+        }else if(url&&apiProviders().some(x=>x.url&&x.url.replace(/\/+$/,'').toLowerCase()===url.value.trim().replace(/\/+$/,'').toLowerCase())){
+          url.value='';
+        }
       }
       flushApiPanel();
     });
@@ -1041,9 +1045,13 @@ const MurderMystery = (() => {
     SCRIPT.cast.forEach(x=>setProviderSelect(q('jbs-api-cast').querySelector('select[data-role="'+x.id+'"]'),roleApiOverride(x.id,false).provider||''));
     q('jbs-api-cast').querySelectorAll('[data-role][data-f]').forEach(inp=>{
       const refresh=()=>{
-        if(inp.dataset.f==='provider'&&inp.value){
-          const meta=apiProvider(inp.value),url=q('jbs-api-cast').querySelector('input[data-role="'+inp.dataset.role+'"][data-f="url"]');
-          if(meta&&meta.url&&url&&!url.value.trim())url.value=meta.url;
+        if(inp.dataset.f==='provider'){
+          const meta=inp.value?apiProvider(inp.value):null,url=q('jbs-api-cast').querySelector('input[data-role="'+inp.dataset.role+'"][data-f="url"]');
+          if(meta&&meta.url&&url){
+            url.value=meta.url;
+          }else if(url&&apiProviders().some(x=>x.url&&x.url.replace(/\/+$/,'').toLowerCase()===url.value.trim().replace(/\/+$/,'').toLowerCase())){
+            url.value='';
+          }
         }
         flushApiPanel();const sum=q('jbs-api-cast').querySelector('[data-sum="'+inp.dataset.role+'"]');if(sum)sum.textContent=slotSummary(inp.dataset.role);
       };

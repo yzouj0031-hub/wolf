@@ -14,34 +14,90 @@ function renderFbList() {
   if (!list) return;
   list.innerHTML = '';
   // 始终至少显示1条（原始备选）
-  const rows = extraFallbacks.length ? extraFallbacks : [{url:'',key:'',model:'',type:'openai'}];
+  const rows = extraFallbacks.length ? extraFallbacks : [{url:'',key:'',model:'',type:'openai',provider:''}];
   if (!extraFallbacks.length) extraFallbacks = rows;
+  const provList = (typeof API_PROVIDERS !== 'undefined' && Array.isArray(API_PROVIDERS) && API_PROVIDERS.length)
+    ? API_PROVIDERS
+    : [
+        {id:'openai',name:'OpenAI 官方',type:'openai',url:'https://api.openai.com/v1'},
+        {id:'anthropic',name:'Claude（Anthropic 官方）',type:'anthropic',url:'https://api.anthropic.com'},
+        {id:'gemini',name:'Gemini（Google 官方）',type:'gemini',url:'https://generativelanguage.googleapis.com'},
+        {id:'vertex',name:'Vertex AI（Google Cloud 直连）',type:'vertex',url:'vertex://global'},
+        {id:'deepseek',name:'DeepSeek 官方',type:'openai',url:'https://api.deepseek.com/v1'},
+        {id:'kimi',name:'Kimi（月之暗面官方）',type:'openai',url:'https://api.moonshot.cn/v1'},
+        {id:'qwen',name:'通义千问（阿里云百炼官方）',type:'openai',url:'https://dashscope.aliyuncs.com/compatible-mode/v1'},
+        {id:'glm',name:'智谱清言（GLM 官方）',type:'openai',url:'https://open.bigmodel.cn/api/paas/v4'},
+        {id:'minimax',name:'MiniMax（海螺官方）',type:'openai',url:'https://api.minimaxi.com/v1'},
+        {id:'grok',name:'xAI（Grok 官方）',type:'openai',url:'https://api.x.ai/v1'},
+        {id:'doubao',name:'火山方舟（豆包官方）',type:'openai',url:'https://ark.cn-beijing.volces.com/api/v3'},
+        {id:'siliconflow',name:'SiliconFlow 硅基流动',type:'openai',url:'https://api.siliconflow.cn/v1'},
+        {id:'openrouter',name:'OpenRouter',type:'openai',url:'https://openrouter.ai/api/v1'},
+        {id:'custom',name:'GPT / OpenAI 反代（OpenAI兼容）',type:'openai',url:''},
+        {id:'custom-anthropic',name:'Claude 反代（Anthropic格式）',type:'anthropic',url:''},
+        {id:'custom-gemini',name:'Gemini 反代（Gemini格式）',type:'gemini',url:''}
+      ];
+  const inferFbProvider = (fb) => {
+    if (fb.provider && provList.some(p => p.id === fb.provider)) return fb.provider;
+    const u = String(fb.url || '').trim().replace(/\/+$/, '').toLowerCase();
+    if (u) {
+      const matched = provList.find(p => p.url && u.startsWith(p.url.toLowerCase()));
+      if (matched) return matched.id;
+      if (u.startsWith('vertex://') || u.includes('aiplatform.googleapis.com')) return 'vertex';
+    }
+    if (fb.type === 'vertex') return 'vertex';
+    if (fb.type === 'anthropic') return u ? 'custom-anthropic' : 'anthropic';
+    if (fb.type === 'gemini') return u ? 'custom-gemini' : 'gemini';
+    return u ? 'custom' : 'openai';
+  };
   rows.forEach((fb, i) => {
+    const curProvId = inferFbProvider(fb);
+    const curProv = provList.find(p => p.id === curProvId) || provList[0];
+    fb.provider = curProv.id;
+    fb.type = curProv.type || fb.type || 'openai';
     const row = document.createElement('div');
     row.style.cssText = 'margin-bottom:5px;background:rgba(255,255,255,0.02);border:1px solid rgba(245,160,184,0.1);border-radius:var(--r);padding:5px 7px';
     row.innerHTML = `
       <div style="display:flex;gap:4px;margin-bottom:3px;align-items:center">
         <span style="font-size:.65em;color:#6a6080;min-width:14px">#${i+1}</span>
-        <input type="text" placeholder="备选API地址" value="${fb.url||''}" style="flex:2;font-size:.75em" data-fi="${i}" data-field="url">
+        <input type="text" placeholder="备选API地址（选官方渠道自动填入）" value="${fb.url||''}" style="flex:2;font-size:.75em" data-fi="${i}" data-field="url">
         <input type="password" placeholder="密钥" value="${fb.key||''}" style="flex:1;font-size:.75em" data-fi="${i}" data-field="key">
         <button data-fi="${i}" class="fb-del" style="padding:1px 6px;background:rgba(200,48,64,0.15);border:1px solid rgba(200,48,64,0.3);border-radius:4px;color:#c87080;font-size:.75em;cursor:pointer">✕</button>
       </div>
       <div style="display:flex;gap:4px">
-        <input type="text" placeholder="模型名称" value="${fb.model||''}" style="flex:2;font-size:.75em" data-fi="${i}" data-field="model">
-        <select style="flex:1;font-size:.72em" data-fi="${i}" data-field="type">
-          <option value="openai"${fb.type==='openai'?' selected':''}>OpenAI兼容</option>
-          <option value="anthropic"${fb.type==='anthropic'?' selected':''}>Anthropic</option>
-          <option value="gemini"${fb.type==='gemini'?' selected':''}>Gemini</option>
-          <option value="vertex"${fb.type==='vertex'?' selected':''}>Vertex AI</option>
+        <input type="text" list="g-model-list" placeholder="模型名称" value="${fb.model||''}" style="flex:2;font-size:.75em" data-fi="${i}" data-field="model">
+        <select style="flex:1;font-size:.72em" data-fi="${i}" data-field="provider">
+          ${provList.map(p => `<option value="${p.id}"${curProv.id===p.id?' selected':''}>${p.name}</option>`).join('')}
         </select>
       </div>`;
     // 事件
     row.querySelectorAll('input,select').forEach(el => {
-      el.addEventListener('input', () => {
+      const onChange = () => {
         const idx = parseInt(el.dataset.fi);
-        extraFallbacks[idx][el.dataset.field] = el.value;
+        const field = el.dataset.field;
+        if (field === 'provider') {
+          const pv = provList.find(p => p.id === el.value);
+          if (pv) {
+            extraFallbacks[idx].provider = pv.id;
+            extraFallbacks[idx].type = pv.type;
+            const urlInp = row.querySelector('input[data-field="url"]');
+            const modInp = row.querySelector('input[data-field="model"]');
+            if (pv.url) {
+              extraFallbacks[idx].url = pv.url;
+              if (urlInp) urlInp.value = pv.url;
+              if (modInp && pv.models && pv.models.length && !extraFallbacks[idx].model) {
+                modInp.placeholder = '模型名称（如 ' + pv.models[0] + '）';
+              }
+            } else if (urlInp && provList.some(p => p.url && p.url.toLowerCase() === String(urlInp.value || '').trim().replace(/\/+$/, '').toLowerCase())) {
+              extraFallbacks[idx].url = '';
+              urlInp.value = '';
+            }
+          }
+        } else {
+          extraFallbacks[idx][field] = el.value;
+        }
         saveCfg();
-      });
+      };
+      el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', onChange);
     });
     row.querySelector('.fb-del').onclick = () => {
       if (extraFallbacks.length > 1) {
@@ -1014,6 +1070,11 @@ const LiveModelSync = (() => {
         gemini: [],
         openai: [],
         deepseek: [],
+        kimi: [],
+        qwen: [],
+        glm: [],
+        minimax: [],
+        grok: [],
         openrouter: [],
         vertex: []
       };
@@ -1053,11 +1114,19 @@ const LiveModelSync = (() => {
           const maasId = `deepseek-ai/${bare.replace(/-maas$/i, '')}-maas`;
           if (buckets.vertex.length < 70) buckets.vertex.push(maasId);
         } else if (vendor === 'moonshotai' && /^kimi/i.test(bare)) {
+          buckets.kimi.push(bare);
           const maasId = `moonshotai/${bare.replace(/-maas$/i, '')}-maas`;
           if (buckets.vertex.length < 70) buckets.vertex.push(maasId);
         } else if (vendor === 'qwen' && /^qwen/i.test(bare)) {
+          buckets.qwen.push(bare);
           const maasId = `qwen/${bare.replace(/-maas$/i, '')}-maas`;
           if (buckets.vertex.length < 70) buckets.vertex.push(maasId);
+        } else if ((vendor === 'z-ai' || vendor === 'thudm') && /^glm/i.test(bare)) {
+          buckets.glm.push(bare);
+        } else if (vendor === 'minimax' && /^minimax/i.test(bare)) {
+          buckets.minimax.push(bare);
+        } else if (vendor === 'x-ai' && /^grok/i.test(bare)) {
+          buckets.grok.push(bare);
         }
       }
 

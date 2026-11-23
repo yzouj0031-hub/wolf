@@ -7127,7 +7127,7 @@ function canSee(p) {
 const API_PROVIDERS = [
   { id:'vertex',    name:'Vertex AI（Google Cloud 直连）', type:'vertex',
     url:'vertex://global', webDirect:true,
-    models:(window.VertexDirect && VertexDirect.DEFAULT_MODELS) || ['gemini-4-carbon','gemini-4-argon','gemini-4-neon','gemini-4-hydrogen','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','claude-fable-5-2','claude-mythos-5-2','claude-opus-5-5','claude-sonnet-5-5','claude-haiku-5-5','claude-fable-5-1','claude-opus-5','claude-sonnet-5','claude-opus-4-7','claude-sonnet-4-6','deepseek-ai/deepseek-v4-pro-maas'] },
+    models:(window.VertexDirect && VertexDirect.DEFAULT_MODELS) || ['gemini-4-carbon','gemini-4-argon','gemini-4-neon','gemini-4-hydrogen','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','claude-fable-5-2','claude-mythos-5-2','claude-opus-5-5','claude-sonnet-5-5','claude-haiku-5-5','claude-fable-5-1','claude-opus-5','claude-sonnet-5','claude-opus-4-7','claude-sonnet-4-6','deepseek-ai/deepseek-v4-pro-maas','moonshotai/kimi-k2.5-maas','moonshotai/kimi-k2-thinking-maas'] },
   { id:'anthropic', name:'Claude（Anthropic 官方）', type:'anthropic',
     url:'https://api.anthropic.com', webDirect:true,
     models:['claude-fable-5-2','claude-mythos-5-2','claude-opus-5-5','claude-sonnet-5-5','claude-haiku-5-5','claude-fable-5-1','claude-mythos-5-1','claude-opus-5','claude-sonnet-5','claude-opus-4-7','claude-sonnet-4-6','claude-opus-4-5','claude-sonnet-4-5','claude-haiku-4-5'] },
@@ -7140,6 +7140,24 @@ const API_PROVIDERS = [
   { id:'deepseek',  name:'DeepSeek 官方',             type:'openai',
     url:'https://api.deepseek.com/v1', webDirect:null,
     models:['deepseek-v4-pro','deepseek-flash','deepseek-chat','deepseek-reasoner'] },
+  { id:'kimi',      name:'Kimi（月之暗面 Moonshot 官方）', type:'openai',
+    url:'https://api.moonshot.cn/v1', webDirect:null,
+    models:['kimi-k2.5','kimi-k2-thinking','kimi-k2-0905-preview','kimi-latest','moonshot-v1-128k'] },
+  { id:'qwen',      name:'通义千问（阿里云百炼官方）', type:'openai',
+    url:'https://dashscope.aliyuncs.com/compatible-mode/v1', webDirect:null,
+    models:['qwen4-max','qwen3.6-plus','qwen-max-latest','qwen-plus-latest','qwq-plus'] },
+  { id:'glm',       name:'智谱清言（GLM BigModel 官方）', type:'openai',
+    url:'https://open.bigmodel.cn/api/paas/v4', webDirect:null,
+    models:['glm-5.4','glm-5.3','glm-5-plus','glm-4.5','glm-z1-air'] },
+  { id:'minimax',   name:'MiniMax（海螺 AI 官方）',   type:'openai',
+    url:'https://api.minimaxi.com/v1', webDirect:null,
+    models:['MiniMax-M3.1','MiniMax-M3.1-Flash','MiniMax-M2.7','MiniMax-Text-01'] },
+  { id:'grok',      name:'xAI（Grok 官方）',          type:'openai',
+    url:'https://api.x.ai/v1', webDirect:null,
+    models:['grok-4.7','grok-4.1-reasoning','grok-4','grok-3','grok-3-mini'] },
+  { id:'doubao',    name:'火山方舟（豆包 / 字节官方）', type:'openai',
+    url:'https://ark.cn-beijing.volces.com/api/v3', webDirect:null,
+    models:['doubao-seed-1-6-250615','doubao-seed-1-6-thinking-250615','deepseek-r1-250528','deepseek-v3-250324'] },
   { id:'siliconflow', name:'SiliconFlow 硅基流动',    type:'openai',
     url:'https://api.siliconflow.cn/v1', webDirect:null,
     models:['deepseek-ai/DeepSeek-V4-Pro','deepseek-ai/DeepSeek-V4.1-Flash','Qwen/Qwen4-Max','Qwen/Qwen3.6-Plus','Pro/zai-org/GLM-5.4','Pro/zai-org/GLM-5.3','moonshotai/Kimi-K3.1-Pro','MiniMaxAI/MiniMax-M3.1-Flash'] },
@@ -7155,6 +7173,32 @@ const API_PROVIDERS = [
   { id:'custom',    name:'GPT / OpenAI 反代 / 中转（OpenAI 兼容格式）', type:'openai', url:'', models:[] }
 ];
 const getProvider = (id) => API_PROVIDERS.find(x => x.id === id) || null;
+window.API_PROVIDERS = API_PROVIDERS;
+window.getProvider = getProvider;
+
+function resolveProviderDefaultUrl(prov, rawKey) {
+  if (!prov || !prov.url) return '';
+  if (prov.type === 'vertex' && window.VertexDirect) {
+    const kInfo = VertexDirect.parseKey(rawKey || '');
+    return kInfo.projectId ? `vertex://${kInfo.projectId}/global` : prov.url;
+  }
+  return prov.url;
+}
+
+function isKnownOfficialUrl(rawUrl) {
+  const u = String(rawUrl || '').trim().replace(/\/+$/, '').toLowerCase();
+  if (!u) return true;
+  if (u.startsWith('vertex://') || u.includes('aiplatform.googleapis.com')) return true;
+  return API_PROVIDERS.some(pv => pv.url && pv.url.replace(/\/+$/, '').toLowerCase() === u);
+}
+
+function isModelFromOtherOfficialProvider(modelName, targetProv) {
+  const m = String(modelName || '').trim().toLowerCase();
+  if (!m || !targetProv) return false;
+  const targetModels = (targetProv.models || []).map(x => String(x).toLowerCase());
+  if (targetModels.includes(m)) return false;
+  return API_PROVIDERS.some(pv => pv.id !== targetProv.id && Array.isArray(pv.models) && pv.models.some(x => String(x).toLowerCase() === m));
+}
 
 // 渠道下拉 + 预览行的渲染。autofillUrl=true 表示是用户主动换渠道，
 // 此时才覆盖地址栏；载入存档时传 false，避免把用户填好的反代地址冲掉。
@@ -7166,12 +7210,27 @@ function refreshApiChannelUI(autofillUrl) {
   const prov = getProvider(sel.value) || API_PROVIDERS[0];
   const urlEl = $('g-url'), modelEl = $('g-model'), keyEl = $('g-key');
   const rawKey = keyEl ? keyEl.value : '';
-  if (autofillUrl && prov.url && urlEl) {
-    if (prov.type === 'vertex' && window.VertexDirect) {
-      const kInfo = VertexDirect.parseKey(rawKey);
-      urlEl.value = kInfo.projectId ? `vertex://${kInfo.projectId}/global` : prov.url;
+  if (urlEl) {
+    if (prov.url) {
+      if (autofillUrl || !urlEl.value.trim()) {
+        urlEl.value = resolveProviderDefaultUrl(prov, rawKey);
+      }
+      urlEl.placeholder = prov.url;
     } else {
-      urlEl.value = prov.url;
+      if (autofillUrl && isKnownOfficialUrl(urlEl.value)) {
+        urlEl.value = '';
+      }
+      urlEl.placeholder = '填入反代 / 中转 API 地址';
+    }
+  }
+  if (modelEl) {
+    if (prov.models && prov.models.length) {
+      modelEl.placeholder = '模型名称（如 ' + prov.models[0] + '）';
+      if (autofillUrl && (!modelEl.value.trim() || isModelFromOtherOfficialProvider(modelEl.value, prov))) {
+        modelEl.value = prov.models[0];
+      }
+    } else {
+      modelEl.placeholder = '模型名称';
     }
   }
   const dl = $('g-model-list');
@@ -26938,6 +26997,47 @@ function initPCRegexEvents() {
   };
 }
 
+function refreshSeatChannelUI(autofillUrl) {
+  const sel = $('pc-apitype'), urlEl = $('pcu'), modelEl = $('pcm'), keyEl = $('pck');
+  if (!sel) return;
+  const prov = sel.value ? getProvider(sel.value) : null;
+  const rawKey = (keyEl && keyEl.value.trim()) || ($('g-key') && $('g-key').value.trim()) || '';
+  if (urlEl) {
+    if (prov && prov.url) {
+      if (autofillUrl || !urlEl.value.trim()) {
+        urlEl.value = resolveProviderDefaultUrl(prov, rawKey);
+      }
+      urlEl.placeholder = prov.url;
+    } else {
+      if (autofillUrl && isKnownOfficialUrl(urlEl.value)) {
+        urlEl.value = '';
+      }
+      urlEl.placeholder = prov ? '填入此座位的反代 / 中转 API 地址' : '留空=用全局';
+    }
+  }
+  let pcDl = $('pc-model-list');
+  if (!pcDl && document.body) {
+    pcDl = document.createElement('datalist');
+    pcDl.id = 'pc-model-list';
+    document.body.appendChild(pcDl);
+  }
+  const activeProv = prov || (getProvider($('g-apitype') && $('g-apitype').value) || API_PROVIDERS[0]);
+  if (pcDl && activeProv) {
+    pcDl.innerHTML = (activeProv.models || []).map(m => `<option value="${m}">`).join('');
+  }
+  if (modelEl) {
+    if (pcDl) modelEl.setAttribute('list', 'pc-model-list');
+    if (prov && prov.models && prov.models.length) {
+      modelEl.placeholder = '留空=用全局（推荐：' + prov.models[0] + '）';
+      if (autofillUrl && modelEl.value.trim() && isModelFromOtherOfficialProvider(modelEl.value, prov)) {
+        modelEl.value = prov.models[0];
+      }
+    } else {
+      modelEl.placeholder = '留空=用全局';
+    }
+  }
+}
+
 function openPCfg(i) {
   currentCfgP = i;
   const c = playerConfigs[i] || {};
@@ -26947,6 +27047,7 @@ function openPCfg(i) {
   { const sel = $('pc-apitype'); if (sel) { if (sel.options.length <= 1) sel.insertAdjacentHTML('beforeend', API_PROVIDERS.map(pv => `<option value="${pv.id}">${pv.name}</option>`).join('')); sel.value = (c.apiType && getProvider(c.apiType)) ? c.apiType : ''; } }
   $('pck').value = c.key||'';
   $('pcm').value = c.model||'';
+  refreshSeatChannelUI(false);
   $('pcpersona').value = c.persona||'';
   if ($('pccot')) $('pccot').value = c.cot||'';
   // 自由输出·新字段（覆盖语义）：disableFreeOutput=true 表示针对此 AI 关闭
@@ -27189,6 +27290,8 @@ loadCfg();
       refreshApiChannelUI(false);
     });
   });
+  const pcTypeSel = $('pc-apitype');
+  if (pcTypeSel) pcTypeSel.addEventListener('change', () => { refreshSeatChannelUI(true); });
   const pckEl = $('pck');
   if (pckEl) pckEl.addEventListener('input', () => {
     if (!window.VertexDirect) return;
