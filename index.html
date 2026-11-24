@@ -6735,7 +6735,8 @@ function buildPublicClaimsBlock(p) {
     const entries = Object.entries(r.votes || {});
     const groups = entries.map(([target, voters]) => {
       const list = Array.isArray(voters) ? voters : [voters];
-      return `${target}(${list.length}票←${list.join('、')})`;
+      const weight = list.reduce((acc, v) => acc + (/1\.5/.test(String(v)) ? 1.5 : 1), 0);
+      return `${target}(${weight}票←${list.join('、')})`;
     }).join(' vs ');
     const abs = r.abstains && r.abstains.length ? `；弃票：${r.abstains.join('、')}` : '';
     const label = r.subtype === 'sheriff' ? `第${r.round || 1}天警上投票`
@@ -12315,7 +12316,7 @@ function attachRecentThinking(slice) {
     if (m.thinking.length > budget) break;   // 预算见底：更早的都不再带
     budget -= m.thinking.length;
     const when = `第${m.round}${m.phase === 'night' ? '夜' : (m.phase === 'sheriff' ? '天·警长竞选' : '天')}`;
-    out[i] = {...m, content: `<thinking>【${when}·你自己当时的私密思考，仅供参考，不是当前结论】\n${m.thinking}</thinking>\n${m.content}`};
+    out[i] = {...m, content: `<thinking>【${when}·你当时的旧思考快照｜⚠️允许推翻：若今日客观分票、死讯或对跳与旧前提冲突，必须果断推翻昨日错判重算，禁止为维护自己昨日说法而硬圆】\n${m.thinking}</thinking>\n${m.content}`};
   }
   return out;
 }
@@ -13647,6 +13648,23 @@ function buildNowFacts(p) {
     lines.push(`现在是第${rd}天白天（第${rd}夜的结果已经公布）。`);
     const nd = (S._lastNightDeaths || []).map(id => S.players[id]).filter(Boolean).map(x => x.name);
     lines.push(nd.length ? `第${rd}夜的结果：${nd.join('、')}出局。` : `第${rd}夜的结果：平安夜，无人死亡。`);
+    if (Array.isArray(gameRecord)) {
+      const pubVotes = gameRecord.filter(r => r && r.type === 'vote').slice(-4).map(r => {
+        const grp = Object.entries(r.votes || {}).map(([t, vs]) => {
+          const list = Array.isArray(vs) ? vs : [vs];
+          const w = list.reduce((acc, v) => acc + (/1\.5/.test(String(v)) ? 1.5 : 1), 0);
+          return `${t}(${w}票←${list.join('、')})`;
+        }).join(' vs ');
+        const lb = r.subtype === 'sheriff' ? `第${r.round || 1}天警上`
+          : r.subtype === 'sheriff_runoff' ? `第${r.round || 1}天警上PK`
+          : r.subtype === 'day_runoff' ? `第${r.round || 1}天放逐PK`
+          : `第${r.round || 1}天放逐`;
+        return grp ? `${lb}[${grp}]` : '';
+      }).filter(Boolean);
+      if (pubVotes.length) {
+        lines.push('历次公开票型（客观事实，注意核对谁在关键票差上分票合投）：' + pubVotes.join('；') + '。');
+      }
+    }
   }
   const dead = S.players.filter(x => !x.alive);
   if (dead.length) {
