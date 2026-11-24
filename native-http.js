@@ -158,7 +158,11 @@
   // CapacitorHttp 开启时 window.fetch 已被 Capacitor 接管，未接管的原版保存在 CapacitorWebFetch。
   const isOfficialCorsHost = (url) => {
     const host = url.hostname.toLowerCase();
-    return host === 'api.anthropic.com' || host === 'generativelanguage.googleapis.com';
+    return host === 'api.anthropic.com' ||
+      host === 'generativelanguage.googleapis.com' ||
+      host === 'oauth2.googleapis.com' ||
+      host === 'aiplatform.googleapis.com' ||
+      host.endsWith('-aiplatform.googleapis.com');
   };
   const webViewFetch = typeof window.CapacitorWebFetch === 'function' ? window.CapacitorWebFetch.bind(window) : browserFetch;
 

@@ -10175,99 +10175,231 @@ function salvageCutSpeech(parsed, p, why) {
   return {...parsed, game: kept};
 }
 
+async function readRawBodyWithWatchdog(res, opts, onSsePayload) {
+  opts = opts || {};
+  const extSignal = opts.signal || null;
+  const firstChunkIdleMs = opts.firstChunkIdleMs || 600000;
+  const midStreamIdleMs  = opts.streamIdleMs || 180000;
+  if (!(res.body && typeof res.body.getReader === 'function')) {
+    return await res.text();
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let acc = '', buf = '';
+  let gotRealData = false;
+  const readWithIdleGuard = () => new Promise((resolve, reject) => {
+    if (extSignal && extSignal.aborted) {
+      try { reader.cancel(); } catch (_) {}
+      return reject(new DOMException('Request aborted', 'AbortError'));
+    }
+    const waitMs = gotRealData ? midStreamIdleMs : firstChunkIdleMs;
+    let settled = false;
+    const onExtAbort = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(tid);
+      try { reader.cancel(); } catch (_) {}
+      reject(new DOMException('Request aborted', 'AbortError'));
+    };
+    const tid = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
+      try { reader.cancel(); } catch (_) {}
+      reject(new Error(gotRealData
+        ? `流式响应中断（超过 ${Math.round(midStreamIdleMs / 1000)} 秒未收到有效数据）`
+        : `等待首包数据超时（超过 ${Math.round(firstChunkIdleMs / 1000)} 秒无有效内容）`));
+    }, waitMs);
+    if (extSignal) extSignal.addEventListener('abort', onExtAbort, { once: true });
+    reader.read().then(chunk => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(tid);
+      if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
+      resolve(chunk);
+    }, err => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(tid);
+      if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
+      reject(err);
+    });
+  });
+  let heartbeatSilenceStart = Date.now();
+  while (true) {
+    const { done, value } = await readWithIdleGuard();
+    if (done) break;
+    const piece = dec.decode(value, { stream: true });
+    acc += piece; buf += piece;
+    const nonComment = piece.replace(/^\s*:.*$/gm, '').trim();
+    if (nonComment) {
+      gotRealData = true;
+      heartbeatSilenceStart = Date.now();
+    } else {
+      const maxHbSilence = gotRealData ? midStreamIdleMs : firstChunkIdleMs;
+      if (Date.now() - heartbeatSilenceStart > maxHbSilence) {
+        try { reader.cancel(); } catch (_) {}
+        throw new Error(`流式连接假死（连续 ${Math.round(maxHbSilence / 1000)} 秒仅收到空心跳无实质输出）`);
+      }
+    }
+    if (onSsePayload) {
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try { onSsePayload(payload); } catch (_) {}
+      }
+    }
+  }
+  acc += dec.decode();
+  return acc;
+}
+
+async function parseGeminiResponseOrSSE(res, opts) {
+  opts = opts || {};
+  const onDelta = typeof opts.onDelta === 'function' ? opts.onDelta : null;
+  const rawText = await readRawBodyWithWatchdog(res, opts, onDelta ? (payload => {
+    const evt = JSON.parse(payload);
+    const parts = evt && evt.candidates && evt.candidates[0] && evt.candidates[0].content && evt.candidates[0].content.parts;
+    if (Array.isArray(parts)) {
+      for (const pt of parts) {
+        if (pt && pt.thought !== true && typeof pt.text === 'string' && pt.text) onDelta(pt.text);
+      }
+    }
+  }) : null);
+  const ctype = (res.headers.get('content-type') || '').toLowerCase();
+  const looksLikeSSE = ctype.includes('event-stream') || /^\s*data:\s*[\{\[]/m.test(rawText);
+  if (!looksLikeSSE) {
+    let parsed;
+    try { parsed = JSON.parse(rawText); } catch (_) { throw new Error('Gemini响应不是合法JSON：' + rawText.slice(0, 150)); }
+    return parsed;
+  }
+  let thoughtAcc = '';
+  let textAcc = '';
+  const extraParts = [];
+  let finishReason = '';
+  let promptFeedback = null;
+  let usageMetadata = null;
+  let modelVersion = '';
+  for (const rawLine of rawText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    let evt;
+    try { evt = JSON.parse(payload); } catch (_) { continue; }
+    if (evt && evt.error) {
+      const msg = (evt.error && (evt.error.message || JSON.stringify(evt.error))) || '未知流错误';
+      throw new Error('HTTP ' + (evt.error.code || 500) + ' ' + String(msg).slice(0, 200));
+    }
+    if (evt.modelVersion) modelVersion = evt.modelVersion;
+    if (evt.promptFeedback) promptFeedback = evt.promptFeedback;
+    if (evt.usageMetadata) usageMetadata = evt.usageMetadata;
+    const cand = evt.candidates && evt.candidates[0];
+    if (!cand) continue;
+    if (cand.finishReason) finishReason = cand.finishReason;
+    const parts = (cand.content && cand.content.parts) || [];
+    for (const pt of parts) {
+      if (!pt) continue;
+      if (typeof pt.text === 'string') {
+        if (pt.thought === true) thoughtAcc += pt.text;
+        else textAcc += pt.text;
+      } else {
+        extraParts.push(pt);
+      }
+    }
+  }
+  const mergedParts = [];
+  if (thoughtAcc) mergedParts.push({ thought: true, text: thoughtAcc });
+  if (textAcc) mergedParts.push({ text: textAcc });
+  for (const ep of extraParts) mergedParts.push(ep);
+  const out = {
+    candidates: [{ content: { role: 'model', parts: mergedParts }, finishReason: finishReason || undefined }]
+  };
+  if (promptFeedback) out.promptFeedback = promptFeedback;
+  if (usageMetadata) out.usageMetadata = usageMetadata;
+  if (modelVersion) out.modelVersion = modelVersion;
+  return out;
+}
+
+async function parseAnthropicResponseOrSSE(res, opts) {
+  opts = opts || {};
+  const onDelta = typeof opts.onDelta === 'function' ? opts.onDelta : null;
+  const rawText = await readRawBodyWithWatchdog(res, opts, onDelta ? (payload => {
+    const evt = JSON.parse(payload);
+    if (evt && evt.type === 'content_block_delta' && evt.delta && evt.delta.type === 'text_delta' && evt.delta.text) {
+      onDelta(evt.delta.text);
+    }
+  }) : null);
+  const ctype = (res.headers.get('content-type') || '').toLowerCase();
+  const looksLikeSSE = ctype.includes('event-stream') || /^\s*(?:event:|data:\s*\{)/m.test(rawText);
+  if (!looksLikeSSE) {
+    let parsed;
+    try { parsed = JSON.parse(rawText); } catch (_) { throw new Error('Claude响应不是合法JSON：' + rawText.slice(0, 150)); }
+    return parsed;
+  }
+  let model = '';
+  let stop_reason = '';
+  let stop_details = null;
+  const usage = {};
+  const blocks = [];
+  for (const rawLine of rawText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    let evt;
+    try { evt = JSON.parse(payload); } catch (_) { continue; }
+    if (!evt || typeof evt !== 'object') continue;
+    if (evt.type === 'error' || (evt.error && !evt.type)) {
+      return { type: 'error', error: evt.error || evt };
+    }
+    if (evt.type === 'message_start' && evt.message) {
+      if (evt.message.model) model = evt.message.model;
+      if (evt.message.stop_reason) stop_reason = evt.message.stop_reason;
+      if (evt.message.usage && typeof evt.message.usage === 'object') Object.assign(usage, evt.message.usage);
+    } else if (evt.type === 'content_block_start' && evt.content_block) {
+      const idx = typeof evt.index === 'number' ? evt.index : blocks.length;
+      blocks[idx] = Object.assign({}, evt.content_block);
+    } else if (evt.type === 'content_block_delta' && evt.delta) {
+      const idx = typeof evt.index === 'number' ? evt.index : Math.max(0, blocks.length - 1);
+      if (!blocks[idx]) blocks[idx] = { type: evt.delta.type === 'thinking_delta' ? 'thinking' : 'text' };
+      if (evt.delta.type === 'text_delta' && typeof evt.delta.text === 'string') {
+        blocks[idx].text = (blocks[idx].text || '') + evt.delta.text;
+      } else if (evt.delta.type === 'thinking_delta' && typeof evt.delta.thinking === 'string') {
+        blocks[idx].thinking = (blocks[idx].thinking || '') + evt.delta.thinking;
+      } else if (evt.delta.type === 'signature_delta' && typeof evt.delta.signature === 'string') {
+        blocks[idx].signature = (blocks[idx].signature || '') + evt.delta.signature;
+      }
+    } else if (evt.type === 'message_delta') {
+      if (evt.delta) {
+        if (evt.delta.stop_reason) stop_reason = evt.delta.stop_reason;
+        if (evt.delta.stop_details) stop_details = evt.delta.stop_details;
+      }
+      if (evt.usage && typeof evt.usage === 'object') Object.assign(usage, evt.usage);
+    }
+  }
+  const out = { model, content: blocks.filter(Boolean), stop_reason: stop_reason || '' };
+  if (stop_details) out.stop_details = stop_details;
+  if (Object.keys(usage).length) out.usage = usage;
+  return out;
+}
+
 async function parseAPIResponseWithSSEFallback(res, opts) {
   opts = opts || {};
   const tag = opts.tag || '';  // 用于日志,如 "[P4]" 或 "[测试]"
   const onDelta = typeof opts.onDelta === 'function' ? opts.onDelta : null;
-  const extSignal = opts.signal || null;
-  const firstChunkIdleMs = opts.firstChunkIdleMs || 600000;   // 首包真实数据最长等待 10 分钟
-  const midStreamIdleMs  = opts.streamIdleMs || 180000;       // 已开始输出后，相邻真实数据块最长允许静默 3 分钟
-  let rawText;
   let observedStreamError = '';
-  if (res.body && typeof res.body.getReader === 'function') {
-    // ★ 统一走分块读取（含真流式回调 + 流式假死看门狗）：
-    //   即便未开 TTS（onDelta 为空），也避免 res.text() 在半开假死连接或无限 `: keep-alive` 心跳下永久挂起。
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let acc = '', buf = '';
-    let gotRealData = false;
-    const readWithIdleGuard = () => new Promise((resolve, reject) => {
-      if (extSignal && extSignal.aborted) {
-        try { reader.cancel(); } catch (_) {}
-        return reject(new DOMException('Request aborted', 'AbortError'));
-      }
-      const waitMs = gotRealData ? midStreamIdleMs : firstChunkIdleMs;
-      let settled = false;
-      const onExtAbort = () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(tid);
-        try { reader.cancel(); } catch (_) {}
-        reject(new DOMException('Request aborted', 'AbortError'));
-      };
-      const tid = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
-        try { reader.cancel(); } catch (_) {}
-        reject(new Error(gotRealData
-          ? `流式响应中断（超过 ${Math.round(midStreamIdleMs / 1000)} 秒未收到有效数据）`
-          : `等待首包数据超时（超过 ${Math.round(firstChunkIdleMs / 1000)} 秒无有效内容）`));
-      }, waitMs);
-      if (extSignal) extSignal.addEventListener('abort', onExtAbort, { once: true });
-      reader.read().then(chunk => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(tid);
-        if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
-        resolve(chunk);
-      }, err => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(tid);
-        if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
-        reject(err);
-      });
-    });
-    let heartbeatSilenceStart = Date.now();
-    while (true) {
-      const { done, value } = await readWithIdleGuard();
-      if (done) break;
-      const piece = dec.decode(value, { stream: true });
-      acc += piece; buf += piece;
-      // 剔除纯 SSE 注释心跳（如 `: keep-alive`）后检查是否有实质字节，防止中转无限发心跳续命假死流
-      const nonComment = piece.replace(/^\s*:.*$/gm, '').trim();
-      if (nonComment) {
-        gotRealData = true;
-        heartbeatSilenceStart = Date.now();
-      } else {
-        const maxHbSilence = gotRealData ? midStreamIdleMs : firstChunkIdleMs;
-        if (Date.now() - heartbeatSilenceStart > maxHbSilence) {
-          try { reader.cancel(); } catch (_) {}
-          throw new Error(`流式连接假死（连续 ${Math.round(maxHbSilence / 1000)} 秒仅收到空心跳无实质输出）`);
-        }
-      }
-      if (onDelta) {
-        let nl;
-        while ((nl = buf.indexOf('\n')) >= 0) {
-          const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (!payload || payload === '[DONE]') continue;
-          let evt; try { evt = JSON.parse(payload); } catch(_) { continue; }
-          const bridgeError = ClaudeBridgeCompat.failureFromEvent(evt);
-          if (bridgeError) { observedStreamError = bridgeError; continue; }
-          const d = (evt.choices && evt.choices[0] && (evt.choices[0].delta || {})) || {};
-          if (typeof d.content === 'string' && d.content) { try { onDelta(d.content); } catch(_) {} }
-          if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') { try { onDelta(evt.delta); } catch(_) {} }
-        }
-      }
-    }
-    acc += dec.decode();
-    rawText = acc;
-  } else {
-    rawText = await res.text();
-  }
+  const rawText = await readRawBodyWithWatchdog(res, opts, onDelta ? (payload => {
+    let evt; try { evt = JSON.parse(payload); } catch(_) { return; }
+    const bridgeError = ClaudeBridgeCompat.failureFromEvent(evt);
+    if (bridgeError) { observedStreamError = bridgeError; return; }
+    const d = (evt.choices && evt.choices[0] && (evt.choices[0].delta || {})) || {};
+    if (typeof d.content === 'string' && d.content) { try { onDelta(d.content); } catch(_) {} }
+    if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') { try { onDelta(evt.delta); } catch(_) {} }
+  }) : null);
   const ctype = (res.headers.get('content-type') || '').toLowerCase();
   const looksLikeSSE = ctype.includes('event-stream') || /^\s*data:\s*[\{\[]/.test(rawText);
 
@@ -12708,7 +12840,7 @@ async function _callAIImpl(p, prompt, opts) {
             { type: 'text', text: _sysParts.slice(1).join('\n\n'), cache_control: { type: 'ephemeral' } }
           ]
         : (sysContent ? [{ type: 'text', text: _stripCacheMarker(sysContent), cache_control: { type: 'ephemeral' } }] : '');
-      const body = {model: useApi.model, max_tokens: maxTk, messages: anthMsgs, system: systemBlocks};
+      const body = {model: useApi.model, max_tokens: maxTk, messages: anthMsgs, system: systemBlocks, stream: true};
       const anthropicEffort = ReasoningControl.anthropicEffort(reasoning.effective);
       if (anthropicEffort) body.output_config = {effort: anthropicEffort};
       if (!_plainNow && claudeWantsThinkingSummary(useApi.model) && !_claudeThinkingRejected.has((useApi.url || '') + '|' + (useApi.model || ''))) body.thinking = {type: 'adaptive', display: 'summarized'};
@@ -12716,17 +12848,31 @@ async function _callAIImpl(p, prompt, opts) {
         delete body.model;
         body.anthropic_version = 'vertex-2023-10-16';
       }
-      const _anthUrl = _vtx ? _vtx.endpoint : (anthropicBase(useApi.url) + '/v1/messages');
+      const _anthSyncUrl = _vtx ? _vtx.endpoint : (anthropicBase(useApi.url) + '/v1/messages');
+      const _anthStreamUrl = _vtx ? _vtx.endpoint.replace(/:rawPredict\b/, ':streamRawPredict') : _anthSyncUrl;
+      let _anthActiveUrl = _anthStreamUrl;
       const _anthHeaders = _vtx
         ? _vtx.headers
         : {'Content-Type':'application/json','x-api-key': useApi.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
-      res = await fetch(_anthUrl, {
+      res = await fetch(_anthActiveUrl, {
         method: 'POST',
         headers: _anthHeaders,
         body: JSON.stringify(body),
         signal: combinedSignal
       });
       if (S.gameId !== myGid) return null;
+      if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 405) && body.stream) {
+        const ts = await res.clone().text().catch(()=> '');
+        if (/stream|streamRawPredict|not found|unsupported/i.test(ts)) {
+          Render.devLog('warn', `[P${p.id+1}] Claude端点不支持流式，自动退回非流式请求`);
+          delete body.stream;
+          _anthActiveUrl = _anthSyncUrl;
+          res = await fetch(_anthActiveUrl, {
+            method: 'POST', headers: _anthHeaders, body: JSON.stringify(body), signal: combinedSignal
+          });
+          if (S.gameId !== myGid) return null;
+        }
+      }
       // 个别型号或中转不认 thinking.display：记下这个 (地址|模型)，撤掉参数重发一次，之后不再带。
       if (!res.ok && res.status === 400 && body.thinking) {
         const t0 = await res.clone().text().catch(()=> '');
@@ -12734,7 +12880,7 @@ async function _callAIImpl(p, prompt, opts) {
           _claudeThinkingRejected.add((useApi.url || '') + '|' + (useApi.model || ''));
           Render.devLog('err', `[P${p.id+1}] 该 Claude 型号不接受思考摘要参数，撤销后重试`);
           delete body.thinking;
-          res = await fetch(_anthUrl, {
+          res = await fetch(_anthActiveUrl, {
             method:'POST',
             headers:_anthHeaders,
             body:JSON.stringify(body), signal:combinedSignal
@@ -12747,7 +12893,7 @@ async function _callAIImpl(p, prompt, opts) {
         if (/effort|output_config|output config/i.test(t)) {
           Render.devLog('err', `[P${p.id+1}] Claude模型不支持思考强度 ${anthropicEffort}，撤销参数重试`);
           delete body.output_config;
-          res = await fetch(_anthUrl, {
+          res = await fetch(_anthActiveUrl, {
             method:'POST',
             headers:_anthHeaders,
             body:JSON.stringify(body), signal:combinedSignal
@@ -12755,7 +12901,13 @@ async function _callAIImpl(p, prompt, opts) {
         }
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+wellFormedText(t).slice(0,300)); }
-      const data = await res.json();
+      const _anthLive = opts.liveTTS ? TTS.beginLive(p) : null;
+      const data = await parseAnthropicResponseOrSSE(res, {
+        signal: combinedSignal,
+        firstChunkIdleMs: Math.max(600000, timeoutMs || 0),
+        onDelta: _anthLive ? (d => _anthLive.push(d)) : null
+      });
+      if (_anthLive) _anthLive.end();
       // ★ 有些中转站把上游的报错（没有这个模型的权限、额度不能用于该模型……）包在 HTTP 200 里返回。
       //   以前这种回复里没有正文块，被报成"无有效响应内容"，真正的原因一个字都看不到。
       if (data && (data.type === 'error' || (data.error && !Array.isArray(data.content)))) {
@@ -12868,31 +13020,56 @@ async function _callAIImpl(p, prompt, opts) {
         genConfig.maxOutputTokens = effectiveMaxTk;
       }
       const nativeReasoningConfig = ReasoningControl.geminiThinkingConfig(useApi.model, reasoning.effective);
-      if (nativeReasoningConfig) genConfig.thinkingConfig = nativeReasoningConfig;
+      if (nativeReasoningConfig) genConfig.thinkingConfig = Object.assign({}, nativeReasoningConfig);
+      if (!_plainNow && reasoning.effective !== 'off' && (isGemini3 || mn.includes('gemini-2.5') || mn.includes('gemini2.5'))) {
+        genConfig.thinkingConfig = Object.assign({ includeThoughts: true }, genConfig.thinkingConfig || {});
+      }
       const body = {
         contents: gemMsgs,
         systemInstruction: sysContent ? {parts:[{text:sysContent}]} : undefined,
         generationConfig: genConfig
       };
-      const gemUrl = _vtx ? _vtx.endpoint : `${geminiBase(useApi.url)}/v1beta/models/${useApi.model}:generateContent?key=${useApi.key}`;
+      // ★ Vertex / Gemini 默认启用 :streamGenerateContent?alt=sse 流式输出：
+      //   之前用非流式 :generateContent，长思考模型 1~3 分钟内 TCP 连接 0 字节返回，极易被本地代理(Clash/TUN)/路由器 NAT
+      //   当成空闲连接静默掐断造成前端假死；流式下思考块(thought:true)与正文块持续推送，保持长连接鲜活。
+      const gemSyncUrl = _vtx ? _vtx.endpoint : `${geminiBase(useApi.url)}/v1beta/models/${useApi.model}:generateContent?key=${useApi.key}`;
+      const gemStreamUrl = gemSyncUrl.replace(/:generateContent(\?|$)/, (_, q) => ':streamGenerateContent' + (q === '?' ? '?alt=sse&' : '?alt=sse'));
+      let gemActiveUrl = gemStreamUrl;
       const gemHeaders = _vtx ? _vtx.headers : {'Content-Type':'application/json'};
-      res = await fetch(gemUrl, {
+      res = await fetch(gemActiveUrl, {
         method: 'POST',
         headers: gemHeaders,
         body: JSON.stringify(body),
         signal: combinedSignal
       });
       if (S.gameId !== myGid) return null;
-      if (!res.ok && res.status === 400 && nativeReasoningConfig) {
+      if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 405) && gemActiveUrl !== gemSyncUrl) {
+        const ts = await res.clone().text().catch(()=> '');
+        if (/streamGenerateContent|alt=sse|not found|unsupported/i.test(ts)) {
+          Render.devLog('warn', `[P${p.id+1}] Gemini端点不支持流式，自动退回非流式 :generateContent`);
+          gemActiveUrl = gemSyncUrl;
+          res = await fetch(gemActiveUrl, {
+            method: 'POST', headers: gemHeaders, body: JSON.stringify(body), signal: combinedSignal
+          });
+          if (S.gameId !== myGid) return null;
+        }
+      }
+      if (!res.ok && res.status === 400 && genConfig.thinkingConfig) {
         const t = await res.text().catch(()=> '');
         Render.devLog('err', `[P${p.id+1}] Gemini端点不支持思考档位 ${reasoning.effective}，撤销参数重试: ${t.slice(0,120)}`);
         delete genConfig.thinkingConfig;
-        res = await fetch(gemUrl, {
+        res = await fetch(gemActiveUrl, {
           method: 'POST', headers: gemHeaders, body: JSON.stringify(body), signal: combinedSignal
         });
       }
       if (!res.ok) { const t = await res.text().catch(()=>''); throw new Error('HTTP '+res.status+' '+t.slice(0,100)); }
-      const data = await res.json();
+      const _gemLive = opts.liveTTS ? TTS.beginLive(p) : null;
+      const data = await parseGeminiResponseOrSSE(res, {
+        signal: combinedSignal,
+        firstChunkIdleMs: Math.max(600000, timeoutMs || 0),
+        onDelta: _gemLive ? (d => _gemLive.push(d)) : null
+      });
+      if (_gemLive) _gemLive.end();
       noteServedModel(p, useApi.model, data.modelVersion);
       // ★★ 核心修复：用 Gemini 原生 thought 字段隔离思考，不再依赖 AI 自己打 <thinking>/<game> 标签 ★★
       //   Gemini 3 thinking 模型会把响应分成多个 part：带 thought:true 的是思考，不带的是正式输出。

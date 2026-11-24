@@ -394,11 +394,22 @@ const VertexDirect = (() => {
       new TextEncoder().encode(signingInput)
     );
     const jwt = signingInput + '.' + _b64UrlFromBytes(sigBuf);
-    const res = await fetch(tokenUri, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'grant_type=' + encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer') + '&assertion=' + encodeURIComponent(jwt)
-    });
+    const tokCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const tokTimer = tokCtrl ? setTimeout(() => tokCtrl.abort(), 20000) : null;
+    let res;
+    try {
+      res = await fetch(tokenUri, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=' + encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer') + '&assertion=' + encodeURIComponent(jwt),
+        signal: tokCtrl ? tokCtrl.signal : undefined
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error('Vertex 服务账号向 oauth2.googleapis.com 换取 Token 超时（20秒无响应，请检查代理或网络连接）');
+      throw e;
+    } finally {
+      if (tokTimer) clearTimeout(tokTimer);
+    }
     const text = await res.text();
     let data = {};
     try { data = JSON.parse(text); } catch (_) {}
