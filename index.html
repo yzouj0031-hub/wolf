@@ -3244,8 +3244,8 @@ body.has-wp::after {
         </div>
       </details>
       <details class="conc-det"><summary>AI 思考强度与超时</summary>
-        <label style="display:flex;align-items:center;gap:6px;margin:2px 0 4px;font-size:.74em;color:#a0e8d0"><input type="checkbox" id="t-nolimit" checked style="width:auto;min-width:auto" onchange="syncNoLimitUI();saveCfg()">⏳ 不限时等待：一直等到 AI 回复为止</label>
-        <div style="font-size:0.62em;color:#7068a0;padding:0 6px 6px;line-height:1.5">勾选后不会因为等太久就中断这次请求，也不会因此弹窗问要不要重试，「单次请求上限」不生效。接口报错或连接断开时仍会提示；想中途放弃这一次，点屏幕角落的「不等了」。</div>
+        <label style="display:flex;align-items:center;gap:6px;margin:2px 0 4px;font-size:.74em;color:#a0e8d0"><input type="checkbox" id="t-nolimit" style="width:auto;min-width:auto" onchange="syncNoLimitUI();saveCfg()">⏳ 宽松等待（最长 15 分钟防死连保护）</label>
+        <div style="font-size:0.62em;color:#7068a0;padding:0 6px 6px;line-height:1.5">勾选后忽略下方「单次请求上限」，给慢思考模型留足最高 15 分钟（开「全力推理」时 30 分钟）；超过上限或流式传输停滞超过 3 分钟仍会自动断开重连，防止半开假死连接卡住几小时。想中途放弃这一次，点屏幕角落的「不等了」。</div>
         <div class="conc-grid">
           <div class="conc-item"><label>💬 单次请求上限</label><input type="number" id="t-single" value="600" min="30" max="1800"></div>
           <div class="conc-item"><label>⏳ 思考过久提醒</label><input type="number" id="t-slow" value="60" min="10" max="900" onchange="saveCfg()"></div>
@@ -8927,7 +8927,7 @@ function saveCfg() {
     reasoningMode:$('g-reasoning-mode')?$('g-reasoning-mode').value:'smart',
     fullReasoning:$('g-full-reasoning')?$('g-full-reasoning').checked:false,
     slowNotice:$('t-slow')?$('t-slow').value:'60',
-    noTimeLimit:$('t-nolimit')?$('t-nolimit').checked:true,
+    noTimeLimit:$('t-nolimit')?$('t-nolimit').checked:false,
     freeOutput:$('m-free-output')?$('m-free-output').checked:true,
     experience:$('m-experience')?$('m-experience').checked:true,
     manualRetry:$('m-manual-retry')?$('m-manual-retry').checked:true,
@@ -10179,33 +10179,91 @@ async function parseAPIResponseWithSSEFallback(res, opts) {
   opts = opts || {};
   const tag = opts.tag || '';  // 用于日志,如 "[P4]" 或 "[测试]"
   const onDelta = typeof opts.onDelta === 'function' ? opts.onDelta : null;
+  const extSignal = opts.signal || null;
+  const firstChunkIdleMs = opts.firstChunkIdleMs || 600000;   // 首包真实数据最长等待 10 分钟
+  const midStreamIdleMs  = opts.streamIdleMs || 180000;       // 已开始输出后，相邻真实数据块最长允许静默 3 分钟
   let rawText;
   let observedStreamError = '';
-  if (onDelta && res.body && typeof res.body.getReader === 'function') {
-    // ★ 真流式:边收边解析,content增量实时回调(供抢先朗读)。
-    //   仍然把原始字节全量累积到 rawText,后续解析逻辑与缓冲路径完全一致,行为不变。
+  if (res.body && typeof res.body.getReader === 'function') {
+    // ★ 统一走分块读取（含真流式回调 + 流式假死看门狗）：
+    //   即便未开 TTS（onDelta 为空），也避免 res.text() 在半开假死连接或无限 `: keep-alive` 心跳下永久挂起。
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let acc = '', buf = '';
+    let gotRealData = false;
+    const readWithIdleGuard = () => new Promise((resolve, reject) => {
+      if (extSignal && extSignal.aborted) {
+        try { reader.cancel(); } catch (_) {}
+        return reject(new DOMException('Request aborted', 'AbortError'));
+      }
+      const waitMs = gotRealData ? midStreamIdleMs : firstChunkIdleMs;
+      let settled = false;
+      const onExtAbort = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(tid);
+        try { reader.cancel(); } catch (_) {}
+        reject(new DOMException('Request aborted', 'AbortError'));
+      };
+      const tid = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
+        try { reader.cancel(); } catch (_) {}
+        reject(new Error(gotRealData
+          ? `流式响应中断（超过 ${Math.round(midStreamIdleMs / 1000)} 秒未收到有效数据）`
+          : `等待首包数据超时（超过 ${Math.round(firstChunkIdleMs / 1000)} 秒无有效内容）`));
+      }, waitMs);
+      if (extSignal) extSignal.addEventListener('abort', onExtAbort, { once: true });
+      reader.read().then(chunk => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(tid);
+        if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
+        resolve(chunk);
+      }, err => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(tid);
+        if (extSignal) extSignal.removeEventListener('abort', onExtAbort);
+        reject(err);
+      });
+    });
+    let heartbeatSilenceStart = Date.now();
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readWithIdleGuard();
       if (done) break;
       const piece = dec.decode(value, { stream: true });
       acc += piece; buf += piece;
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
-        if (!line.startsWith('data:')) continue;
-        const payload = line.slice(5).trim();
-        if (!payload || payload === '[DONE]') continue;
-        let evt; try { evt = JSON.parse(payload); } catch(_) { continue; }
-        const bridgeError = ClaudeBridgeCompat.failureFromEvent(evt);
-        if (bridgeError) { observedStreamError = bridgeError; continue; }
-        const d = (evt.choices && evt.choices[0] && (evt.choices[0].delta || {})) || {};
-        if (typeof d.content === 'string' && d.content) { try { onDelta(d.content); } catch(_) {} }
-        if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') { try { onDelta(evt.delta); } catch(_) {} }
+      // 剔除纯 SSE 注释心跳（如 `: keep-alive`）后检查是否有实质字节，防止中转无限发心跳续命假死流
+      const nonComment = piece.replace(/^\s*:.*$/gm, '').trim();
+      if (nonComment) {
+        gotRealData = true;
+        heartbeatSilenceStart = Date.now();
+      } else {
+        const maxHbSilence = gotRealData ? midStreamIdleMs : firstChunkIdleMs;
+        if (Date.now() - heartbeatSilenceStart > maxHbSilence) {
+          try { reader.cancel(); } catch (_) {}
+          throw new Error(`流式连接假死（连续 ${Math.round(maxHbSilence / 1000)} 秒仅收到空心跳无实质输出）`);
+        }
+      }
+      if (onDelta) {
+        let nl;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          let evt; try { evt = JSON.parse(payload); } catch(_) { continue; }
+          const bridgeError = ClaudeBridgeCompat.failureFromEvent(evt);
+          if (bridgeError) { observedStreamError = bridgeError; continue; }
+          const d = (evt.choices && evt.choices[0] && (evt.choices[0].delta || {})) || {};
+          if (typeof d.content === 'string' && d.content) { try { onDelta(d.content); } catch(_) {} }
+          if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') { try { onDelta(evt.delta); } catch(_) {} }
+        }
       }
     }
+    acc += dec.decode();
     rawText = acc;
   } else {
     rawText = await res.text();
@@ -11924,6 +11982,7 @@ async function demoResponder(p, prompt) {
 //   输出上限 32768 会被最高档的思考吃光，这些都会在暗中把推理压低或掐断。
 const FULL_REASONING_MAX_TOKENS = 65536;
 const FULL_REASONING_TIMEOUT_MS = 1800000;   // 30 分钟：单次请求与狼盟提案/投票整体等待
+const ZOMBIE_SOCKET_MAX_MS = 900000;         // 15 分钟：即便勾选宽松等待也兜底掐断半开假死 TCP 连接，防卡死数小时
 const _fullReasoningTkRejected = new Set();   // 端点明确拒绝 65536 输出上限的 (地址|模型)，之后退回用户设置
 function fullReasoningOn() {
   const el = typeof document !== 'undefined' && document.getElementById('g-full-reasoning');
@@ -12497,23 +12556,32 @@ async function _callAIImpl(p, prompt, opts) {
   // 超时时 catch 一引用就 ReferenceError，整条请求链路炸掉，发言随之悄悄消失）。
   let _reqStartTs = 0;
   let timeoutMs = 0;
-  // 不限时等待：普通请求和带决定类型的操作（投票、刀口）都不设上限；密约批次里显式给了时限的照旧
+  // 宽松等待：忽略常规单次上限，但保留 15 分钟（全力推理 30 分钟）防假死连接保护上限，绝不再出现 timeoutMs=0 挂死数小时
   const _noLimitNow = () => noTimeLimitOn() && (!opts.timeoutMs || !!opts.decisionKind);
   const _plannedTimeoutMs = () => {
-    if (_noLimitNow()) return 0;
     let ui = 0;
     if (typeof document !== 'undefined') { const el = document.getElementById('t-single'); if (el && parseInt(el.value) > 0) ui = parseInt(el.value) * 1000; }
     const d = ui || (typeof window !== 'undefined' && window.AI_TIMEOUT_MS) || 600000;
+    if (_noLimitNow()) {
+      const cap = fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : ZOMBIE_SOCKET_MAX_MS;
+      return Math.max(opts.timeoutMs || 0, d, cap);
+    }
     return fullReasoningOn() ? Math.max(opts.timeoutMs || 0, d, FULL_REASONING_TIMEOUT_MS) : (opts.timeoutMs || d);
   };
   const _watched = async (run, att, maxAtt) => {
     _userStopCtrl = new AbortController();
     _userStopped = false;
     const ctrl = _userStopCtrl;
-    const w = AIWait.begin(p, {attempt: att, maxAttempts: maxAtt, limitMs: _plannedTimeoutMs()}, () => { _userStopped = true; ctrl.abort(); });
-    try { const r = await run(); w.end('ok'); return r; }
+    const limitMs = _plannedTimeoutMs();
+    const w = AIWait.begin(p, {attempt: att, maxAttempts: maxAtt, limitMs}, () => { _userStopped = true; ctrl.abort(); });
+    let hardTimer = null;
+    const hardStop = new Promise((_, reject) => {
+      ctrl.signal.addEventListener('abort', () => reject(new DOMException('Request aborted', 'AbortError')), { once: true });
+      if (limitMs > 0) hardTimer = setTimeout(() => reject(new DOMException('Request aborted', 'AbortError')), limitMs + 1500);
+    });
+    try { const r = await Promise.race([run(), hardStop]); w.end('ok'); return r; }
     catch (e) { w.end(_userStopped ? 'stop' : (e && e.name === 'AbortError' ? 'abort' : 'error')); throw e; }
-    finally { if (_userStopCtrl === ctrl) _userStopCtrl = null; }
+    finally { if (hardTimer) clearTimeout(hardTimer); if (_userStopCtrl === ctrl) _userStopCtrl = null; }
   };
   let _claudeRefusalRetried = false;   // Claude 中途停止（refusal）先重问一次，仍被停才用截短版
   async function tryOnce(useApi, att, apiType) {
@@ -12566,7 +12634,10 @@ async function _callAIImpl(p, prompt, opts) {
       : (opts.timeoutMs || defaultTimeout);
     _reqStartTs = Date.now();   // ★ 记录请求开始时间,用于报错时算真实耗时,区分"真超时"vs"连接被掐"
     const timeoutCtrl = new AbortController();
-    if (_noLimitNow()) timeoutMs = 0;
+    if (_noLimitNow()) {
+      const _zombieCap = fullReasoningOn() ? FULL_REASONING_TIMEOUT_MS : ZOMBIE_SOCKET_MAX_MS;
+      timeoutMs = Math.max(timeoutMs, _zombieCap);
+    }
     const timeoutId = timeoutMs > 0 ? setTimeout(() => timeoutCtrl.abort(), timeoutMs) : null;
     // 合并游戏abort和超时abort
     const combinedSignal = (() => {
@@ -13038,6 +13109,8 @@ async function _callAIImpl(p, prompt, opts) {
       const _live = opts.liveTTS ? TTS.beginLive(p) : null;
       const data = await parseAPIResponseWithSSEFallback(res, {
         tag: `[P${p.id+1}]`,
+        signal: combinedSignal,
+        firstChunkIdleMs: Math.max(600000, timeoutMs || 0),
         onDelta: _live ? (d => _live.push(d)) : null
       });
       if (_live) _live.end();
