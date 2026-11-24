@@ -10235,6 +10235,9 @@ async function readRawBodyWithWatchdog(res, opts, onSsePayload) {
     if (nonComment) {
       gotRealData = true;
       heartbeatSilenceStart = Date.now();
+      if (typeof opts.onProgress === 'function') {
+        try { opts.onProgress(value ? value.byteLength : piece.length); } catch (_) {}
+      }
     } else {
       const maxHbSilence = gotRealData ? midStreamIdleMs : firstChunkIdleMs;
       if (Date.now() - heartbeatSilenceStart > maxHbSilence) {
@@ -11802,14 +11805,57 @@ const AIWait = (() => {
     if (!b) { b = document.createElement('div'); b.id = 'ai-wait-banner'; b.className = 'ai-wait-banner'; document.body.appendChild(b); }
     return b;
   }
+  let _lastRenderTs = 0;
+  function fmtBytes(b) {
+    if (!b || b <= 0) return '0 B';
+    return b >= 1024 ? (b / 1024).toFixed(1) + ' KB' : b + ' B';
+  }
+  function whoLabel(w, plain) {
+    if (typeof S !== 'undefined' && S.phase === 'night' && typeof technicalDialogAllowed === 'function' && !technicalDialogAllowed()) {
+      return '夜间行动角色';
+    }
+    return plain ? (w.p ? w.p.name : '') : publicPlayerLabel(w.p);
+  }
+  function streamStatusBadge(w, now) {
+    const sec = Math.max(0, Math.round((now - w.startTs) / 1000));
+    if (w.bytes > 0 && w.lastByteTs > 0) {
+      const idleSec = Math.max(0, Math.round((now - w.lastByteTs) / 1000));
+      if (idleSec <= 20) {
+        return {
+          dot: '🟢',
+          short: `正在输出 · 已收 ${fmtBytes(w.bytes)}（${idleSec <= 2 ? '刚更新' : idleSec + '秒前'}）`,
+          detail: `🟢 正在正常接收流数据（累计已收 ${fmtBytes(w.bytes)}，${idleSec <= 2 ? '刚刚更新' : '距上一包 ' + idleSec + ' 秒'}）`
+        };
+      }
+      return {
+        dot: '🟠',
+        short: `停滞 ${idleSec}秒无新数据（已收 ${fmtBytes(w.bytes)}）`,
+        detail: `🟠 已连续 ${idleSec} 秒未收到新数据（累计已收 ${fmtBytes(w.bytes)}，满 180 秒将自动重连）`
+      };
+    }
+    if (sec >= 45) {
+      return {
+        dot: '🟠',
+        short: `等待首包已 ${fmt(sec)}（0 字节）`,
+        detail: `🟠 尚未收到云端首包（0 B，可能在长思考排队或连接不通）`
+      };
+    }
+    return {
+      dot: '🟡',
+      short: `等待云端首包 · ${fmt(sec)}`,
+      detail: `🟡 请求已发出，正在等待云端首包响应`
+    };
+  }
   function render() {
-    const shown = [...active.values()].filter(w => w.shown);
+    const shown = [...active.values()].filter(w => w.bannerShown || w.shown);
     const b = banner();
     if (!shown.length) { b.innerHTML = ''; b.style.display = 'none'; return; }
+    const now = Date.now();
+    _lastRenderTs = now;
     b.style.display = '';
     b.innerHTML = shown.map(w => {
-      const sec = Math.round((Date.now() - w.startTs) / 1000);
-      return `<div class="ai-wait-row" data-wait="${w.key}"><span>⏳ ${esc(publicPlayerLabel(w.p))} 已思考 ${esc(fmt(sec))}</span><button type="button" data-stop="${w.key}" title="只中断这一次等待，不会跳过发言：接下来会问你怎么处理">不等了</button></div>`;
+      const st = streamStatusBadge(w, now);
+      return `<div class="ai-wait-row" data-wait="${w.key}"><span>${st.dot} ${esc(whoLabel(w, false))} · ${esc(st.short)}</span><button type="button" data-stop="${w.key}" title="只中断这一次等待，不会跳过发言：接下来会问你怎么处理">不等了</button></div>`;
     }).join('');
     b.querySelectorAll('[data-stop]').forEach(btn => { btn.onclick = () => { const w = active.get(btn.dataset.stop); if (w && w.onStop && !w.stopped) { w.stopped = true; btn.disabled = true; w.onStop(); } }; });
   }
@@ -11820,26 +11866,46 @@ const AIWait = (() => {
   function waitingText(w, sec) {
     const i = w.info || {};
     const limit = i.limitMs ? Math.round(i.limitMs / 1000) : 0;
-    if (!limit) return `⏳ ${w.p.name} 还在思考（已 ${fmt(sec)}），会一直等到它回复。`;
-    return `⏳ ${w.p.name} 已思考 ${fmt(sec)}，仍在等模型回复（第 ${i.attempt || 1}/${i.maxAttempts || 1} 次尝试${limit ? '，本次最多等 ' + limit + ' 秒' : ''}）。不想等可点屏幕角落的「不等了」。`;
+    const st = streamStatusBadge(w, Date.now());
+    const who = whoLabel(w, true);
+    if (!limit) return `${st.dot} ${who} 已耗时 ${fmt(sec)} —— ${st.detail}。`;
+    return `${st.dot} ${who} 已耗时 ${fmt(sec)} —— ${st.detail}（第 ${i.attempt || 1}/${i.maxAttempts || 1} 次尝试${limit ? '，上限 ' + limit + ' 秒' : ''}）。不想等可点角落「不等了」。`;
   }
   function tick(w) {
-    const sec = Math.round((Date.now() - w.startTs) / 1000);
-    if (sec * 1000 < noticeMs()) return;
-    if (!w.shown) {
-      w.shown = true;
-      const node = Render.log('system', waitingText(w, sec));
-      w.node = node || null;
-      try { Render.devLog && Render.devLog('warn', `[P${w.p.id+1} ${w.p.name}] 思考已超过 ${sec} 秒仍未回复`); } catch (_) {}
-    } else {
-      setLine(w, waitingText(w, sec));
+    const elapsedMs = Date.now() - w.startTs;
+    const sec = Math.round(elapsedMs / 1000);
+    const bannerThreshold = Math.min(15000, noticeMs());
+    if (elapsedMs >= bannerThreshold) w.bannerShown = true;
+    if (elapsedMs >= noticeMs()) {
+      if (!w.shown) {
+        w.shown = true;
+        const node = Render.log('system', waitingText(w, sec));
+        w.node = node || null;
+        try { Render.devLog && Render.devLog('warn', `[P${w.p.id+1} ${w.p.name}] 请求已耗时 ${sec} 秒（已收 ${fmtBytes(w.bytes)}）`); } catch (_) {}
+      } else {
+        setLine(w, waitingText(w, sec));
+      }
     }
-    render();
+    if (w.bannerShown || w.shown) render();
+  }
+  function noteProgress(p, byteDelta) {
+    const now = Date.now();
+    let touched = false;
+    for (const w of active.values()) {
+      if (w.p === p || (w.p && p && w.p.id === p.id)) {
+        w.bytes = (w.bytes || 0) + (byteDelta > 0 ? byteDelta : 0);
+        w.chunks = (w.chunks || 0) + 1;
+        w.lastByteTs = now;
+        if (w.shown) setLine(w, waitingText(w, Math.round((now - w.startTs) / 1000)));
+        if (w.bannerShown || w.shown) touched = true;
+      }
+    }
+    if (touched && now - _lastRenderTs >= 400) render();
   }
   function begin(p, info, onStop) {
     if (typeof document === 'undefined') return { end() {} };
-    const w = { key: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), p, info: info || {}, startTs: Date.now(), node: null, shown: false, stopped: false, onStop };
-    w.timer = setInterval(() => tick(w), 5000);
+    const w = { key: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), p, info: info || {}, startTs: Date.now(), bytes: 0, chunks: 0, lastByteTs: 0, node: null, bannerShown: false, shown: false, stopped: false, onStop };
+    w.timer = setInterval(() => tick(w), 2000);
     active.set(w.key, w);
     return { end(outcome) { finish(w, outcome); } };
   }
@@ -11849,8 +11915,8 @@ const AIWait = (() => {
     active.delete(w.key);
     const sec = Math.round((Date.now() - w.startTs) / 1000);
     if (w.shown) {
-      const name = w.p.name;
-      const text = outcome === 'ok' ? `✅ ${name} 思考了 ${fmt(sec)}，已回复`
+      const name = whoLabel(w, true);
+      const text = outcome === 'ok' ? `✅ ${name} 思考了 ${fmt(sec)}，已回复（共收 ${fmtBytes(w.bytes)}）`
         : outcome === 'stop' ? `⏹️ 你停止了等待 ${name}（已等 ${fmt(sec)}），发言不会被跳过，见下一条`
         : outcome === 'abort' ? `⏱️ ${name} 等了 ${fmt(sec)} 后请求被中断（超时或连接被掐），见下一条`
         : `⚠️ ${name} 等了 ${fmt(sec)} 后请求失败，见下一条`;
@@ -11858,7 +11924,7 @@ const AIWait = (() => {
     }
     render();
   }
-  return { begin, noticeMs, active: () => [...active.values()], _fmt: fmt };
+  return { begin, noteProgress, noticeMs, active: () => [...active.values()], _fmt: fmt };
 })();
 if (typeof window !== 'undefined') window.AIWait = AIWait;
 
@@ -12905,6 +12971,7 @@ async function _callAIImpl(p, prompt, opts) {
       const data = await parseAnthropicResponseOrSSE(res, {
         signal: combinedSignal,
         firstChunkIdleMs: Math.max(600000, timeoutMs || 0),
+        onProgress: n => AIWait.noteProgress(p, n),
         onDelta: _anthLive ? (d => _anthLive.push(d)) : null
       });
       if (_anthLive) _anthLive.end();
@@ -13067,6 +13134,7 @@ async function _callAIImpl(p, prompt, opts) {
       const data = await parseGeminiResponseOrSSE(res, {
         signal: combinedSignal,
         firstChunkIdleMs: Math.max(600000, timeoutMs || 0),
+        onProgress: n => AIWait.noteProgress(p, n),
         onDelta: _gemLive ? (d => _gemLive.push(d)) : null
       });
       if (_gemLive) _gemLive.end();
@@ -13288,6 +13356,7 @@ async function _callAIImpl(p, prompt, opts) {
         tag: `[P${p.id+1}]`,
         signal: combinedSignal,
         firstChunkIdleMs: Math.max(600000, timeoutMs || 0),
+        onProgress: n => AIWait.noteProgress(p, n),
         onDelta: _live ? (d => _live.push(d)) : null
       });
       if (_live) _live.end();
